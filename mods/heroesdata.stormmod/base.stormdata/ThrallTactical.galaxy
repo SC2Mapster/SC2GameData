@@ -1,0 +1,313 @@
+//---------------------------------------------------------------------------------------------
+// Thrall Tactical
+//---------------------------------------------------------------------------------------------
+const string c_AB_ThrallChainLightning                  = "ThrallChainLightning";
+const string c_AB_ThrallFeralSpirit                     = "ThrallFeralSpirit";
+const string c_AB_ThrallWindfury                        = "ThrallWindfury";
+const string c_AB_ThrallEarthquake                      = "ThrallEarthquake";
+const string c_AB_ThrallSundering                       = "ThrallSundering";
+const string c_ThrallRollingThunderTalent               = "ThrallMasteryRollingThunder";
+const string c_ThrallSpiritJourneyTalent               = "ThrallMasterySpiritJourney";
+
+//---------------------------------------------------------------------------------------------
+bool ThrallChainLightning (int player, unit aiUnit, unitgroup scanGroup) {
+    // Targetted shot that does damage to target and 2 random enemies near target
+    order spellOrd;
+    order attackOrd;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    unit targetEnemy;
+    unitgroup nearbyEnemies;
+    fixed minEnemyEval;
+    fixed range;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ThrallChainLightning, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+    
+    if (PlayerHasTalent(player, c_ThrallRollingThunderTalent)) {
+        range = 10.0;
+    }
+    else {
+        range = 8.0;
+    }
+    // Cast on a weak enemy hero
+    query.lv_maxDistance = range;
+    query.lv_minDistance = 1.0;
+    query.lv_maxHealthPercent = libAIAI_gv_aIHeroMediumHealthPercent;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    
+    if (UnitIsValid(targetEnemy)) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, attackOrd, c_orderQueueAddToFront, targetEnemy, null);
+    }
+
+    // Cast if there is a large number of enemies
+    // If high on energy then spam
+    if (energy > libAIAI_gv_aIHeroHighEnergyPercent) {
+        minEnemyEval = 1;
+    }
+    else if (energy > libAIAI_gv_aIHeroLowEnergyPercent) {
+        minEnemyEval = 3;
+    }
+    else {
+        // Low on energy, don't cast
+        return false;
+    }
+
+    // Target minion or hero
+    query.lv_maxHealthPercent = 100;
+    targetEnemy = FindBestTacticalTarget(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        return false;
+    }
+
+    // Only cast if there are enough other units nearby
+    if (!EnoughEnemiesInArea(scanGroup, UnitGetPosition(targetEnemy), 4.0, minEnemyEval, minEnemyEval, minEnemyEval)) {
+        return false;
+    } 
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, attackOrd, c_orderQueueAddToFront, targetEnemy, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool ThrallFeralSpirit (int player, unit aiUnit, unitgroup scanGroup) {
+    // Skill-shot that damages enemies in a line
+    order spellOrd;
+    order attackOrd;
+    unit targetEnemy;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    fixed healthReq;
+    fixed range;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ThrallFeralSpirit, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+    
+    if (PlayerHasTalent(player, c_ThrallSpiritJourneyTalent)) {
+        range = 13.0;
+    }
+    else {
+        range = 8.0;
+    }
+    
+    if (energy > libAIAI_gv_aIHeroLowEnergyPercent) {
+        healthReq = 100.0;
+    }
+    else {
+        healthReq = 60.0;
+    }
+
+    // Use on a weak enemy hero
+    query.lv_maxDistance = range;
+    query.lv_maxHealthPercent = healthReq;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    
+    if (!UnitIsValid(targetEnemy)) {
+        // If high energy then spam on any enemy
+        if (energy < libAIAI_gv_aIHeroHighEnergyPercent) {
+            return false;
+        }
+
+        query.lv_maxHealthPercent = 100;
+        targetEnemy = FindBestTacticalTarget(scanGroup, aiUnit, query);
+        if (!UnitIsValid(targetEnemy)) {
+            return false;
+        }
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, attackOrd, c_orderQueueReplace, targetEnemy, UnitGetPosition(targetEnemy));
+}
+
+//---------------------------------------------------------------------------------------------
+bool ThrallWindfury (int player, unit aiUnit, unitgroup scanGroup) {
+    // Increase movement speed and next 3 attacks are 100% faster
+    order spellOrd;
+    order attackOrd;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    unit targetEnemy;
+    unitgroup nearbyEnemies;
+    fixed healthReq;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ThrallWindfury, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+
+    // If low on health, then use to flee
+    if (HaveBeenAttackedRecently(aiUnit) && UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+
+    if (energy > libAIAI_gv_aIHeroHighEnergyPercent) {
+        healthReq = 100.0;
+    }
+    if (energy > libAIAI_gv_aIHeroLowEnergyPercent) {
+        healthReq = 80.0;
+    }
+    else {
+        healthReq = 60.0;
+    }
+
+    query.lv_maxDistance = 6.0;
+    query.lv_maxHealthPercent = healthReq;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    targetEnemy = FindBestTacticalTarget(scanGroup, aiUnit, query);
+
+    if (!UnitIsValid(targetEnemy)) {
+        return false;
+    }
+
+    // Add Attack order to queue
+    OrderSetTargetUnit(attackOrd, targetEnemy);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+    UnitIssueOrder(aiUnit, attackOrd, c_orderQueueReplace);
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool ThrallEarthquake (int player, unit aiUnit, unitgroup scanGroup) {
+    // PB-AOE that slows enemies for 10 seconds
+    order spellOrd;
+    order attackOrd;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    unit targetEnemy;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ThrallEarthquake, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+
+    // If low on health, then use to flee
+    if (HaveBeenAttackedRecently(aiUnit) && UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+
+    // Activate if there is a team fight
+    if (!TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), 10.0)) {
+        return false;
+    }
+
+    query.lv_maxDistance = 8.0;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+
+    // Add Attack order to queue
+    OrderSetTargetUnit(attackOrd, targetEnemy);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+    UnitIssueOrder(aiUnit, attackOrd, c_orderQueueReplace);
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool ThrallSundering (int player, unit aiUnit, unitgroup scanGroup) {
+    // Skill-shot that damages enemies in a long line and move them apart
+    order spellOrd;
+    order attackOrd;
+    Storm_AI_TargetQueryOptions query;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    unit targetEnemy;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ThrallSundering, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+
+    // Activate if there is a team fight
+    if (!TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), 10.0)) {
+        return false;
+    }
+
+    query.lv_maxDistance = 10.0; 
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (targetEnemy != null) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, attackOrd, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+    }
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+void AIThinkThrall (int player, unit aiUnit, unitgroup scanGroup) {
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (UseDefensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (ThrallWindfury(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (ThrallFeralSpirit(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && ThrallEarthquake(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && ThrallSundering(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    // Ok to spam if no other order is valid
+    if (ThrallChainLightning(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (UseOffensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+}

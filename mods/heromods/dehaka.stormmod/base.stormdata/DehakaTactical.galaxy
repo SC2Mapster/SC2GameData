@@ -1,0 +1,302 @@
+//---------------------------------------------------------------------------------------------
+// Dehaka Tactical
+//---------------------------------------------------------------------------------------------
+
+// Abilities
+const string c_AB_DehakaDrag            = "DehakaDrag";
+const string c_AB_DehakaDarkSwarm       = "DehakaDarkSwarm";
+const string c_AB_DehakaBurrow          = "DehakaBurrow";
+const string c_AB_DehakaIsolation       = "DehakaIsolation";
+const string c_AB_DehakaAdaptation      = "DehakaAdaptation";
+const string c_AB_DehakaEssence         = "DehakaEssenceCollection";
+const string c_AB_DehakaBrushstalker    = "DehakaBrushstalker";
+
+// Radii
+const fixed c_DehakaDragRange           = 5.5;
+const fixed c_DehakaDarkSwarmRadius     = 3.5;
+const fixed c_DehakaIsolationRange      = 8.0;
+
+// Effects, behaviors and talents
+const string c_EF_DehakaEssenceCollectionCreateHealer = "DehakaEssenceCollectionCreateHealer";
+const string c_BB_DehakaEssenceCollection = "DehakaEssenceCollection";
+
+// Cast Times
+const fixed c_DehakaBurrowTime = 2.0;
+const fixed c_DehakaBurrowCloak = 5.0;
+
+//-------------------------------------------------------------------------------------------------
+bool DehakaDrag (int player, unit aiUnit, unitgroup scanGroup) {
+    // skill-shot that hooks the target to Dehaka, same logic as Stitches Hook for now
+    order spellOrd;
+    order attackOrd;
+    Storm_AI_TargetQueryOptions query;
+    unit targetHero;    
+    
+    spellOrd = StormHeroAICreateOrder(player, c_AB_DehakaDrag, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+     
+    // grab nearest injured hero
+    query.lv_minDistance = 1.0;
+    query.lv_maxDistance = c_DehakaDragRange;
+    query.lv_maxHealthPercent = 75.0;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets; // better to hook the hero with less health
+    query.lv_minScore = c_Storm_AI_FullHeroScore; // only want to use hook on main heroes
+    query.lv_lineOfSightRequired = c_Storm_AI_LOS_Required;
+    targetHero = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetHero)) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, attackOrd, c_orderQueueAddToFront, targetHero, UnitGetPosition(targetHero));
+}
+
+//-------------------------------------------------------------------------------------------------
+bool DehakaDarkSwarm (int player, unit aiUnit, unitgroup scanGroup) {
+    // PB-AOE that damages enemies and moves with Dehaka (also allows him to move through units).
+
+    // Two uses:
+    //     If there are at least X nearby enemies
+    //     Dehaka is hurt and needs to try to live (assume enemies will try to block him)?
+    Storm_AI_TargetQueryOptions query;
+    unit targetEnemy;
+    order spellOrd;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    fixed minHeroes;
+    fixed minCreeps;
+    fixed minMinions;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_DehakaDarkSwarm, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    
+    // We're low health and under attack, cast this to allow us to move through units to prevent from being body-blocked).
+    if (HaveBeenAttackedRecently(aiUnit) && UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+    
+    // Cast if there is a weak hero
+    query.lv_maxDistance = c_DehakaDarkSwarmRadius;
+    query.lv_maxHealthPercent = libAIAI_gv_aIHeroLowHealthPercent;
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (UnitIsValid(targetEnemy)) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+
+    // Cast if there are many enemies in the area
+    if (energy > libAIAI_gv_aIHeroHighEnergyPercent) {
+        minHeroes = c_Storm_AI_AtLeast1Hero;
+        minCreeps = c_Storm_AI_AtLeast2Creeps;
+        minMinions= c_Storm_AI_AtLeast3Minions;
+    }
+    else if (energy > libAIAI_gv_aIHeroLowEnergyPercent) {
+        minHeroes = c_Storm_AI_AtLeast1Hero;
+        minCreeps = c_Storm_AI_AtLeast2Creeps;
+        minMinions = c_Storm_AI_AtLeast4Minions;
+    }
+    else {
+        minHeroes = c_Storm_AI_AtLeast1HighValueHero;
+        minCreeps = c_Storm_AI_AtLeast3Creeps;
+        minMinions = c_Storm_AI_AtLeast6Minions;
+    }
+
+    if (!EnoughEnemiesInArea(scanGroup, UnitGetPosition(aiUnit), c_DehakaDarkSwarmRadius, minHeroes, minCreeps, minMinions)) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//-------------------------------------------------------------------------------------------------
+bool DehakaBurrow (int player, unit aiUnit, unitgroup scanGroup) {    
+    // Burrows in place and becomes untargettable for 2 seconds, talents can add cloak and/or regen.
+    order ord;
+    fixed energy;
+    fixed health;
+
+    ord = StormHeroAICreateOrder(player, c_AB_DehakaBurrow, 0);
+    if (!UnitOrderIsValid(aiUnit, ord)) {
+        return false;
+    }
+
+    // don't use if we're not being attacked.
+    if (!HaveBeenAttackedRecently(aiUnit)) {
+        return false;
+    }
+    
+    health = UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent);
+    if (health > libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, ord, null, c_orderQueueAddToFront, null, null);
+}
+
+//-------------------------------------------------------------------------------------------------
+bool DehakaIsolation (int player, unit aiUnit, unitgroup scanGroup) {
+    // Silence and slow the first enemy hero hit. Also reduces their vision.
+    order spellOrd;
+    order attackOrd;
+    unit targetEnemy;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_DehakaIsolation, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+ 
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+
+    // Use on low health enemy heroes to try to get a kill
+    query.lv_maxDistance = c_DehakaIsolationRange;
+    query.lv_maxHealthPercent = 50.0;
+    query.lv_lineOfSightRequired = c_Storm_AI_LOS_Required;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        return false;
+    }
+    
+    return HeroIssueOrder(player, aiUnit, spellOrd, attackOrd, c_orderQueueAddToFront, targetEnemy, UnitGetPosition(targetEnemy));
+}
+
+//-------------------------------------------------------------------------------------------------
+bool DehakaAdaptation (int player, unit aiUnit, unitgroup scanGroup) {    
+    // After 5 seconds, heal for 60% of the damage taken in those 5 seconds
+    order ord;
+    fixed curHealth;
+  
+    ord = StormHeroAICreateOrder(player, c_AB_DehakaAdaptation, 0);
+    if (!UnitOrderIsValid(aiUnit, ord)) {
+        return false;
+    }
+
+    // don't use if we're not being attacked.
+    if (!HaveBeenAttackedRecently(aiUnit)) {
+        return false;
+    }
+    
+    curHealth = UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent);
+    // don't use if still nearly full health
+    if (curHealth > 80.0) {
+        return false;
+    }
+    
+    // Use when low health or in a team fight
+    if (curHealth > libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {      
+        if (!TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), 8.0)) {
+            return false;
+        }
+    }
+
+    return HeroIssueOrder(player, aiUnit, ord, null, c_orderQueueAddToFront, null, null);
+}
+
+//-------------------------------------------------------------------------------------------------
+bool DehakaEssenceCollection (int player, unit aiUnit, unitgroup scanGroup) {
+    // Trait heals Dehaka with a h.o.t. over 5 seconds, heal amount per stack.    
+    order ord;
+    fixed curHealth;
+    fixed curExpectedHealth;
+    fixed missingHealth;
+    fixed ecHealAmount;
+  
+    ord = StormHeroAICreateOrder(player, c_AB_DehakaEssence, 0);
+    if (!UnitOrderIsValid(aiUnit, ord)) {
+        return false;
+    }
+
+    // don't use if we're not being attacked.
+    if (!HaveBeenAttackedRecently(aiUnit)) {
+        return false;
+    }
+    
+    if (curHealth < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        // if low currently very low health and under attack, use essence collection now (cooldown is very short anyway).
+        return HeroIssueOrder(player, aiUnit, ord, null, c_orderQueueAddToFront, null, null);
+    }
+
+    // don't use it if you'll soon be above 75.0% health, save it for a bigger burst later.
+    curExpectedHealth = UnitGetPropertyFixed(aiUnit, c_unitPropLifeExpectedPercent, c_unitPropCurrent);
+    if (curExpectedHealth > 75.0) {
+        return false;
+    }
+    
+    if (curExpectedHealth > 60.0) {
+        // as long as we're not too low, don't use it if we'll waste it
+        missingHealth = UnitGetPropertyFixed(aiUnit, c_unitPropLifeMax, c_unitPropCurrent) - UnitGetPropertyFixed(aiUnit, c_unitPropLifeExpected, c_unitPropCurrent);
+        ecHealAmount = UnitBehaviorCount(aiUnit, c_BB_DehakaEssenceCollection) * CatalogFieldValueGetAsInt(c_gameCatalogEffect, c_EF_DehakaEssenceCollectionCreateHealer, "RechargeVitalRate", player);
+        if (missingHealth < (ecHealAmount * 0.9)) { // try to use at least 90%            
+            return false;
+        }
+    }
+
+    return HeroIssueOrder(player, aiUnit, ord, null, c_orderQueueAddToFront, null, null);
+}
+
+//-------------------------------------------------------------------------------------------------
+void AIThinkDehaka (int player, unit aiUnit, unitgroup scanGroup) {
+
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (UseDefensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+    
+    if (DehakaBurrow(player, aiUnit, scanGroup)) {
+        return;
+    }
+    
+    if (DehakaEssenceCollection(player, aiUnit, scanGroup)) {
+        return;
+    }
+    
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && DehakaAdaptation(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+    
+    if (DehakaDrag(player, aiUnit, scanGroup)) {
+        return;
+    }
+    
+    if (DehakaDarkSwarm(player, aiUnit, scanGroup)) {
+        return;
+    }
+    
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && DehakaIsolation(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (UseOffensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+}
+
+
+
+
+
+
+

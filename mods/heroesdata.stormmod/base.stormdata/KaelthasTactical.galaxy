@@ -1,0 +1,419 @@
+//---------------------------------------------------------------------------------------------
+// Kaelthas Tactical
+//---------------------------------------------------------------------------------------------
+const string c_AB_KaelthasFlamestrike       = "KaelthasFlamestrike";
+const string c_AB_KaelthasLivingBomb        = "KaelthasLivingBomb";
+const string c_AB_KaelthasGravityLapse      = "KaelthasGravityLapse";
+const string c_AB_KaelthasVerdantSpheres    = "KaelthasVerdantSpheres";
+const string c_AB_KaelthasPhoenix           = "KaelthasPhoenix";
+const string c_AB_KaelthasPyroblast         = "KaelthasPyroblast";
+const string c_AB_KaelthasPhoenixRetarget   = "KaelthasPhoenixRetarget";
+
+const fixed c_AB_KaelthasFlamestrikeRange   = 10.0;
+const fixed c_AB_KaelthasFlamestrikeRadius  = 2.0;
+
+const fixed c_AB_KaelthasLivingBombRange    = 5.5;
+//Default living bomb radius (3.3) plus a bit of slop
+const fixed c_AB_KaelthasLivingBombExplosionRange = 5.0;
+const string c_AB_KaelthasFissionBombTalent         = "KaelthasLivingBombFissionBomb";
+const fixed c_AB_KaelthasFissionBombExplosionRangeModifier   = 1.2;
+
+const fixed c_AB_KaelthasGravityLapseRange = 9.5;
+const string c_AB_KaelthasNetherWindTalent         = "KaelthasGravityLapseNetherWind";
+const fixed c_AB_KaelthasNetherWindTalentRangeModifier   = 2.0;
+
+const fixed c_AB_KaelthasPhoenixRange = 10.0;
+const fixed c_AB_KaelthasPhoenixRadius  = 5.75;
+//Slightly Smaller than Phoenix search range allowing kael to chase heroes with retarget
+const fixed c_AB_KaelthasPhoenixRetargetRadius  = 5.25;
+
+const fixed c_AB_KaelthasPyroblastRange = 12.0;
+//Default Pyroblast impact detonation radius (4.5) plus a bit of slop
+const fixed c_AB_KaelthasPyroblastDetonationRadius = 5.5;
+const string c_AB_KaelthasPresenceOfMindTalent         = "KaelthasPyroblastPresenceOfMind";
+const fixed c_AB_KaelthasPresenceOfMindDetonationRadiusModifier   = 1.0;
+
+//---------------------------------------------------------------------------------------------
+bool KaelthasFlamestrike (int player, unit aiUnit, unitgroup scanGroup) {
+    // does a small aoe at a point after a small delay    
+    order spellOrd;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    Storm_AI_TargetQueryOptions query;
+    fixed abilityRange;
+    unit targetEnemy;
+    fixed radius;
+    fixed minHeroes;
+    fixed minCreeps;
+    fixed minMinions;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_KaelthasFlamestrike, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Define all the ability range from the constant
+    abilityRange = c_AB_KaelthasFlamestrikeRange;
+    radius = c_AB_KaelthasFlamestrikeRadius; 
+
+    query.lv_maxDistance = abilityRange;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_lineOfSightRequired = c_Storm_AI_LOS_Required;
+
+    // Cast on a weak enemy hero if possible 
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);   
+    if (UnitIsValid(targetEnemy)) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+    }
+
+    // Limit usage of the ability based on how much mana we have.
+    if (energy > libAIAI_gv_aIHeroMediumEnergyPercent) {
+        minHeroes = c_Storm_AI_AtLeast1Hero;
+        minCreeps = c_Storm_AI_AtLeast1Creep;
+        minMinions = c_Storm_AI_AtLeast2Minions;
+    }
+    else if (energy > libAIAI_gv_aIHeroLowEnergyPercent) {
+        minHeroes = c_Storm_AI_AtLeast1Hero;
+        minCreeps = c_Storm_AI_AtLeast2Creeps;
+        minMinions = c_Storm_AI_AtLeast3Minions;
+    }
+    else {
+        minHeroes = c_Storm_AI_AtLeast2Heroes;
+        minCreeps = c_Storm_AI_AtLeast2Creeps;
+        minMinions = c_Storm_AI_AtLeast4Minions;
+    }
+
+    //find the best tactical since we haven't found a hero 
+    targetEnemy = FindBestTacticalTarget(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        return false;
+    }
+
+    // check if we have increased radius from verdant spheres 
+    if (UnitHasBehavior2(aiUnit, "KaelthasVerdantSpheresActive") == true) {
+        radius += 1.0;
+    }
+
+    // Only use if it will likely hit a hero or group of enemies. checks if the flamestrike will hit at least 3 minions    
+    if (!EnoughEnemiesInArea(scanGroup, UnitGetPosition(targetEnemy), radius, minHeroes, minCreeps, minMinions)) {
+       return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+}
+
+//---------------------------------------------------------------------------------------------
+bool KaelthasLivingBomb (int player, unit aiUnit, unitgroup scanGroup) {
+    // burns a target of 3 seconds and does a small aoe explosion at the end
+    order spellOrd;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    fixed livingBombDetonationRange;
+    Storm_AI_TargetQueryOptions query;
+    unit targetEnemy;
+
+    fixed minHeroes;
+    fixed minCreeps;
+    fixed minMinions;
+
+    point center;
+
+    // is it valid to even cast this? if not bail out. 
+    spellOrd = StormHeroAICreateOrder(player, c_AB_KaelthasLivingBomb, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // assign variables if needed
+    livingBombDetonationRange = c_AB_KaelthasLivingBombExplosionRange;
+
+    if (PlayerHasTalent(player, c_AB_KaelthasFissionBombTalent)) {
+        livingBombDetonationRange += c_AB_KaelthasFissionBombExplosionRangeModifier;
+    }
+
+    //Build the query struct
+    query.lv_maxDistance = c_AB_KaelthasLivingBombRange; // set max distance to that of our ability range.
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets; // prefer lower health targets? yes.
+
+    // Cast on a weak enemy hero if i can. 
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (UnitIsValid(targetEnemy)) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, targetEnemy, null);
+    }
+
+    targetEnemy = FindBestTacticalTarget(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        return false;
+
+    }
+    // Limit usage of casting it on non-heroes based on how much mana we have (or verdant sphere)
+    if (energy > libAIAI_gv_aIHeroMediumEnergyPercent || UnitHasBehavior2(aiUnit, "KaelthasVerdantSpheresActive")) {
+        minHeroes = c_Storm_AI_AtLeast1Hero;
+        minCreeps = c_Storm_AI_AtLeast1Creep;
+        minMinions = c_Storm_AI_AtLeast2Minions;
+    }
+    else if (energy > libAIAI_gv_aIHeroLowEnergyPercent) {
+        minHeroes = c_Storm_AI_AtLeast1Hero;
+        minCreeps = c_Storm_AI_AtLeast2Creeps;
+        minMinions = c_Storm_AI_AtLeast3Minions;
+    }
+    else {
+        minHeroes = c_Storm_AI_AtLeast2Heroes;
+        minCreeps = c_Storm_AI_AtLeast3Creeps;
+        minMinions = c_Storm_AI_AtLeast4Minions;
+    }
+
+    // Only cast this on a minion if the explosion would hit multiple minions (plus some wiggle room). 
+    if (!EnoughEnemiesInArea (scanGroup, UnitGetPosition(targetEnemy), livingBombDetonationRange, minHeroes, minCreeps, minMinions)){
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, targetEnemy, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool KaelthasGravityLapse (int player, unit aiUnit, unitgroup scanGroup) {
+    // skill shot that stuns the first target hit for 1.5 seconds  (first 3 targets with verdant spheres)
+    order spellOrd;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    fixed abilityRange; 
+    Storm_AI_TargetQueryOptions query;
+    unit targetEnemy;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_KaelthasGravityLapse, 0);
+
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    abilityRange = c_AB_KaelthasGravityLapseRange;
+
+    if (PlayerHasTalent(player, c_AB_KaelthasNetherWindTalent)) {
+        abilityRange += c_AB_KaelthasNetherWindTalentRangeModifier;
+    }
+
+    //Build the query struct
+    query.lv_maxDistance = abilityRange; // set max distance to that of our ability range. 
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets; // prefer lower health targets? yes.
+    if (!UnitHasBehavior2(aiUnit, "KaelthasVerdantSpheresActive")) {
+        query.lv_lineOfSightRequired = c_Storm_AI_LOS_Required;
+    } //if you have verdant spheres, then LOS is optional. (since it can hit multiple) 
+
+    // Cast on a weak enemy hero if possible
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);   
+    if (UnitIsValid(targetEnemy)) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, targetEnemy, null);
+    }
+    //find best target filtering it to only creeps (we don't want to use gravity lapse on minions at all) 
+    targetEnemy = FindBestTacticalTarget(UnitGroupFilterAggroCreepsOrLanerCreeps(scanGroup), aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+}
+
+//---------------------------------------------------------------------------------------------
+bool KaelthasVerdantSpheres (int player, unit aiUnit, unitgroup scanGroup) {
+    // Trait/free: buffs next regular spell cast (small heal w/ talent)
+    //  Just use this everytime it's up for now
+    //  For now I'm leaving this in a seperate function, but it counts as a tactical spell cast, which may limit with other tactical.
+    order spellOrd;
+
+    if (libAIAI_gv_aIHeroes[player].lv_difficulty < libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly) {
+        // Choosing to not use this on the lowest difficulty settings, TODO may want to randomly use it on rare occasion instead.
+        return false;
+    }
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_KaelthasVerdantSpheres, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    if (UnitHasBehavior2(aiUnit, "KaelthasVerdantSpheresActive") == true) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool KaelthasPhoenix (int player, unit aiUnit, unitgroup scanGroup) {
+    // Casts a phoenix that does aoe damage to targets in an area
+    order spellOrd;
+    unit targetEnemy;
+    fixed curHealth;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_KaelthasPhoenix, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    query.lv_maxDistance = c_AB_KaelthasPhoenixRange; // set max distance to that of our ability range. 
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets; // prefer lower health targets? yes. 
+
+    // find best hero and check their health versus how many it might hit
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (UnitIsValid(targetEnemy)) { 
+        curHealth = UnitGetPropertyFixed(targetEnemy, c_unitPropLifePercent, c_unitPropCurrent);
+        // If target low health or if it will hit several enemies
+        if ((curHealth < libAIAI_gv_aIHeroMediumHealthPercent) || EnoughEnemiesInArea(scanGroup, UnitGetPosition(targetEnemy), c_AB_KaelthasPhoenixRadius, c_Storm_AI_AtLeast2Heroes, c_Storm_AI_AtLeast4Creeps, c_Storm_AI_AtLeast9Minions)){
+            return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+        }
+    } 
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+bool KaelthasPyroblast (int player, unit aiUnit, unitgroup scanGroup) {
+    // after 2 seconds casts a fireball at a target (fireball does significant damage and some aoe)    
+    order spellOrd;
+    fixed curHealth;
+
+    fixed pyroblastDetonationRange;
+    Storm_AI_TargetQueryOptions query;
+    unit targetEnemy;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_KaelthasPyroblast, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // If we won't be able to stay in tactical casting state then there's no point using this now 
+    if (HaveBeenAttackedRecently(aiUnit)
+     && UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) 
+      < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        return false;
+    }
+
+    pyroblastDetonationRange = c_AB_KaelthasPyroblastDetonationRadius;
+
+    if (PlayerHasTalent(player, c_AB_KaelthasPresenceOfMindTalent)) {
+        pyroblastDetonationRange += c_AB_KaelthasNetherWindTalentRangeModifier;
+    }
+
+    query.lv_maxDistance = c_AB_KaelthasPyroblastRange; // set max distance to that of our ability range. 
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets; // prefer lower health targets? yes. 
+
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) { 
+        return false;
+    }
+
+    curHealth = UnitGetPropertyFixed(targetEnemy, c_unitPropLifePercent, c_unitPropCurrent);
+    if (curHealth > libAIAI_gv_aIHeroMediumHealthPercent) {
+        // If target has high health only cast if it will hit several enemies. 
+        if (!EnoughEnemiesInArea (scanGroup, UnitGetPosition(targetEnemy), pyroblastDetonationRange, c_Storm_AI_AtLeast2Heroes,0.0,0.0)){
+            return false;
+        }
+    }
+
+    if (!HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, targetEnemy, null)) {
+        return false;
+    }
+
+    HeroClaimForTactical(player, 2.0, true);
+    return true;
+}
+
+//---------------------------------------------------------------------------------------------
+bool KaelthasPhoenixRetarget (int player, unit aiUnit, unitgroup scanGroup) {
+    // moves a phoenix that does aoe damage to targets in an area
+    order spellOrd;
+    unitgroup phoenixes;
+    unit phoenix;
+    unit target;
+    int enemyCount;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_KaelthasPhoenixRetarget, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    //Build the query struct
+    query.lv_minDistance = c_AB_KaelthasPhoenixRetargetRadius;
+    query.lv_maxDistance = c_AB_KaelthasPhoenixRange;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+
+    phoenixes = UnitGroupSearch("KaelthasPhoenix", player, UnitGetPosition(aiUnit), 20.0, UnitFilter(0, 0, 0, 0), 1);
+    if (UnitGroupCount(phoenixes, c_unitCountAll) > 0) {
+        phoenix = UnitGroupUnit(phoenixes, 1);
+        if (UnitIsAlive(phoenix)) {
+            //if we are hitting less than 1 hero, 2 creeps, or 3 minions, then search for a new hero target
+            if(!EnoughEnemiesInArea(scanGroup, UnitGetPosition(phoenix), c_AB_KaelthasPhoenixRetargetRadius, c_Storm_AI_AtLeast1Hero, c_Storm_AI_AtLeast2Creeps, c_Storm_AI_AtLeast3Minions)){
+                target = FindBestHero(scanGroup, aiUnit, query);
+                if (UnitIsValid(target)) {
+                    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(target));
+                } else {
+                // if we didn't find a hero, then retarget to the next best target
+                target = FindBestTacticalTarget(scanGroup, phoenix, query);
+                if (UnitIsValid(target)) {
+                    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(target));
+                    }
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+void AIThinkKaelthas (int player, unit aiUnit, unitgroup scanGroup) {
+
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (UseDefensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    // Because AI adds new orders to the front of the queue, they can pre-empt Pyroblast. We 
+    // don't really want to do this, except for defensive items. 
+    // This also (mostly) solves a bug where pyroblast would not give the interrupted cooldown
+    // to the AI because it was being pre-empted rather than interrupted.
+    if (IsClaimedForTactical(player)) {
+        return;
+    }
+
+    if (KaelthasVerdantSpheres(player, aiUnit, scanGroup)) {
+        return;
+    }
+    
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (KaelthasLivingBomb(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (KaelthasGravityLapse(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (KaelthasFlamestrike(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player)) {
+        if (KaelthasPhoenix(player, aiUnit, scanGroup)) {
+            return;
+        }
+        if (KaelthasPyroblast(player, aiUnit, scanGroup)) {
+            return;
+        }
+        if (KaelthasPhoenixRetarget(player, aiUnit, scanGroup)) {
+            return;
+        }
+    }
+    
+    if (UseOffensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+}

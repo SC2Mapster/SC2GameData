@@ -1,0 +1,464 @@
+//-------------------------------------------------------------------------------------------------
+// Ragnaros 'Ragnaros' Tactical
+//-------------------------------------------------------------------------------------------------
+
+// Abilities and Behaviors
+const string c_AB_RagnarosEmpowerSulfuras                       = "RagnarosEmpowerSulfuras";
+const string c_AB_RagnarosLivingMeteor                          = "RagnarosLivingMeteor";
+const string c_AB_RagnarosLivingMeteorShiftingMeteor            = "RagnarosLivingMeteorShiftingMeteor";
+const string c_AB_RagnarosBlastWave                             = "RagnarosBlastWave";
+const string c_AB_RagnarosSulfurasSmash                         = "RagnarosSulfurasSmash";
+const string c_AB_RagnarosLavaWave                              = "RagnarosLavaWaveTargetPoint";
+const string c_AB_RagnarosMoltenCore                            = "RagnarosMoltenCore";
+const string c_RagnarosMoltenCoreCasterStasis                   = "RagnarosMoltenCoreCasterStasis";
+const string c_RagnarosMoltenCoreCastingBehavior                = "RagnarosMoltenCoreCastingBehavior";
+
+// Items (CUnit IDs of the items)
+const string c_RagnarosCatchingFireItem                         = "RagnarosCatchingFire";
+const string c_RagnarosSubmergeItem                             = "RagnarosSubmerge";
+
+// Talents and modifiers
+
+
+// Range, Radius, Misc Variables
+const fixed c_RagnarosMeleeRange                                = 2.0;
+const fixed c_RagnarosMeleeRangeWithSlop                        = 3.125;
+const fixed c_RagnarosEmpowerSulfurasRange                      = 3.5;
+const fixed c_RagnarosLivingMeteorCastRange                     = 8.5;
+const fixed c_RagnarosLivingMeteorTravelDistance                = 10.0;
+const fixed c_RagnarosBlastWaveCastRange                        = 6.5;
+const fixed c_RagnarosBlastWaveRetreatCastRange                 = 11.5;
+const fixed c_RagnarosSulfurasSmashCastRange                    = 16.0;
+const fixed c_RagnarosSulfurasSmashRadius                       = 3.75;
+const fixed c_RagnarosSulfurasSmashLeadScalar                   = 1.5;
+const fixed c_RagnarosMoltenCoreFriendlyRange                   = 15.0;
+const fixed c_RagnarosMoltenCoreFriendlyRangeSquared            = 225.0;
+const fixed c_RagnarosMoltenCoreEnemyRange                      = 9.0;
+const fixed c_RagnarosMoltenCoreEnemyRangeSquared               = 81.0;
+
+//-------------------------------------------------------------------------------------------------
+unit RagnarosGetValidNearbyTownHallUnit (int player, unit aiUnit, point playerLoc) {
+    // returns a townhall unit that is valid for casting firelord's rage
+    int townIndex;
+    int playerFaction;
+    int playerIndex;
+
+    // Are we near a town?
+    townIndex = libGame_gf_TownGetTownFromPoint(playerLoc);
+    // Figure out if we can use the ability
+    if (townIndex != 0) {
+        // Convert player faction value (0 is order, 1 is chaos)
+        // into appropriate player index value (11 is order, 12 is chaos)
+        playerFaction = libGame_gv_players[player].lv_faction;
+        if (playerFaction == 0) {
+            playerIndex = 11;
+        }
+        else {
+            playerIndex = 12;
+        }
+
+        // find our own faction town hall at this town regardless if it's alive or dead
+        if (libGame_gv_townTownData[townIndex].lv_owner == playerIndex) {
+            return libGame_gv_townTownData[townIndex].lv_structureUnits[libGame_gv_townTownData[townIndex].lv_townHallIndex];
+        }
+        // otherwise only return enemy town hall unit if it's dead
+        else if (!UnitIsAlive(libGame_gv_townTownData[townIndex].lv_structureUnits[libGame_gv_townTownData[townIndex].lv_townHallIndex])) {
+            return libGame_gv_townTownData[townIndex].lv_structureUnits[libGame_gv_townTownData[townIndex].lv_townHallIndex];
+        }
+    }
+
+    return null;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool RagnarosEmpowerSulfuras (int player, unit aiUnit, unitgroup scanGroup) {
+    // Next Basic Attack deals AoE damage and heals Ragnaros for a percent of damage dealt
+    order spellOrd;
+    order attackOrd;
+    fixed energy;
+    fixed minCreeps;
+    fixed minMinions;
+    Storm_AI_TargetQueryOptions query;
+    unit targetEnemy;
+
+    // we only want to consider using Empower if we can actually Basic Attack
+    spellOrd = StormHeroAICreateOrder(player, c_AB_RagnarosEmpowerSulfuras, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+
+    query.lv_maxDistance = c_RagnarosMeleeRangeWithSlop;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        // only use on minions/creep if we can hit a group of minions
+        targetEnemy = FindBestTacticalTarget(scanGroup, aiUnit, query);
+
+        energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+        // Limit usage of the ability based on how much mana we have.
+        if (energy > libAIAI_gv_aIHeroMediumEnergyPercent) {
+            minCreeps = 0; // intentionally zero
+            minMinions = c_Storm_AI_AtLeast2Minions;
+        }
+        else if (energy > libAIAI_gv_aIHeroLowEnergyPercent) {
+            minCreeps = c_Storm_AI_AtLeast1Creep;
+            minMinions = c_Storm_AI_AtLeast2Minions;
+        }
+        else {
+            minCreeps = c_Storm_AI_AtLeast1Creep;
+            minMinions = c_Storm_AI_AtLeast3Minions;
+        }
+
+        if (!UnitIsValid(targetEnemy)
+         || !EnoughEnemiesInArea(scanGroup, UnitGetPosition(targetEnemy), c_RagnarosEmpowerSulfurasRange, 0, minCreeps, minMinions)){
+             // try to target a structure
+                targetEnemy = FindBestUnit(UnitGroupFilterTowers(scanGroup), scanGroup, aiUnit, query);
+                if (targetEnemy != null) {
+                    // activate Empower sulfuras and issue an attack order
+                    // claim long enough to allow Basic Attack swing otherwise Rags movement
+                    // often interrupts his auto attack
+                    HeroClaimForTactical(player, 0.5, true);
+                    UnitIssueOrder(aiUnit, spellOrd, c_orderQueueReplace);
+                    return HeroIssueOrder(player, aiUnit, null, attackOrd, c_orderQueueAddToFront, targetEnemy, null);
+                }
+            return false;
+        }
+    }
+
+    // check attack order target is still valid
+    OrderSetTargetUnit(attackOrd, targetEnemy);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+
+    // activate Empower sulfuras and issue an attack order
+    // claim long enough to allow Basic Attack swing otherwise Rags movement
+    // often interrupts his auto attack
+    HeroClaimForTactical(player, 0.5, true);
+    UnitIssueOrder(aiUnit, spellOrd, c_orderQueueReplace);
+    return HeroIssueOrder(player, aiUnit, null, attackOrd, c_orderQueueAddToFront, targetEnemy, null);
+}
+
+//-------------------------------------------------------------------------------------------------
+bool RagnarosLivingMeteor (int player, unit aiUnit, unitgroup scanGroup) {
+    // vector targetted ability that deals damage in a line along the vector
+    order spellOrd;
+    point vectorStartPoint;
+    point vectorEndPoint;
+    point targetPos;
+    point leadPoint;
+    unit targetEnemy;
+    unitgroup scanGroupHeroes;
+    unitgroup newScanGroup;
+    Storm_AI_TargetQueryOptions query;
+
+    // check for shifting meteor, usage is already validated on data side
+    // if valid use that ability instead of Living Meteor
+    spellOrd = StormHeroAICreateOrder(player, c_AB_RagnarosLivingMeteorShiftingMeteor, 0);
+    if (UnitOrderIsValid(aiUnit, spellOrd)) {
+
+        // find a weak hero as our primary target
+        query.lv_maxDistance = (c_RagnarosLivingMeteorCastRange + c_RagnarosLivingMeteorTravelDistance);
+        query.lv_healthFactor = c_Storm_AI_StronglyPreferUnhealthyTargets;
+        targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+
+        if (!UnitIsValid(targetEnemy)) {
+            return false;
+        }
+        // redirect the meteor towards the weakest target
+        targetPos = UnitGetPosition(targetEnemy);
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, targetPos);
+    }
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_RagnarosLivingMeteor, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // find a weak hero as our primary target
+    query.lv_maxDistance = c_RagnarosLivingMeteorCastRange;
+    query.lv_healthFactor = c_Storm_AI_StronglyPreferUnhealthyTargets;
+
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        return false;
+    }
+
+    // there is a valid target so build a new unit group for targeting
+
+    // Make a new scan group where target enemy is the first unit in the scan group
+    // This is used by AIBestAttackVectorStart
+    scanGroupHeroes = UnitGroupFilterHeroes(scanGroup);
+    newScanGroup = libNtve_gf_ConvertUnitToUnitGroup(targetEnemy);
+    UnitGroupAddUnitGroup(newScanGroup, scanGroupHeroes);
+
+    // if there's only 1 hero in range try to hit as many non-hero units as possible
+    if (CountHeroesInGroup(newScanGroup) <= 1) {
+        // modify newScanGroup to include minions
+        // our target needs to be the first unit in the unitgroup
+        UnitGroupAddUnitGroup(newScanGroup, scanGroup);
+
+        // if there are no minions nearby use target facing
+        // Make sure we have at least 2 targets for AIBestAttackVectorStart
+        if (CountMinionsInGroup(newScanGroup) <= 0) {
+            targetPos = UnitGetPosition(targetEnemy);
+            OrderSetTargetPoint(spellOrd, targetPos);
+            vectorEndPoint = LeadPoint(null, targetPos, targetEnemy, (c_RagnarosLivingMeteorCastRange + c_RagnarosLivingMeteorTravelDistance), true, false);
+            OrderSetVectorPoint(spellOrd, vectorEndPoint);
+
+            return UnitIssueOrder(aiUnit, spellOrd, c_orderQueueAddToFront);
+        }
+    }
+
+    // newScanGroup is either hero units only, or also includes minions
+    vectorStartPoint = AIBestAttackVectorStart(newScanGroup, UnitGetPosition(aiUnit), c_RagnarosLivingMeteorCastRange, c_RagnarosLivingMeteorTravelDistance, 0);
+    OrderSetTargetPoint(spellOrd, vectorStartPoint);
+    
+    // Don't use AIBestAttackVectorEnd() since we need to clamp the end point to a certain distance
+    vectorEndPoint = PointWithOffsetPolar(vectorStartPoint, c_RagnarosLivingMeteorTravelDistance, PointGetFacing(vectorStartPoint));
+    OrderSetVectorPoint(spellOrd, vectorEndPoint);
+
+    return UnitIssueOrder(aiUnit, spellOrd, c_orderQueueAddToFront);
+}
+
+//-------------------------------------------------------------------------------------------------
+bool RagnarosBlastWave (int player, unit aiUnit, unitgroup scanGroup) {
+    // target friendly unit deals aoe damage centered on that unit after a short delay
+    order spellOrd;
+    point playerPoint;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_RagnarosBlastWave, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // if we are low on health use on ourselves for the speed boost
+    playerPoint = UnitGetPosition(aiUnit);
+    if (UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) <= libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth
+     && AnyHeroesInArea(scanGroup, playerPoint, c_RagnarosBlastWaveRetreatCastRange)) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, aiUnit, null);
+    }
+
+    // if there are any enemy heroes around us use this
+    if (!AnyHeroesInArea(scanGroup, playerPoint, c_RagnarosBlastWaveCastRange)) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, aiUnit, null);
+}
+
+//-------------------------------------------------------------------------------------------------
+bool RagnarosSulfurasSmash (int player, unit aiUnit, unitgroup scanGroup) {
+    // AoE ability that damages in a large area, and stuns in a small center area
+    order spellOrd;
+    Storm_AI_TargetQueryOptions query;
+    unit targetEnemy;
+    point leadPoint;
+    point enemyPoint;
+    point playerPoint;
+    bool castBetweenCasterAndTarget;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_RagnarosSulfurasSmash, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    playerPoint = UnitGetPosition(aiUnit);
+
+    // if there isn't a team fight nearby, we get out early
+    if (!TeamFightInArea(player, scanGroup, playerPoint, c_Storm_AI_DefaultTeamfightRange)){
+        return false;
+    }
+
+    // If we are being outnumbered in a team fight (probably retreating)
+    // we strongly prefer to cast on closer, healthy targets
+    if (CountTeamOutnumberedBy(player, scanGroup, playerPoint, c_RagnarosSulfurasSmashCastRange) >= 1) {
+        query.lv_maxDistance = c_RagnarosSulfurasSmashCastRange;
+        query.lv_healthFactor = c_Storm_AI_PreferHealthyTargets;
+        query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+        // used when we calculate our target lead
+        castBetweenCasterAndTarget = true;
+    }
+    else {
+        // we compensate our ability range for our lead vector offset.
+        // if we don't do this our caster will try to move forward before trying to cast
+        // and that can cause our ability to be incorrectly interrupted by other orders
+        query.lv_maxDistance = c_RagnarosSulfurasSmashCastRange - c_RagnarosSulfurasSmashLeadScalar;
+        query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+        query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+        // cast slighty ahead of target
+        castBetweenCasterAndTarget = false;
+    }
+
+    // Find a hero target
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+         return false;
+    }
+
+    // lead the ability
+    enemyPoint = UnitGetPosition(targetEnemy);
+    leadPoint = LeadPoint(playerPoint, enemyPoint, targetEnemy, c_RagnarosSulfurasSmashLeadScalar, false, castBetweenCasterAndTarget);
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, leadPoint);
+}
+
+//-------------------------------------------------------------------------------------------------
+bool RagnarosLavaWave (int player, unit aiUnit, unitgroup scanGroup) {
+    // send a wave of lava down a lane that instantly kills minions and deals damage to mercs
+    // and heroes. Does not damage buildings.
+    point targetPoint;
+    int playerFaction;
+    order spellOrd;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_RagnarosLavaWave, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // if we are pushing into enemy territory, use on the lane we are closest to
+    // which is already calculated by data/triggers
+    if (TowardFarSideOfTheMap(player, aiUnit)) {
+        targetPoint = UnitGetPosition(aiUnit);
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, targetPoint);
+    }
+
+    // otherwise find our team's weakest lane and help push that lane
+    playerFaction = libGame_gv_players[player].lv_faction;
+    targetPoint = libAIAI_gv_heroAITeamData[playerFaction].lv_laneData[libAIAI_gv_heroAITeamData[playerFaction].lv_weakestLane].lv_contentionPoint;
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, targetPoint);
+}
+
+//-------------------------------------------------------------------------------------------------
+bool RagnarosMoltenCore (int player, unit aiUnit, unitgroup scanGroup) {
+    // channel onto a structure and become Big Rags
+    order spellOrd;
+    unit townHallUnit;
+    point townHallPoint;
+    point playerLoc;
+
+    // if already casting don't issue another order
+    if (UnitHasBehavior2(aiUnit, c_RagnarosMoltenCoreCastingBehavior)) {
+        return false;
+    }
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_RagnarosMoltenCore, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    playerLoc = UnitGetPosition(aiUnit);
+    // only consider using if there is a team fight nearby
+    if (!TeamFightInArea(player, scanGroup, playerLoc, c_Storm_AI_DefaultTeamfightRange)){
+        return false;
+    }
+
+    // find the position of a nearby town hall
+    townHallUnit = RagnarosGetValidNearbyTownHallUnit(player, aiUnit, playerLoc);
+    if (townHallUnit == null) {
+        return false;
+    }
+    townHallPoint = UnitGetPosition(townHallUnit);
+
+    // if we are on enemy territory reduce the range of townhall aquisition
+    if (TowardFarSideOfTheMap(player, aiUnit)) {
+        if (DistanceSquaredBetweenPoints(playerLoc, townHallPoint) > c_RagnarosMoltenCoreEnemyRangeSquared) {
+            return false;
+        }
+    }
+    // other wise use larger range because we can safely fall back to our own town
+    if (DistanceSquaredBetweenPoints(playerLoc, townHallPoint) > c_RagnarosMoltenCoreFriendlyRangeSquared) {
+        return false;
+    }
+
+    // the duration of Firelord's Rage channel (2)
+    // plus ~6 grids of tavel (~1.5 seconds)
+    // with a bit (0.5) of additional time
+    HeroClaimForTactical(player, 4.0, true);
+    // Don't use HeroIssueOrder for channeling because it
+    // does work that isn't relevant to channeling
+    OrderSetTargetUnit(spellOrd, townHallUnit);
+    UnitIssueOrder(aiUnit, spellOrd, c_orderQueueReplace);
+    return true;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool RagnarosDefensiveItemCallback (int player, unit aiUnit, unitgroup scanGroup, string itemType, order ord, order ordTarget, order ordTogOn, order ordTogOff) {
+
+    if (itemType == c_RagnarosCatchingFireItem) {
+        // Become resistant if you have less than 70% health during a team fight
+        if (HaveBeenAttackedRecently(aiUnit)
+         && UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < 70.0
+         && TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), c_Storm_AI_DefaultTeamfightRange)) {
+            UnitIssueOrder(aiUnit, ord, c_orderQueueAddToFront);
+            return true;
+        }
+    }
+
+    if (itemType == c_RagnarosSubmergeItem) {
+        // Become invulnerable and regen health if you become very low health
+        if (UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+            UnitIssueOrder(aiUnit, ordTogOn, c_orderQueueAddToFront);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+void AIThinkRagnaros (int player, unit aiUnit, unitgroup scanGroup) {
+    // don't run think if we are in BigRag mode
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (UnitHasBehavior2(aiUnit, c_RagnarosMoltenCoreCasterStasis)) {
+        return;
+    }
+
+    if (UseItem(player, aiUnit, scanGroup, RagnarosDefensiveItemCallback)) {
+        return;
+    }
+
+    if (RagnarosEmpowerSulfuras(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (RagnarosLivingMeteor(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (RagnarosBlastWave(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (RagnarosMoltenCore(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player)) {
+        if (RagnarosSulfurasSmash(player, aiUnit, scanGroup)) {
+            return;
+        }
+
+        if (RagnarosLavaWave(player, aiUnit, scanGroup)) {
+            return;
+        }
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+}

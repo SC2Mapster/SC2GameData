@@ -1,0 +1,343 @@
+include "TriggerLibs/GameDataHelperLib_h"
+
+//---------------------------------------------------------------------------------------------
+// Chen Tactical
+//---------------------------------------------------------------------------------------------
+const string c_AB_ChenFlyingKick                        = "ChenFlyingKick";
+const string c_AB_ChenKegSmash                          = "ChenKegSmash";
+const string c_AB_ChenBreathOfFire                      = "ChenBreathOfFire";
+const string c_AB_ChenFortifyingBrew                    = "ChenFortifyingBrew";
+const string c_AB_ChenWanderingKeg                      = "ChenWanderingKeg";
+const string c_AB_ChenStormEarthFire                    = "ChenStormEarthFire";
+const string c_AB_ChenEarth                             = "ChenEarth";
+const string c_AB_ChenStormEarthFireElementalDefense    = "ChenStormEarthFireElementalDefense";  // no button, disabled for now
+const string c_AB_ChenStormEarthFireSpread              = "ChenStormEarthFireSpread";  // unused, no logic for when we'd want to spread out atm
+
+const string c_ChenWanderingKegCasterBuff                = "ChenWanderingKegCasterBuff";
+const string c_StormEarthFireCasterBehavior             = "StormEarthFireCasterBehavior";
+
+//---------------------------------------------------------------------------------------------
+bool ChenFlyingKick (int player, unit aiUnit, unitgroup scanGroup) {
+    // Targetted shot that does damage and charges you towards target
+    order spellOrd;
+    order attackOrd;
+    Storm_AI_TargetQueryOptions query;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    unit targetEnemy;
+
+    // check we have enough health to engage
+    if(UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_startOffensiveHealth) {
+        return false;
+    }
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ChenFlyingKick, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Follow-up spell with an attack order
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+
+    // Find a target hero
+    query.lv_minDistance = 1.0;
+    query.lv_maxDistance = 8.0;
+    query.lv_maxHealthPercent = libAIAI_gv_aIHeroMediumHealthPercent;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_ignoreTargetsBehindGate = true;
+    // when testing for targets behind a gate, test a point behind the target (where we will land).
+    query.lv_projectedTargetDistance = 2.5;
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (UnitIsValid(targetEnemy)) { 
+        return HeroIssueOrder (player, aiUnit, spellOrd, attackOrd, c_orderQueueReplace, targetEnemy, null);
+    }
+
+    if (energy < libAIAI_gv_aIHeroHighEnergyPercent) {
+        return false;
+    }
+
+    // Target minion instead
+    // Do not use on tower, as you may end up on other side of the gate
+    query.lv_maxHealthPercent = 0.0; // reset because we don't care
+    query.lv_healthFactor = 0.0;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets; // prefer not to jump too far from where we are
+    targetEnemy = FindBestMinion(scanGroup, aiUnit, query);
+    if (UnitIsValid(targetEnemy)) { 
+        return HeroIssueOrder (player, aiUnit, spellOrd, attackOrd, c_orderQueueReplace, targetEnemy, null);
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+bool ChenKegSmashBreathOfFire (int player, unit aiUnit, unitgroup scanGroup) {
+    // AOE damage to all enemies in a radius
+    order spellOrd;
+    order fireBreathOrd;
+    unitgroup nearbyEnemies;
+    point center;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    unit targetEnemy;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ChenKegSmash, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Cast both spells as a combo
+    fireBreathOrd = StormHeroAICreateOrder(player, c_AB_ChenBreathOfFire, 0);
+    if (!UnitOrderIsValid(aiUnit, fireBreathOrd)) {
+        return false;
+    }
+
+    // Cast on a weak enemy hero
+    query.lv_maxDistance = 3.0;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    
+    if (UnitIsValid(targetEnemy)) {
+        return HeroIssueOrder (player, aiUnit, spellOrd, fireBreathOrd, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+    }
+
+    if (energy < libAIAI_gv_aIHeroMediumEnergyPercent) {
+        return false;
+    }
+
+    // Target minion instead
+    nearbyEnemies = UnitsInArea(scanGroup, UnitGetPosition(aiUnit), 4.0);
+    center = UnitGroupCenterOfGroup(nearbyEnemies);
+
+    if (!EnoughEnemiesInArea(nearbyEnemies, center, 4, c_Storm_AI_AtLeast1Hero, c_Storm_AI_AtLeast3Creeps, c_Storm_AI_AtLeast4Minions)) {
+        return false;
+    }
+
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, fireBreathOrd, c_orderQueueAddToFront, null, center);
+}
+
+//---------------------------------------------------------------------------------------------
+bool ChenFortifyingBrew (int player, unit aiUnit, unitgroup scanGroup) {
+    // Restores energy and provides temporary shield
+    order spellOrd;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ChenFortifyingBrew, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Do not cast if enough energy
+    if (energy >= libAIAI_gv_aIHeroHighEnergyPercent) {
+        return false;
+    }
+
+    // Only cast when in combat with enemy heroes or at low energy.
+    if (!EnoughEnemiesInArea(scanGroup, UnitGetPosition(aiUnit), 3, c_Storm_AI_AtLeast1Hero, c_Storm_AI_AtLeast3Creeps, c_Storm_AI_AtLeast3Minions) && energy > libAIAI_gv_aIHeroLowEnergyPercent) {
+        return false;
+    }
+    
+    HeroClaimForTactical(player, 2.0, false);
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool ChenWanderingKeg (int player, unit aiUnit, unitgroup scanGroup) {
+    // Morph into a barrel that knocks and deals damage to enemies
+    order spellOrd;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ChenWanderingKeg, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Activate if there is a team fight or we are about to die
+    if (!TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), 6.0) && (UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) > 10.0)) {
+        return false;
+    }
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool ChenWanderingKegActive (int player, unit aiUnit, unitgroup scanGroup) {
+    // Control the movement of the Wandering Keg barrel
+    unit targetEnemy;
+    point moveTo;
+    Storm_AI_TargetQueryOptions query;
+
+    if (!UnitHasBehavior2(aiUnit, c_ChenWanderingKegCasterBuff)) {
+        return false;
+    }
+    query.lv_maxDistance = 8.0;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    
+    if (!UnitIsValid(targetEnemy)) {
+            targetEnemy = FindBestMinion(scanGroup, aiUnit, query);
+    }
+
+    if (!UnitIsValid(targetEnemy)) {
+        // Roll back to retreat to safety as you can keep moving forward
+        moveTo = libAIAI_gf_HeroAIGetRetreatPosition(player, 8.0, null);
+    }
+    else {
+        moveTo = UnitGetPosition(targetEnemy);
+    }
+
+    // Update angle rolling Chen will move next
+    libGDHL_gv_heroChenWanderingKegAngleMoveTo[player] = AngleBetweenPoints(UnitGetPosition(aiUnit), moveTo);
+    return true;
+}
+
+//---------------------------------------------------------------------------------------------
+bool ChenStormEarthFire (int player, unit aiUnit, unitgroup scanGroup) {
+    // Split into 3 units
+    order spellOrd;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ChenStormEarthFire, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Activate if there is a team fight or we are about to die
+    if (!TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), 6.0) && (UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) > 15.0)) {
+        return false;
+    }
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool ChenStormEarthFireActive (int player, unit aiUnit, unitgroup scanGroup) {
+    unit targetEnemy;
+    unitgroup group;
+    int groupCount;
+    unit summonedUnit;
+    order attackOrd;
+    Storm_AI_TargetQueryOptions query;
+
+    if (!UnitHasBehavior2(aiUnit, c_StormEarthFireCasterBehavior)) {
+        return false;
+    }
+
+    query.lv_maxDistance = 15.0;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        targetEnemy = FindBestMinion(scanGroup, aiUnit, query);
+        if (!UnitIsValid(targetEnemy)) {
+            targetEnemy = FindClosestWeakTowerOrCore(scanGroup, player, aiUnit, 0.0, 15.0, 100.0, -1, -1, c_Storm_AI_LOS_Optional);
+            if (!UnitIsValid(targetEnemy)) {
+                return true;
+            }
+        }
+    }
+
+
+    group = UnitGroupSelected(player);
+    groupCount = UnitGroupCount(group, c_unitCountAll);
+    while (groupCount > 0) {
+        summonedUnit = UnitGroupUnit(group, groupCount);
+        groupCount = groupCount - 1;
+
+        attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+        if (!UnitOrderIsValid(summonedUnit, attackOrd)) {
+            continue;
+        }
+        HeroIssueOrder (player, summonedUnit, attackOrd, null, c_orderQueueReplace, targetEnemy, null);
+    }
+    return true;
+}
+
+//---------------------------------------------------------------------------------------------
+bool ChenEarth (int player, unit aiUnit, unitgroup scanGroup) {
+    // Targetted shot that dashes the split 3 units to target location
+    order spellOrd;
+    order attackOrd;
+    unit targetEnemy;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ChenEarth, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Follow-up spell with an attack order
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+
+    // Find a target hero 
+    query.lv_minDistance = 4.0;
+    query.lv_maxDistance = 8.0;
+    query.lv_maxHealthPercent = libAIAI_gv_aIHeroMediumHealthPercent;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_ignoreTargetsBehindGate = true;
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) { 
+        return false;
+    }
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, attackOrd, c_orderQueueReplace, null, UnitGetPosition(targetEnemy));
+}
+
+
+//---------------------------------------------------------------------------------------------
+void AIThinkChen (int player, unit aiUnit, unitgroup scanGroup) {
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (UseDefensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (ChenWanderingKegActive(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (ChenFlyingKick(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (ChenKegSmashBreathOfFire(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (ChenFortifyingBrew(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && ChenWanderingKeg(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && ChenStormEarthFire(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (ChenEarth(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (ChenStormEarthFireActive(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (UseOffensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+}

@@ -1,0 +1,245 @@
+//---------------------------------------------------------------------------------------------
+// Anubarak Tactical
+//---------------------------------------------------------------------------------------------
+const string c_AB_AnubarakImpale            = "AnubarakImpale";
+const string c_AB_AnubarakHardenCarapace    = "AnubarakHardenCarapace";
+const string c_AB_AnubarakBurrowCharge      = "AnubarakBurrowCharge";
+const string c_AB_AnubarakCarrionSwarm      = "AnubarakCarrionSwarm";
+const string c_AB_AnubarakCocoon          = "AnubarakCocoon";
+const string c_AnubarakExtendedSpikesTalent = "AnubarakMasteryExtendedSpikesImpale";
+const string c_AnubarakUnderKingTalent = "AnubarakMasteryUnderkingBurrowCharge";
+
+//---------------------------------------------------------------------------------------------
+bool AnubarakImpale (int player, unit aiUnit, unitgroup scanGroup) {
+    // Stuns and damages enemies in a line
+    order spellOrd;
+    order attackOrd;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    fixed healthReq;
+    unit targetEnemy;
+    Storm_AI_TargetQueryOptions query;
+    fixed range;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_AnubarakImpale, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+
+    if (energy > libAIAI_gv_aIHeroHighEnergyPercent) {
+        healthReq = 100.0;
+    }
+    else {
+        healthReq = 50.0;
+    }
+    if (PlayerHasTalent(player, c_AnubarakExtendedSpikesTalent)) {
+        range = 12.0;
+    }
+    else {
+        range = 9.5;
+    }
+    // Find a target hero 
+    query.lv_maxHealthPercent = healthReq;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    query.lv_maxDistance = range;
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+
+    if (!UnitIsValid(targetEnemy)) { 
+        // If we have a decent amount of energy, we're allowed to target minions
+        if (energy < libAIAI_gv_aIHeroHighEnergyPercent) {
+            return false;
+        }
+         
+        targetEnemy = FindBestTacticalTarget(scanGroup, aiUnit, query);
+        if (!UnitIsValid(targetEnemy)) {
+            return false;
+        }
+        
+        // Only if there are other enemies it will hit
+        if (!EnoughEnemiesInArea(scanGroup, UnitGetPosition(aiUnit), 3.0, c_Storm_AI_AtLeast1Hero, c_Storm_AI_AtLeast2Creeps, c_Storm_AI_AtLeast4Minions)) {
+            return false;
+        }        
+    }
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, attackOrd, c_orderQueueReplace, targetEnemy, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool AnubarakBurrowCharge (int player, unit aiUnit, unitgroup scanGroup) {
+    // Charge forward damaging and stunning enemies in a line
+    
+    // Two uses for now:
+    //   Run away to live
+    //   Catch a fleeing enemy hero
+    unit targetEnemy;
+    point retreatPos;
+    order spellOrd;
+    order attackOrd;
+    Storm_AI_TargetQueryOptions query;
+    fixed range;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_AnubarakBurrowCharge, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    
+    if (PlayerHasTalent(player, c_AnubarakExtendedSpikesTalent)) {
+        range = 12.5;
+    }
+    else {
+        range = 10;
+    }
+    // Retreat if you have low health
+    if (HaveBeenAttackedRecently(aiUnit) && UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        // Charge back to retreat to safety
+        retreatPos = libAIAI_gf_HeroAIGetRetreatPosition(player, range, null);
+
+        return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueReplace, null, retreatPos);
+    }
+
+    // Don't jump into battle if low health
+    if (UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_startOffensiveHealth) { 
+        return false;
+    }
+
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+
+    // Find a target hero  
+    query.lv_maxHealthPercent = 35.0;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_minDistance = 4.0;
+    query.lv_maxDistance = range;
+    query.lv_ignoreTargetsBehindGate = true;
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) { 
+        return false;
+    }
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, attackOrd, c_orderQueueReplace, targetEnemy, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool AnubarakHardenCarapace (int player, unit aiUnit, unitgroup scanGroup) {
+    // Gains shield that is spammable
+    order spellOrd;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_AnubarakHardenCarapace, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Cast if not low on energy and enemy nearby
+    if (energy < libAIAI_gv_aIHeroLowEnergyPercent || EnoughEnemiesInArea(scanGroup, UnitGetPosition(aiUnit), 8.0, c_Storm_AI_AtLeast1Hero, c_Storm_AI_AtLeast2Creeps, c_Storm_AI_AtLeast4Minions)) {
+        return false;
+    }
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool AnubarakCarrionSwarm (int player, unit aiUnit, unitgroup scanGroup) {
+    // PB-AOE that deals damage to all enemies in a large radius and heals a bit. Moves with Anubarak.
+    order ord;
+    
+    ord = StormHeroAICreateOrder(player, c_AB_AnubarakCarrionSwarm, 0);
+    if (!UnitOrderIsValid(aiUnit, ord)) {
+        return false;
+    }
+
+    // Activate if there is a team fight
+    if (!HaveBeenAttackedRecently(aiUnit) || !TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), 8)) {
+        return false;
+    }
+    
+    return HeroIssueOrder (player, aiUnit, ord, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool AnubarakCocoon (int player, unit aiUnit, unitgroup scanGroup) {
+    // Concoons target enemy (stunned but also untargettable)
+    order spellOrd;
+    order attackOrd;
+    unit targetHero;
+    fixed curHealth = UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent);
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_AnubarakCocoon, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+    
+    // Only Activate if there is a team fight or we're running for our life.
+    if (curHealth > libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth && !TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), 8)) {
+        return false;
+    }
+    
+    query.lv_healthFactor = c_Storm_AI_PreferHealthyTargets;
+    query.lv_minDistance = 1.0;
+    query.lv_maxDistance = 8.0;
+    query.lv_ignoreTargetsBehindGate = true;
+    targetHero = FindBestHero(scanGroup, aiUnit, query);
+    
+    if (!UnitIsValid(targetHero)) { 
+        return false;
+    } 
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, attackOrd, c_orderQueueReplace, targetHero, null);
+}
+
+//---------------------------------------------------------------------------------------------
+void AIThinkAnubarak (int player, unit aiUnit, unitgroup scanGroup) {
+
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (UseDefensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (AnubarakBurrowCharge(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (AnubarakImpale(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (AnubarakHardenCarapace(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && AnubarakCocoon(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && AnubarakCarrionSwarm(player, aiUnit, scanGroup)) {
+        return;
+    }
+    
+    if (UseOffensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+}

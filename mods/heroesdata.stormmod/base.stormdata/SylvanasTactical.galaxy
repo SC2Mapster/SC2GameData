@@ -1,0 +1,445 @@
+//---------------------------------------------------------------------------------------------
+// Sylvanas Tactical
+//---------------------------------------------------------------------------------------------
+const string c_AB_SylvanasWitheringFire             = "SylvanasWitheringFire";
+const string c_AB_SylvanasShadowDagger              = "SylvanasShadowDagger";
+const string c_AB_SylvanasHauntingWave              = "SylvanasHauntingWave";
+const string c_AB_SylvanasHauntingWaveActivate      = "SylvanasHauntingWaveActivate";
+const string c_AB_SylvanasWailingArrow              = "SylvanasWailingArrow";
+const string c_AB_SylvanasWailingArrowActivate      = "SylvanasWailingArrowActivate";
+const string c_AB_SylvanasPossession                = "SylvanasPossession";
+const string c_AB_SylvanasMindControl               = "SylvanasMindControl";
+const string c_AB_SylvanasMindControlCancel         = "SylvanasMindControlCancel";
+
+const string c_SylvanasMindControlActive            = "SylvanasMindControlCaster";
+const string c_SylvanasMindControlTarget            = "SylvanasMindControlTarget";
+
+const fixed c_AB_SylvanasWitheringFireRange         = 6.0;
+const string c_AB_SylvanasWithTheWindTalent         = "SylvanasTalentWithTheWind";
+const fixed c_AB_SylvanasWithTheWindRangeModifier   = 1.5;
+
+const fixed c_AB_SylvanasShadowDaggerRange          = 8.0;
+const fixed c_AB_SylvanasShadowDaggerSpreadRadius   = 2.5; //1 less than effect radius due to slow missile
+
+const fixed c_AB_SylvanasHauntingWaveRange          = 8.0; // Set to 60% the range due to extremely slow missile
+const fixed c_AB_SylvanasHauntingWaveRadius         = 3.0; // Average effective radius
+
+const fixed c_AB_SylvanasWailingArrowRange          = 12.0;
+const fixed c_AB_SylvanasWailingArrowRadius         = 3.5;
+
+const fixed c_AB_SylvanasMindControlRange           = 10.0;
+const fixed c_AB_SylvanasMindControlOuterRange      = 30.0;
+const string c_AB_SylvanasDarkLadysCallTalent       = "SylvanasTalentDarkLadysCallMindControl";
+const fixed c_AB_SylvanasDarkLadysCallRangeModifier = 5.0;
+
+const fixed c_AB_SylvanasPossessionRange            = 10.0;
+const string c_PossessionItem                       = "SylvanasPossessionItem";
+
+const string c_WillOfTheForsakenItem                = "SylvanasWillOfTheForsakenItem";
+
+//---------------------------------------------------------------------------------------------
+bool SylvanasWitheringFire (int player, unit aiUnit, unitgroup scanGroup) {
+    // Shoots the closest enemy, prioritizes heroes, regains charges if target dies
+    // No energy, only 3 second charge cooldown, so use this a lot
+    unit targetUnit;
+    order ord;
+    Storm_AI_TargetQueryOptions query;
+    fixed abilityRange;
+    
+    ord = StormHeroAICreateOrder(player, c_AB_SylvanasWitheringFire, 0);
+    if (!UnitOrderIsValid(aiUnit, ord)) {
+        return false;
+    }
+    abilityRange = c_AB_SylvanasWitheringFireRange;
+    if (PlayerHasTalent(player, c_AB_SylvanasWithTheWindTalent)) {
+        abilityRange += c_AB_SylvanasWithTheWindRangeModifier;
+    }
+    query.lv_maxDistance = abilityRange;
+    // cast if there is any hero nearby
+    targetUnit = FindBestHero(scanGroup, aiUnit, query);
+    
+    if (!UnitIsValid(targetUnit)) {
+        // or if the closest minion has lower health but at least some health (so we'll regain the charge soon after)
+        query.lv_maxHealthPercent = 80.0;
+        query.lv_minHealthPercent = 10.0;
+        query.lv_distanceFactor = c_Storm_AI_StronglyPreferCloserTargets;
+        targetUnit = FindBestMinion(scanGroup, aiUnit, query);
+        if (!UnitIsValid(targetUnit)) {
+            return false;
+        }
+    }
+    
+    return HeroIssueOrder (player, aiUnit, ord, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool SylvanasShadowDagger (int player, unit aiUnit, unitgroup scanGroup) {
+    // does damage to the given target and spreads to nearby targets
+    unit targetUnit;
+    order ord;
+    fixed energy;
+    Storm_AI_TargetQueryOptions query;
+
+    ord = StormHeroAICreateOrder(player, c_AB_SylvanasShadowDagger, 0);
+    if (!UnitOrderIsValid(aiUnit, ord)) {
+        return false;
+    }
+
+    // Change health requirements based on energy available
+    energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    if (energy < libAIAI_gv_aIHeroHighEnergyPercent) {
+        query.lv_maxHealthPercent = libAIAI_gv_aIHeroMediumHealthPercent;
+    }
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    query.lv_maxDistance = c_AB_SylvanasShadowDaggerRange;
+    // Prefer to use on nearby weak heros
+    targetUnit = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetUnit)) {
+        // If we have a decent amount of energy, we're allowed to find any tactical target...
+        if (energy < libAIAI_gv_aIHeroLowEnergyPercent) {
+            return false;
+        }
+        query.lv_maxHealthPercent = 100.0;
+        targetUnit = FindBestTacticalTarget(scanGroup, aiUnit, query);
+        if (!UnitIsValid(targetUnit)) {
+            return false;
+        }
+        // ...as long as they're in a clump of enemies
+        if (!EnoughEnemiesInArea(scanGroup, UnitGetPosition(targetUnit), c_AB_SylvanasShadowDaggerSpreadRadius, c_Storm_AI_AtLeast2Heroes, c_Storm_AI_AtLeast2Creeps, c_Storm_AI_AtLeast4Minions)) {
+            return false;
+        }
+    }
+    return HeroIssueOrder (player, aiUnit, ord, null, c_orderQueueAddToFront, targetUnit, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool SylvanasHauntingWave (int player, unit aiUnit, unitgroup scanGroup) {
+    // sends out a banshee, damaging narrow cone in a direction, can activate a second time to teleport to the banshee
+    order spellOrd;
+    fixed energy;
+    unit targetEnemy;
+    point retreatPos;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_SylvanasHauntingWave, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Two uses:
+    //      Send out the banshee backward and use it to try to retreat
+    //      Use the banshee to do damage
+    
+    // Send the banshee backward to help retreat if you have low health
+    if (HaveBeenAttackedRecently(aiUnit) && UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        retreatPos = libAIAI_gf_HeroAIGetRetreatPosition(player, 8.0, null);
+       
+        return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, retreatPos);
+    }
+
+    energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    if (energy < libAIAI_gv_aIHeroHighEnergyPercent) {
+        query.lv_maxHealthPercent = libAIAI_gv_aIHeroLowHealthPercent;
+    }
+    query.lv_maxDistance = c_AB_SylvanasHauntingWaveRange;
+    // Find a target hero 
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        // If we have a decent amount of energy, we're allowed to find other tactical targets...
+        if (energy < libAIAI_gv_aIHeroLowEnergyPercent) {
+            return false;
+        }
+        targetEnemy = FindBestTacticalTarget(scanGroup, aiUnit, query);
+        if (!UnitIsValid(targetEnemy)) {
+            return false;
+        }        
+        // ...only if there are other enemies it will hit
+        if (!EnoughEnemiesInArea(scanGroup, UnitGetPosition(targetEnemy), c_AB_SylvanasHauntingWaveRadius, c_Storm_AI_AtLeast2Heroes, c_Storm_AI_AtLeast3Creeps, c_Storm_AI_AtLeast5Minions)) {
+            return false;
+        }
+    }
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueReplace, null, UnitGetPosition(targetEnemy));
+}
+
+//---------------------------------------------------------------------------------------------
+bool SylvanasHauntingWaveActivate (int player, unit aiUnit, unitgroup scanGroup) {
+    // HauntingWave sends out a banshee, damaging narrow cone in a direction, can activate a second time to teleport to the banshee
+    //  this is the second activation teleport logic (only used for retreating atm).
+    order spellOrd;
+    order moveOrd;
+    unitgroup banshees;
+    int bansheeCount;
+    unit unitToCheck;
+    unit centerBanshee;
+    point retreatPos;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_SylvanasHauntingWaveActivate, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    
+    if (UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) > libAIAI_gv_aIHeroes[player].lv_endOffensiveHealth) {
+        return false;
+    }
+
+    banshees = UnitGroup("SylvanasHauntingWaveMissile", player, RegionCircle(UnitGetPosition(aiUnit), 10.0), UnitFilter((1 << c_targetFilterMissile), 0, 0, (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+
+    bansheeCount = UnitGroupCount(banshees, c_unitCountAll);    
+    while (bansheeCount > 0) {
+        unitToCheck = UnitGroupUnit(banshees, bansheeCount);
+        bansheeCount = bansheeCount - 1;
+        if (UnitHasBehavior2(unitToCheck, "SylvanasHauntingWaveCenterBanshee")) {
+            centerBanshee = unitToCheck;
+            break;
+        }
+    }
+
+    if (!UnitIsValid(centerBanshee)) {
+        return false;
+    }
+
+    // see if the center banshee is a decent bit closer to retreat pos than we are
+    retreatPos = libAIAI_gf_HeroAIGetRetreatPosition(player, 8.0, null);
+    if (DistanceBetweenPoints(UnitGetPosition(centerBanshee), retreatPos) > 5.0) {
+        return false;
+    }
+
+    moveOrd = StormHeroAICreateOrder(player, c_Storm_AB_Move, 0);
+    OrderSetTargetPoint(moveOrd, retreatPos);
+    if (!UnitOrderIsValid(aiUnit, moveOrd)) {
+        moveOrd = null;
+    }
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, moveOrd, c_orderQueueReplace, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool SylvanasWailingArrow (int player, unit aiUnit, unitgroup scanGroup) {
+    // arrow that silences and damages enemies in an area when detonated (or reaches the end of it's range)
+    order spellOrd;
+    unit enemyHero;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_SylvanasWailingArrow, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    if (!TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), c_AB_SylvanasWailingArrowRange)) {
+        return false;
+    }
+    query.lv_maxDistance = c_AB_SylvanasWailingArrowRange - 1;
+
+    enemyHero = FindBestHero(scanGroup, aiUnit, query);
+    
+    if (!UnitIsValid(enemyHero)
+     || !EnoughEnemiesInArea(scanGroup, UnitGetPosition(enemyHero), c_AB_SylvanasWailingArrowRadius, c_Storm_AI_AtLeast2Heroes, c_Storm_AI_AtLeast4Creeps, c_Storm_AI_AtLeast6Minions)) {
+        return false;
+    }
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueReplace, null, UnitGetPosition(enemyHero));
+}
+
+//---------------------------------------------------------------------------------------------
+bool SylvanasMindControl (int player, unit aiUnit, unitgroup scanGroup) {
+    unit targetHero;
+    Storm_AI_TargetQueryOptions query;
+    unitgroup allyUnitGroup;
+    order ord;
+    fixed abilityRange;
+    
+    ord = StormHeroAICreateOrder(player, c_AB_SylvanasMindControl, 0);
+    if (!UnitOrderIsValid(aiUnit, ord)) {
+        return false;
+    }
+
+    // Don't cast if actively fighting or too unhealthy
+    if (HaveBeenAttackedRecently(aiUnit) 
+        || UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        return false;
+    }
+    abilityRange = c_AB_SylvanasMindControlRange;
+    if (PlayerHasTalent(player, c_AB_SylvanasDarkLadysCallTalent)) {
+        abilityRange += c_AB_SylvanasDarkLadysCallRangeModifier;
+    }
+    query.lv_maxDistance = c_AB_SylvanasMindControlRange;
+    // If outnumbered, send away the highest health enemy
+    if (CountTeamOutnumberedBy(player, scanGroup, UnitGetPosition(aiUnit), c_AB_SylvanasMindControlRange) >= 1) {
+        query.lv_healthFactor = c_Storm_AI_PreferHealthyTargets;
+        query.lv_distanceFactor = c_Storm_AI_StronglyPreferCloserTargets;
+        targetHero = FindBestHero(scanGroup, aiUnit, query);
+    }
+    // If outnumbering, bring in a low health enemy
+    else if (CountTeamOutnumberedBy(player, scanGroup, UnitGetPosition(aiUnit),c_AB_SylvanasMindControlRange) < 1) {
+        query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+        query.lv_distanceFactor = c_Storm_AI_PreferDistantTargets;
+        targetHero = FindBestHero(scanGroup, aiUnit, query);
+    }
+    if (!UnitIsValid(targetHero)) {
+        return false;
+    }
+    return HeroIssueOrder (player, aiUnit, ord, null, c_orderQueueAddToFront, targetHero, null);
+}
+
+//----------------------------------------------------------------------------------------------
+bool SylvanasMindControlActive (int player, unit aiUnit, unitgroup scanGroup) {
+    //Update move orders while in mind control
+    order cancelOrd;
+    order moveOrd;
+    point targetPosition;
+    unit targetEnemy;
+    unit enemyHero;
+    unitgroup nearbyEnemies;
+    unitgroup allyUnitGroup;
+    int numEnemies;
+    int enemyHeroIndex;
+    int targetPlayer;
+    
+    if (!UnitHasBehavior2(aiUnit, c_SylvanasMindControlActive)) {
+        return false;
+    }
+    
+    // Stop channelling if in danger
+    if (HaveBeenAttackedRecently(aiUnit) && UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        cancelOrd = StormHeroAICreateOrder(player, c_AB_DiabloLightningBreathCancel, 0);
+        if (UnitOrderIsValid(aiUnit, cancelOrd)) {
+            HeroClaimForTactical(player, 0.0, false);
+
+            // Don't use HeroIssueOrder for channeling
+            UnitIssueOrder(aiUnit, cancelOrd, c_orderQueueReplace);
+            return true;
+        }
+    }
+    
+    // Pauses Tactical AI for the duration 
+    HeroClaimForTactical(player, 1.25, false);
+
+    moveOrd = StormHeroAICreateOrder(player, c_Storm_AB_Move, 0);
+    if (!UnitOrderIsValid(aiUnit, moveOrd)) {
+        return false;
+    }
+    // Find all nearby enemies and iterate through to find the target
+    nearbyEnemies = UnitGroupFilterHeroes(UnitsInArea(scanGroup, UnitGetPosition(aiUnit), c_AB_SylvanasMindControlOuterRange));
+    numEnemies = CountPlayersInUnitGroup(UnitGroupFilterHeroes(nearbyEnemies));
+    for (enemyHeroIndex = 1; enemyHeroIndex <= numEnemies; enemyHeroIndex += 1) {
+        enemyHero = UnitGroupUnit(nearbyEnemies, enemyHeroIndex);
+        if (UnitIsValid(enemyHero) && UnitHasBehavior2(enemyHero, c_SylvanasMindControlTarget)) {
+            targetEnemy = enemyHero;
+        }
+    }
+    if (!UnitIsValid(targetEnemy)) {
+        return false;
+    }
+    targetPlayer = UnitGetOwner(targetEnemy);
+    // If the target hero doesn't have enough health to fight, push toward Sylvanas's allies
+    if (UnitGetPropertyFixed(targetEnemy, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[targetPlayer].lv_startOffensiveHealth) {
+        // Set the target for the move order to the center of all Sylvanas's allies
+        allyUnitGroup = AllyHeroUnitsInArea(player, UnitGetPosition(targetEnemy), c_Storm_AI_DefaultTeamfightRange);
+        if (allyUnitGroup == null) {
+            return false;
+        }
+        targetPosition = UnitGroupCenterOfGroup(allyUnitGroup);
+    }
+    else {
+        // If the target hero has more than their start offensive health,
+        // push them back toward their retreat point: we don't want them in this fight
+        targetPosition = libAIAI_gf_HeroAIGetRetreatPosition(targetPlayer, 8.0, null);
+    }
+    OrderSetTargetPoint(moveOrd, targetPosition);
+    if (!UnitOrderIsValid(aiUnit, moveOrd)) {
+        return false;
+    }
+    return UnitIssueOrder(aiUnit, moveOrd, c_orderQueueReplace);
+}
+
+//----------------------------------------------------------------------------------------------
+bool SylvanasDefensiveItemCallback (int player, unit aiUnit, unitgroup scanGroup, string itemType, order ord, order ordTarget, order ordTogOn, order ordTogOff) {
+    if (itemType == c_WillOfTheForsakenItem) {
+        if (!HaveBeenAttackedRecently(aiUnit) || UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) > libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+            return false;
+        }
+        return UnitIssueOrder(aiUnit, ord, c_orderQueueAddToFront);
+    }
+    if (itemType == c_FlashOfTheStorms) {
+        return ItemFlashOfTheStorms(player, aiUnit, scanGroup, itemType, ord, ordTarget, ordTogOn, ordTogOff);
+    }
+    return false;
+}
+
+//----------------------------------------------------------------------------------------------
+bool SylvanasOffensiveItemCallback (int player, unit aiUnit, unitgroup scanGroup, string itemType, order ord, order ordTarget, order ordTogOn, order ordTogOff) {
+    unit targetEnemy;
+    Storm_AI_TargetQueryOptions query;
+
+    if (itemType == c_PossessionItem) {
+        // changes enemy minion alliance to our team, heals it to full
+        // cooldown is 4 seconds for minions
+        // the cooldown and mana cost is low enough, it seems like we should just constantly use this    
+        query.lv_maxDistance = c_AB_SylvanasPossessionRange;
+        query.lv_healthFactor = c_Storm_AI_PreferCloserTargets;
+        targetEnemy = FindBestMinion(scanGroup, aiUnit, query);
+        if (!UnitIsValid(targetEnemy)) {
+            return false;
+        }
+        return HeroIssueOrder (player, aiUnit, ordTarget, null, c_orderQueueAddToFront, targetEnemy, null);
+    }
+    return false;
+}
+//---------------------------------------------------------------------------------------------
+void AIThinkSylvanas (int player, unit aiUnit, unitgroup scanGroup) {
+
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (UseItem(player, aiUnit, scanGroup, SylvanasDefensiveItemCallback)) {
+        return;
+    }
+
+    if (SylvanasHauntingWaveActivate(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+    
+    if (SylvanasMindControlActive(player, aiUnit, scanGroup)) {
+        return;
+    }
+    
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player)) {
+        if (SylvanasWailingArrow(player, aiUnit, scanGroup)) {
+            return;
+        }
+    
+        if (SylvanasMindControl(player, aiUnit, scanGroup)) {
+            return;
+        }
+    }
+    
+    if (SylvanasHauntingWave(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (SylvanasShadowDagger(player, aiUnit, scanGroup)) {
+        return;
+    }
+    
+
+    if (SylvanasWitheringFire(player, aiUnit, scanGroup)) {
+        return;
+    }
+    
+    if (UseItem(player, aiUnit, scanGroup, SylvanasOffensiveItemCallback)) {
+        return;
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+}

@@ -1,0 +1,553 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/AILib"
+include "TriggerLibs/UILib"
+
+include "LibHCHR_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Chromie
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libHCHR_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+    libAIAI_InitVariables();
+    libUIUI_InitVariables();
+}
+
+// Variable Initialization
+bool libHCHR_InitVariables_completed = false;
+
+void libHCHR_InitVariables () {
+    int init_i;
+
+    if (libHCHR_InitVariables_completed) {
+        return;
+    }
+
+    libHCHR_InitVariables_completed = true;
+
+    for (init_i = 0; init_i <= libCore_gv_bALMaxPlayers; init_i += 1) {
+        libHCHR_gv_timeTrapUnitGroup[init_i] = UnitGroupEmpty();
+    }
+}
+
+// Custom Script
+//--------------------------------------------------------------------------------------------------
+// Custom Script: #Include Chromie Tactical AI
+//--------------------------------------------------------------------------------------------------
+include "StormTactical.galaxy"
+include "ChromieTactical.galaxy"
+
+void libHCHR_InitCustomScript () {
+}
+
+// Functions
+void libHCHR_gf_HeroChromieIncrementHeroCountFunction () {
+    // Implementation
+    libHCHR_gv_heroChromieTriggerRegistrationVariable += 1;
+    if ((libHCHR_gv_heroChromieTriggerRegistrationVariable == 1)) {
+        TriggerEnable(libHCHR_gt_HeroChromiePastandFutureMeBirth, true);
+        TriggerEnable(libHCHR_gt_HeroChromiePastandFutureMeDeath, true);
+        TriggerEnable(libHCHR_gt_HeroChromieTimewalkersPursuitProc, true);
+        TriggerEnable(libHCHR_gt_HeroChromieTimeOutOverlayOff, true);
+        TriggerEnable(libHCHR_gt_HeroChromieTimeOutOverlayOn, true);
+        TriggerEnable(libHCHR_gt_HeroChromieTemporalLoopCameraSnap, true);
+        TriggerEnable(libHCHR_gt_HeroChromieTemporalLoopTeleportDetection, true);
+        TriggerEnable(libHCHR_gt_HeroChromieTimeTrapController, true);
+        TriggerEnable(libHCHR_gt_HeroChromieTimeTrapOverlayOff, true);
+        TriggerEnable(libHCHR_gt_HeroChromieTimeTrapOverlayOn, true);
+    }
+
+}
+
+void libHCHR_gf_HeroChromieDecrementHeroCountFunction () {
+    // Implementation
+    libHCHR_gv_heroChromieTriggerRegistrationVariable -= 1;
+    if ((libHCHR_gv_heroChromieTriggerRegistrationVariable < 0)) {
+        libHCHR_gv_heroChromieTriggerRegistrationVariable = 0;
+    }
+
+    if ((libHCHR_gv_heroChromieTriggerRegistrationVariable == 0)) {
+        TriggerEnable(libHCHR_gt_HeroChromiePastandFutureMeBirth, false);
+        TriggerEnable(libHCHR_gt_HeroChromiePastandFutureMeDeath, false);
+        TriggerEnable(libHCHR_gt_HeroChromieTimewalkersPursuitProc, false);
+        TriggerEnable(libHCHR_gt_HeroChromieTimeOutOverlayOff, false);
+        TriggerEnable(libHCHR_gt_HeroChromieTimeOutOverlayOn, false);
+        TriggerEnable(libHCHR_gt_HeroChromieTemporalLoopCameraSnap, false);
+        TriggerEnable(libHCHR_gt_HeroChromieTemporalLoopTeleportDetection, false);
+        TriggerEnable(libHCHR_gt_HeroChromieTimeTrapController, false);
+        TriggerEnable(libHCHR_gt_HeroChromieTimeTrapOverlayOff, false);
+        TriggerEnable(libHCHR_gt_HeroChromieTimeTrapOverlayOn, false);
+    }
+
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Misc Mod Initialization
+//--------------------------------------------------------------------------------------------------
+bool libHCHR_gt_HeroAIMiscModInitialization_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_HeroAIInitializeHeroTierData, libHCHR_gt_HeroAIAddToTierDataChromie);
+    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_HeroAIInitAbilities, libHCHR_gt_HeroAIInitAbilitiesChromie);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHCHR_gt_HeroAIMiscModInitialization_Init () {
+    libHCHR_gt_HeroAIMiscModInitialization = TriggerCreate("libHCHR_gt_HeroAIMiscModInitialization_Func");
+    TriggerAddEventMapInit(libHCHR_gt_HeroAIMiscModInitialization);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Add To Tier Data - Chromie
+//--------------------------------------------------------------------------------------------------
+bool libHCHR_gt_HeroAIAddToTierDataChromie_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libAIAI_gf_HeroAIAddHeroToTierData(libAIAI_ge_HeroAIHeroTiers_TierHigh, "Chromie");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHCHR_gt_HeroAIAddToTierDataChromie_Init () {
+    libHCHR_gt_HeroAIAddToTierDataChromie = TriggerCreate("libHCHR_gt_HeroAIAddToTierDataChromie_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Init Abilities - Chromie
+//--------------------------------------------------------------------------------------------------
+bool libHCHR_gt_HeroAIInitAbilitiesChromie_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitGetType(libCore_gv_segTriggerUnit) == "HeroChromie")) {
+        libAIAI_gv_heroAIInitAbilitesHeroFound = true;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_hasTactical = true;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_hasMount = true;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[0] = AbilityCommand("ChromieSandBlast", 0);
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[0] = libAIAI_ge_HeroAISpellType_PointHeroEnemy;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[0] = 16.0;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[1] = AbilityCommand("ChromieDragonsBreath", 0);
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[1] = libAIAI_ge_HeroAISpellType_PointEnemy;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[1] = 16.0;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[2] = null;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[3] = AbilityCommand("ChromieSlowingSands", 0);
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[3] = libAIAI_ge_HeroAISpellType_PointHeroEnemy;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[3] = 10.0;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[4] = AbilityCommand("ChromieTemporalLoop", 0);
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[4] = libAIAI_ge_HeroAISpellType_TargetHeroEnemy;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[4] = 12.0;
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHCHR_gt_HeroAIInitAbilitiesChromie_Init () {
+    libHCHR_gt_HeroAIInitAbilitiesChromie = TriggerCreate("libHCHR_gt_HeroAIInitAbilitiesChromie_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Chromie - Past and Future Me Birth
+//--------------------------------------------------------------------------------------------------
+bool libHCHR_gt_HeroChromiePastandFutureMeBirth_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_thisPlayer;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(EventUnitCreatedUnit()) == "ChromieSandBlastPastAndFutureMeControllerUnit"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_thisPlayer = EventPlayer();
+    libHCHR_gv_pastandFutureMeUnit[lv_thisPlayer] = EventUnitCreatedUnit();
+    libNtve_gf_MakeUnitFacePoint(libHCHR_gv_pastandFutureMeUnit[lv_thisPlayer], libHCHR_gv_cloneBirthFacing[lv_thisPlayer], 0.0);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHCHR_gt_HeroChromiePastandFutureMeBirth_Init () {
+    libHCHR_gt_HeroChromiePastandFutureMeBirth = TriggerCreate("libHCHR_gt_HeroChromiePastandFutureMeBirth_Func");
+    TriggerEnable(libHCHR_gt_HeroChromiePastandFutureMeBirth, false);
+    TriggerAddEventUnitCreated(libHCHR_gt_HeroChromiePastandFutureMeBirth, null, "ChromieSandBlast", null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Chromie - Past and Future Me Death
+//--------------------------------------------------------------------------------------------------
+bool libHCHR_gt_HeroChromiePastandFutureMeDeath_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_caster;
+    int lv_player;
+    unit lv_lv_CloneUnit;
+    point lv_lv_CloneFacing;
+
+    // Variable Initialization
+    lv_caster = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_player = EventPlayerEffectUsedUnitOwner(c_effectPlayerCaster);
+    lv_lv_CloneUnit = libHCHR_gv_pastandFutureMeUnit[lv_player];
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerHasTalent(lv_player, "ChromieSandBlastPastAndFutureMe") == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libHCHR_gv_cloneBirthFacing[lv_player] = EventPlayerEffectUsedPoint(c_effectLocationTargetPoint);
+    lv_lv_CloneFacing = libHCHR_gv_cloneBirthFacing[lv_player];
+    if ((UnitIsValid(lv_lv_CloneUnit) == true)) {
+        libHCHR_gv_pastandFutureMeUnit[lv_player] = null;
+        libNtve_gf_MakeUnitFacePoint(lv_lv_CloneUnit, lv_lv_CloneFacing, 0.0);
+        UnitBehaviorAdd(lv_lv_CloneUnit, "ChromieSandBlastPastAndFutureMeControllerDeathDelayBehavior", lv_lv_CloneUnit, 1);
+        UnitCreateEffectUnit(lv_caster, "ChromieSandBlastPastAndFutureMeCloneActiveRemoveBehavior", lv_caster);
+        Wait(1.0, c_timeGame);
+        UnitCreateEffectPointWithSource(lv_lv_CloneUnit, "ChromieSandBlastPastAndFutureMeCreatePersistent", lv_lv_CloneFacing, c_gameCatalogAbil, "ChromieSandBlast");
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHCHR_gt_HeroChromiePastandFutureMeDeath_Init () {
+    libHCHR_gt_HeroChromiePastandFutureMeDeath = TriggerCreate("libHCHR_gt_HeroChromiePastandFutureMeDeath_Func");
+    TriggerEnable(libHCHR_gt_HeroChromiePastandFutureMeDeath, false);
+    TriggerAddEventPlayerEffectUsed(libHCHR_gt_HeroChromiePastandFutureMeDeath, c_playerAny, "ChromieSandBlastPrepSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Chromie - Timewalker's Pursuit Proc
+//--------------------------------------------------------------------------------------------------
+bool libHCHR_gt_HeroChromieTimewalkersPursuitProc_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+    unit lv_unit;
+
+    // Variable Initialization
+    lv_player = EventPlayerEffectUsedUnitOwner(c_effectPlayerTarget);
+    lv_unit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_player <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+
+        if (!((lv_player > 0))) {
+            return false;
+        }
+
+        if (!((PlayerHasTalent(lv_player, "ChromieTimewalkersPursuit") == true))) {
+            return false;
+        }
+
+        if (!((UnitGetType(lv_unit) == "HeroChromie"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(lv_unit, "ChromieTimewalkersPursuitModifyQuestToken", lv_unit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHCHR_gt_HeroChromieTimewalkersPursuitProc_Init () {
+    libHCHR_gt_HeroChromieTimewalkersPursuitProc = TriggerCreate("libHCHR_gt_HeroChromieTimewalkersPursuitProc_Func");
+    TriggerEnable(libHCHR_gt_HeroChromieTimewalkersPursuitProc, false);
+    TriggerAddEventPlayerEffectUsed(libHCHR_gt_HeroChromieTimewalkersPursuitProc, c_playerAny, "RegenGlobeImpactSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Chromie - Time Out Overlay On
+//--------------------------------------------------------------------------------------------------
+bool libHCHR_gt_HeroChromieTimeOutOverlayOn_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_unit;
+    int lv_player;
+
+    // Variable Initialization
+    lv_unit = EventUnit();
+    lv_player = UnitGetOwner(EventUnit());
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitIsAlive(lv_unit) == true) && (UnitTestState(lv_unit, c_unitStateHallucination) == false) && (UnitHasBehavior2(lv_unit, "HeroGenericIgnoreFullscreenOverlay") == false)) {
+        libUIUI_gf_FullscreenOverlayAddItemForPlayer(lv_player, libUIUI_ge_FullscreenOverlayPriorities_Stasis, "Cutscenes\\GameUI_StasisOverlay.StormCutscene", EventUnitBehavior());
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHCHR_gt_HeroChromieTimeOutOverlayOn_Init () {
+    libHCHR_gt_HeroChromieTimeOutOverlayOn = TriggerCreate("libHCHR_gt_HeroChromieTimeOutOverlayOn_Func");
+    TriggerEnable(libHCHR_gt_HeroChromieTimeOutOverlayOn, false);
+    TriggerAddEventUnitBehaviorChange(libHCHR_gt_HeroChromieTimeOutOverlayOn, null, "ChromieTimeOutBehavior", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Chromie - Time Out Overlay Off
+//--------------------------------------------------------------------------------------------------
+bool libHCHR_gt_HeroChromieTimeOutOverlayOff_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_unit;
+    int lv_player;
+
+    // Variable Initialization
+    lv_unit = EventUnit();
+    lv_player = UnitGetOwner(EventUnit());
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitHasBehavior2(lv_unit, "HeroGenericIgnoreFullscreenOverlay") == false)) {
+        libUIUI_gf_FullscreenOverlayRemoveItemFromQueueForPlayer(lv_player, "Cutscenes\\GameUI_StasisOverlay.StormCutscene", EventUnitBehavior());
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHCHR_gt_HeroChromieTimeOutOverlayOff_Init () {
+    libHCHR_gt_HeroChromieTimeOutOverlayOff = TriggerCreate("libHCHR_gt_HeroChromieTimeOutOverlayOff_Func");
+    TriggerEnable(libHCHR_gt_HeroChromieTimeOutOverlayOff, false);
+    TriggerAddEventUnitBehaviorChange(libHCHR_gt_HeroChromieTimeOutOverlayOff, null, "ChromieTimeOutBehavior", c_unitBehaviorChangeDestroy);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Chromie - Temporal Loop Camera Snap
+//--------------------------------------------------------------------------------------------------
+bool libHCHR_gt_HeroChromieTemporalLoopCameraSnap_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_unit;
+    int lv_player;
+
+    // Variable Initialization
+    lv_unit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_player = UnitGetOwner(lv_unit);
+
+    // Conditions
+    if (testConds) {
+        if (!(((libGame_gv_players[lv_player].lv_activeVehicle == lv_unit) || (libGame_gv_players[lv_player].lv_heroUnit == lv_unit)))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    CameraPan(lv_player, UnitGetPosition(lv_unit), 0.0, -1, 0.0, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHCHR_gt_HeroChromieTemporalLoopCameraSnap_Init () {
+    libHCHR_gt_HeroChromieTemporalLoopCameraSnap = TriggerCreate("libHCHR_gt_HeroChromieTemporalLoopCameraSnap_Func");
+    TriggerEnable(libHCHR_gt_HeroChromieTemporalLoopCameraSnap, false);
+    TriggerAddEventPlayerEffectUsed(libHCHR_gt_HeroChromieTemporalLoopCameraSnap, c_playerAny, "ChromieTemporalLoopTeleportTargetCameraSnapDummy");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Chromie - Temporal Loop Teleport Detection
+//--------------------------------------------------------------------------------------------------
+bool libHCHR_gt_HeroChromieTemporalLoopTeleportDetection_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((UnitHasBehavior2(EventPlayerEffectUsedUnitLaunch(), "ChromieTemporalLoopTargetBehavior") == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    ActorSend(ActorFromScope(ActorScopeFromUnit(EventPlayerEffectUsedUnitLaunch()), "ChromieTemporalLoopTargetTrailFX"), "AnimGroupApply Teleport {} {} Instant");
+    ActorCreate(ActorScopeFromUnit(EventPlayerEffectUsedUnitLaunch()), "ChromieTemporalLoopTargetTrailFX", null, null, null);
+    ActorSend(libNtve_gf_ActorLastCreated(), "AnimBracketStart BSD {} Stand Death");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHCHR_gt_HeroChromieTemporalLoopTeleportDetection_Init () {
+    libHCHR_gt_HeroChromieTemporalLoopTeleportDetection = TriggerCreate("libHCHR_gt_HeroChromieTemporalLoopTeleportDetection_Func");
+    TriggerEnable(libHCHR_gt_HeroChromieTemporalLoopTeleportDetection, false);
+    TriggerAddEventPlayerEffectUsedFromScope(libHCHR_gt_HeroChromieTemporalLoopTeleportDetection, c_playerAny, "CEffectTeleport");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Chromie - Time Trap Controller
+//--------------------------------------------------------------------------------------------------
+bool libHCHR_gt_HeroChromieTimeTrapController_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_thisPlayer;
+    unit lv_thisCreatedUnit;
+    unit lv_chromieUnit;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_thisPlayer = EventPlayer();
+    lv_thisCreatedUnit = EventUnitCreatedUnit();
+    lv_chromieUnit = EventUnit();
+    UnitSetFacing(lv_thisCreatedUnit, 270.0, 0.0);
+    UnitGroupAdd(libHCHR_gv_timeTrapUnitGroup[lv_thisPlayer], lv_thisCreatedUnit);
+    if ((PlayerHasTalent(lv_thisPlayer, "ChromieTimeTrapAndorhalAnomaly") == true)) {
+        if ((UnitGroupCount(libHCHR_gv_timeTrapUnitGroup[lv_thisPlayer], c_unitCountAlive) > 3)) {
+            UnitKill(UnitGroupUnit(libHCHR_gv_timeTrapUnitGroup[lv_thisPlayer], 1));
+        }
+
+    }
+    else {
+        if ((UnitGroupCount(libHCHR_gv_timeTrapUnitGroup[lv_thisPlayer], c_unitCountAlive) > 1)) {
+            UnitKill(UnitGroupUnit(libHCHR_gv_timeTrapUnitGroup[lv_thisPlayer], 1));
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHCHR_gt_HeroChromieTimeTrapController_Init () {
+    libHCHR_gt_HeroChromieTimeTrapController = TriggerCreate("libHCHR_gt_HeroChromieTimeTrapController_Func");
+    TriggerEnable(libHCHR_gt_HeroChromieTimeTrapController, false);
+    TriggerAddEventUnitCreated(libHCHR_gt_HeroChromieTimeTrapController, null, "ChromieTimeTrap", null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Chromie - Time Trap Overlay On
+//--------------------------------------------------------------------------------------------------
+bool libHCHR_gt_HeroChromieTimeTrapOverlayOn_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_unit;
+
+    // Variable Initialization
+    lv_unit = EventUnit();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitIsAlive(lv_unit) == true) && (UnitTestState(lv_unit, c_unitStateHallucination) == false) && (UnitHasBehavior2(lv_unit, "HeroGenericIgnoreFullscreenOverlay") == false)) {
+        libUIUI_gf_FullscreenOverlayAddItemForPlayer(UnitGetOwner(lv_unit), libUIUI_ge_FullscreenOverlayPriorities_Stasis, "Cutscenes\\GameUI_StasisOverlay.StormCutscene", EventUnitBehavior());
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHCHR_gt_HeroChromieTimeTrapOverlayOn_Init () {
+    libHCHR_gt_HeroChromieTimeTrapOverlayOn = TriggerCreate("libHCHR_gt_HeroChromieTimeTrapOverlayOn_Func");
+    TriggerEnable(libHCHR_gt_HeroChromieTimeTrapOverlayOn, false);
+    TriggerAddEventUnitBehaviorChange(libHCHR_gt_HeroChromieTimeTrapOverlayOn, null, "ChromieTimeTrapTargetBehavior", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Chromie - Time Trap Overlay Off
+//--------------------------------------------------------------------------------------------------
+bool libHCHR_gt_HeroChromieTimeTrapOverlayOff_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_unit;
+
+    // Variable Initialization
+    lv_unit = EventUnit();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitHasBehavior2(lv_unit, "HeroGenericIgnoreFullscreenOverlay") == false)) {
+        libUIUI_gf_FullscreenOverlayRemoveItemFromQueueForPlayer(UnitGetOwner(lv_unit), "Cutscenes\\GameUI_StasisOverlay.StormCutscene", EventUnitBehavior());
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHCHR_gt_HeroChromieTimeTrapOverlayOff_Init () {
+    libHCHR_gt_HeroChromieTimeTrapOverlayOff = TriggerCreate("libHCHR_gt_HeroChromieTimeTrapOverlayOff_Func");
+    TriggerEnable(libHCHR_gt_HeroChromieTimeTrapOverlayOff, false);
+    TriggerAddEventUnitBehaviorChange(libHCHR_gt_HeroChromieTimeTrapOverlayOff, null, "ChromieTimeTrapTargetBehavior", c_unitBehaviorChangeDestroy);
+}
+
+void libHCHR_InitTriggers () {
+    libHCHR_gt_HeroAIMiscModInitialization_Init();
+    libHCHR_gt_HeroAIAddToTierDataChromie_Init();
+    libHCHR_gt_HeroAIInitAbilitiesChromie_Init();
+    libHCHR_gt_HeroChromiePastandFutureMeBirth_Init();
+    libHCHR_gt_HeroChromiePastandFutureMeDeath_Init();
+    libHCHR_gt_HeroChromieTimewalkersPursuitProc_Init();
+    libHCHR_gt_HeroChromieTimeOutOverlayOn_Init();
+    libHCHR_gt_HeroChromieTimeOutOverlayOff_Init();
+    libHCHR_gt_HeroChromieTemporalLoopCameraSnap_Init();
+    libHCHR_gt_HeroChromieTemporalLoopTeleportDetection_Init();
+    libHCHR_gt_HeroChromieTimeTrapController_Init();
+    libHCHR_gt_HeroChromieTimeTrapOverlayOn_Init();
+    libHCHR_gt_HeroChromieTimeTrapOverlayOff_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libHCHR_InitLib_completed = false;
+
+void libHCHR_InitLib () {
+    if (libHCHR_InitLib_completed) {
+        return;
+    }
+
+    libHCHR_InitLib_completed = true;
+
+    libHCHR_InitLibraries();
+    libHCHR_InitVariables();
+    libHCHR_InitCustomScript();
+    libHCHR_InitTriggers();
+}
+

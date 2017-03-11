@@ -1,0 +1,2586 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/MapMechanicsLib"
+include "TriggerLibs/AILib"
+include "TriggerLibs/UILib"
+include "TriggerLibs/SoundLib"
+include "LibAREN"
+
+include "LibAMGT_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: ARM_GardenTerror
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libAMGT_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+    libMapM_InitVariables();
+    libAIAI_InitVariables();
+    libUIUI_InitVariables();
+    libSond_InitVariables();
+    libAREN_InitVariables();
+}
+
+// Variable Initialization
+bool libAMGT_InitVariables_completed = false;
+
+void libAMGT_InitVariables () {
+    int init_i;
+    int init_i1;
+
+    if (libAMGT_InitVariables_completed) {
+        return;
+    }
+
+    libAMGT_InitVariables_completed = true;
+
+    for (init_i = 0; init_i <= libAREN_gv_aRM_MechanicsCountToPick_C; init_i += 1) {
+        libAMGT_gv_aRMGardenLevelRegisteredMechIds[init_i] = libAREN_ge_ArenaMechanics_InvalidMechanic;
+    }
+    for (init_i = 0; init_i <= libAREN_gv_aRM_MechanicsCountToPick_C; init_i += 1) {
+        libAMGT_gv_aRMGardenLevels[init_i] = libAMGT_ge_ARMGardenLevel_None;
+    }
+    libAMGT_gv_victoryPlantTerrorUnitGroup = UnitGroupEmpty();
+    for (init_i = 0; init_i <= libAMGT_gv_aRMGardenMinionGroupMaxCount_C; init_i += 1) {
+        libAMGT_gv_aRMGardenMinionGroup[init_i].lv_units = UnitGroupEmpty();
+    }
+    libAMGT_gv_aRMGardenPanel.lv_gardenOfTerrorPanel = c_invalidDialogControlId;
+    libAMGT_gv_aRMGardenPanel.lv_gardenOfTerrorScorePanel = c_invalidDialogControlId;
+    libAMGT_gv_aRMGardenPanel.lv_gardenOfTerrorSeedsFrame = c_invalidDialogControlId;
+    for (init_i1 = 0; init_i1 <= libCore_gv_bALMaxTeams; init_i1 += 1) {
+        libAMGT_gv_aRMGardenPanel.lv_seedsCounts[init_i1] = c_invalidDialogControlId;
+    }
+    libAMGT_gv_aRMGardenPanel.lv_gardenOfTerrorGolemFrame = c_invalidDialogControlId;
+    libAMGT_gv_aRMGardenPanel.lv_gardenOfTerrorShamblersFrame = c_invalidDialogControlId;
+    for (init_i1 = 0; init_i1 <= libCore_gv_bALMaxTeams; init_i1 += 1) {
+        libAMGT_gv_aRMGardenPanel.lv_progressNotification[init_i1] = c_invalidDialogControlId;
+    }
+    for (init_i1 = 0; init_i1 <= libCore_gv_bALMaxTeams; init_i1 += 1) {
+        libAMGT_gv_aRMGardenPanel.lv_progressNotificationLabel[init_i1] = c_invalidDialogControlId;
+    }
+    libAMGT_gv_nearbySeedRange = 7.0;
+    libAMGT_gv_safeDangerRatio = 0.8;
+    libAMGT_gv_allyHelpRange = 16.0;
+    libAMGT_gv_minimumFleeTime = 1.0;
+}
+
+// Presets
+// Functions
+int libAMGT_gf_ARMGardenCurrentLevel () {
+    // Implementation
+    return libAMGT_gv_aRMGardenLevels[libAREN_gf_ArenaCurrentLevelIndex()];
+}
+
+void libAMGT_gf_ARMGardenAddLevel (int lp_level, region lp_levelRegion, trigger lp_levelStartCallback, text lp_levelName, string lp_levelImageOrder, string lp_levelImageChaos, text lp_levelInfo, region lp_cameraBoundsRegion) {
+    // Implementation
+    libAMGT_gv_aRMGardenLevelCount += 1;
+    libAMGT_gv_aRMGardenLevelStartCallback[libAMGT_gv_aRMGardenLevelCount] = lp_levelStartCallback;
+    libAMGT_gv_aRMGardenLevels[libAMGT_gv_aRMGardenLevelCount] = lp_level;
+    libAREN_gf_ArenaRegisterMechanic(lp_levelName, lp_levelImageOrder, lp_levelImageChaos, lp_levelInfo, libAMGT_gt_ARMGardenLevelStart, lp_levelRegion, lp_cameraBoundsRegion);
+    libAMGT_gv_aRMGardenLevelRegisteredMechIds[libAMGT_gv_aRMGardenLevelCount] = libAREN_gf_LastregisteredArenaMechanic();
+}
+
+void libAMGT_gf_ARMGardenClearSpawnGroup () {
+    unitgroup auto5A603A82_g;
+    int auto5A603A82_u;
+    int auto3F3D960F_ae;
+    int auto3F3D960F_ai;
+    int auto3F077E90_ae;
+    int auto3F077E90_ai;
+    unitgroup autoB5992B5A_g;
+    int autoB5992B5A_u;
+    int auto81F379DC_ae;
+    int auto81F379DC_ai;
+    unitgroup auto79A9540E_g;
+    int auto79A9540E_u;
+
+    // Variable Declarations
+    int lv_itMinionIndex;
+    unit lv_indexMinion;
+    int lv_minionIndex;
+    int lv_itTerrorIndex;
+    unit lv_itVictoryPlantTerrorUnit;
+    unitgroup lv_mapSeeds;
+    unit lv_seed;
+
+    // Variable Initialization
+    lv_mapSeeds = UnitGroupEmpty();
+
+    // Implementation
+    auto5A603A82_g = libAMGT_gv_victoryPlantTerrorUnitGroup;
+    auto5A603A82_u = 1;
+    for ( ; auto5A603A82_u <= UnitGroupCount(auto5A603A82_g, c_unitCountAll) ; auto5A603A82_u += (lv_itVictoryPlantTerrorUnit == UnitGroupUnit(auto5A603A82_g, auto5A603A82_u)) ) {
+        lv_itVictoryPlantTerrorUnit = UnitGroupUnit(auto5A603A82_g, auto5A603A82_u);
+        UnitRemove(lv_itVictoryPlantTerrorUnit);
+    }
+    auto3F3D960F_ae = libAMGT_gv_aRMGardenMinionGroupCount;
+    auto3F3D960F_ai = 1;
+    lv_itMinionIndex = 1;
+    for ( ; ( (auto3F3D960F_ai >= 0 && lv_itMinionIndex <= auto3F3D960F_ae) || (auto3F3D960F_ai <= 0 && lv_itMinionIndex >= auto3F3D960F_ae) ) ; lv_itMinionIndex += auto3F3D960F_ai ) {
+        auto3F077E90_ae = libAMGT_gv_aRMGardenMinionGroup[lv_itMinionIndex].lv_count;
+        auto3F077E90_ai = 1;
+        lv_minionIndex = 1;
+        for ( ; ( (auto3F077E90_ai >= 0 && lv_minionIndex <= auto3F077E90_ae) || (auto3F077E90_ai <= 0 && lv_minionIndex >= auto3F077E90_ae) ) ; lv_minionIndex += auto3F077E90_ai ) {
+            libAMGT_gv_aRMGardenMinionGroup[lv_itMinionIndex].lv_types[lv_minionIndex] = null;
+        }
+        autoB5992B5A_g = libAMGT_gv_aRMGardenMinionGroup[lv_itMinionIndex].lv_units;
+        autoB5992B5A_u = 1;
+        for ( ; autoB5992B5A_u <= UnitGroupCount(autoB5992B5A_g, c_unitCountAll) ; autoB5992B5A_u += (lv_indexMinion == UnitGroupUnit(autoB5992B5A_g, autoB5992B5A_u)) ) {
+            lv_indexMinion = UnitGroupUnit(autoB5992B5A_g, autoB5992B5A_u);
+            UnitRemove(lv_indexMinion);
+        }
+        UnitGroupClear(libAMGT_gv_aRMGardenMinionGroup[lv_itMinionIndex].lv_units);
+        libAMGT_gv_aRMGardenMinionGroup[lv_itMinionIndex].lv_count = 0;
+        libAMGT_gv_aRMGardenMinionGroup[lv_itMinionIndex].lv_spawning = false;
+        if ((libAMGT_gv_aRMGardenMinionGroup[lv_itMinionIndex].lv_iconUnit != null)) {
+            UnitRemove(libAMGT_gv_aRMGardenMinionGroup[lv_itMinionIndex].lv_iconUnit);
+            libAMGT_gv_aRMGardenMinionGroup[lv_itMinionIndex].lv_iconUnit = null;
+        }
+
+        libAMGT_gv_aRMGardenMinionGroup[lv_itMinionIndex].lv_defenderAIIndex = 0;
+    }
+    libAMGT_gv_aRMGardenMinionGroupCount = 0;
+    auto81F379DC_ae = libAMGT_gv_aRMGardenTerrorCount;
+    auto81F379DC_ai = 1;
+    lv_itTerrorIndex = 1;
+    for ( ; ( (auto81F379DC_ai >= 0 && lv_itTerrorIndex <= auto81F379DC_ae) || (auto81F379DC_ai <= 0 && lv_itTerrorIndex >= auto81F379DC_ae) ) ; lv_itTerrorIndex += auto81F379DC_ai ) {
+        UnitRemove(libAMGT_gv_aRMGardenTerrors[lv_itTerrorIndex].lv_terror);
+        libAMGT_gv_aRMGardenTerrors[lv_itTerrorIndex].lv_spawning = false;
+        libAMGT_gv_aRMGardenTerrors[lv_itTerrorIndex].lv_terror = null;
+    }
+    libAMGT_gv_aRMGardenTerrorCount = 0;
+    lv_mapSeeds = UnitGroup("ItemSeedPickup", c_playerAny, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    auto79A9540E_g = lv_mapSeeds;
+    auto79A9540E_u = 1;
+    for ( ; auto79A9540E_u <= UnitGroupCount(auto79A9540E_g, c_unitCountAll) ; auto79A9540E_u += (lv_seed == UnitGroupUnit(auto79A9540E_g, auto79A9540E_u)) ) {
+        lv_seed = UnitGroupUnit(auto79A9540E_g, auto79A9540E_u);
+        UnitRemove(lv_seed);
+    }
+}
+
+void libAMGT_gf_ARMGardenTurnOnOffNightSettings (bool lp_onOff) {
+    // Variable Declarations
+    actor lv_actorRegion;
+
+    // Variable Initialization
+
+    // Implementation
+    ActorRegionCreate(null, "TriggerRegion", RegionEntireMap());
+    lv_actorRegion = libNtve_gf_ActorLastCreated();
+    if ((lp_onOff == true) && (libAMGT_gv_aRMGardenNightFallen == false)) {
+        libAMGT_gv_aRMGardenNightFallen = true;
+        ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal Light2On");
+        ActorRegionSend(lv_actorRegion, c_actorIntersectAgainstRadiusContact, "Signal NightOn", "Doodad", "ScopeContains _StreetLamp");
+        libAMGT_gf_ARMGardenNightStart();
+    }
+
+    if ((lp_onOff == false) && (libAMGT_gv_aRMGardenNightFallen == true)) {
+        libAMGT_gv_aRMGardenNightFallen = false;
+        ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal Light2Off");
+        ActorRegionSend(lv_actorRegion, c_actorIntersectAgainstRadiusContact, "Signal NightOff", "Doodad", "ScopeContains _StreetLamp");
+        libAMGT_gf_ARMGardenNightEnds();
+    }
+
+    ActorScopeKill(ActorScopeFromActor(lv_actorRegion));
+}
+
+void libAMGT_gf_ARMGardenNightStart () {
+    // Variable Declarations
+    int lv_itPlayer;
+    int lv_itGarden;
+    int lv_itTeam;
+
+    // Variable Initialization
+
+    // Implementation
+    ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal MM1On");
+    libCore_gv_mAPMapSoundtrack[1] = "MX_GardenOfTerror_Night_LVL_1";
+    libCore_gv_mAPMapSoundtrack[2] = "MX_GardenOfTerror_Night_LVL_10";
+    libCore_gv_mAPMapSoundtrack[3] = "MX_GardenOfTerror_Night_LVL_20";
+    if ((libSond_gf_SoundtrackIsIntroPlaying() == false)) {
+        libSond_gf_SoundtrackPlayMapSoundtrackAsDefaultSoundtrackForAllPlayers();
+    }
+
+    SoundtrackPlay(PlayerGroupAll(), c_soundtrackCategoryAmbience, "Amb_2D_GardenOfTerror_Night", c_soundtrackCueAny, c_soundtrackIndexAny, true);
+    SoundChannelMute(PlayerGroupAll(), c_soundCategoryUser14, false);
+    SoundChannelMute(PlayerGroupAll(), c_soundCategorySPieces, true);
+    SoundChannelMute(PlayerGroupAll(), c_soundCategoryMessage, true);
+}
+
+void libAMGT_gf_ARMGardenNightEnds () {
+    // Variable Declarations
+    int lv_itPlayer;
+    int lv_itGroupIndex;
+    unit lv_itMinion;
+    int lv_itTeam;
+
+    // Variable Initialization
+
+    // Implementation
+    libGame_gf_SendEventMapGardenOfTerrorNightEnds();
+    ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal MM1Off");
+    SoundChannelMute(PlayerGroupAll(), c_soundCategoryUser14, true);
+    SoundChannelMute(PlayerGroupAll(), c_soundCategorySPieces, false);
+    SoundChannelMute(PlayerGroupAll(), c_soundCategoryMessage, false);
+    libCore_gv_mAPMapSoundtrack[1] = "MX_GardenOfTerror_Day_LVL_1";
+    libCore_gv_mAPMapSoundtrack[2] = "MX_GardenOfTerror_Day_LVL_10";
+    libCore_gv_mAPMapSoundtrack[3] = "MX_GardenOfTerror_Day_LVL_20";
+    if ((libSond_gf_SoundtrackIsIntroPlaying() == false)) {
+        libSond_gf_SoundtrackPlayMapSoundtrackAsDefaultSoundtrackForAllPlayers();
+    }
+
+    SoundtrackPlay(PlayerGroupAll(), c_soundtrackCategoryAmbience, "Amb_2D_GardenOfTerror_Day", c_soundtrackCueAny, c_soundtrackIndexAny, false);
+}
+
+void libAMGT_gf_ARMGardenSpotlightController (int lp_level) {
+    int auto24E96FDA_val;
+
+    // Implementation
+    auto24E96FDA_val = lp_level;
+    if (auto24E96FDA_val == 1) {
+        ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal Light2Off");
+        ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal Light3Off");
+    }
+    else if (auto24E96FDA_val == 2) {
+        ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal Light2On");
+        ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal Light3Off");
+    }
+    else if (auto24E96FDA_val == 3) {
+        ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal Light3On");
+        ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal Light2Off");
+    }
+    else {
+    }
+}
+
+void libAMGT_gf_ARMGardenDropSeeds (point lp_location, int lp_count, bool lp_forBoss) {
+    int auto6B0DD956_n;
+    int auto6B0DD956_i;
+
+    // Implementation
+    if ((lp_count <= 0)) {
+        return ;
+    }
+
+    if ((lp_forBoss == true)) {
+        if ((lp_count > 1)) {
+            CatalogFieldValueSet(c_gameCatalogEffect, "PlantHorrorSpawnSeeds", "PeriodCount", libCore_gv_cOMPUTER_Neutral, IntToString(lp_count));
+            PlayerCreateEffectPoint(libCore_gv_cOMPUTER_Neutral, "PlantHorrorSpawnSeeds", lp_location);
+        }
+        else {
+            PlayerCreateEffectPoint(libCore_gv_cOMPUTER_Neutral, "PlantHorrorSpawnSeedsSingleFar", lp_location);
+        }
+    }
+    else {
+        auto6B0DD956_n = lp_count;
+        for (auto6B0DD956_i = 1; auto6B0DD956_i <= auto6B0DD956_n; auto6B0DD956_i += 1) {
+            PlayerCreateEffectPoint(libCore_gv_cOMPUTER_Neutral, "PlantHorrorSpawnSeedsSingleClose", lp_location);
+        }
+    }
+}
+
+void libAMGT_gf_ARMGardenSpawnMonsters () {
+    int autoA6EA3F32_val;
+
+    // Implementation
+    autoA6EA3F32_val = libAMGT_gf_ARMGardenCurrentLevel();
+    if (autoA6EA3F32_val == libAMGT_ge_ARMGardenLevel_Level1) {
+        libAMGT_gf_ARMGardenL1SpawnNextTerror(0);
+    }
+    else if (autoA6EA3F32_val == libAMGT_ge_ARMGardenLevel_Level2) {
+        libAMGT_gf_ARMGardenL2SpawnNextTerror(0);
+    }
+    else if (autoA6EA3F32_val == libAMGT_ge_ARMGardenLevel_Level3) {
+        libAMGT_gf_ARMGardenL3SpawnTerror();
+    }
+    else {
+    }
+    libAMGT_gf_ARMGardenMinionDroppingSeeds();
+    libAMGT_gf_ARMGardenTerrorsDroppingSeeds();
+}
+
+void libAMGT_gf_ARMGardenVictorySequence (int lp_winningTeam, unit lp_loserTeamCore) {
+    int autoFD37F8C8_ae;
+    int autoFD37F8C8_ai;
+    int autoDC6876AC_ae;
+    int autoDC6876AC_ai;
+
+    // Variable Declarations
+    int lv_fertileSoilIndexToGrow;
+    int lv_arenaLevelIndex;
+    unit lv_fertileSoilGarden;
+    point lv_plantTerrorSpawnPoint;
+    unit lv_plantTerror;
+    int lv_plantTerrorPlayer;
+    const fixed lv_coreAnimationWaitExplodeTime = 2.8;
+    point lv_coreLocation;
+    int lv_itUnit;
+    fixed lv_offsetAngle;
+    unit lv_itHeroUnit;
+    int lv_itPlayer;
+    const int lv_maxNumberOfShamblers_C = 9;
+    unit[lv_maxNumberOfShamblers_C + 1] lv_shamblerUnits;
+    fixed lv_shamblerVarianceAngleUpperBound;
+    fixed lv_shamblerVarianceAngleLowerBound;
+    fixed lv_shamblerVarianceAngle;
+    fixed lv_shamblerVarianceRange;
+    int lv_shamblerTypeVariance;
+
+    // Variable Initialization
+
+    // Implementation
+    libAREN_gv_aRM_VictorySequencePlaying = true;
+    libAREN_gv_aRM_RoundWinningTeam = lp_winningTeam;
+    libAREN_gv_aRM_VictorySequenceDelay = 8.0;
+    libAREN_gf_ARM_RoundOver();
+    lv_fertileSoilIndexToGrow = libGame_gf_EnemyTeam(lp_winningTeam);
+    lv_arenaLevelIndex = libAREN_gf_ArenaCurrentLevelIndex();
+    lv_fertileSoilGarden = libAMGT_gv_fertilePlot[lv_fertileSoilIndexToGrow][libAREN_gf_ArenaCurrentLevelIndex()];
+    lv_plantTerrorSpawnPoint = PointWithOffsetPolar(UnitGetPosition(lv_fertileSoilGarden), 2.0, UnitGetFacing(lv_fertileSoilGarden));
+    if ((lp_winningTeam == 1)) {
+        lv_plantTerrorPlayer = libCore_gv_cOMPUTER_TeamOrder;
+    }
+    else {
+        lv_plantTerrorPlayer = libCore_gv_cOMPUTER_TeamChaos;
+    }
+    UnitBehaviorAdd(lv_fertileSoilGarden, "UnitNotPuntableByRepulserField", lv_fertileSoilGarden, 1);
+    UnitSetOwner(lv_fertileSoilGarden, lv_plantTerrorPlayer, true);
+    libNtve_gf_PauseUnit(lv_fertileSoilGarden, false);
+    UnitCreate(1, "VehiclePlantHorror", 0, lv_plantTerrorPlayer, lv_plantTerrorSpawnPoint, UnitGetFacing(lv_fertileSoilGarden));
+    lv_plantTerror = UnitLastCreated();
+    libNtve_gf_SendActorMessageToUnit(lv_plantTerror, "SetMinimapVisibility");
+    UnitBehaviorAdd(lv_plantTerror, "PlantHorrorVictorySequenceDisableAbilityBehavior", lv_plantTerror, 1);
+    UnitBehaviorAdd(lv_plantTerror, "VictorySequenceImmunetoStasisBehavior", lv_plantTerror, 1);
+    UnitBehaviorAdd(lv_plantTerror, "UnitNotPuntableByRepulserField", lv_plantTerror, 1);
+    UnitWeaponAdd(lv_plantTerror, "VehiclePlantHorrorVictoryWeapon", null);
+    UnitWeaponRemove(lv_plantTerror, "VehiclePlantHorror");
+    libNtve_gf_MakeUnitInvulnerable(lv_plantTerror, true);
+    UnitGroupAdd(libAMGT_gv_victoryPlantTerrorUnitGroup, lv_plantTerror);
+    libNtve_gf_SendActorMessageToUnit(lp_loserTeamCore, "Create PlantHorrorVictorySequenceCoreFX");
+    libGame_gf_BuildingDiesCameraShake(libGame_gv_gameOver_CameraPanTime_C, "Medium", libCore_gv_activeHumanPlayers);
+    libNtve_gf_SendActorMessageToUnit(lv_fertileSoilGarden, "Signal Victory");
+    autoFD37F8C8_ae = lv_maxNumberOfShamblers_C;
+    autoFD37F8C8_ai = 1;
+    lv_itUnit = 1;
+    for ( ; ( (autoFD37F8C8_ai >= 0 && lv_itUnit <= autoFD37F8C8_ae) || (autoFD37F8C8_ai <= 0 && lv_itUnit >= autoFD37F8C8_ae) ) ; lv_itUnit += autoFD37F8C8_ai ) {
+        lv_offsetAngle += (360.0/lv_maxNumberOfShamblers_C);
+        lv_shamblerVarianceAngleLowerBound = (lv_offsetAngle - 35.0);
+        lv_shamblerVarianceAngleUpperBound = (lv_offsetAngle + 35.0);
+        lv_shamblerVarianceAngle = RandomFixed(lv_shamblerVarianceAngleLowerBound, lv_shamblerVarianceAngleUpperBound);
+        lv_shamblerVarianceRange = RandomFixed(6.0, 8.5);
+        lv_coreLocation = PointWithOffsetPolar(UnitGetPosition(lp_loserTeamCore), lv_shamblerVarianceRange, lv_shamblerVarianceAngle);
+        lv_shamblerTypeVariance = RandomInt(0, 1);
+        if ((lv_shamblerTypeVariance >= 1)) {
+            libNtve_gf_UnitCreateFacingPoint(1, "Shambler", 0, lv_plantTerrorPlayer, lv_coreLocation, UnitGetPosition(lp_loserTeamCore));
+        }
+        else {
+            libNtve_gf_UnitCreateFacingPoint(1, "ShamblerRanged", 0, lv_plantTerrorPlayer, lv_coreLocation, UnitGetPosition(lp_loserTeamCore));
+        }
+        UnitGroupAdd(libAMGT_gv_victoryPlantTerrorUnitGroup, UnitLastCreated());
+        UnitBehaviorAdd(UnitLastCreated(), "UnitNotPuntableByRepulserField", UnitLastCreated(), 1);
+        UnitBehaviorAdd(UnitLastCreated(), "ShamblingHorrorVictorySequenceDamageLimiter", UnitLastCreated(), 1);
+        libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "SetShowStatusBar");
+        lv_shamblerUnits[lv_itUnit] = UnitLastCreated();
+    }
+    Wait(3.0, c_timeGame);
+    UnitBehaviorAdd(lv_plantTerror, "PlantHorrorVictorySequenceDamageLimiter", lv_plantTerror, 1);
+    UnitBehaviorRemove(lv_plantTerror, "PlantHorrorBirth", 1);
+    UnitBehaviorRemove(lv_plantTerror, "PlantHorrorDeactivated", 1);
+    UnitBehaviorRemove(lv_plantTerror, "GenericVehicleBehaviorEmpty", 1);
+    UnitIssueOrder(lv_plantTerror, OrderTargetingUnit(AbilityCommand("attack", 0), lp_loserTeamCore), c_orderQueueReplace);
+    autoDC6876AC_ae = lv_maxNumberOfShamblers_C;
+    autoDC6876AC_ai = 1;
+    lv_itUnit = 1;
+    for ( ; ( (autoDC6876AC_ai >= 0 && lv_itUnit <= autoDC6876AC_ae) || (autoDC6876AC_ai <= 0 && lv_itUnit >= autoDC6876AC_ae) ) ; lv_itUnit += autoDC6876AC_ai ) {
+        UnitIssueOrder(lv_shamblerUnits[lv_itUnit], OrderTargetingUnit(AbilityCommand("attack", 0), lp_loserTeamCore), c_orderQueueReplace);
+    }
+}
+
+void libAMGT_gf_ARMGardenAddMinionGroup (region lp_area, bool lp_aggro, string lp_extraIcon, int lp_side) {
+    unitgroup auto843621A4_g;
+    int auto843621A4_u;
+
+    // Variable Declarations
+    int lv_groupIndex;
+    unit lv_itMinion;
+    int lv_minionIndex;
+
+    // Variable Initialization
+
+    // Implementation
+    if ((libAMGT_gv_aRMGardenMinionGroupCount >= libAMGT_gv_aRMGardenMinionGroupMaxCount_C)) {
+        UIDisplayMessage(PlayerGroupAll(), c_messageAreaSubtitle, StringExternal("Param/Value/lib_AMGT_2C820F3A"));
+        return ;
+    }
+
+    libAMGT_gv_aRMGardenMinionGroupCount += 1;
+    libAMGT_gv_aRMGardenMinionGroup[libAMGT_gv_aRMGardenMinionGroupCount].lv_area = lp_area;
+    libAMGT_gv_aRMGardenMinionGroup[libAMGT_gv_aRMGardenMinionGroupCount].lv_aggro = lp_aggro;
+    libAMGT_gv_aRMGardenMinionGroup[libAMGT_gv_aRMGardenMinionGroupCount].lv_groupIcon = lp_extraIcon;
+    libAMGT_gv_aRMGardenMinionGroup[libAMGT_gv_aRMGardenMinionGroupCount].lv_side = lp_side;
+    auto843621A4_g = UnitGroup(null, libCore_gv_cOMPUTER_Hostile, lp_area, UnitFilter((1 << c_targetFilterLight), (1 << (c_targetFilterHidden - 32)), (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32))), 0);
+    auto843621A4_u = 1;
+    for ( ; auto843621A4_u <= UnitGroupCount(auto843621A4_g, c_unitCountAll) ; auto843621A4_u += (lv_itMinion == UnitGroupUnit(auto843621A4_g, auto843621A4_u)) ) {
+        lv_itMinion = UnitGroupUnit(auto843621A4_g, auto843621A4_u);
+        libAMGT_gv_aRMGardenMinionGroup[libAMGT_gv_aRMGardenMinionGroupCount].lv_count += 1;
+        lv_minionIndex = libAMGT_gv_aRMGardenMinionGroup[libAMGT_gv_aRMGardenMinionGroupCount].lv_count;
+        libAMGT_gv_aRMGardenMinionGroup[libAMGT_gv_aRMGardenMinionGroupCount].lv_types[lv_minionIndex] = UnitGetType(lv_itMinion);
+        libAMGT_gv_aRMGardenMinionGroup[libAMGT_gv_aRMGardenMinionGroupCount].lv_positions[lv_minionIndex] = UnitGetPosition(lv_itMinion);
+        PointSetFacing(libAMGT_gv_aRMGardenMinionGroup[libAMGT_gv_aRMGardenMinionGroupCount].lv_positions[lv_minionIndex], UnitGetFacing(lv_itMinion));
+        UnitRemove(lv_itMinion);
+    }
+    libAMGT_gv_aRMGardenMinionGroup[libAMGT_gv_aRMGardenMinionGroupCount].lv_spawning = false;
+    libAMGT_gv_aRMGardenMinionGroup[libAMGT_gv_aRMGardenMinionGroupCount].lv_defenderAIIndex = 0;
+    if ((libAMGT_gv_aRMGardenMinionGroup[libAMGT_gv_aRMGardenMinionGroupCount].lv_iconUnit != null)) {
+        UnitRemove(libAMGT_gv_aRMGardenMinionGroup[libAMGT_gv_aRMGardenMinionGroupCount].lv_iconUnit);
+        libAMGT_gv_aRMGardenMinionGroup[libAMGT_gv_aRMGardenMinionGroupCount].lv_iconUnit = null;
+    }
+
+    UnitGroupClear(libAMGT_gv_aRMGardenMinionGroup[libAMGT_gv_aRMGardenMinionGroupCount].lv_units);
+}
+
+int libAMGT_gf_ARMGardenMinionGroupIndex (unit lp_minion) {
+    // Implementation
+    return libCore_gf_IntegerStoredForUnit(lp_minion, 1);
+}
+
+trigger auto_libAMGT_gf_ARMGardenSpawnMinionGroupSingle_Trigger = null;
+int auto_libAMGT_gf_ARMGardenSpawnMinionGroupSingle_lp_groupIndex;
+bool auto_libAMGT_gf_ARMGardenSpawnMinionGroupSingle_lp_delay;
+
+void libAMGT_gf_ARMGardenSpawnMinionGroupSingle (int lp_groupIndex, bool lp_delay) {
+    auto_libAMGT_gf_ARMGardenSpawnMinionGroupSingle_lp_groupIndex = lp_groupIndex;
+    auto_libAMGT_gf_ARMGardenSpawnMinionGroupSingle_lp_delay = lp_delay;
+
+    if (auto_libAMGT_gf_ARMGardenSpawnMinionGroupSingle_Trigger == null) {
+        auto_libAMGT_gf_ARMGardenSpawnMinionGroupSingle_Trigger = TriggerCreate("auto_libAMGT_gf_ARMGardenSpawnMinionGroupSingle_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libAMGT_gf_ARMGardenSpawnMinionGroupSingle_Trigger, false, false);
+}
+
+bool auto_libAMGT_gf_ARMGardenSpawnMinionGroupSingle_TriggerFunc (bool testConds, bool runActions) {
+    int lp_groupIndex = auto_libAMGT_gf_ARMGardenSpawnMinionGroupSingle_lp_groupIndex;
+    bool lp_delay = auto_libAMGT_gf_ARMGardenSpawnMinionGroupSingle_lp_delay;
+
+    int auto2A0FD6F8_ae;
+    int auto2A0FD6F8_ai;
+    unitgroup autoA68113C3_g;
+    int autoA68113C3_u;
+
+    // Variable Declarations
+    int lv_itMinionIndex;
+    unitgroup lv_minionGroup;
+    unit lv_itMinion;
+    int lv_ping1;
+    int lv_ping2;
+
+    // Variable Initialization
+    lv_minionGroup = UnitGroupEmpty();
+    lv_ping1 = c_invalidPingId;
+    lv_ping2 = c_invalidPingId;
+
+    // Implementation
+    if ((libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_spawning == true)) {
+        return true;
+    }
+
+    libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_spawning = true;
+    if ((lp_delay == true)) {
+        Wait(RandomFixed(3.0, 4.0), c_timeGame);
+    }
+    else {
+        Wait(RandomFixed(0.0, 1.0), c_timeGame);
+    }
+    DialogControlSetVisible(libAMGT_gv_aRMGardenPanel.lv_gardenOfTerrorShamblersFrame, PlayerGroupAll(), true);
+    PingCreateFromData(PlayerGroupAll(), "StormArenaAlert", RegionGetCenter(libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_area));
+    PingSetColor(PingLastCreated(), Color(100.00, 100.00, 0.00));
+    PingSetTooltip(PingLastCreated(), StringExternal("Param/Value/lib_AMGT_D17D4BB9"));
+    PingSetScale(PingLastCreated(), 0.6);
+    lv_ping1 = PingLastCreated();
+    PingCreateFromData(PlayerGroupAll(), "StormObjective", RegionGetCenter(libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_area));
+    PingSetColor(PingLastCreated(), Color(100.00, 100.00, 0.00));
+    PingSetScale(PingLastCreated(), 0.6);
+    lv_ping2 = PingLastCreated();
+    SoundPlayForPlayer(SoundLink("ArenaMode_Crowd_Cheer_EventReady", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    if ((lp_delay == true)) {
+        Wait(2.0, c_timeGame);
+    }
+
+    auto2A0FD6F8_ae = (libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_count - UnitGroupCount(libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_units, c_unitCountAlive));
+    auto2A0FD6F8_ai = 1;
+    lv_itMinionIndex = 1;
+    for ( ; ( (auto2A0FD6F8_ai >= 0 && lv_itMinionIndex <= auto2A0FD6F8_ae) || (auto2A0FD6F8_ai <= 0 && lv_itMinionIndex >= auto2A0FD6F8_ae) ) ; lv_itMinionIndex += auto2A0FD6F8_ai ) {
+        libNtve_gf_CreateUnitsAtPoint2(1, libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_types[lv_itMinionIndex], c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Hostile, libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_positions[lv_itMinionIndex]);
+        UnitGroupAdd(libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_units, UnitLastCreated());
+        libCore_gf_StoreIntegerForUnit(UnitLastCreated(), 1, lp_groupIndex);
+        libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "SetMinimapVisibilityAlways");
+        libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "SetMinimapVisibility");
+        UnitSetState(UnitLastCreated(), c_unitStateSelectable, false);
+        UnitSetState(UnitLastCreated(), c_unitStateStoppable, false);
+        UnitSetState(UnitLastCreated(), c_unitStateInvulnerable, true);
+        UnitSetState(UnitLastCreated(), c_unitStateStatusBar, false);
+        UnitSetState(UnitLastCreated(), c_unitStateTargetable, false);
+    }
+    Wait(2.0, c_timeGame);
+    autoA68113C3_g = libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_units;
+    autoA68113C3_u = 1;
+    for ( ; autoA68113C3_u <= UnitGroupCount(autoA68113C3_g, c_unitCountAll) ; autoA68113C3_u += (lv_itMinion == UnitGroupUnit(autoA68113C3_g, autoA68113C3_u)) ) {
+        lv_itMinion = UnitGroupUnit(autoA68113C3_g, autoA68113C3_u);
+        UnitSetState(lv_itMinion, c_unitStateSelectable, true);
+        UnitSetState(lv_itMinion, c_unitStateStoppable, true);
+        UnitSetState(lv_itMinion, c_unitStateInvulnerable, false);
+        UnitSetState(lv_itMinion, c_unitStateStatusBar, true);
+        UnitSetState(lv_itMinion, c_unitStateTargetable, true);
+    }
+    Wait(0.0, c_timeGame);
+    if ((libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_defenderAIIndex == 0)) {
+        libAIAI_gf_StartDefenderAI(libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_units, libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_area, null, false);
+        libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_defenderAIIndex = libAIAI_gf_LastCreatedDefenderAI();
+    }
+    else {
+        libAIAI_gf_AddUnitsToDefenderAI(libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_defenderAIIndex, libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_units);
+    }
+    if ((libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_groupIcon != null)) {
+        libNtve_gf_CreateUnitsAtPoint2(1, "JungleCampIconUnit", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Hostile, RegionGetCenter(libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_area));
+        libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_iconUnit = UnitLastCreated();
+        libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), (("MinimapIcon " + (libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_groupIcon))));
+        libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "SetMinimapVisibility 1");
+        libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "SetMinimapVisibilityAlways 1");
+        libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "MinimapIconScale 0.500000");
+        libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "MinimapIconTintColor 255,180,90,218");
+    }
+
+    libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_spawning = false;
+    Wait(3.0, c_timeGame);
+    if ((lv_ping1 != c_invalidPingId)) {
+        PingDestroy(lv_ping1);
+    }
+
+    if ((lv_ping2 != c_invalidPingId)) {
+        PingDestroy(lv_ping2);
+    }
+
+    return true;
+}
+
+trigger auto_libAMGT_gf_ARMGardenMinionDroppingSeeds_Trigger = null;
+
+void libAMGT_gf_ARMGardenMinionDroppingSeeds () {
+    if (auto_libAMGT_gf_ARMGardenMinionDroppingSeeds_Trigger == null) {
+        auto_libAMGT_gf_ARMGardenMinionDroppingSeeds_Trigger = TriggerCreate("auto_libAMGT_gf_ARMGardenMinionDroppingSeeds_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libAMGT_gf_ARMGardenMinionDroppingSeeds_Trigger, false, false);
+}
+
+bool auto_libAMGT_gf_ARMGardenMinionDroppingSeeds_TriggerFunc (bool testConds, bool runActions) {
+    int auto74B3434D_ae;
+    int auto74B3434D_ai;
+    unitgroup auto51F79180_g;
+    int auto51F79180_u;
+
+    // Variable Declarations
+    int lv_itGroup;
+    unit lv_itGroup2;
+
+    // Variable Initialization
+
+    // Implementation
+    while (true) {
+        if ((libGame_gv_gameOver == true)) {
+            return true;
+        }
+
+        auto74B3434D_ae = libAMGT_gv_aRMGardenMinionGroupCount;
+        auto74B3434D_ai = 1;
+        lv_itGroup = 1;
+        for ( ; ( (auto74B3434D_ai >= 0 && lv_itGroup <= auto74B3434D_ae) || (auto74B3434D_ai <= 0 && lv_itGroup >= auto74B3434D_ae) ) ; lv_itGroup += auto74B3434D_ai ) {
+            auto51F79180_g = libAMGT_gv_aRMGardenMinionGroup[lv_itGroup].lv_units;
+            auto51F79180_u = 1;
+            for ( ; auto51F79180_u <= UnitGroupCount(auto51F79180_g, c_unitCountAll) ; auto51F79180_u += (lv_itGroup2 == UnitGroupUnit(auto51F79180_g, auto51F79180_u)) ) {
+                lv_itGroup2 = UnitGroupUnit(auto51F79180_g, auto51F79180_u);
+                if ((UnitIsAlive(lv_itGroup2) == false)) {
+                    continue;
+                }
+
+                libAMGT_gf_ARMGardenMinionDropsSeeds(lv_itGroup2);
+            }
+        }
+        Wait(0.25, c_timeGame);
+    }
+    return true;
+}
+
+void libAMGT_gf_ARMGardenMinionDropsSeeds (unit lp_bossIndex) {
+    int auto214A1643_ae;
+    int auto214A1643_ai;
+    int auto38417DDE_ae;
+    int auto38417DDE_ai;
+
+    // Variable Declarations
+    int lv_droppedIndex;
+    int lv_dropIndex;
+    int lv_dropIndexMax;
+    int lv_itDrop;
+    int lv_itSeed;
+    fixed lv_percent;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_percent = UnitGetPropertyFixed(lp_bossIndex, c_unitPropLifePercent, c_unitPropCurrent);
+    lv_droppedIndex = libCore_gf_IntegerStoredForUnit(lp_bossIndex, 2);
+    lv_dropIndexMax = ((libAMGT_gv_aRMGardenSeedsMinionStartHPPercent_C+FixedToInt(libAMGT_gv_aRMGardenSeedsMinionPerHPPercent_C)-1)/FixedToInt(libAMGT_gv_aRMGardenSeedsMinionPerHPPercent_C));
+    if ((UnitIsAlive(lp_bossIndex) == true)) {
+        lv_dropIndex = ((libAMGT_gv_aRMGardenSeedsMinionStartHPPercent_C+FixedToInt(libAMGT_gv_aRMGardenSeedsMinionPerHPPercent_C)-1-FixedToInt(lv_percent))/FixedToInt(libAMGT_gv_aRMGardenSeedsMinionPerHPPercent_C));
+        lv_dropIndex = MinI(lv_dropIndex, lv_dropIndexMax);
+    }
+    else {
+        lv_dropIndex = lv_dropIndexMax;
+    }
+    if ((lv_dropIndex > lv_droppedIndex)) {
+        libCore_gf_StoreIntegerForUnit(lp_bossIndex, 2, lv_dropIndex);
+        auto214A1643_ae = lv_dropIndex;
+        auto214A1643_ai = 1;
+        lv_itDrop = (lv_droppedIndex + 1);
+        for ( ; ( (auto214A1643_ai >= 0 && lv_itDrop <= auto214A1643_ae) || (auto214A1643_ai <= 0 && lv_itDrop >= auto214A1643_ae) ) ; lv_itDrop += auto214A1643_ai ) {
+            auto38417DDE_ae = libAMGT_gv_aRMGardenSeedsMinionPerHPDrop_C;
+            auto38417DDE_ai = 1;
+            lv_itSeed = 1;
+            for ( ; ( (auto38417DDE_ai >= 0 && lv_itSeed <= auto38417DDE_ae) || (auto38417DDE_ai <= 0 && lv_itSeed >= auto38417DDE_ae) ) ; lv_itSeed += auto38417DDE_ai ) {
+                libAMGT_gf_ARMGardenDropSeeds(UnitGetPosition(lp_bossIndex), 1, false);
+            }
+        }
+    }
+
+}
+
+void libAMGT_gf_ARMGardenAddTerror (unit lp_terror, region lp_area) {
+    // Implementation
+    libAMGT_gv_aRMGardenTerrorCount += 1;
+    libAMGT_gv_aRMGardenTerrors[libAMGT_gv_aRMGardenTerrorCount].lv_area = lp_area;
+    libAMGT_gv_aRMGardenTerrors[libAMGT_gv_aRMGardenTerrorCount].lv_position = UnitGetPosition(lp_terror);
+    PointSetFacing(libAMGT_gv_aRMGardenTerrors[libAMGT_gv_aRMGardenTerrorCount].lv_position, UnitGetFacing(lp_terror));
+    UnitRemove(lp_terror);
+    libAMGT_gv_aRMGardenTerrors[libAMGT_gv_aRMGardenTerrorCount].lv_terror = null;
+    libAMGT_gv_aRMGardenTerrors[libAMGT_gv_aRMGardenTerrorCount].lv_spawning = false;
+}
+
+trigger auto_libAMGT_gf_ARMGardenSpawnTerrorsSingle_Trigger = null;
+int auto_libAMGT_gf_ARMGardenSpawnTerrorsSingle_lp_index;
+
+void libAMGT_gf_ARMGardenSpawnTerrorsSingle (int lp_index) {
+    auto_libAMGT_gf_ARMGardenSpawnTerrorsSingle_lp_index = lp_index;
+
+    if (auto_libAMGT_gf_ARMGardenSpawnTerrorsSingle_Trigger == null) {
+        auto_libAMGT_gf_ARMGardenSpawnTerrorsSingle_Trigger = TriggerCreate("auto_libAMGT_gf_ARMGardenSpawnTerrorsSingle_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libAMGT_gf_ARMGardenSpawnTerrorsSingle_Trigger, false, false);
+}
+
+bool auto_libAMGT_gf_ARMGardenSpawnTerrorsSingle_TriggerFunc (bool testConds, bool runActions) {
+    int lp_index = auto_libAMGT_gf_ARMGardenSpawnTerrorsSingle_lp_index;
+
+    // Variable Declarations
+    int lv_ping1;
+    int lv_ping2;
+
+    // Variable Initialization
+    lv_ping1 = c_invalidPingId;
+    lv_ping2 = c_invalidPingId;
+
+    // Implementation
+    if ((libAMGT_gv_aRMGardenTerrors[lp_index].lv_spawning == true)) {
+        return true;
+    }
+
+    libAMGT_gv_aRMGardenTerrors[lp_index].lv_spawning = true;
+    DialogControlSetVisible(libAMGT_gv_aRMGardenPanel.lv_gardenOfTerrorGolemFrame, PlayerGroupAll(), true);
+    PingCreateFromData(PlayerGroupAll(), "StormArenaAlert", libAMGT_gv_aRMGardenTerrors[lp_index].lv_position);
+    PingSetColor(PingLastCreated(), Color(100.00, 100.00, 0.00));
+    PingSetTooltip(PingLastCreated(), StringExternal("Param/Value/lib_AMGT_95104AF5"));
+    PingSetScale(PingLastCreated(), 0.8);
+    lv_ping1 = PingLastCreated();
+    PingCreateFromData(PlayerGroupAll(), "StormObjective", libAMGT_gv_aRMGardenTerrors[lp_index].lv_position);
+    PingSetColor(PingLastCreated(), Color(100.00, 100.00, 0.00));
+    PingSetScale(PingLastCreated(), 0.8);
+    lv_ping2 = PingLastCreated();
+    SoundPlayForPlayer(SoundLink("ArenaMode_Crowd_Cheer_EventReady", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    Wait(2.0, c_timeGame);
+    libNtve_gf_CreateUnitsAtPoint2(1, "JunglePlantHorror", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Hostile, libAMGT_gv_aRMGardenTerrors[lp_index].lv_position);
+    libAMGT_gv_aRMGardenTerrors[lp_index].lv_terror = UnitLastCreated();
+    libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "MinimapIcon Assets\\Textures\\storm_ui_minimapicon_gardengolem.dds");
+    libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "SetMinimapVisibility 1");
+    libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "SetMinimapVisibilityAlways 1");
+    libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "MinimapIconScale 0.700000");
+    libAIAI_gf_StartDefenderAI(libNtve_gf_ConvertUnitToUnitGroup(UnitLastCreated()), libAMGT_gv_aRMGardenTerrors[lp_index].lv_area, null, false);
+    Wait(10.0, c_timeGame);
+    PingDestroy(lv_ping1);
+    PingDestroy(lv_ping2);
+    libAMGT_gv_aRMGardenTerrors[lp_index].lv_spawning = false;
+    return true;
+}
+
+int libAMGT_gf_ARMGardenTerrorIndex (unit lp_terror) {
+    int auto05953537_ae;
+    int auto05953537_ai;
+
+    // Variable Declarations
+    int lv_itTerrorIndex;
+
+    // Variable Initialization
+
+    // Implementation
+    auto05953537_ae = libAMGT_gv_aRMGardenTerrorCount;
+    auto05953537_ai = 1;
+    lv_itTerrorIndex = 1;
+    for ( ; ( (auto05953537_ai >= 0 && lv_itTerrorIndex <= auto05953537_ae) || (auto05953537_ai <= 0 && lv_itTerrorIndex >= auto05953537_ae) ) ; lv_itTerrorIndex += auto05953537_ai ) {
+        if ((libAMGT_gv_aRMGardenTerrors[lv_itTerrorIndex].lv_terror == lp_terror)) {
+            return lv_itTerrorIndex;
+        }
+
+    }
+    return 0;
+}
+
+trigger auto_libAMGT_gf_ARMGardenTerrorsDroppingSeeds_Trigger = null;
+
+void libAMGT_gf_ARMGardenTerrorsDroppingSeeds () {
+    if (auto_libAMGT_gf_ARMGardenTerrorsDroppingSeeds_Trigger == null) {
+        auto_libAMGT_gf_ARMGardenTerrorsDroppingSeeds_Trigger = TriggerCreate("auto_libAMGT_gf_ARMGardenTerrorsDroppingSeeds_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libAMGT_gf_ARMGardenTerrorsDroppingSeeds_Trigger, false, false);
+}
+
+bool auto_libAMGT_gf_ARMGardenTerrorsDroppingSeeds_TriggerFunc (bool testConds, bool runActions) {
+    int auto771AA39C_ae;
+    int auto771AA39C_ai;
+
+    // Variable Declarations
+    int lv_itGroup;
+
+    // Variable Initialization
+
+    // Implementation
+    while (true) {
+        if ((libGame_gv_gameOver == true)) {
+            return true;
+        }
+
+        auto771AA39C_ae = libAMGT_gv_aRMGardenTerrorCount;
+        auto771AA39C_ai = 1;
+        lv_itGroup = 1;
+        for ( ; ( (auto771AA39C_ai >= 0 && lv_itGroup <= auto771AA39C_ae) || (auto771AA39C_ai <= 0 && lv_itGroup >= auto771AA39C_ae) ) ; lv_itGroup += auto771AA39C_ai ) {
+            if ((UnitIsAlive(libAMGT_gv_aRMGardenTerrors[lv_itGroup].lv_terror) == false)) {
+                continue;
+            }
+
+            libAMGT_gf_ARMGardenTerrorDropsSeeds(libAMGT_gv_aRMGardenTerrors[lv_itGroup].lv_terror);
+        }
+        Wait(0.25, c_timeGame);
+    }
+    return true;
+}
+
+void libAMGT_gf_ARMGardenTerrorDropsSeeds (unit lp_bossIndex) {
+    int autoF3E48E0A_ae;
+    int autoF3E48E0A_ai;
+    int auto2C96026B_ae;
+    int auto2C96026B_ai;
+    int autoA633DC79_ae;
+    int autoA633DC79_ai;
+    int auto1FA089EA_n;
+    int auto1FA089EA_i;
+
+    // Variable Declarations
+    int lv_itTerrorIndex;
+    int lv_droppedIndex;
+    int lv_dropIndex;
+    int lv_dropIndexMax;
+    int lv_itDrop;
+    int lv_itSeed;
+    fixed lv_percent;
+    point lv_dropLoc;
+    point lv_dropLocTemp;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_itTerrorIndex = libAMGT_gf_ARMGardenTerrorIndex(lp_bossIndex);
+    if ((lv_itTerrorIndex <= 0)) {
+        return ;
+    }
+
+    lv_percent = UnitGetPropertyFixed(lp_bossIndex, c_unitPropLifePercent, c_unitPropCurrent);
+    lv_droppedIndex = libCore_gf_IntegerStoredForUnit(lp_bossIndex, 2);
+    lv_dropIndexMax = ((libAMGT_gv_aRMGardenSeedsTerrorStartHPPercent_C+FixedToInt(libAMGT_gv_aRMGardenSeedsTerrorPerHPPercent_C)-1)/FixedToInt(libAMGT_gv_aRMGardenSeedsTerrorPerHPPercent_C));
+    if ((UnitIsAlive(lp_bossIndex) == true)) {
+        lv_dropIndex = ((libAMGT_gv_aRMGardenSeedsTerrorStartHPPercent_C+FixedToInt(libAMGT_gv_aRMGardenSeedsTerrorPerHPPercent_C)-1-FixedToInt(lv_percent))/FixedToInt(libAMGT_gv_aRMGardenSeedsTerrorPerHPPercent_C));
+        lv_dropIndex = MinI(lv_dropIndex, lv_dropIndexMax);
+    }
+    else {
+        lv_dropIndex = lv_dropIndexMax;
+    }
+    if ((lv_dropIndex > lv_droppedIndex)) {
+        libCore_gf_StoreIntegerForUnit(lp_bossIndex, 2, lv_dropIndex);
+        autoF3E48E0A_ae = lv_dropIndex;
+        autoF3E48E0A_ai = 1;
+        lv_itDrop = (lv_droppedIndex + 1);
+        for ( ; ( (autoF3E48E0A_ai >= 0 && lv_itDrop <= autoF3E48E0A_ae) || (autoF3E48E0A_ai <= 0 && lv_itDrop >= autoF3E48E0A_ae) ) ; lv_itDrop += autoF3E48E0A_ai ) {
+            auto2C96026B_ae = libAMGT_gv_aRMGardenSeedsTerrorPerHPDrop_C;
+            auto2C96026B_ai = 1;
+            lv_itSeed = 1;
+            for ( ; ( (auto2C96026B_ai >= 0 && lv_itSeed <= auto2C96026B_ae) || (auto2C96026B_ai <= 0 && lv_itSeed >= auto2C96026B_ae) ) ; lv_itSeed += auto2C96026B_ai ) {
+                libAMGT_gf_ARMGardenDropSeeds(UnitGetPosition(lp_bossIndex), 1, true);
+            }
+        }
+    }
+
+    lv_droppedIndex = libCore_gf_IntegerStoredForUnit(lp_bossIndex, 3);
+    lv_dropIndexMax = 2;
+    if ((UnitIsAlive(lp_bossIndex) == true)) {
+        if ((lv_percent <= 30.0)) {
+            lv_dropIndex = 2;
+        }
+        else if ((lv_percent <= 70.0)) {
+            lv_dropIndex = 1;
+        }
+        else if (true) {
+            lv_dropIndex = 0;
+        }
+    }
+    else {
+        lv_dropIndex = lv_dropIndexMax;
+    }
+    if ((lv_dropIndex > lv_droppedIndex)) {
+        libCore_gf_StoreIntegerForUnit(lp_bossIndex, 3, lv_dropIndex);
+        autoA633DC79_ae = lv_dropIndex;
+        autoA633DC79_ai = 1;
+        lv_itDrop = (lv_droppedIndex + 1);
+        for ( ; ( (autoA633DC79_ai >= 0 && lv_itDrop <= autoA633DC79_ae) || (autoA633DC79_ai <= 0 && lv_itDrop >= autoA633DC79_ae) ) ; lv_itDrop += autoA633DC79_ai ) {
+            lv_dropLoc = null;
+            auto1FA089EA_n = 20;
+            for (auto1FA089EA_i = 1; auto1FA089EA_i <= auto1FA089EA_n; auto1FA089EA_i += 1) {
+                lv_dropLocTemp = PointWithOffsetPolar(UnitGetPosition(lp_bossIndex), RandomFixed(5.0, 6.5), libNtve_gf_RandomAngle());
+                if ((RegionContainsPoint(libAMGT_gv_aRMGardenTerrors[lv_itTerrorIndex].lv_area, lv_dropLocTemp) == true)) {
+                    lv_dropLoc = lv_dropLocTemp;
+                    break;
+                }
+
+            }
+            if ((lv_dropLoc == null)) {
+                lv_dropLoc = PointWithOffsetPolar(UnitGetPosition(lp_bossIndex), RandomFixed(2.0, 3.0), libNtve_gf_RandomAngle());
+            }
+
+            libNtve_gf_CreateUnitsWithDefaultFacing(1, "RegenGlobeNeutral", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Neutral, lv_dropLoc);
+        }
+    }
+
+}
+
+void libAMGT_gf_ARMGardenL1SpawnNextTerror (int lp_lastTerror) {
+    int autoD1845EC1_val;
+    int auto015DF750_val;
+
+    // Implementation
+    if (((libGame_gv_gameOver == true) || (libAMGT_gf_ARMGardenCurrentLevel() != libAMGT_ge_ARMGardenLevel_Level1))) {
+        return ;
+    }
+
+    autoD1845EC1_val = lp_lastTerror;
+    if (autoD1845EC1_val == 1) {
+        libAMGT_gv_aRMGardenL1TerrorSpawnIndex = 2;
+    }
+    else if (autoD1845EC1_val == 2) {
+        libAMGT_gv_aRMGardenL1TerrorSpawnIndex = 3;
+    }
+    else if (autoD1845EC1_val == 3) {
+        libAMGT_gv_aRMGardenL1TerrorSpawnIndex = 1;
+    }
+    else {
+        libAMGT_gv_aRMGardenL1TerrorSpawnIndex = 1;
+    }
+    auto015DF750_val = libAMGT_gv_aRMGardenL1TerrorSpawnIndex;
+    if (auto015DF750_val == 1) {
+        libAMGT_gf_ARMGardenSpawnMinionGroupSingle(1, true);
+        libAMGT_gf_ARMGardenSpawnMinionGroupSingle(2, true);
+        libAMGT_gf_ARMGardenSpawnTerrorsSingle(1);
+    }
+    else if (auto015DF750_val == 2) {
+        libAMGT_gf_ARMGardenSpawnMinionGroupSingle(3, true);
+        libAMGT_gf_ARMGardenSpawnMinionGroupSingle(4, true);
+        libAMGT_gf_ARMGardenSpawnTerrorsSingle(2);
+    }
+    else if (auto015DF750_val == 3) {
+        libAMGT_gf_ARMGardenSpawnTerrorsSingle(3);
+    }
+    else {
+    }
+}
+
+trigger auto_libAMGT_gf_ARMGardenL2SpawnNextTerror_Trigger = null;
+int auto_libAMGT_gf_ARMGardenL2SpawnNextTerror_lp_lastTerror;
+
+void libAMGT_gf_ARMGardenL2SpawnNextTerror (int lp_lastTerror) {
+    auto_libAMGT_gf_ARMGardenL2SpawnNextTerror_lp_lastTerror = lp_lastTerror;
+
+    if (auto_libAMGT_gf_ARMGardenL2SpawnNextTerror_Trigger == null) {
+        auto_libAMGT_gf_ARMGardenL2SpawnNextTerror_Trigger = TriggerCreate("auto_libAMGT_gf_ARMGardenL2SpawnNextTerror_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libAMGT_gf_ARMGardenL2SpawnNextTerror_Trigger, false, false);
+}
+
+bool auto_libAMGT_gf_ARMGardenL2SpawnNextTerror_TriggerFunc (bool testConds, bool runActions) {
+    int lp_lastTerror = auto_libAMGT_gf_ARMGardenL2SpawnNextTerror_lp_lastTerror;
+
+    int autoF49CDDDF_val;
+
+    // Variable Declarations
+    int lv_nextTerror;
+    bool lv_shamblerGroupsSpawned;
+
+    // Variable Initialization
+
+    // Implementation
+    if (((libGame_gv_gameOver == true) || (libAMGT_gf_ARMGardenCurrentLevel() != libAMGT_ge_ARMGardenLevel_Level2))) {
+        return true;
+    }
+
+    autoF49CDDDF_val = lp_lastTerror;
+    if (autoF49CDDDF_val == 1) {
+        lv_nextTerror = 2;
+    }
+    else if (autoF49CDDDF_val == 2) {
+        lv_nextTerror = 1;
+    }
+    else {
+        lv_nextTerror = 1;
+    }
+    libAMGT_gf_ARMGardenSpawnTerrorsSingle(lv_nextTerror);
+    Wait(2.0, c_timeGame);
+    while (true) {
+        if ((libGame_gv_gameOver == true)) {
+            return true;
+        }
+
+        if ((UnitGetPropertyFixed(libAMGT_gv_aRMGardenTerrors[lv_nextTerror].lv_terror, c_unitPropLifePercent, c_unitPropCurrent) <= 50.0) && (lv_shamblerGroupsSpawned == false)) {
+            libAMGT_gf_ARMGardenSpawnMinionGroupSingle(1, true);
+            libAMGT_gf_ARMGardenSpawnMinionGroupSingle(2, true);
+            lv_shamblerGroupsSpawned = true;
+        }
+        else if ((UnitIsAlive(libAMGT_gv_aRMGardenTerrors[lv_nextTerror].lv_terror) == false)) {
+            Wait(5.0, c_timeGame);
+            libAMGT_gf_ARMGardenL2SpawnNextTerror(lv_nextTerror);
+            return true;
+        }
+        Wait(0.5, c_timeGame);
+    }
+    return true;
+}
+
+void libAMGT_gf_ARMGardenL3SpawnTerror () {
+    int auto641C40A5_ae;
+    int auto641C40A5_ai;
+
+    // Variable Declarations
+    int lv_itMinionGroupIndex;
+
+    // Variable Initialization
+
+    // Implementation
+    if (((libGame_gv_gameOver == true) || (libAMGT_gf_ARMGardenCurrentLevel() != libAMGT_ge_ARMGardenLevel_Level3))) {
+        return ;
+    }
+
+    if ((libAMGT_gv_aRMGardenTerrors[1].lv_terror != null) && (UnitIsAlive(libAMGT_gv_aRMGardenTerrors[1].lv_terror) == true)) {
+        return ;
+    }
+
+    auto641C40A5_ae = libAMGT_gv_aRMGardenMinionGroupCount;
+    auto641C40A5_ai = 1;
+    lv_itMinionGroupIndex = 1;
+    for ( ; ( (auto641C40A5_ai >= 0 && lv_itMinionGroupIndex <= auto641C40A5_ae) || (auto641C40A5_ai <= 0 && lv_itMinionGroupIndex >= auto641C40A5_ae) ) ; lv_itMinionGroupIndex += auto641C40A5_ai ) {
+        if ((libNtve_gf_UnitGroupIsDead(libAMGT_gv_aRMGardenMinionGroup[lv_itMinionGroupIndex].lv_units) == false)) {
+            return ;
+        }
+
+    }
+    libAMGT_gf_ARMGardenSpawnTerrorsSingle(1);
+}
+
+void libAMGT_gf_ARMGardenL3SpawnMinions () {
+    int auto6C7D0F4D_ae;
+    int auto6C7D0F4D_ai;
+
+    // Variable Declarations
+    int lv_itMinionGroupIndex;
+
+    // Variable Initialization
+
+    // Implementation
+    if (((libGame_gv_gameOver == true) || (libAMGT_gf_ARMGardenCurrentLevel() != libAMGT_ge_ARMGardenLevel_Level3))) {
+        return ;
+    }
+
+    auto6C7D0F4D_ae = libAMGT_gv_aRMGardenMinionGroupCount;
+    auto6C7D0F4D_ai = 1;
+    lv_itMinionGroupIndex = 1;
+    for ( ; ( (auto6C7D0F4D_ai >= 0 && lv_itMinionGroupIndex <= auto6C7D0F4D_ae) || (auto6C7D0F4D_ai <= 0 && lv_itMinionGroupIndex >= auto6C7D0F4D_ae) ) ; lv_itMinionGroupIndex += auto6C7D0F4D_ai ) {
+        libAMGT_gf_ARMGardenSpawnMinionGroupSingle(lv_itMinionGroupIndex, true);
+    }
+}
+
+trigger auto_libAMGT_gf_ARMGardenTransmissionOrder50_Trigger = null;
+
+void libAMGT_gf_ARMGardenTransmissionOrder50 () {
+    if (auto_libAMGT_gf_ARMGardenTransmissionOrder50_Trigger == null) {
+        auto_libAMGT_gf_ARMGardenTransmissionOrder50_Trigger = TriggerCreate("auto_libAMGT_gf_ARMGardenTransmissionOrder50_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libAMGT_gf_ARMGardenTransmissionOrder50_Trigger, false, false);
+}
+
+bool auto_libAMGT_gf_ARMGardenTransmissionOrder50_TriggerFunc (bool testConds, bool runActions) {
+    // Variable Declarations
+    playergroup lv_groupOrder;
+    playergroup lv_groupChaos;
+    playergroup lv_observers;
+
+    // Variable Initialization
+    lv_groupOrder = PlayerGroupEmpty();
+    lv_groupChaos = PlayerGroupEmpty();
+    lv_observers = PlayerGroupEmpty();
+
+    // Implementation
+    TriggerQueueEnter();
+    libAMGT_gf_ARMGardenShowTeamProgressAnnouncement(libGame_gv_teamOrderIndex_C, 50);
+    UserDataResetType("MapVOEvent");
+    ConversationDataLineResetPlayers("ArenaVO", ("Left"));
+    ConversationDataLineResetPlayers("ArenaVO", ("Right"));
+    ConversationDataLineResetPlayers("ArenaVO", ("Observer"));
+    UserDataSetInt("MapVOEvent", "Gardens 50% - Left", "Value", 1, 1);
+    lv_groupOrder = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamOrderIndex_C, false);
+    lv_groupChaos = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamChaosIndex_C, false);
+    lv_observers = libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer];
+    ConversationDataLineSetPlayers("ArenaVO", ("Left"), lv_groupOrder);
+    ConversationDataLineSetPlayers("ArenaVO", ("Right"), lv_groupChaos);
+    ConversationDataLineSetPlayers("ArenaVO", ("Observer"), lv_observers);
+    ConversationDataRun("ArenaVO", PlayerGroupAll(), c_conversationSkipNone, false);
+    libCore_gf_WaitForConversationToFinish();
+    TriggerQueueExit();
+    return true;
+}
+
+trigger auto_libAMGT_gf_ARMGardenTransmissionOrder80_Trigger = null;
+
+void libAMGT_gf_ARMGardenTransmissionOrder80 () {
+    if (auto_libAMGT_gf_ARMGardenTransmissionOrder80_Trigger == null) {
+        auto_libAMGT_gf_ARMGardenTransmissionOrder80_Trigger = TriggerCreate("auto_libAMGT_gf_ARMGardenTransmissionOrder80_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libAMGT_gf_ARMGardenTransmissionOrder80_Trigger, false, false);
+}
+
+bool auto_libAMGT_gf_ARMGardenTransmissionOrder80_TriggerFunc (bool testConds, bool runActions) {
+    // Variable Declarations
+    playergroup lv_groupOrder;
+    playergroup lv_groupChaos;
+    playergroup lv_observers;
+
+    // Variable Initialization
+    lv_groupOrder = PlayerGroupEmpty();
+    lv_groupChaos = PlayerGroupEmpty();
+    lv_observers = PlayerGroupEmpty();
+
+    // Implementation
+    TriggerQueueEnter();
+    libAMGT_gf_ARMGardenShowTeamProgressAnnouncement(libGame_gv_teamOrderIndex_C, 80);
+    UserDataResetType("MapVOEvent");
+    ConversationDataLineResetPlayers("ArenaVO", ("Left"));
+    ConversationDataLineResetPlayers("ArenaVO", ("Right"));
+    ConversationDataLineResetPlayers("ArenaVO", ("Observer"));
+    UserDataSetInt("MapVOEvent", "Gardens 80% - Left", "Value", 1, 1);
+    lv_groupOrder = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamOrderIndex_C, false);
+    lv_groupChaos = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamChaosIndex_C, false);
+    lv_observers = libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer];
+    ConversationDataLineSetPlayers("ArenaVO", ("Left"), lv_groupOrder);
+    ConversationDataLineSetPlayers("ArenaVO", ("Right"), lv_groupChaos);
+    ConversationDataLineSetPlayers("ArenaVO", ("Observer"), lv_observers);
+    ConversationDataRun("ArenaVO", PlayerGroupAll(), c_conversationSkipNone, false);
+    libCore_gf_WaitForConversationToFinish();
+    TriggerQueueExit();
+    return true;
+}
+
+trigger auto_libAMGT_gf_ARMGardenTransmissionChaos50_Trigger = null;
+
+void libAMGT_gf_ARMGardenTransmissionChaos50 () {
+    if (auto_libAMGT_gf_ARMGardenTransmissionChaos50_Trigger == null) {
+        auto_libAMGT_gf_ARMGardenTransmissionChaos50_Trigger = TriggerCreate("auto_libAMGT_gf_ARMGardenTransmissionChaos50_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libAMGT_gf_ARMGardenTransmissionChaos50_Trigger, false, false);
+}
+
+bool auto_libAMGT_gf_ARMGardenTransmissionChaos50_TriggerFunc (bool testConds, bool runActions) {
+    // Variable Declarations
+    playergroup lv_groupOrder;
+    playergroup lv_groupChaos;
+    playergroup lv_observers;
+
+    // Variable Initialization
+    lv_groupOrder = PlayerGroupEmpty();
+    lv_groupChaos = PlayerGroupEmpty();
+    lv_observers = PlayerGroupEmpty();
+
+    // Implementation
+    TriggerQueueEnter();
+    libAMGT_gf_ARMGardenShowTeamProgressAnnouncement(libGame_gv_teamChaosIndex_C, 50);
+    UserDataResetType("MapVOEvent");
+    ConversationDataLineResetPlayers("ArenaVO", ("Left"));
+    ConversationDataLineResetPlayers("ArenaVO", ("Right"));
+    ConversationDataLineResetPlayers("ArenaVO", ("Observer"));
+    UserDataSetInt("MapVOEvent", "Gardens 50% - Right", "Value", 1, 1);
+    lv_groupOrder = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamOrderIndex_C, false);
+    lv_groupChaos = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamChaosIndex_C, false);
+    lv_observers = libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer];
+    ConversationDataLineSetPlayers("ArenaVO", ("Left"), lv_groupOrder);
+    ConversationDataLineSetPlayers("ArenaVO", ("Right"), lv_groupChaos);
+    ConversationDataLineSetPlayers("ArenaVO", ("Observer"), lv_observers);
+    ConversationDataRun("ArenaVO", PlayerGroupAll(), c_conversationSkipNone, false);
+    libCore_gf_WaitForConversationToFinish();
+    TriggerQueueExit();
+    return true;
+}
+
+trigger auto_libAMGT_gf_ARMGardenTransmissionChaos80_Trigger = null;
+
+void libAMGT_gf_ARMGardenTransmissionChaos80 () {
+    if (auto_libAMGT_gf_ARMGardenTransmissionChaos80_Trigger == null) {
+        auto_libAMGT_gf_ARMGardenTransmissionChaos80_Trigger = TriggerCreate("auto_libAMGT_gf_ARMGardenTransmissionChaos80_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libAMGT_gf_ARMGardenTransmissionChaos80_Trigger, false, false);
+}
+
+bool auto_libAMGT_gf_ARMGardenTransmissionChaos80_TriggerFunc (bool testConds, bool runActions) {
+    // Variable Declarations
+    playergroup lv_groupOrder;
+    playergroup lv_groupChaos;
+    playergroup lv_observers;
+
+    // Variable Initialization
+    lv_groupOrder = PlayerGroupEmpty();
+    lv_groupChaos = PlayerGroupEmpty();
+    lv_observers = PlayerGroupEmpty();
+
+    // Implementation
+    TriggerQueueEnter();
+    libAMGT_gf_ARMGardenShowTeamProgressAnnouncement(libGame_gv_teamChaosIndex_C, 80);
+    UserDataResetType("MapVOEvent");
+    ConversationDataLineResetPlayers("ArenaVO", ("Left"));
+    ConversationDataLineResetPlayers("ArenaVO", ("Right"));
+    ConversationDataLineResetPlayers("ArenaVO", ("Observer"));
+    UserDataSetInt("MapVOEvent", "Gardens 80% - Right", "Value", 1, 1);
+    lv_groupOrder = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamOrderIndex_C, false);
+    lv_groupChaos = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamChaosIndex_C, false);
+    lv_observers = libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer];
+    ConversationDataLineSetPlayers("ArenaVO", ("Left"), lv_groupOrder);
+    ConversationDataLineSetPlayers("ArenaVO", ("Right"), lv_groupChaos);
+    ConversationDataLineSetPlayers("ArenaVO", ("Observer"), lv_observers);
+    ConversationDataRun("ArenaVO", PlayerGroupAll(), c_conversationSkipNone, false);
+    libCore_gf_WaitForConversationToFinish();
+    TriggerQueueExit();
+    return true;
+}
+
+void libAMGT_gf_MapMechanicsGardenOfTerrorSetSeedCountForTeam (int lp_team, int lp_countText) {
+    // Variable Declarations
+    fixed lv_coreLife;
+    int lv_countText;
+
+    // Variable Initialization
+
+    // Implementation
+    if ((lp_countText == 0)) {
+        lv_coreLife = 0.1;
+        lv_countText = 0;
+    }
+    else {
+        if ((lp_countText > libAMGT_gv_aRMGardenSeedRequired_C)) {
+            lv_coreLife = libAMGT_gv_aRMGardenSeedRequired_C;
+            lv_countText = libAMGT_gv_aRMGardenSeedRequired_C;
+        }
+        else {
+            lv_coreLife = lp_countText;
+            lv_countText = lp_countText;
+        }
+    }
+    UnitSetPropertyFixed(libGame_gv_teams[lp_team].lv_core, c_unitPropLife, lv_coreLife);
+    libNtve_gf_SetDialogItemText(libAMGT_gv_aRMGardenPanel.lv_seedsCounts[lp_team], IntToText(lv_countText), PlayerGroupAll());
+}
+
+void libAMGT_gf_MapMechanicsGardenOfTerrorSetUpGolemStatusBarForTeam (int lp_team) {
+    // Implementation
+    if (true) {
+    }
+    else {
+        UnitSetPropertyFixed(libGame_gv_teams[lp_team].lv_core, c_unitPropLife, 1.0);
+    }
+    TextExpressionSetToken("Param/Expression/lib_AMGT_42539922", "A", IntToText(FixedToInt(UnitGetPropertyFixed(libGame_gv_teams[lp_team].lv_core, c_unitPropLifePercent, c_unitPropCurrent))));
+    libNtve_gf_SetDialogItemText(libAMGT_gv_aRMGardenPanel.lv_seedsCounts[lp_team], TextExpressionAssemble("Param/Expression/lib_AMGT_42539922"), PlayerGroupAll());
+}
+
+void libAMGT_gf_ARMGardenShowTeamProgressAnnouncement (int lp_team, int lp_seeds) {
+    // Implementation
+    TextExpressionSetToken("Param/Expression/lib_AMGT_BCCF627C", "Seeds", IntToText(lp_seeds));
+    libNtve_gf_SetDialogItemText(libAMGT_gv_aRMGardenPanel.lv_progressNotificationLabel[lp_team], TextExpressionAssemble("Param/Expression/lib_AMGT_BCCF627C"), GameAttributePlayersForTeam(lp_team));
+    TextExpressionSetToken("Param/Expression/lib_AMGT_930A0D1C", "Seeds", IntToText(lp_seeds));
+    libNtve_gf_SetDialogItemText(libAMGT_gv_aRMGardenPanel.lv_progressNotificationLabel[lp_team], TextExpressionAssemble("Param/Expression/lib_AMGT_930A0D1C"), GameAttributePlayersForTeam(libGame_gf_EnemyTeam(lp_team)));
+    DialogControlSendAnimationEvent(libAMGT_gv_aRMGardenPanel.lv_progressNotification[lp_team], GameAttributePlayersForTeam(lp_team), "ShowStandardNotification");
+    DialogControlSendAnimationEvent(libAMGT_gv_aRMGardenPanel.lv_progressNotification[lp_team], GameAttributePlayersForTeam(libGame_gf_EnemyTeam(lp_team)), "ShowEnemyNotification");
+}
+
+void libAMGT_gf_ARMGardenHeroAIChangeToState (int lp_trigPlayer, int lp_state, unit lp_target, int lp_priority) {
+    // Implementation
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentState = (lp_state);
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateTrigger = libAMGT_gt_ARMGardenHeroAIStateLogic;
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = lp_target;
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority = lp_priority;
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_wantsToDoCustomMapLogic = true;
+    libAIAI_gf_HeroAIChangeState(lp_trigPlayer, libAIAI_ge_HeroAIStates_HSCustomMapState);
+}
+
+void libAMGT_gf_ARMGardenHeroAIInitializeAI () {
+    // Implementation
+    libAMGT_gv_moonwells[0] = UnitGroupClosestToPoint(libNtve_gf_UnitsInRegionWithAllianceToPlayerMatchingCondition("TownMoonwell", "TownMoonwellL2", "TownMoonwellL3", libCore_gv_cOMPUTER_TeamOrder, c_unitAllianceAlly, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), UnitGetPosition(libGame_gv_teams[libGame_gf_TeamNumberOfFaction(libGame_ge_Faction_Order)].lv_core));
+    libAMGT_gv_moonwells[1] = UnitGroupClosestToPoint(libNtve_gf_UnitsInRegionWithAllianceToPlayerMatchingCondition("TownMoonwell", "TownMoonwellL2", "TownMoonwellL3", libCore_gv_cOMPUTER_TeamChaos, c_unitAllianceAlly, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), UnitGetPosition(libGame_gv_teams[libGame_gf_TeamNumberOfFaction(libGame_ge_Faction_Chaos)].lv_core));
+}
+
+int libAMGT_gf_ARMGardenHeroAIKillShamblers (int lp_trigPlayer) {
+    // Implementation
+    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) <= libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth)) {
+        libAIAI_gf_HeroAIStartFleeInJungle(lp_trigPlayer);
+        return 1;
+    }
+
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = libAMGT_gf_ARMGardenHeroAIChooseTargetShambler(lp_trigPlayer);
+    if ((UnitIsAlive(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == false)) {
+        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
+        return 8;
+    }
+
+    if ((libAIAI_gv_aIHeroObjectiveStagingEnabled[(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty)] == true) && (libAMGT_gf_ARMGardenHeroAIShouldFleeArea(lp_trigPlayer, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libAIAI_gv_aIHeroVisionRange, libAMGT_gv_allyHelpRange, libAMGT_gv_safeDangerRatio) == true)) {
+        libAMGT_gf_ARMGardenHeroAIChangeToState(lp_trigPlayer, libAMGT_ge_ARMGardenHeroAIStates_MMHWFleeShamblers, null, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority);
+        return 8;
+    }
+
+    if ((libAMGT_gf_ARMGardenHeroAIPickupNearbySeed(lp_trigPlayer, RegionCircle(UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_currentHeroUnit), libAMGT_gv_nearbySeedRange), false) == true)) {
+        return 8;
+    }
+
+    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, null, libAIAI_gv_aIHeroRangedCombatRange, libAIAI_gv_aIHeroVisionRange, false, false, false, true) == true)) {
+        return 8;
+    }
+
+    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
+        return 8;
+    }
+
+    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libAIAI_gv_aIHeroVisionRange) == true)) {
+        return 8;
+    }
+
+    libAIAI_gf_HeroAIEnsureOrderAttackUnit(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
+    return 8;
+}
+
+int libAMGT_gf_ARMGardenHeroAIFleeShamblers (int lp_trigPlayer) {
+    // Implementation
+    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) <= libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth)) {
+        libAIAI_gf_HeroAIStartFleeInJungle(lp_trigPlayer);
+        return 1;
+    }
+
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = libAMGT_gf_ARMGardenHeroAIChooseTargetShambler(lp_trigPlayer);
+    if ((UnitIsAlive(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == false)) {
+        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
+        return 8;
+    }
+
+    if (((libAIAI_gf_HeroAITimeInCurrentState(lp_trigPlayer) < libAMGT_gv_minimumFleeTime) || (libAMGT_gf_ARMGardenHeroAIShouldFleeArea(lp_trigPlayer, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libAIAI_gv_aIHeroVisionRange, libAMGT_gv_allyHelpRange, libAMGT_gv_safeDangerRatio) == true))) {
+        if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, null, libGame_gv_players[lp_trigPlayer].lv_spawnPoint, libAIAI_gv_aIHeroCloseEnoughDist, libAIAI_gv_aIHeroCloseEnoughDist, true, true, false, true) == true)) {
+        }
+
+    }
+    else {
+        libAMGT_gf_ARMGardenHeroAIChangeToState(lp_trigPlayer, libAMGT_ge_ARMGardenHeroAIStates_MMHWKillShamblers, null, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority);
+    }
+    return 8;
+}
+
+int libAMGT_gf_ARMGardenHeroAIKillTerror (int lp_trigPlayer) {
+    // Implementation
+    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) <= libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth)) {
+        libAIAI_gf_HeroAIStartFleeInJungle(lp_trigPlayer);
+        return 1;
+    }
+
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = libAMGT_gf_ARMGardenHeroAIChooseTargetTerror(libGame_gv_players[lp_trigPlayer].lv_faction);
+    if ((UnitIsAlive(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePingedTargetUnit) == true) && (libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit != libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePingedTargetUnit)) {
+        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePingedTargetUnit;
+    }
+
+    if ((UnitIsAlive(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == false)) {
+        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
+        return 8;
+    }
+
+    if ((libAIAI_gv_aIHeroObjectiveStagingEnabled[(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty)] == true) && (libAMGT_gf_ARMGardenHeroAIShouldFleeArea(lp_trigPlayer, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libAIAI_gv_aIHeroVisionRange, libAMGT_gv_allyHelpRange, libAMGT_gv_safeDangerRatio) == true)) {
+        libAMGT_gf_ARMGardenHeroAIChangeToState(lp_trigPlayer, libAMGT_ge_ARMGardenHeroAIStates_MMHWFleeTerror, null, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority);
+        return 8;
+    }
+
+    if ((libAMGT_gf_ARMGardenHeroAIPickupNearbySeed(lp_trigPlayer, RegionCircle(UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_currentHeroUnit), libAMGT_gv_nearbySeedRange), false) == true)) {
+        return 8;
+    }
+
+    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, null, libAIAI_gv_aIHeroRangedCombatRange, libAIAI_gv_aIHeroVisionRange, false, false, false, true) == true)) {
+        return 8;
+    }
+
+    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
+        return 8;
+    }
+
+    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libAIAI_gv_aIHeroVisionRange) == true)) {
+        return 8;
+    }
+
+    if ((libAIAI_gv_aIHeroes[lp_trigPlayer].lv_nextOffensiveSpellCheckTime <= TimerGetElapsed(libGame_gv_gameTimer)) && (libNtve_gf_UnitIsVisibleToPlayer(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, lp_trigPlayer) == true) && (libAIAI_gf_HeroAIRandomlyCastAbilityOnTarget(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == true)) {
+        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_focusHeroTimeout = (TimerGetElapsed(libGame_gv_gameTimer) + libAIAI_gv_aIHeroFocusHeroMaxChaseTime);
+        return 8;
+    }
+
+    libAIAI_gf_HeroAIEnsureOrderAttackUnit(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
+    return 8;
+}
+
+int libAMGT_gf_ARMGardenHeroAIFleeTerror (int lp_trigPlayer) {
+    // Implementation
+    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) <= libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth)) {
+        libAIAI_gf_HeroAIStartFleeInJungle(lp_trigPlayer);
+        return 1;
+    }
+
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = libAMGT_gf_ARMGardenHeroAIChooseTargetTerror(libGame_gv_players[lp_trigPlayer].lv_faction);
+    if ((UnitIsAlive(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePingedTargetUnit) == true) && (libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit != libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePingedTargetUnit)) {
+        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePingedTargetUnit;
+    }
+
+    if ((UnitIsAlive(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == false)) {
+        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
+        return 8;
+    }
+
+    if (((libAIAI_gf_HeroAITimeInCurrentState(lp_trigPlayer) < libAMGT_gv_minimumFleeTime) || (libAMGT_gf_ARMGardenHeroAIShouldFleeArea(lp_trigPlayer, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libAIAI_gv_aIHeroVisionRange, libAMGT_gv_allyHelpRange, libAMGT_gv_safeDangerRatio) == true))) {
+        if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, null, libGame_gv_players[lp_trigPlayer].lv_spawnPoint, libAIAI_gv_aIHeroCloseEnoughDist, libAIAI_gv_aIHeroCloseEnoughDist, true, true, false, true) == true)) {
+        }
+
+    }
+    else {
+        libAMGT_gf_ARMGardenHeroAIChangeToState(lp_trigPlayer, libAMGT_ge_ARMGardenHeroAIStates_MMHWKillTerror, null, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority);
+    }
+    return 8;
+}
+
+int libAMGT_gf_ARMGardenHeroAIPickupSeed (int lp_trigPlayer) {
+    // Variable Declarations
+    unit lv_seed;
+
+    // Variable Initialization
+
+    // Implementation
+    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) <= libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth)) {
+        libAIAI_gf_HeroAIStartFleeInJungle(lp_trigPlayer);
+        return 1;
+    }
+
+    lv_seed = libAMGT_gf_ARMGardenHeroAIChooseSeed(lp_trigPlayer, RegionEntireMap(), false);
+    if ((UnitIsValid(lv_seed) == false)) {
+        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
+        return 8;
+    }
+
+    if ((libAIAI_gv_aIHeroObjectiveStagingEnabled[(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty)] == true) && (libAMGT_gf_ARMGardenHeroAIShouldFleeArea(lp_trigPlayer, UnitGetPosition(lv_seed), libAIAI_gv_aIHeroVisionRange, libAMGT_gv_allyHelpRange, libAMGT_gv_safeDangerRatio) == true)) {
+        libAIAI_gf_HeroAIEnsureOrderMovePointCloseEnough(lp_trigPlayer, libGame_gv_players[lp_trigPlayer].lv_spawnPoint);
+        return 8;
+    }
+
+    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, lv_seed, null, libAIAI_gv_aIHeroRangedCombatRange, libAIAI_gv_aIHeroVisionRange, false, false, false, true) == true)) {
+        return 8;
+    }
+
+    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
+        return 8;
+    }
+
+    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, UnitGetPosition(lv_seed), libAIAI_gv_aIHeroVisionRange) == true)) {
+        return 8;
+    }
+
+    libAIAI_gf_HeroAIEnsureOrderMoveUnit(lp_trigPlayer, lv_seed);
+    return 8;
+}
+
+int libAMGT_gf_ARMGardenHeroAIMoonwellRegroup (int lp_trigPlayer) {
+    // Variable Declarations
+    unit lv_moonwell;
+    fixed lv_expectedLife;
+    order lv_order;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_moonwell = libAMGT_gv_moonwells[libAIAI_gf_HeroAIGetAllyTeamIndex(lp_trigPlayer)];
+    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) <= libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth)) {
+        libAIAI_gf_HeroAIStartFleeInJungle(lp_trigPlayer);
+        return 1;
+    }
+
+    if (((UnitIsValid(lv_moonwell) == false) || ((libAIAI_gv_aIHeroObjectiveStagingEnabled[(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty)] == true) && (libAMGT_gf_ARMGardenHeroAIShouldFleeArea(lp_trigPlayer, UnitGetPosition(lv_moonwell), libAIAI_gv_aIHeroVisionRange, libAMGT_gv_allyHelpRange, libAMGT_gv_safeDangerRatio) == true)))) {
+        libAIAI_gf_HeroAIEnsureOrderMovePointCloseEnough(lp_trigPlayer, libGame_gv_players[lp_trigPlayer].lv_spawnPoint);
+        return 8;
+    }
+
+    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, lv_moonwell, null, libAIAI_gv_aIHeroMeleeCombatRange, libAIAI_gv_aIHeroRangedCombatRange, false, false, false, true) == true)) {
+        return 8;
+    }
+
+    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
+        return 8;
+    }
+
+    lv_expectedLife = UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifeExpectedPercent, c_unitPropCurrent);
+    if ((lv_expectedLife <= (libAIAI_gv_aIHeroes[lp_trigPlayer].lv_startOffensiveHealth + 10.0)) && (UnitHasBehavior2(libGame_gv_players[lp_trigPlayer].lv_heroUnit, "HealingFountainCooldown") == false)) {
+        lv_order = UnitOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, 0);
+        if (((OrderGetAbilityCommand(lv_order) != AbilityCommand("FountainDrink", 0)) || (OrderGetTargetUnit(lv_order) != lv_moonwell))) {
+            UnitIssueOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, OrderTargetingUnit(AbilityCommand("FountainDrink", 0), lv_moonwell), c_orderQueueReplace);
+        }
+
+        return 8;
+    }
+
+    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, UnitGetPosition(lv_moonwell), libAMGT_gv_allyHelpRange) == true)) {
+        return 8;
+    }
+
+    if ((UnitOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, 0) == null)) {
+        UnitIssueOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, OrderTargetingPoint(AbilityCommand("move", 0), PointWithOffsetPolar(UnitGetPosition(libAMGT_gv_moonwells[libAIAI_gf_HeroAIGetAllyTeamIndex(lp_trigPlayer)]), RandomFixed(libAIAI_gv_aIHeroMeleeCombatRange, libAIAI_gv_aIHeroRangedCombatRange), libNtve_gf_RandomAngle())), c_orderQueueReplace);
+        return 8;
+    }
+
+    return 8;
+}
+
+bool libAMGT_gf_ARMGardenHeroAIShamblersAlive () {
+    int autoAB0DF887_ae;
+    int autoAB0DF887_ai;
+    unitgroup auto43A86494_g;
+    int auto43A86494_u;
+
+    // Variable Declarations
+    int lv_itMinionGroupIndex;
+    unit lv_enemy;
+
+    // Variable Initialization
+
+    // Implementation
+    autoAB0DF887_ae = libAMGT_gv_aRMGardenMinionGroupCount;
+    autoAB0DF887_ai = 1;
+    lv_itMinionGroupIndex = 1;
+    for ( ; ( (autoAB0DF887_ai >= 0 && lv_itMinionGroupIndex <= autoAB0DF887_ae) || (autoAB0DF887_ai <= 0 && lv_itMinionGroupIndex >= autoAB0DF887_ae) ) ; lv_itMinionGroupIndex += autoAB0DF887_ai ) {
+        auto43A86494_g = libAMGT_gv_aRMGardenMinionGroup[lv_itMinionGroupIndex].lv_units;
+        auto43A86494_u = 1;
+        for ( ; auto43A86494_u <= UnitGroupCount(auto43A86494_g, c_unitCountAll) ; auto43A86494_u += (lv_enemy == UnitGroupUnit(auto43A86494_g, auto43A86494_u)) ) {
+            lv_enemy = UnitGroupUnit(auto43A86494_g, auto43A86494_u);
+            if ((UnitIsAlive(lv_enemy) == true)) {
+                return true;
+            }
+
+        }
+    }
+    return false;
+}
+
+unit libAMGT_gf_ARMGardenHeroAIChooseTargetShambler (int lp_trigPlayer) {
+    int auto640D0DE0_ae;
+    int auto640D0DE0_ai;
+    unitgroup auto3B44FAC9_g;
+    int auto3B44FAC9_u;
+
+    // Variable Declarations
+    int lv_itMinionGroupIndex;
+    unit lv_enemy;
+    fixed lv_targetEval;
+    unit lv_bestTarget;
+    fixed lv_bestTargetEval;
+
+    // Variable Initialization
+    lv_bestTargetEval = 524287.0;
+
+    // Implementation
+    auto640D0DE0_ae = libAMGT_gv_aRMGardenMinionGroupCount;
+    auto640D0DE0_ai = 1;
+    lv_itMinionGroupIndex = 1;
+    for ( ; ( (auto640D0DE0_ai >= 0 && lv_itMinionGroupIndex <= auto640D0DE0_ae) || (auto640D0DE0_ai <= 0 && lv_itMinionGroupIndex >= auto640D0DE0_ae) ) ; lv_itMinionGroupIndex += auto640D0DE0_ai ) {
+        auto3B44FAC9_g = libAMGT_gv_aRMGardenMinionGroup[lv_itMinionGroupIndex].lv_units;
+        auto3B44FAC9_u = 1;
+        for ( ; auto3B44FAC9_u <= UnitGroupCount(auto3B44FAC9_g, c_unitCountAll) ; auto3B44FAC9_u += (lv_enemy == UnitGroupUnit(auto3B44FAC9_g, auto3B44FAC9_u)) ) {
+            lv_enemy = UnitGroupUnit(auto3B44FAC9_g, auto3B44FAC9_u);
+            if ((UnitIsAlive(lv_enemy) == true) && ((libNtve_gf_UnitIsInvulnerable(lv_enemy) == false) || (libNtve_gf_UnitIsVisibleToPlayer(lv_enemy, lp_trigPlayer) == false))) {
+                lv_targetEval = libAIAI_gf_HeroAIEvaluateTarget(lp_trigPlayer, lv_enemy, libAIAI_gv_aIHeroChangeTargetDistanceWeight);
+                if ((lv_targetEval < lv_bestTargetEval)) {
+                    lv_bestTarget = lv_enemy;
+                    lv_bestTargetEval = lv_targetEval;
+                }
+
+            }
+
+        }
+    }
+    return lv_bestTarget;
+}
+
+unit libAMGT_gf_ARMGardenHeroAIChooseTargetTerror (int lp_faction) {
+    int auto64B90CE9_ae;
+    int auto64B90CE9_ai;
+    playergroup autoC20A6D9D_g;
+    int autoC20A6D9D_p;
+    playergroup autoD3C7ADB2_g;
+    int autoD3C7ADB2_p;
+
+    // Variable Declarations
+    int lv_itGroup;
+    int lv_playerIndex;
+    fixed lv_targetEval;
+    unit lv_bestTarget;
+    fixed lv_bestTargetEval;
+
+    // Variable Initialization
+    lv_bestTargetEval = 524287.0;
+
+    // Implementation
+    auto64B90CE9_ae = libAMGT_gv_aRMGardenTerrorCount;
+    auto64B90CE9_ai = 1;
+    lv_itGroup = 1;
+    for ( ; ( (auto64B90CE9_ai >= 0 && lv_itGroup <= auto64B90CE9_ae) || (auto64B90CE9_ai <= 0 && lv_itGroup >= auto64B90CE9_ae) ) ; lv_itGroup += auto64B90CE9_ai ) {
+        if ((UnitIsAlive(libAMGT_gv_aRMGardenTerrors[lv_itGroup].lv_terror) == true)) {
+            lv_targetEval = 0.0;
+            autoC20A6D9D_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction)].lv_aIPlayers; 
+            autoC20A6D9D_p = 1;
+            for ( ; autoC20A6D9D_p <= PlayerGroupCount(autoC20A6D9D_g) ; autoC20A6D9D_p += (lv_playerIndex == PlayerGroupPlayer(autoC20A6D9D_g, autoC20A6D9D_p)) ) {
+                lv_playerIndex = PlayerGroupPlayer(autoC20A6D9D_g, autoC20A6D9D_p);
+                if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (UnitGetPropertyFixed(libGame_gv_players[lv_playerIndex].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) >= libAIAI_gv_aIHeroes[lv_playerIndex].lv_returnToSpawnHealth)) {
+                    lv_targetEval += DistanceSquaredBetweenPoints(UnitGetPosition(libAIAI_gv_aIHeroes[lv_playerIndex].lv_currentHeroUnit), libAMGT_gv_aRMGardenTerrors[lv_itGroup].lv_position);
+                }
+
+                if ((lv_targetEval < lv_bestTargetEval)) {
+                    lv_bestTarget = libAMGT_gv_aRMGardenTerrors[lv_itGroup].lv_terror;
+                    lv_bestTargetEval = lv_targetEval;
+                }
+
+            }
+            autoD3C7ADB2_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction)].lv_humanPlayers; 
+            autoD3C7ADB2_p = 1;
+            for ( ; autoD3C7ADB2_p <= PlayerGroupCount(autoD3C7ADB2_g) ; autoD3C7ADB2_p += (lv_playerIndex == PlayerGroupPlayer(autoD3C7ADB2_g, autoD3C7ADB2_p)) ) {
+                lv_playerIndex = PlayerGroupPlayer(autoD3C7ADB2_g, autoD3C7ADB2_p);
+                if ((libGame_gv_players[lv_playerIndex].lv_isDead == false)) {
+                    lv_targetEval += (5.0 * DistanceSquaredBetweenPoints(UnitGetPosition(libGame_gv_players[lv_playerIndex].lv_heroUnit), libAMGT_gv_aRMGardenTerrors[lv_itGroup].lv_position));
+                }
+
+                if ((lv_targetEval < lv_bestTargetEval)) {
+                    lv_bestTarget = libAMGT_gv_aRMGardenTerrors[lv_itGroup].lv_terror;
+                    lv_bestTargetEval = lv_targetEval;
+                }
+
+            }
+        }
+
+    }
+    return lv_bestTarget;
+}
+
+unit libAMGT_gf_ARMGardenHeroAIChooseSeed (int lp_trigPlayer, region lp_searchRegion, bool lp_ignoreAllies) {
+    unitgroup auto42FCF05C_g;
+    int auto42FCF05C_u;
+
+    // Variable Declarations
+    unitgroup lv_nearbySeeds;
+    unitgroup lv_nearbyGlobes;
+    unit lv_seed;
+    fixed lv_seedDistance;
+    unit lv_bestSeed;
+    fixed lv_bestSeedDistance;
+
+    // Variable Initialization
+    lv_nearbySeeds = UnitGroupEmpty();
+    lv_nearbyGlobes = UnitGroupEmpty();
+    lv_bestSeedDistance = 524287.0;
+
+    // Implementation
+    lv_nearbySeeds = UnitGroup("ItemSeedPickup", c_playerAny, lp_searchRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    lv_nearbyGlobes = UnitGroup("RegenGlobeNeutral", c_playerAny, lp_searchRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    UnitGroupAddUnitGroup(lv_nearbySeeds, lv_nearbyGlobes);
+    auto42FCF05C_g = lv_nearbySeeds;
+    auto42FCF05C_u = 1;
+    for ( ; auto42FCF05C_u <= UnitGroupCount(auto42FCF05C_g, c_unitCountAll) ; auto42FCF05C_u += (lv_seed == UnitGroupUnit(auto42FCF05C_g, auto42FCF05C_u)) ) {
+        lv_seed = UnitGroupUnit(auto42FCF05C_g, auto42FCF05C_u);
+        if ((lp_ignoreAllies == false) && (libAMGT_gf_ARMGardenHeroAIIsAllyPickingUpSeed(lp_trigPlayer, lv_seed) == true)) {
+            continue;
+        }
+
+        lv_seedDistance = DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit), UnitGetPosition(lv_seed));
+        if ((lv_seedDistance < lv_bestSeedDistance)) {
+            lv_bestSeed = lv_seed;
+            lv_bestSeedDistance = lv_seedDistance;
+        }
+
+    }
+    return lv_bestSeed;
+}
+
+bool libAMGT_gf_ARMGardenHeroAIIsAllyPickingUpSeed (int lp_trigPlayer, unit lp_doubloon) {
+    int auto1D55564B_ae;
+
+    // Variable Declarations
+    point lv_directionToSeed;
+    point lv_directionOfOrder;
+    int lv_playerIndex;
+    fixed lv_ourDistanceSqtoSeed;
+    fixed lv_playerDistanceSqtoSeed;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_ourDistanceSqtoSeed = DistanceSquaredBetweenPoints(UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit), UnitGetPosition(lp_doubloon));
+    auto1D55564B_ae = libCore_gv_bALMaxPlayers;
+    lv_playerIndex = 1;
+    for ( ; lv_playerIndex <= auto1D55564B_ae ; lv_playerIndex += 1 ) {
+        if ((libGame_gv_players[lp_trigPlayer].lv_faction == libGame_gv_players[lv_playerIndex].lv_faction) && (lp_trigPlayer != lv_playerIndex) && (libGame_gv_players[lv_playerIndex].lv_isDead == false)) {
+            lv_playerDistanceSqtoSeed = DistanceSquaredBetweenPoints(UnitGetPosition(libGame_gv_players[lv_playerIndex].lv_heroUnit), UnitGetPosition(lp_doubloon));
+            if ((libAIAI_gf_HeroAIIsPlayerActive(lv_playerIndex, 2) == true)) {
+                lv_directionToSeed = AIGetDirection(UnitGetPosition(libGame_gv_players[lv_playerIndex].lv_heroUnit), UnitGetPosition(lp_doubloon));
+                lv_directionOfOrder = AIGetDirection(UnitGetPosition(libGame_gv_players[lv_playerIndex].lv_heroUnit), OrderGetTargetPosition(UnitOrder(libGame_gv_players[lv_playerIndex].lv_heroUnit, 0)));
+                if ((lv_playerDistanceSqtoSeed < lv_ourDistanceSqtoSeed) && ((UnitOrder(libGame_gv_players[lv_playerIndex].lv_heroUnit, 0) == null) || (libNtve_gf_PointDotProduct2D(lv_directionToSeed, lv_directionOfOrder) >= Cos(30.0)))) {
+                    return true;
+                }
+
+            }
+            else {
+                if ((lv_playerDistanceSqtoSeed < (lv_ourDistanceSqtoSeed + 3.0))) {
+                    return true;
+                }
+
+            }
+        }
+
+    }
+    return false;
+}
+
+bool libAMGT_gf_ARMGardenHeroAIPickupNearbySeed (int lp_trigPlayer, region lp_searchRegion, bool lp_ignoreAllies) {
+    // Variable Declarations
+    unit lv_seed;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_seed = libAMGT_gf_ARMGardenHeroAIChooseSeed(lp_trigPlayer, lp_searchRegion, lp_ignoreAllies);
+    if ((UnitIsValid(lv_seed) == true)) {
+        libAIAI_gf_HeroAIEnsureOrderMovePoint(lp_trigPlayer, UnitGetPosition(lv_seed));
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+bool libAMGT_gf_ARMGardenHeroAIShouldFleeArea (int lp_trigPlayer, point lp_center, fixed lp_enemyRange, fixed lp_allyRange, fixed lp_enemyScaling) {
+    // Implementation
+    if ((DistanceSquaredBetweenPoints(UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_currentHeroUnit), lp_center) < (lp_allyRange * lp_allyRange)) && ((lp_enemyScaling * libAIAI_gf_HeroAIEnemyEvalInCircle(lp_trigPlayer, lp_center, lp_enemyRange, true, false, false)) > libAIAI_gf_HeroAIAllyEvalInCircle(lp_trigPlayer, lp_center, lp_allyRange, true, false, false))) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+void libAMGT_gf_ARMGardenHeroAINightBossPinged (int lp_pingingPlayer, unit lp_targetNightBoss) {
+    playergroup autoABF5412E_g;
+    int autoABF5412E_p;
+
+    // Variable Declarations
+    int lv_playerIndex;
+
+    // Variable Initialization
+
+    // Implementation
+    if (((UnitIsValid(lp_targetNightBoss) == false) || (UnitGetType(lp_targetNightBoss) != "JunglePlantHorror"))) {
+        return ;
+    }
+
+    autoABF5412E_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAIGetAllyTeamIndex(lp_pingingPlayer)].lv_aIPlayers; 
+    autoABF5412E_p = 1;
+    for ( ; autoABF5412E_p <= PlayerGroupCount(autoABF5412E_g) ; autoABF5412E_p += (lv_playerIndex == PlayerGroupPlayer(autoABF5412E_g, autoABF5412E_p)) ) {
+        lv_playerIndex = PlayerGroupPlayer(autoABF5412E_g, autoABF5412E_p);
+        libAMGT_gf_ARMGardenHeroAIChangeToState(lv_playerIndex, libAMGT_ge_ARMGardenHeroAIStates_MMHWKillTerror, lp_targetNightBoss, libAIAI_ge_HeroAIPriority_CustomMapRegular);
+    }
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM<Garden> Set Round Order
+//--------------------------------------------------------------------------------------------------
+bool libAMGT_gt_ARMGardenSetRoundOrder_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libAREN_gf_ArenaAddRound((libAMGT_gv_aRMGardenLevelRegisteredMechIds[1]));
+    libAREN_gf_ArenaAddRound((libAMGT_gv_aRMGardenLevelRegisteredMechIds[2]));
+    libAREN_gf_ArenaAddRound((libAMGT_gv_aRMGardenLevelRegisteredMechIds[3]));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAMGT_gt_ARMGardenSetRoundOrder_Init () {
+    libAMGT_gt_ARMGardenSetRoundOrder = TriggerCreate("libAMGT_gt_ARMGardenSetRoundOrder_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM<Garden> Initialization
+//--------------------------------------------------------------------------------------------------
+bool libAMGT_gt_ARMGardenInitialization_Func (bool testConds, bool runActions) {
+    unitgroup auto28FD1A94_g;
+    int auto28FD1A94_u;
+
+    // Variable Declarations
+    unitgroup lv_monsterGroup;
+    unit lv_monster;
+
+    // Variable Initialization
+    lv_monsterGroup = UnitGroupEmpty();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_monsterGroup = UnitGroup("Shambler", c_playerAny, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    UnitGroupAddUnitGroup(lv_monsterGroup, UnitGroup("ShamblerRanged", c_playerAny, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    UnitGroupAddUnitGroup(lv_monsterGroup, UnitGroup("JunglePlantHorror", c_playerAny, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    auto28FD1A94_g = lv_monsterGroup;
+    auto28FD1A94_u = 1;
+    for ( ; auto28FD1A94_u <= UnitGroupCount(auto28FD1A94_g, c_unitCountAll) ; auto28FD1A94_u += (lv_monster == UnitGroupUnit(auto28FD1A94_g, auto28FD1A94_u)) ) {
+        lv_monster = UnitGroupUnit(auto28FD1A94_g, auto28FD1A94_u);
+        libNtve_gf_ShowHideUnit(lv_monster, false);
+        libNtve_gf_PauseUnit(lv_monster, true);
+        libNtve_gf_MakeUnitInvulnerable(lv_monster, true);
+    }
+    libAREN_gv_showCoreStatusBars = false;
+    libAIAI_gv_heroAITeamMapLogicTrigger = libAMGT_gt_ARMGardenHeroAITeamMapLogic;
+    libAIAI_gf_HeroAIRegisterAOEwithWatchTrigger("LignifyInitialLaunchSet", 3.0, 4.0, 0.0, false, false);
+    libUIUI_gf_PingCreateNewPingTarget("Shambler", false, null, StringExternal("Param/Value/lib_AMGT_494F7434"), StringExternal("Param/Value/lib_AMGT_CE401EFB"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
+    libUIUI_gf_PingCreateNewPingTarget("JunglePlantHorror", false, null, StringExternal("Param/Value/lib_AMGT_11C87D71"), StringExternal("Param/Value/lib_AMGT_DDB7993C"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
+    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libAMGT_gt_ARMGardenHeroAITerrorPingCallback);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAMGT_gt_ARMGardenInitialization_Init () {
+    libAMGT_gt_ARMGardenInitialization = TriggerCreate("libAMGT_gt_ARMGardenInitialization_Func");
+    libCore_gf_IncludeModInitialization(libAMGT_gt_ARMGardenInitialization);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM<Garden> Level Start
+//--------------------------------------------------------------------------------------------------
+bool libAMGT_gt_ARMGardenLevelStart_Func (bool testConds, bool runActions) {
+    int autoE21D1462_val;
+
+    // Variable Declarations
+    int lv_levelIndex;
+    int lv_itTempleIndex;
+    int lv_itPlayer;
+    int lv_itTeam;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_levelIndex = libAREN_gf_ArenaCurrentLevelIndex();
+    libAREN_gv_aRM_VictorySequencePlaying = false;
+    libAMGT_gf_ARMGardenClearSpawnGroup();
+    libAMGT_gv_aRMGardenTeamSeedsCollected[1] = 0;
+    libAMGT_gv_aRMGardenTeamSeedsCollected[2] = 0;
+    libAMGT_gv_aRMGardenWarningMessageLevel[1] = 0;
+    libAMGT_gv_aRMGardenWarningMessageLevel[2] = 0;
+    if ((libMapM_gv_mapMechanicControllerActor == null)) {
+        libNtve_gf_CreateActorAtPoint("MMController", RegionGetCenter(RegionEntireMap()));
+        libMapM_gv_mapMechanicControllerActor = libNtve_gf_ActorLastCreated();
+    }
+
+    if ((libAMGT_gv_aRMGardenLevelStartCallback[lv_levelIndex] != null)) {
+        TriggerExecute(libAMGT_gv_aRMGardenLevelStartCallback[lv_levelIndex], true, false);
+    }
+
+    TriggerEnable(libAMGT_gt_ARMGardenGatesOpened, true);
+    TriggerEnable(libAMGT_gt_ARMGardenSeedDropped, true);
+    TriggerEnable(libAMGT_gt_ARMGardenSeedPickup, true);
+    TriggerEnable(libAMGT_gt_ARMGardenMinionDies, true);
+    TriggerEnable(libAMGT_gt_ARMGardenTerrorDies, true);
+    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_DefenderAIIssueOrdersToCreep, libAMGT_gt_ARMGardenGardenTerrorDefenderSpells);
+    autoE21D1462_val = libAMGT_gf_ARMGardenCurrentLevel();
+    if (autoE21D1462_val == libAMGT_ge_ARMGardenLevel_Level1) {
+        libAMGT_gv_aRMGardenL1MinionSpawnSide = RandomInt(1, 2);
+        libAMGT_gf_ARMGardenTurnOnOffNightSettings(false);
+        libCore_gv_mAPMapAmbience = "Amb_2D_GardenOfTerror_Day";
+    }
+    else if (autoE21D1462_val == libAMGT_ge_ARMGardenLevel_Level2) {
+        libAMGT_gf_ARMGardenTurnOnOffNightSettings(true);
+        libCore_gv_mAPMapAmbience = "Amb_2D_GardenOfTerror_Night";
+    }
+    else if (autoE21D1462_val == libAMGT_ge_ARMGardenLevel_Level3) {
+        libAMGT_gf_ARMGardenTurnOnOffNightSettings(true);
+        libCore_gv_mAPMapAmbience = "Amb_2D_GardenOfTerror_Night";
+    }
+    else {
+    }
+    TriggerExecute(libAMGT_gt_ARMGardenPanelInit, true, false);
+    libAMGT_gf_MapMechanicsGardenOfTerrorSetSeedCountForTeam(1, 0);
+    libAMGT_gf_MapMechanicsGardenOfTerrorSetSeedCountForTeam(2, 0);
+    libAMGT_gf_MapMechanicsGardenOfTerrorSetSeedCountForTeam(libGame_gv_teamOrderIndex_C, libAMGT_gv_aRMGardenTeamSeedsCollected[libGame_gv_teamOrderIndex_C]);
+    libAMGT_gf_MapMechanicsGardenOfTerrorSetSeedCountForTeam(libGame_gv_teamChaosIndex_C, libAMGT_gv_aRMGardenTeamSeedsCollected[libGame_gv_teamChaosIndex_C]);
+    libAMGT_gf_ARMGardenHeroAIInitializeAI();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAMGT_gt_ARMGardenLevelStart_Init () {
+    libAMGT_gt_ARMGardenLevelStart = TriggerCreate("libAMGT_gt_ARMGardenLevelStart_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM<Garden> Gates Opened
+//--------------------------------------------------------------------------------------------------
+bool libAMGT_gt_ARMGardenGatesOpened_Func (bool testConds, bool runActions) {
+    int auto2006B483_val;
+
+    // Conditions
+    if (testConds) {
+        if (!((libAMGT_gv_aRMGardenMapEventDisabled == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    auto2006B483_val = libAREN_gf_ArenaCurrentRoundIndex();
+    if (auto2006B483_val == 1) {
+        Wait(libAMGT_gv_aRMGardenStartDelay_C, c_timeGame);
+        libAMGT_gf_ARMGardenSpawnMonsters();
+    }
+    else if (auto2006B483_val == 2) {
+        Wait(libAMGT_gv_aRMGardenStartDelay_C, c_timeGame);
+        libAMGT_gf_ARMGardenSpawnMonsters();
+    }
+    else if (auto2006B483_val == 3) {
+        Wait(libAMGT_gv_aRMGardenStartDelay_C, c_timeGame);
+        libAMGT_gf_ARMGardenSpawnMonsters();
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAMGT_gt_ARMGardenGatesOpened_Init () {
+    libAMGT_gt_ARMGardenGatesOpened = TriggerCreate("libAMGT_gt_ARMGardenGatesOpened_Func");
+    TriggerEnable(libAMGT_gt_ARMGardenGatesOpened, false);
+    TriggerAddEventTimer(libAMGT_gt_ARMGardenGatesOpened, libGame_gv_openTheGatesTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM<Garden> Seed Dropped
+//--------------------------------------------------------------------------------------------------
+bool libAMGT_gt_ARMGardenSeedDropped_Func (bool testConds, bool runActions) {
+    int auto740A6C94_ae;
+    int auto740A6C94_ai;
+
+    // Variable Declarations
+    unit lv_seed;
+    int lv_itTeam;
+    bool[3] lv_visionShared;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(EventUnitCreatedUnit()) == "ItemSeedPickup"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_seed = EventUnitCreatedUnit();
+    SoundPlayAtPointForPlayer(SoundLink("UI_SeedPickup_Drop", -1), c_maxPlayers, PlayerGroupAll(), UnitGetPosition(EventUnitCreatedUnit()), 0.0, 100.0, 0.5);
+    while (true) {
+        if ((UnitIsAlive(lv_seed) == false)) {
+            return true;
+        }
+
+        auto740A6C94_ae = 2;
+        auto740A6C94_ai = 1;
+        lv_itTeam = 1;
+        for ( ; ( (auto740A6C94_ai >= 0 && lv_itTeam <= auto740A6C94_ae) || (auto740A6C94_ai <= 0 && lv_itTeam >= auto740A6C94_ae) ) ; lv_itTeam += auto740A6C94_ai ) {
+            if ((lv_visionShared[lv_itTeam] == false) && (libNtve_gf_UnitIsVisibleToPlayer(lv_seed, libGame_gf_ComputerPlayerInTeam(lv_itTeam)) == true)) {
+                libNtve_gf_ShareVisionofUnit(lv_seed, true, libGame_gf_ComputerPlayerInTeam(lv_itTeam));
+                lv_visionShared[lv_itTeam] = true;
+                if ((lv_visionShared[1] == true) && (lv_visionShared[2] == true)) {
+                    return true;
+                }
+
+            }
+
+        }
+        Wait(0.0625, c_timeGame);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAMGT_gt_ARMGardenSeedDropped_Init () {
+    libAMGT_gt_ARMGardenSeedDropped = TriggerCreate("libAMGT_gt_ARMGardenSeedDropped_Func");
+    TriggerEnable(libAMGT_gt_ARMGardenSeedDropped, false);
+    TriggerAddEventUnitCreated(libAMGT_gt_ARMGardenSeedDropped, null, null, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM<Garden> Seed Pickup
+//--------------------------------------------------------------------------------------------------
+bool libAMGT_gt_ARMGardenSeedPickup_Func (bool testConds, bool runActions) {
+    int auto2049327C_val;
+    int auto5BF1FC9D_val;
+
+    // Variable Declarations
+    int lv_team;
+    int lv_collectingPlayer;
+    unit lv_collectingUnit;
+    playergroup lv_textTagPlayers;
+    int lv_itPlayer;
+
+    // Variable Initialization
+    lv_textTagPlayers = PlayerGroupEmpty();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_collectingPlayer = EventPlayerEffectUsedUnitOwner(c_effectPlayerTarget);
+    lv_collectingUnit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_team = libGame_gf_TeamNumberOfPlayer(lv_collectingPlayer);
+    libAMGT_gv_aRMGardenTeamSeedsCollected[lv_team] += 1;
+    SoundPlayAtPointForPlayer(SoundLink("UI_SeedPickup_Pickup", -1), c_maxPlayers, PlayerGroupAll(), UnitGetPosition(lv_collectingUnit), 0.5, 100.0, 0.0);
+    libNtve_gf_AddPlayerGroupToPlayerGroup(libGame_gf_AlliedPlayerGroupOfPlayer(lv_collectingPlayer), lv_textTagPlayers);
+    PlayerGroupAdd(lv_textTagPlayers, libCore_gv_oBSERVER_ObserverUIPlayer);
+    TextTagCreate(StringExternal("Param/Value/lib_AMGT_0EAE148F"), 24, UnitGetPosition(lv_collectingUnit), 1.0, true, true, lv_textTagPlayers);
+    TextTagSetVelocity(TextTagLastCreated(), 1.5, 90.0);
+    TextTagSetTime(TextTagLastCreated(), c_textTagTimeDuration, 3.0);
+    TextTagSetFogVisibility(TextTagLastCreated(), c_visTypeFog);
+    TextTagCreate(StringExternal("Param/Value/lib_AMGT_0835D700"), 24, UnitGetPosition(lv_collectingUnit), 1.0, true, true, libGame_gf_EnemyPlayerGroupOfPlayer(lv_collectingPlayer));
+    TextTagSetVelocity(TextTagLastCreated(), 1.5, 90.0);
+    TextTagSetTime(TextTagLastCreated(), c_textTagTimeDuration, 3.0);
+    TextTagSetFogVisibility(TextTagLastCreated(), c_visTypeFog);
+    libAMGT_gf_MapMechanicsGardenOfTerrorSetSeedCountForTeam(libGame_gf_TeamNumberOfPlayer(lv_collectingPlayer), libAMGT_gv_aRMGardenTeamSeedsCollected[libGame_gf_TeamNumberOfPlayer(lv_collectingPlayer)]);
+    if ((libAMGT_gv_aRMGardenTeamSeedsCollected[lv_team] == 50)) {
+        libAREN_gf_ARM_UpdateWallaLevel(2);
+        auto2049327C_val = lv_team;
+        if (auto2049327C_val == libGame_gv_teamOrderIndex_C) {
+            libAMGT_gf_ARMGardenTransmissionOrder50();
+        }
+        else if (auto2049327C_val == libGame_gv_teamChaosIndex_C) {
+            libAMGT_gf_ARMGardenTransmissionChaos50();
+        }
+        else {
+        }
+    }
+
+    if ((libAMGT_gv_aRMGardenTeamSeedsCollected[lv_team] == 80)) {
+        libAREN_gf_ARM_UpdateWallaLevel(3);
+        auto5BF1FC9D_val = lv_team;
+        if (auto5BF1FC9D_val == libGame_gv_teamOrderIndex_C) {
+            libAMGT_gf_ARMGardenTransmissionOrder80();
+        }
+        else if (auto5BF1FC9D_val == libGame_gv_teamChaosIndex_C) {
+            libAMGT_gf_ARMGardenTransmissionChaos80();
+        }
+        else {
+        }
+    }
+
+    if ((libAMGT_gv_aRMGardenTeamSeedsCollected[lv_team] >= libAMGT_gv_aRMGardenSeedRequired_C)) {
+        TriggerEnable(TriggerGetCurrent(), false);
+        libAMGT_gf_ARMGardenVictorySequence(lv_team, libGame_gv_teams[libGame_gf_EnemyTeam(lv_team)].lv_core);
+    }
+    else if ((libAMGT_gv_aRMGardenTeamSeedsCollected[lv_team] >= 90)) {
+        if ((libAMGT_gv_aRMGardenWarningMessageLevel[libGame_gf_EnemyTeam(lv_team)] < 2)) {
+            libAMGT_gv_aRMGardenWarningMessageLevel[libGame_gf_EnemyTeam(lv_team)] = 2;
+        }
+
+    }
+    else if ((libAMGT_gv_aRMGardenTeamSeedsCollected[lv_team] >= 50)) {
+        if ((libAMGT_gv_aRMGardenWarningMessageLevel[libGame_gf_EnemyTeam(lv_team)] < 1)) {
+            libAMGT_gv_aRMGardenWarningMessageLevel[libGame_gf_EnemyTeam(lv_team)] = 1;
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAMGT_gt_ARMGardenSeedPickup_Init () {
+    libAMGT_gt_ARMGardenSeedPickup = TriggerCreate("libAMGT_gt_ARMGardenSeedPickup_Func");
+    TriggerEnable(libAMGT_gt_ARMGardenSeedPickup, false);
+    TriggerAddEventPlayerEffectUsed(libAMGT_gt_ARMGardenSeedPickup, c_playerAny, "SeedPickupSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM<Garden> Core Dies (Debug)
+//--------------------------------------------------------------------------------------------------
+bool libAMGT_gt_ARMGardenCoreDiesDebug_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((libAREN_gv_aRM_VictorySequencePlaying == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((EventUnit() == libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core)) {
+        libAREN_gv_aRM_RoundWinningTeam = libGame_gv_teamChaosIndex_C;
+    }
+    else {
+        libAREN_gv_aRM_RoundWinningTeam = libGame_gv_teamOrderIndex_C;
+    }
+    TriggerDebugOutput(1, StringExternal("Param/Value/lib_AMGT_D6795749"), true);
+    libAREN_gv_aRM_VictorySequenceDelay = 0.0;
+    libAREN_gf_ARM_RoundOver();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAMGT_gt_ARMGardenCoreDiesDebug_Init () {
+    libAMGT_gt_ARMGardenCoreDiesDebug = TriggerCreate("libAMGT_gt_ARMGardenCoreDiesDebug_Func");
+    TriggerAddEventUnitDied(libAMGT_gt_ARMGardenCoreDiesDebug, UnitRefFromVariable("libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core"));
+    TriggerAddEventUnitDied(libAMGT_gt_ARMGardenCoreDiesDebug, UnitRefFromVariable("libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core"));
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM<Garden> Minion Dies
+//--------------------------------------------------------------------------------------------------
+bool libAMGT_gt_ARMGardenMinionDies_Func (bool testConds, bool runActions) {
+    int auto119A0410_val;
+
+    // Variable Declarations
+    int lv_itGroupIndex;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!(((UnitGetType(EventUnit()) == "Shambler") || (UnitGetType(EventUnit()) == "ShamblerRanged")))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libGame_gv_gameOver == true)) {
+        TriggerEnable(TriggerGetCurrent(), false);
+        return true;
+    }
+
+    lv_itGroupIndex = libAMGT_gf_ARMGardenMinionGroupIndex(EventUnit());
+    if ((lv_itGroupIndex <= 0)) {
+        return true;
+    }
+
+    if ((lv_itGroupIndex != libAMGT_gv_aRMGardenLastClearedGroupIndex[1])) {
+        libAMGT_gv_aRMGardenLastClearedGroupIndex[2] = libAMGT_gv_aRMGardenLastClearedGroupIndex[1];
+        libAMGT_gv_aRMGardenLastClearedGroupIndex[1] = lv_itGroupIndex;
+    }
+
+    libAMGT_gf_ARMGardenMinionDropsSeeds(EventUnit());
+    libAMGT_gf_ARMGardenDropSeeds(UnitGetPosition(EventUnit()), libAMGT_gv_aRMGardenSeedsMinionFinalDrop_C, false);
+    auto119A0410_val = libAMGT_gf_ARMGardenCurrentLevel();
+    if (auto119A0410_val == libAMGT_ge_ARMGardenLevel_Level3) {
+        libAMGT_gf_ARMGardenL3SpawnTerror();
+    }
+    else {
+    }
+    if ((libNtve_gf_UnitGroupIsDead(libAMGT_gv_aRMGardenMinionGroup[lv_itGroupIndex].lv_units) == true)) {
+        UnitRemove(libAMGT_gv_aRMGardenMinionGroup[lv_itGroupIndex].lv_iconUnit);
+        libAMGT_gv_aRMGardenMinionGroup[lv_itGroupIndex].lv_iconUnit = null;
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAMGT_gt_ARMGardenMinionDies_Init () {
+    libAMGT_gt_ARMGardenMinionDies = TriggerCreate("libAMGT_gt_ARMGardenMinionDies_Func");
+    TriggerEnable(libAMGT_gt_ARMGardenMinionDies, false);
+    TriggerAddEventUnitDied(libAMGT_gt_ARMGardenMinionDies, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM<Garden> Terror Dies
+//--------------------------------------------------------------------------------------------------
+bool libAMGT_gt_ARMGardenTerrorDies_Func (bool testConds, bool runActions) {
+    int auto1CBCA395_ae;
+    int auto1CBCA395_ai;
+    int autoE68CEC5A_val;
+
+    // Variable Declarations
+    int lv_itTerrorIndex;
+    int lv_diedTerrorIndex;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(EventUnit()) == "JunglePlantHorror"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libGame_gv_gameOver == true)) {
+        TriggerEnable(TriggerGetCurrent(), false);
+        return true;
+    }
+
+    libAREN_gf_SendEventArenaMechanicActivated();
+    auto1CBCA395_ae = libAMGT_gv_aRMGardenTerrorCount;
+    auto1CBCA395_ai = 1;
+    lv_itTerrorIndex = 1;
+    for ( ; ( (auto1CBCA395_ai >= 0 && lv_itTerrorIndex <= auto1CBCA395_ae) || (auto1CBCA395_ai <= 0 && lv_itTerrorIndex >= auto1CBCA395_ae) ) ; lv_itTerrorIndex += auto1CBCA395_ai ) {
+        if ((EventUnit() == libAMGT_gv_aRMGardenTerrors[lv_itTerrorIndex].lv_terror)) {
+            lv_diedTerrorIndex = lv_itTerrorIndex;
+            break;
+        }
+
+    }
+    if ((lv_diedTerrorIndex == 0)) {
+        return true;
+    }
+
+    libAMGT_gv_aRMGardenLastClearedTerrorIndex[2] = libAMGT_gv_aRMGardenLastClearedTerrorIndex[1];
+    libAMGT_gv_aRMGardenLastClearedTerrorIndex[1] = lv_diedTerrorIndex;
+    SoundPlayForPlayer(SoundLink("ArenaMode_Crowd_Cheer_EventWon", -1), c_maxPlayers, PlayerGroupAlliance(c_playerGroupAlly, libNtve_gf_KillingPlayer()), 100.0, 0.0);
+    SoundPlayForPlayer(SoundLink("ArenaMode_Crowd_Cheer_EventLost", -1), c_maxPlayers, PlayerGroupAlliance(c_playerGroupEnemy, libNtve_gf_KillingPlayer()), 100.0, 0.0);
+    libAMGT_gf_ARMGardenTerrorDropsSeeds(EventUnit());
+    libAMGT_gf_ARMGardenDropSeeds(UnitGetPosition(EventUnit()), libAMGT_gv_aRMGardenSeedsTerrorFinalDrop_C, true);
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, "RegenGlobeNeutral", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Neutral, RegionRandomPoint(RegionCircle(UnitGetPosition(EventUnit()), 4.5)));
+    autoE68CEC5A_val = libAMGT_gf_ARMGardenCurrentLevel();
+    if (autoE68CEC5A_val == libAMGT_ge_ARMGardenLevel_Level1) {
+        libAMGT_gf_ARMGardenL1SpawnNextTerror(lv_diedTerrorIndex);
+    }
+    else if (autoE68CEC5A_val == libAMGT_ge_ARMGardenLevel_Level2) {
+    }
+    else if (autoE68CEC5A_val == libAMGT_ge_ARMGardenLevel_Level3) {
+        libAMGT_gf_ARMGardenL3SpawnMinions();
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAMGT_gt_ARMGardenTerrorDies_Init () {
+    libAMGT_gt_ARMGardenTerrorDies = TriggerCreate("libAMGT_gt_ARMGardenTerrorDies_Func");
+    TriggerEnable(libAMGT_gt_ARMGardenTerrorDies, false);
+    TriggerAddEventUnitDied(libAMGT_gt_ARMGardenTerrorDies, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM<Garden> Panel Init
+//--------------------------------------------------------------------------------------------------
+bool libAMGT_gt_ARMGardenPanelInit_Func (bool testConds, bool runActions) {
+    int init_i;
+
+    int auto9FCE7B02_ae;
+    int auto9FCE7B02_ai;
+    int auto43917915_ae;
+    int auto43917915_ai;
+
+    // Variable Declarations
+    int lv_itTeam;
+    int[6] lv_panels;
+    int lv_currentPanelLayer;
+    int lv_enemyTeam;
+    int lv_notificationsPanel;
+
+    // Variable Initialization
+    for (init_i = 0; init_i <= 5; init_i += 1) {
+        lv_panels[init_i] = c_invalidDialogControlId;
+    }
+    lv_notificationsPanel = c_invalidDialogControlId;
+
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    DialogControlCreateInPanelFromTemplate(libUIUI_gv_topBarPanel.lv_mainPanel, c_triggerControlTypePanel, "ArenaGarden/ArenaGardenScorePanel");
+    libAMGT_gv_aRMGardenPanel.lv_gardenOfTerrorScorePanel = DialogControlLastCreated();
+    DialogControlHookup(DialogControlLastCreated(), c_triggerControlTypeLabel, "HelpText");
+    TextExpressionSetToken("Param/Expression/lib_AMGT_623DA00D", "SeedsReq", IntToText(libAMGT_gv_aRMGardenSeedRequired_C));
+    libNtve_gf_SetDialogItemText(DialogControlLastCreated(), TextExpressionAssemble("Param/Expression/lib_AMGT_623DA00D"), PlayerGroupAll());
+    auto9FCE7B02_ae = libCore_gv_bALMaxTeams;
+    auto9FCE7B02_ai = 1;
+    lv_itTeam = 1;
+    for ( ; ( (auto9FCE7B02_ai >= 0 && lv_itTeam <= auto9FCE7B02_ae) || (auto9FCE7B02_ai <= 0 && lv_itTeam >= auto9FCE7B02_ae) ) ; lv_itTeam += auto9FCE7B02_ai ) {
+        DialogControlHookup(libAMGT_gv_aRMGardenPanel.lv_gardenOfTerrorScorePanel, c_triggerControlTypeLabel, libNtve_gf_ConvertStringToUILayoutFrameName(("Team" + IntToString(lv_itTeam) + "Score")));
+        libAMGT_gv_aRMGardenPanel.lv_seedsCounts[lv_itTeam] = DialogControlLastCreated();
+    }
+    DialogControlCreateInPanelFromTemplate(libUIUI_gv_mapMechanicsPanel.lv_mainPanel, c_triggerControlTypePanel, "ArenaGarden/ArenaGardenPanel");
+    libAMGT_gv_aRMGardenPanel.lv_gardenOfTerrorPanel = DialogControlLastCreated();
+    DialogControlHookup(libAMGT_gv_aRMGardenPanel.lv_gardenOfTerrorPanel, c_triggerControlTypePanel, "TerrorSpawnPanel");
+    libAMGT_gv_aRMGardenPanel.lv_gardenOfTerrorGolemFrame = DialogControlLastCreated();
+    DialogControlHookup(DialogControlLastCreated(), c_triggerControlTypeLabel, "InfoLabel");
+    libNtve_gf_SetDialogItemText(DialogControlLastCreated(), StringExternal("Param/Value/lib_AMGT_AFCAC1AE"), PlayerGroupAll());
+    DialogControlHookup(libAMGT_gv_aRMGardenPanel.lv_gardenOfTerrorPanel, c_triggerControlTypePanel, "ShamblersSpawnPanel");
+    libAMGT_gv_aRMGardenPanel.lv_gardenOfTerrorShamblersFrame = DialogControlLastCreated();
+    DialogControlHookup(DialogControlLastCreated(), c_triggerControlTypeLabel, "InfoLabel");
+    libNtve_gf_SetDialogItemText(DialogControlLastCreated(), StringExternal("Param/Value/lib_AMGT_F2800676"), PlayerGroupAll());
+    DialogControlCreateInPanelFromTemplate(libUIUI_gv_mapMechanicsPanel.lv_mainPanel, c_triggerControlTypePanel, "ArenaGarden/ArenaGardenNotificationsPanel");
+    lv_notificationsPanel = DialogControlLastCreated();
+    auto43917915_ae = libCore_gv_bALMaxTeams;
+    auto43917915_ai = 1;
+    lv_itTeam = 1;
+    for ( ; ( (auto43917915_ai >= 0 && lv_itTeam <= auto43917915_ae) || (auto43917915_ai <= 0 && lv_itTeam >= auto43917915_ae) ) ; lv_itTeam += auto43917915_ai ) {
+        DialogControlHookup(lv_notificationsPanel, c_triggerControlTypePanel, libNtve_gf_ConvertStringToUILayoutFrameName(("ProgressAnnouncement" + IntToString(lv_itTeam))));
+        libAMGT_gv_aRMGardenPanel.lv_progressNotification[lv_itTeam] = DialogControlLastCreated();
+        DialogControlHookup(DialogControlLastCreated(), c_triggerControlTypeLabel, "StandardNotificationTemplate/NotificationTitle");
+        libAMGT_gv_aRMGardenPanel.lv_progressNotificationLabel[lv_itTeam] = DialogControlLastCreated();
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAMGT_gt_ARMGardenPanelInit_Init () {
+    libAMGT_gt_ARMGardenPanelInit = TriggerCreate("libAMGT_gt_ARMGardenPanelInit_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM<Garden> Garden Terror Defender Spells
+//--------------------------------------------------------------------------------------------------
+bool libAMGT_gt_ARMGardenGardenTerrorDefenderSpells_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_creepUnit;
+    int lv_defenderAIIndex;
+    unit lv_currentOrderTarget;
+    int lv_graveGolemBindingRootsValidTargets;
+    unitgroup lv_enemyGroup;
+
+    // Variable Initialization
+    lv_creepUnit = libCore_gv_segTriggerUnit;
+    lv_defenderAIIndex = libCore_gv_segTriggerIndex;
+    lv_enemyGroup = UnitGroupEmpty();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libAIAI_gf_DefendersAreFighting(lv_defenderAIIndex) == true) && ((libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_fightStartTime + libAIAI_gv_aIDefenderMinTimeBeforeCasting) < TimerGetElapsed(libGame_gv_gameTimer))) {
+        if ((UnitGetCooldown(lv_creepUnit, "Abil/PlantHorrorPoisonBulbs") <= 0.0) && (UnitGroupCount(UnitGroup(null, c_playerAny, RegionCircle(UnitGetPosition(lv_creepUnit), 5.0), UnitFilter((1 << c_targetFilterHeroic) | (1 << c_targetFilterVisible), 0, (1 << c_targetFilterPlayer) | (1 << c_targetFilterAlly) | (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), c_unitCountAlive) > 1)) {
+            UnitIssueOrder(lv_creepUnit, Order(AbilityCommand("UnderworldBossStun", 0)), c_orderQueueReplace);
+            libAIAI_gv_defenderAICreepNeedsNewOrder = false;
+        }
+        else {
+            lv_enemyGroup = libNtve_gf_UnitsInRegionWithAllianceToPlayerMatchingCondition(null, "", "", UnitGetOwner(lv_creepUnit), c_unitAllianceEnemy, RegionCircle(UnitGetPosition(lv_creepUnit), 8.0), UnitFilter((1 << c_targetFilterHeroic) | (1 << c_targetFilterVisible), 0, (1 << c_targetFilterPlayer) | (1 << c_targetFilterAlly) | (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+            if ((UnitGetCooldown(lv_creepUnit, "Abil/UnderworldBossRoots") <= 0.0) && (UnitGroupCount(lv_enemyGroup, c_unitCountAlive) > 1)) {
+                UnitGroupLoopBegin(lv_enemyGroup);
+                for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+                    if ((UnitGroupLoopCurrent() != lv_currentOrderTarget) && (DistanceBetweenPoints(UnitGetPosition(UnitGroupLoopCurrent()), UnitGetPosition(lv_creepUnit)) >= 2.0)) {
+                        lv_graveGolemBindingRootsValidTargets += 1;
+                    }
+
+                }
+                UnitGroupLoopEnd();
+                if ((lv_graveGolemBindingRootsValidTargets >= 1)) {
+                    UnitIssueOrder(lv_creepUnit, OrderTargetingPoint(AbilityCommand("UnderworldBossRoots", 0), UnitGetPosition(libMapM_gf_JungleGetRandomEnemyHeroInRangeOfMinionWithMinimumRangeRequirements(lv_creepUnit, UnitGetPosition(lv_creepUnit), 0.0, 8.0, lv_currentOrderTarget))), c_orderQueueReplace);
+                    UnitAddCooldown(lv_creepUnit, "Abil/UnderworldBossRoots", 1.5);
+                    libAIAI_gv_defenderAICreepNeedsNewOrder = false;
+                }
+                else {
+                    UnitAddCooldown(lv_creepUnit, "Abil/UnderworldBossRoots", 0.5);
+                }
+            }
+
+        }
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAMGT_gt_ARMGardenGardenTerrorDefenderSpells_Init () {
+    libAMGT_gt_ARMGardenGardenTerrorDefenderSpells = TriggerCreate("libAMGT_gt_ARMGardenGardenTerrorDefenderSpells_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM<Garden> HeroAI - Team Map Logic
+//--------------------------------------------------------------------------------------------------
+bool libAMGT_gt_ARMGardenHeroAITeamMapLogic_Func (bool testConds, bool runActions) {
+    playergroup auto0BE53832_g;
+    int auto0BE53832_p;
+    playergroup auto9F2FA1F2_g;
+    int auto9F2FA1F2_p;
+    playergroup autoBB2FCAC1_g;
+    int autoBB2FCAC1_p;
+    playergroup auto426AEE45_g;
+    int auto426AEE45_p;
+
+    // Variable Declarations
+    int lv_itMinionGroupIndex;
+    int lv_itGroup;
+    int lv_playerIndex;
+    unit lv_target;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto0BE53832_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(libAIAI_gv_heroAITeamMapLogicFaction)].lv_aIPlayers; 
+    auto0BE53832_p = 1;
+    for ( ; auto0BE53832_p <= PlayerGroupCount(auto0BE53832_g) ; auto0BE53832_p += (lv_playerIndex == PlayerGroupPlayer(auto0BE53832_g, auto0BE53832_p)) ) {
+        lv_playerIndex = PlayerGroupPlayer(auto0BE53832_g, auto0BE53832_p);
+        if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (libAIAI_gf_HeroAIIsHigherPriority(lv_playerIndex, libAIAI_ge_HeroAIPriority_CustomMapHigh) == true) && (UnitGetPropertyFixed(libGame_gv_players[lv_playerIndex].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) >= libAIAI_gv_aIHeroes[lv_playerIndex].lv_startOffensiveHealth) && ((libAIAI_gv_aIHeroes[lv_playerIndex].lv_heroState != libAIAI_ge_HeroAIStates_HSCustomMapState) || (libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateCurrentState != libAMGT_ge_ARMGardenHeroAIStates_MMHWKillTerror) || (UnitIsAlive(libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateCurrentTargetUnit) == false) || (UnitGetPropertyFixed(libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateCurrentTargetUnit, c_unitPropLifePercent, c_unitPropCurrent) >= 33.0))) {
+            lv_target = libAMGT_gf_ARMGardenHeroAIChooseTargetShambler(lv_playerIndex);
+            if ((lv_target != null)) {
+                libAMGT_gf_ARMGardenHeroAIChangeToState(lv_playerIndex, libAMGT_ge_ARMGardenHeroAIStates_MMHWKillShamblers, lv_target, libAIAI_ge_HeroAIPriority_CustomMapHigh);
+            }
+
+        }
+
+    }
+    lv_target = libAMGT_gf_ARMGardenHeroAIChooseTargetTerror(libAIAI_gv_heroAITeamMapLogicFaction);
+    if ((lv_target != null)) {
+        auto9F2FA1F2_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(libAIAI_gv_heroAITeamMapLogicFaction)].lv_aIPlayers; 
+        auto9F2FA1F2_p = 1;
+        for ( ; auto9F2FA1F2_p <= PlayerGroupCount(auto9F2FA1F2_g) ; auto9F2FA1F2_p += (lv_playerIndex == PlayerGroupPlayer(auto9F2FA1F2_g, auto9F2FA1F2_p)) ) {
+            lv_playerIndex = PlayerGroupPlayer(auto9F2FA1F2_g, auto9F2FA1F2_p);
+            if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (libAIAI_gf_HeroAIIsHigherPriority(lv_playerIndex, libAIAI_ge_HeroAIPriority_CustomMapRegular) == true) && (UnitGetPropertyFixed(libGame_gv_players[lv_playerIndex].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) >= libAIAI_gv_aIHeroes[lv_playerIndex].lv_startOffensiveHealth)) {
+                libAMGT_gf_ARMGardenHeroAIChangeToState(lv_playerIndex, libAMGT_ge_ARMGardenHeroAIStates_MMHWKillTerror, lv_target, libAIAI_ge_HeroAIPriority_CustomMapRegular);
+            }
+
+        }
+    }
+
+    autoBB2FCAC1_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(libAIAI_gv_heroAITeamMapLogicFaction)].lv_aIPlayers; 
+    autoBB2FCAC1_p = 1;
+    for ( ; autoBB2FCAC1_p <= PlayerGroupCount(autoBB2FCAC1_g) ; autoBB2FCAC1_p += (lv_playerIndex == PlayerGroupPlayer(autoBB2FCAC1_g, autoBB2FCAC1_p)) ) {
+        lv_playerIndex = PlayerGroupPlayer(autoBB2FCAC1_g, autoBB2FCAC1_p);
+        if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (libAIAI_gf_HeroAIIsHigherPriority(lv_playerIndex, libAIAI_ge_HeroAIPriority_CustomMapLow) == true) && (UnitGetPropertyFixed(libGame_gv_players[lv_playerIndex].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) >= libAIAI_gv_aIHeroes[lv_playerIndex].lv_startOffensiveHealth)) {
+            lv_target = libAMGT_gf_ARMGardenHeroAIChooseSeed(lv_playerIndex, RegionEntireMap(), false);
+            if ((lv_target != null)) {
+                libAMGT_gf_ARMGardenHeroAIChangeToState(lv_playerIndex, libAMGT_ge_ARMGardenHeroAIStates_MMHWPickupSeed, lv_target, libAIAI_ge_HeroAIPriority_CustomMapLow);
+            }
+
+        }
+
+    }
+    auto426AEE45_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(libAIAI_gv_heroAITeamMapLogicFaction)].lv_aIPlayers; 
+    auto426AEE45_p = 1;
+    for ( ; auto426AEE45_p <= PlayerGroupCount(auto426AEE45_g) ; auto426AEE45_p += (lv_playerIndex == PlayerGroupPlayer(auto426AEE45_g, auto426AEE45_p)) ) {
+        lv_playerIndex = PlayerGroupPlayer(auto426AEE45_g, auto426AEE45_p);
+        if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (libAIAI_gf_HeroAIIsHigherPriority(lv_playerIndex, libAIAI_ge_HeroAIPriority_CustomMapLow) == true) && (UnitGetPropertyFixed(libGame_gv_players[lv_playerIndex].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) >= libAIAI_gv_aIHeroes[lv_playerIndex].lv_startOffensiveHealth)) {
+            libAMGT_gf_ARMGardenHeroAIChangeToState(lv_playerIndex, libAMGT_ge_ARMGardenHeroAIStates_MMHWMoonwellRegroup, null, libAIAI_ge_HeroAIPriority_CustomMapLow);
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAMGT_gt_ARMGardenHeroAITeamMapLogic_Init () {
+    libAMGT_gt_ARMGardenHeroAITeamMapLogic = TriggerCreate("libAMGT_gt_ARMGardenHeroAITeamMapLogic_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM<Garden> HeroAI - State Logic
+//--------------------------------------------------------------------------------------------------
+bool libAMGT_gt_ARMGardenHeroAIStateLogic_Func (bool testConds, bool runActions) {
+    int autoCA89E224_val;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    autoCA89E224_val = libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSMapStateCurrentState;
+    if (autoCA89E224_val == libAMGT_ge_ARMGardenHeroAIStates_MMHWKillShamblers) {
+        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libAMGT_gf_ARMGardenHeroAIKillShamblers(libAIAI_gv_heroAICustomStateCurrentPlayer);
+    }
+    else if (autoCA89E224_val == libAMGT_ge_ARMGardenHeroAIStates_MMHWFleeShamblers) {
+        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libAMGT_gf_ARMGardenHeroAIFleeShamblers(libAIAI_gv_heroAICustomStateCurrentPlayer);
+    }
+    else if (autoCA89E224_val == libAMGT_ge_ARMGardenHeroAIStates_MMHWKillTerror) {
+        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libAMGT_gf_ARMGardenHeroAIKillTerror(libAIAI_gv_heroAICustomStateCurrentPlayer);
+    }
+    else if (autoCA89E224_val == libAMGT_ge_ARMGardenHeroAIStates_MMHWFleeTerror) {
+        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libAMGT_gf_ARMGardenHeroAIFleeTerror(libAIAI_gv_heroAICustomStateCurrentPlayer);
+    }
+    else if (autoCA89E224_val == libAMGT_ge_ARMGardenHeroAIStates_MMHWPickupSeed) {
+        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libAMGT_gf_ARMGardenHeroAIPickupSeed(libAIAI_gv_heroAICustomStateCurrentPlayer);
+    }
+    else if (autoCA89E224_val == libAMGT_ge_ARMGardenHeroAIStates_MMHWMoonwellRegroup) {
+        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libAMGT_gf_ARMGardenHeroAIMoonwellRegroup(libAIAI_gv_heroAICustomStateCurrentPlayer);
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAMGT_gt_ARMGardenHeroAIStateLogic_Init () {
+    libAMGT_gt_ARMGardenHeroAIStateLogic = TriggerCreate("libAMGT_gt_ARMGardenHeroAIStateLogic_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM<Garden> HeroAI - Terror Ping Callback
+//--------------------------------------------------------------------------------------------------
+bool libAMGT_gt_ARMGardenHeroAITerrorPingCallback_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libAMGT_gf_ARMGardenHeroAINightBossPinged(libUIUI_gv_ping_PingCallbackPingingPlayer, libUIUI_gv_ping_PingCallbackTargetUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAMGT_gt_ARMGardenHeroAITerrorPingCallback_Init () {
+    libAMGT_gt_ARMGardenHeroAITerrorPingCallback = TriggerCreate("libAMGT_gt_ARMGardenHeroAITerrorPingCallback_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM<Garden> DisableEvent
+//--------------------------------------------------------------------------------------------------
+bool libAMGT_gt_ARMGardenDisableEvent_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libAMGT_gv_aRMGardenMapEventDisabled = true;
+    TriggerDebugOutput(1, StringExternal("Param/Value/lib_AMGT_A3D295BE"), true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAMGT_gt_ARMGardenDisableEvent_Init () {
+    libAMGT_gt_ARMGardenDisableEvent = TriggerCreate("libAMGT_gt_ARMGardenDisableEvent_Func");
+    TriggerAddEventChatMessage(libAMGT_gt_ARMGardenDisableEvent, c_playerAny, "DisableEvent", false);
+}
+
+void libAMGT_InitTriggers () {
+    libAMGT_gt_ARMGardenSetRoundOrder_Init();
+    libAMGT_gt_ARMGardenInitialization_Init();
+    libAMGT_gt_ARMGardenLevelStart_Init();
+    libAMGT_gt_ARMGardenGatesOpened_Init();
+    libAMGT_gt_ARMGardenSeedDropped_Init();
+    libAMGT_gt_ARMGardenSeedPickup_Init();
+    libAMGT_gt_ARMGardenCoreDiesDebug_Init();
+    libAMGT_gt_ARMGardenMinionDies_Init();
+    libAMGT_gt_ARMGardenTerrorDies_Init();
+    libAMGT_gt_ARMGardenPanelInit_Init();
+    libAMGT_gt_ARMGardenGardenTerrorDefenderSpells_Init();
+    libAMGT_gt_ARMGardenHeroAITeamMapLogic_Init();
+    libAMGT_gt_ARMGardenHeroAIStateLogic_Init();
+    libAMGT_gt_ARMGardenHeroAITerrorPingCallback_Init();
+    libAMGT_gt_ARMGardenDisableEvent_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libAMGT_InitLib_completed = false;
+
+void libAMGT_InitLib () {
+    if (libAMGT_InitLib_completed) {
+        return;
+    }
+
+    libAMGT_InitLib_completed = true;
+
+    libAMGT_InitLibraries();
+    libAMGT_InitVariables();
+    libAMGT_InitTriggers();
+}
+

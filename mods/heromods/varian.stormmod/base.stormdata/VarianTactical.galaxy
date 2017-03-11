@@ -1,0 +1,363 @@
+// ********************************************************************************************
+// Varian Tactical
+// ********************************************************************************************
+
+//---------------------------------------------------------------------------------------------
+// Constant Declarations (Abilities and Behaviors we need later)
+//---------------------------------------------------------------------------------------------
+//Abilities
+const string c_AB_VarianLionsFang                       = "VarianLionsFang";
+const string c_AB_VarianParry                           = "VarianParry";
+const string c_AB_VarianCharge                          = "VarianCharge";
+const string c_AB_VarianHeroicStrike                    = "VarianHeroicStrike";
+const string c_AB_VarianTaunt                           = "VarianTaunt";
+const string c_AB_VarianColossusSmash                   = "VarianColossusSmash";
+//Behaviors
+const string c_VarianHeroicStrike                       = "VarianHeroicStrike";
+const string c_VarianLionsFangQuestComplete             = "VarianLionsFangLionsMawQuestComplete";
+const string c_VarianSeasonedSoldierQuestComplete       ="VarianSeasonedSoldierQuestComplete";
+// Items (CUnit IDs of the items)
+const string c_VarianShatteringThrowItem               = "VarianShatteringThrowItem";
+const string c_VarianBannerOfStormwindItem              = "VarianBannerOfStormwindItem";
+const string c_VarianBannerOfIronforgeItem              = "VarianBannerOfIronforgeItem";
+const string c_VarianBannerOfDalaranItem                = "VarianBannerOfDalaranItem";
+const string c_VarianDemoralizingShoutItem              = "VarianDemoralizingShoutItem";
+
+// Talents and modifiers
+const fixed c_VarianLionsFangQuestCompleteRadiusIncrease = 0.5;
+const fixed c_VarianLionsFangQuestCompleteRangeIncrease  = 3.75;
+
+// VarianLionsFang Variables
+const fixed c_VarianLionsFangMaxRange                   = 7.0;
+const fixed c_VarianShowckwaveMissileRadius             = 2.0;    
+// VarianCharge Variables
+const fixed c_VarianChargeMaxRange                      = 6.0;
+// VarianTaunt Variables
+const fixed c_VarianTauntMaxRange                       = 2.0;
+// VarianColossusSmash Variables
+const fixed c_VarianColossusSmashMaxRange               = 3.5;
+//banner radius
+const fixed c_VarianBannerRadius                        = 8.5;
+// Shattering Throw Active Range
+const fixed c_VarianShatteringThrowRange               = 8.0;
+
+//---------------------------------------------------------------------------------------------
+// Ability Logic Functions
+//---------------------------------------------------------------------------------------------
+bool VarianLionsFang (int player, unit aiUnit, unitgroup scanGroup) {
+    // Forward Moving Penetrative Missile
+    order spellOrd;
+    unit targetEnemy;
+    fixed abilityRange;
+    fixed abilityRadius;
+    fixed energy;
+    fixed minCreeps;
+    fixed minMinions;
+    point inFrontofHero;
+    Storm_AI_TargetQueryOptions query;
+
+    //StormHeroAICreateOrder(playerID, AbilityName, AbilityCommandID)
+    spellOrd = StormHeroAICreateOrder(player, c_AB_VarianLionsFang, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    //Find out how much energy (mana/rage/etc) we have 
+    energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    
+    // Set thresholds for use on minions based on energy level
+    if (energy > libAIAI_gv_aIHeroHighEnergyPercent) {
+        minCreeps = c_Storm_AI_AtLeast1Creep;
+        minMinions = c_Storm_AI_AtLeast2Minions;
+    }
+    else if (energy > libAIAI_gv_aIHeroMediumEnergyPercent) {
+        minCreeps = c_Storm_AI_AtLeast1Creep;
+        minMinions = c_Storm_AI_AtLeast3Minions;
+    }
+    else {
+        minCreeps = c_Storm_AI_AtLeast2Creeps;
+        minMinions = c_Storm_AI_AtLeast3Minions;
+    }
+
+    //Factor in Talents
+    // Define the ability range
+    abilityRange = c_VarianLionsFangMaxRange;
+    abilityRadius = c_VarianShowckwaveMissileRadius;
+    // Modify range based on presence of behavior 
+    if (UnitHasBehavior(aiUnit, c_VarianLionsFangQuestComplete) == true){
+        abilityRange += c_VarianLionsFangQuestCompleteRangeIncrease;
+        abilityRadius += c_VarianLionsFangQuestCompleteRadiusIncrease;
+    }   
+    
+    query.lv_maxDistance = abilityRange;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    query.lv_lineOfSightRequired = c_Storm_AI_LOS_Optional;
+
+    // Finds the best hero from the built scanGroup using the above defined query options
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        //only bother looking for minions if we do NOT have a valid hero to hit. So fire up the FindBestTacticalTarget function
+        targetEnemy = FindBestTacticalTarget(scanGroup, aiUnit, query);
+        // this checks around the target we just found for other possible targets within our abilityRadius, if we can hit multiple guys, that's ideal.
+        if (!UnitIsValid(targetEnemy)
+         || !EnoughEnemiesInArea(scanGroup, UnitGetPosition(targetEnemy), abilityRadius, 0, minCreeps, minMinions)) {
+            return false;
+        }
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+}
+bool VarianParry (int player, unit aiUnit, unitgroup scanGroup) {
+    // Makes Varian block All attacks for the next 4 seconds 
+    order spellOrd;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_VarianParry, 0);
+    
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    
+    // Use while retreating
+    if (HaveBeenAttackedRecently(aiUnit) && UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+    
+    // Activate if there is a team fight OR we've taken damage recently
+    if (HaveBeenAttackedRecently(aiUnit) || TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), 5.0)) {
+        return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+
+    return false;
+}
+bool VarianCharge (int player, unit aiUnit, unitgroup scanGroup) {
+    // Charges to a target doing some damage to them
+    // charges at enemy, stuns them for 1 second if he reaches them    
+    unit targetHero;
+    order spellOrd;
+    fixed abilityRange;
+    Storm_AI_TargetQueryOptions query;
+    
+    spellOrd = StormHeroAICreateOrder(player, c_AB_VarianCharge, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    
+    // Don't jump into battle with low health
+    if (UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroMediumHealthPercent) { 
+        return false;
+    }
+    //set the abil range 
+    abilityRange = c_VarianChargeMaxRange;
+    
+    // build our query
+    query.lv_maxDistance = abilityRange;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    query.lv_lineOfSightRequired = c_Storm_AI_LOS_Required;  
+    
+    // Find a target hero 
+    targetHero = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetHero)) { 
+        return false;
+    }
+
+    // Don't charge heroes under tower protection. We add some extra distance to cope with the target running towards the tower and gaining protection as we charge in.
+    if (libAIAI_gf_HeroAIUnitProtectedByTower(targetHero, libAIAI_gv_aIHeroFarFromTowerDistance + 2.5) == true) { 
+        return false;
+    }
+
+    if (HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, targetHero, null)) {
+        HeroFocusOnHero(player, targetHero);
+        return true;
+    }
+    
+    return false;
+}
+bool VarianTaunt (int player, unit aiUnit, unitgroup scanGroup) {
+    // Treat as a Crowd Control essentially. 
+    order spellOrd;
+    order attackOrd;
+    unit targetEnemy;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_VarianTaunt, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+     // Don't jump into battle near a tower or low health
+    if(CheckIfTooLowHealthOrNearbyTower(aiUnit, scanGroup, 50.0)) {
+        return false;
+    }
+
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+    
+    query.lv_maxDistance = c_VarianTauntMaxRange;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    query.lv_lineOfSightRequired = c_Storm_AI_LOS_Optional;
+
+    // Finds the best hero from the built scanGroup using the above defined query options
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    
+    // Check that it's valid
+    if (!UnitIsValid(targetEnemy)) { 
+        return false;
+    }    
+    
+    return HeroIssueOrder (player, aiUnit, spellOrd, attackOrd, c_orderQueueAddToFront, targetEnemy, null);
+}
+bool VarianColossusSmash (int player, unit aiUnit, unitgroup scanGroup) {
+    // Damages and target enemy and makes them vulnerable
+    order spellOrd;
+    Storm_AI_TargetQueryOptions query;
+    unit targetHero;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_VarianColossusSmash, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    
+    // Use if there is a weak enemy nearby
+    query.lv_maxDistance = c_VarianColossusSmashMaxRange;
+    query.lv_maxHealthPercent = libAIAI_gv_aIHeroLowHealthPercent;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_minScore = c_Storm_AI_FullHeroScore; // don't use on mini-heroes because this is an ultimate
+    
+    targetHero = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetHero)) {
+        return false;
+    }
+    
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, targetHero, null);
+}
+bool VarianDefensiveItemCallback (int player, unit aiUnit, unitgroup scanGroup, string itemType, order ord, order ordTarget, order ordTogOn, order ordTogOff) {
+    point retreatPos;
+    unitgroup nearbyAllies;
+    int allyHeroCount;
+    
+    if (itemType == c_VarianBannerOfStormwindItem) {
+        //if I'm retreating 
+        if (HaveBeenAttackedRecently(aiUnit) && UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+            //Define a point in the direction varian is retreating that is half the banner radius away from varian
+            retreatPos = libAIAI_gf_HeroAIGetRetreatPosition(player, c_VarianBannerRadius/2, null); 
+            return HeroIssueOrder(player, aiUnit, ordTarget, null, c_orderQueueAddToFront, null, retreatPos);
+        }
+                    
+        // Activate if there is a team fight and we're taking damage
+        if (TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), 7.0)) { 
+            return HeroIssueOrder(player, aiUnit, ordTarget, null, c_orderQueueAddToFront, null, UnitGroupCenterOfGroup(nearbyAllies));
+        }
+
+        return false;
+    }  
+    if (itemType == c_VarianBannerOfDalaranItem){
+        //make sure there are 2 or more people nearby 
+        nearbyAllies = AllyUnitsInArea(player, UnitGetPosition(aiUnit), 10.0);
+        allyHeroCount = CountPlayersInUnitGroup(UnitGroupFilterHeroes(nearbyAllies));
+        if (allyHeroCount < 2) {
+            return false;
+        }
+       
+        // Activate if there is a team fight and we're taking damage drop at the center of the allied unit group. 
+         if (TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), 7.0)) { 
+            return HeroIssueOrder(player, aiUnit, ordTarget, null, c_orderQueueAddToFront, null, UnitGroupCenterOfGroup(nearbyAllies));
+        }
+
+        return false;
+    }  
+    if (itemType == c_VarianBannerOfIronforgeItem){
+        // currently the same logic as Stormwind Banner
+        //if I'm retreating 
+        if (HaveBeenAttackedRecently(aiUnit) && UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+            //Define a point in the direction varian is retreating that is half the banner radius away from varian
+            retreatPos = libAIAI_gf_HeroAIGetRetreatPosition(player, c_VarianBannerRadius/2, null); 
+            return HeroIssueOrder(player, aiUnit, ordTarget, null, c_orderQueueAddToFront, null, retreatPos);
+        }
+                    
+        // Activate if there is a team fight and we're taking damage
+         if (TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), 10)) { 
+            nearbyAllies = AllyUnitsInArea(player, UnitGetPosition(aiUnit), 10);
+            return HeroIssueOrder(player, aiUnit, ordTarget, null, c_orderQueueAddToFront, null, UnitGroupCenterOfGroup(nearbyAllies));
+        }
+
+        return false;
+    }      
+    if (itemType == c_VarianDemoralizingShoutItem) {
+        if (HaveBeenAttackedRecently(aiUnit) && UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+            return HeroIssueOrder(player, aiUnit, ordTarget, null, c_orderQueueAddToFront, null, retreatPos);
+        }
+                    
+         if (TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), 5.5)) { 
+            return HeroIssueOrder(player, aiUnit, ordTarget, null, c_orderQueueAddToFront, null, UnitGetPosition(aiUnit));
+        }
+
+        return false;
+    }
+    
+    return false;
+}
+bool VarianOffensiveItemCallback (int player, unit aiUnit, unitgroup scanGroup, string itemType, order ord, order ordTarget, order ordTogOn, order ordTogOff) {
+    fixed targetShields;
+    unit targetHero;
+    Storm_AI_TargetQueryOptions query;
+
+    if (itemType == c_VarianShatteringThrowItem) {
+        // build query
+        query.lv_minScore = c_Storm_AI_FullHeroScore;
+        query.lv_maxDistance = c_VarianShatteringThrowRange;
+        query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+        
+        // find us a target
+        targetHero = FindBestHero(scanGroup, aiUnit, query);
+        
+        // make sure unit is valid before we start trying to pull info from it
+        if(!UnitIsValid(targetHero)){
+            return false;
+        }
+        
+        //check that they have shields
+        targetShields = libCore_gf_GetTotalHPForUnitIncludingAllShields(targetHero) - UnitGetPropertyFixed(targetHero, c_unitPropLife, c_unitPropCurrent);
+
+        if (targetShields > 0) {
+            return HeroIssueOrder(player, aiUnit, ordTarget, null, c_orderQueueAddToFront, targetHero, null);
+        }
+    }
+    return false;
+}  
+void AIThinkVarian (int player, unit aiUnit, unitgroup scanGroup) {
+
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+    
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+    
+    if (UseItem(player, aiUnit, scanGroup, VarianDefensiveItemCallback)) {
+        return;
+    }
+    if (VarianLionsFang(player, aiUnit, scanGroup)) {
+        return;
+    }
+    if (VarianParry(player, aiUnit, scanGroup)) {
+        return;
+    }
+    if (VarianCharge(player, aiUnit, scanGroup)) {
+        return;
+    }
+    if (VarianTaunt(player, aiUnit, scanGroup)) {
+        return;
+    }
+    if (UseItem(player, aiUnit, scanGroup, VarianOffensiveItemCallback)) {
+        return;
+    }
+    if (VarianColossusSmash(player, aiUnit, scanGroup)) {
+        return;
+    }
+}

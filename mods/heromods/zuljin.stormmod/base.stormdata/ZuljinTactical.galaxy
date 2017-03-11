@@ -1,0 +1,455 @@
+//---------------------------------------------------------------------------------------------
+// Zul'jin Tactical
+//---------------------------------------------------------------------------------------------
+
+// Abilities
+const string c_AB_ZuljinBerserker               = "ZuljinBerserker";
+const string c_AB_ZuljinCancelBerserker         = "ZuljinCancelBerserker";
+const string c_AB_ZuljinGrievousThrow           = "ZuljinGrievousThrow";
+const string c_AB_ZuljinTwinCleave              = "ZuljinTwinCleave";
+const string c_AB_ZuljinRegeneration            = "ZuljinRegeneration";
+const string c_AB_ZuljinCancelRegeneration      = "ZuljinCancelRegeneration";
+const string c_AB_ZuljinTazdingo                = "ZuljinTazdingo";
+const string c_AB_ZuljinGuillotine              = "ZuljinGuillotine";
+
+// Talents
+const string c_ZuljinForestMedicine               = "ZuljinForestMedicine";
+const string c_ZuljinBoneslicer                 = "ZuljinBoneslicer";
+
+//Talent Abilities
+const string c_AB_ZuljinRegenerationForestMedicine= "ZuljinRegenerationForestMedicine";
+
+//Items
+const string c_ZuljinHeadhunterItem             = "ZuljinHeadhunter";
+const string c_ZuljinVoodooShuffleItem        = "ZuljinVoodooShuffle";
+const string c_ZuljinEnsnareItem               = "ZuljinEnsnare";
+
+// Ranges
+const fixed c_ZuljinGrievousThrowRange          = 9.0;
+const fixed c_ZuljinTwinCleaveRange             = 10.0;
+const fixed c_ZuljinTwinCleaveMinRange          = 9.0;
+const fixed c_ZuljinTwinCleaveDamageRange       = 3.0;
+const fixed c_ZuljinGuillotineRange             = 20.0;
+const fixed c_GuillotineLength                  = 5.5;
+const fixed c_ZuljinEnsnareRange               = 7.0;
+
+// Behaviors
+const string c_ZuljinRegeneration               = "ZuljinRegeneration";
+const string c_ZuljinBerserkerActive            = "ZuljinBerserkerActive";
+const string c_ZuljinTazdingo                   = "ZuljinTazdingoUnkillable";
+
+//-------------------------------------------------------------------------------------------------
+bool ZuljinGrievousThrow (int player, unit aiUnit, unitgroup scanGroup) {
+    // Skill-shot that applies a debuff on the target
+    order spellOrd;
+    order attackOrd;
+    unit targetUnit;
+    point center;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ZuljinGrievousThrow, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+
+    // Cast on a group of enemies if Zul'jin has the piercing talent
+    if (PlayerHasTalent(player, c_ZuljinBoneslicer)) {
+        center = UnitGroupCenterOfGroup(UnitsInArea(scanGroup, UnitGetPosition(aiUnit), c_ZuljinGrievousThrowRange));
+        if (EnoughEnemiesInArea(scanGroup, center, c_ZuljinGrievousThrowRange, 0, c_Storm_AI_AtLeast3Creeps, c_Storm_AI_AtLeast4Minions)) {
+            return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, center);
+        }
+    }
+
+    // Use on an enemy hero
+    query.lv_maxDistance = c_ZuljinGrievousThrowRange;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_lineOfSightRequired = c_Storm_AI_LOS_Required;
+    targetUnit = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetUnit)) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, attackOrd, c_orderQueueAddToFront, targetUnit, UnitGetPosition(targetUnit));
+}
+
+//-------------------------------------------------------------------------------------------------
+bool ZuljinTwinCleave (int player, unit aiUnit, unitgroup scanGroup) {
+    // AOE that damages enemies
+    // Two uses:
+    //   Catch a weak enemy Hero
+    //   Damage a group of enemies
+    order spellOrd;
+    order attackOrd;
+    unit targetUnit;
+    point center;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ZuljinTwinCleave, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+
+    // Prefer to use on nearby weak Heroes
+    query.lv_maxDistance = c_ZuljinTwinCleaveRange;
+    query.lv_minDistance = c_ZuljinTwinCleaveMinRange;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    targetUnit = FindBestHero(scanGroup, aiUnit, query);
+    if (UnitIsValid(targetUnit)) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, attackOrd, c_orderQueueAddToFront, targetUnit, UnitGetPosition(targetUnit));
+    }
+
+    // Or cast on a group of enemies
+    targetUnit = FindBestTacticalTarget(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetUnit)) {
+        return false;
+    }
+    center = UnitGetPosition(targetUnit);
+    if (!EnoughEnemiesInArea(scanGroup, center, c_ZuljinTwinCleaveDamageRange, 0, c_Storm_AI_AtLeast2Creeps, c_Storm_AI_AtLeast3Minions)) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, targetUnit, center);
+}
+
+//-------------------------------------------------------------------------------------------------
+bool ZuljinRegeneration (int player, unit aiUnit, unitgroup scanGroup) {
+    // Channel a heal
+    order spellOrd;
+    fixed currHealth;
+    fixed nearDeathHealthPercent = 10.0;
+    fixed castTime = 4.0;
+    bool nearbyEnemies;
+
+    if (PlayerHasTalent(player, c_AB_ZuljinRegenerationForestMedicine)) {
+        spellOrd = StormHeroAICreateOrder(player, c_AB_ZuljinRegenerationForestMedicine, 0);
+    }
+    else {
+        spellOrd = StormHeroAICreateOrder(player, c_AB_ZuljinRegeneration, 0);
+    }
+
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    currHealth = UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent);
+    if (currHealth > libAIAI_gv_aIHeroes[player].lv_endOffensiveHealth) {
+        return false;
+    }
+
+    // Do not use if being attacked unless Zul'jin is close to death
+    nearbyEnemies = AnyEnemiesInArea(scanGroup, UnitGetPosition(aiUnit), c_Storm_AI_DefaultTeamfightRange);
+    if (HaveBeenAttackedRecently(aiUnit)) {
+        if(currHealth < nearDeathHealthPercent
+        && nearbyEnemies) {
+            return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+        }
+        else {
+            return false;
+        }
+    }
+
+    // Use when there are no enemy Heroes nearby
+    if (nearbyEnemies) {
+        return false;
+    }
+    
+    // Pauses Tactical AI for the channel duration
+    if (!PlayerHasTalent(player, c_ZuljinForestMedicine)) {
+        HeroClaimForTactical(player, castTime, false);
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//-------------------------------------------------------------------------------------------------
+bool ZuljinStopRegeneration (int player, unit aiUnit, unitgroup scanGroup) {
+    // Continue channelling Regeneration until Zuljin loses the behavior
+    if (PlayerHasTalent(player, c_ZuljinForestMedicine)) {
+        return false;
+    }
+    if (!UnitHasBehavior2(aiUnit, c_ZuljinRegeneration)
+    && libAIAI_gv_aIHeroes[player].lv_heroState == libAIAI_ge_HeroAIStates_HSCastTactical) {
+        HeroReleaseFromTactical(player);
+        return true;
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool ZuljinTazdingo (int player, unit aiUnit, unitgroup scanGroup) {
+    // Become unkillable for 4 seconds
+    order spellOrd;
+    unit targetUnit;
+    
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ZuljinTazdingo, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Do not use if not being attacked
+    if (!HaveBeenAttackedRecently(aiUnit)) {
+        return false;
+    }
+
+    // Only use if almost dead
+    if (UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) > libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool ZuljinTazdingoActive (int player, unit aiUnit, unitgroup scanGroup) {
+    order attackOrd;
+    unit targetUnit;
+    Storm_AI_TargetQueryOptions query;
+    fixed chaseTime = 3.0;
+
+    // Update Zul'jin's attack priority
+    if (!UnitHasBehavior2(aiUnit, c_ZuljinTazdingo)) {
+        return false;
+    }
+    
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+
+    // If Zul'jin is outnumbered, try to attack a target while unkillable
+    if (CountTeamOutnumberedBy(player, scanGroup, UnitGetPosition(aiUnit), c_Storm_AI_DefaultTeamfightRange) >= 2) {
+        query.lv_maxDistance = c_Storm_AI_DefaultTeamfightRange;
+        query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+        query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+        targetUnit = FindBestHero(scanGroup, aiUnit, query);
+        if (UnitIsValid(targetUnit)) {
+            // Add Attack order to queue
+            OrderSetTargetUnit(attackOrd, targetUnit);
+            if (UnitOrderIsValid(aiUnit, attackOrd)) {
+                HeroClaimForTactical(player, chaseTime, false);
+                UnitIssueOrder(aiUnit, attackOrd, c_orderQueueReplace);
+            }
+        }
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool ZuljinGuillotine (int player, unit aiUnit, unitgroup scanGroup) {
+    // Target an area and deal damage based on how much health you are missing
+    order spellOrd;
+    unit targetUnit;
+    point targetPos;
+    point leadPoint;
+    fixed nearDeathHealthPercent = 20.0;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ZuljinGuillotine, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Prefer to use on nearby weak Heroes
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_maxDistance = c_ZuljinGuillotineRange;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets; // Better to hit the hero with less health
+    query.lv_lineOfSightRequired = c_Storm_AI_LOS_Required;
+    targetUnit = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetUnit)) {
+        return false;
+    }
+    targetPos = UnitGetPosition(targetUnit);
+
+    // Prefer to use when at low Health or if the target is at low health
+    if (UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) > libAIAI_gv_aIHeroLowHealthPercent) {
+        if (UnitGetPropertyFixed(targetUnit, c_unitPropLifePercent, c_unitPropCurrent) > nearDeathHealthPercent) {
+            return false;
+        }
+    }
+
+    // Bias the target point towards behind the target to compensate for movement
+    leadPoint = PointNegate(TacticalNormalize(PointSubtraction(UnitGetPosition(aiUnit), targetPos)));
+    leadPoint = PointScaleFixed(leadPoint, (c_GuillotineLength / 2));
+    leadPoint = PointAddition(targetPos, leadPoint);
+    
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, leadPoint);
+}
+
+//-------------------------------------------------------------------------------------------------
+bool ZuljinBerserker (int player, unit aiUnit, unitgroup scanGroup) {
+    // Trait activates to make Zul'jin deal more Basic Attack damage but consume life
+    order spellOrd;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ZuljinBerserker, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Check if Berserker is already on
+    if (UnitHasBehavior2(aiUnit, c_ZuljinBerserkerActive)) {
+        return false;
+    }
+
+    // Do not use when at low Health unless Zul'jin has Taz'dingo
+    if (UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        if (!UnitHasBehavior2(aiUnit, c_ZuljinTazdingo)) {
+            return false;
+        }
+    }
+
+    // Turn on only when there are enemy Heroes nearby
+    if (CountTeamOutnumberedBy(player, scanGroup, UnitGetPosition(aiUnit), c_Storm_AI_DefaultTeamfightRange) < 0) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool ZuljinCancelBerserker (int player, unit aiUnit, unitgroup scanGroup) {
+    order spellOrd;
+    int atLeast1EnemyHero = 1;
+    
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ZuljinCancelBerserker, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    
+    if (!UnitHasBehavior2(aiUnit, c_ZuljinBerserkerActive)) {
+        return false;
+    }
+    
+    // Do not cancel Berserker if Zul'jin is using Taz'dingo
+    if (UnitHasBehavior2(aiUnit, c_AB_ZuljinTazdingo)) {
+        return false;
+    }
+
+    // Turn off when there are no enemy Heroes nearby
+    if (RequiredEnemyPlayerCountInArea(atLeast1EnemyHero, scanGroup, UnitGetPosition(aiUnit), c_Storm_AI_DefaultTeamfightRange)) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//----------------------------------------------------------------------------------------------
+bool ZuljinDefensiveItemCallback (int player, unit aiUnit, unitgroup scanGroup, string itemType, order ord, order ordTarget, order ordTogOn, order ordTogOff) {
+    if (itemType == c_ZuljinVoodooShuffleItem) {
+        // Remove Slows and Roots, and reduce Slow and Root durations by 75% for 5 seconds.
+        if (!UnitHasDebuffThatCanBeCleansed(aiUnit)) {
+            return false;
+        }
+        return UnitIssueOrder(aiUnit, ord, c_orderQueueAddToFront);
+    }
+    return false;
+}
+
+//----------------------------------------------------------------------------------------------
+bool ZuljinOffensiveItemCallback (int player, unit aiUnit, unitgroup scanGroup, string itemType, order ord, order ordTarget, order ordTogOn, order ordTogOff) {
+    order attackOrd;
+    unit targetUnit;
+    Storm_AI_TargetQueryOptions query;
+
+    if (itemType == c_ZuljinHeadhunterItem) {
+        // Reveal all enemy Heroes for 4 seconds
+        // Only use the reveal when most of the team is missing
+        if(UnitGroupCount(libAIAI_gv_aIHeroes[player].lv_visibleEnemyHeroes, c_unitCountAll) > 2) {
+            return false;
+        }
+        return HeroIssueOrder(player, aiUnit, ord, null, c_orderQueueAddToFront, null, null);
+    }
+
+    if (itemType == c_ZuljinEnsnareItem) {
+        // Skill-shot ability that roots enemies
+        attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+        if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+            return false;
+        }
+
+        // Skill-shot that roots a target
+        query.lv_maxDistance = c_ZuljinEnsnareRange;
+        query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+        query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets; // Better to hit the hero with less health
+        query.lv_lineOfSightRequired = c_Storm_AI_LOS_Required;
+        targetUnit = FindBestHero(scanGroup, aiUnit, query);
+        if (!UnitIsValid(targetUnit)) {
+            return false;
+        }
+
+        return HeroIssueOrder(player, aiUnit, ordTarget, attackOrd, c_orderQueueAddToFront, targetUnit, UnitGetPosition(targetUnit));
+    }
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+void AIThinkZuljin (int player, unit aiUnit, unitgroup scanGroup) {
+
+    if (ZuljinStopRegeneration(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (ZuljinRegeneration(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (UseItem(player, aiUnit, scanGroup, ZuljinDefensiveItemCallback)) {
+        return;
+    }
+
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player)) {
+        if (ZuljinTazdingo(player, aiUnit, scanGroup)) {
+            return;
+        }
+        if (ZuljinTazdingoActive(player, aiUnit, scanGroup)) {
+            return;
+        }
+        if (ZuljinGuillotine(player, aiUnit, scanGroup)) {
+            return;
+        }
+    }
+
+    if (ZuljinGrievousThrow(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (ZuljinTwinCleave(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (UseItem(player, aiUnit, scanGroup, ZuljinOffensiveItemCallback)) {
+        return;
+    }
+
+    if (ZuljinBerserker(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (ZuljinCancelBerserker(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+}

@@ -1,0 +1,507 @@
+//---------------------------------------------------------------------------------------------
+// Valeera Tactical
+//---------------------------------------------------------------------------------------------
+// Abilities
+const string c_AB_ValeeraShiv               = "ValeeraShiv";
+const string c_AB_ValeeraBackstab           = "ValeeraBackstab";
+const string c_AB_ValeeraLunge              = "ValeeraLunge";
+const string c_AB_ValeeraEviscerate         = "ValeeraEviscerate";
+const string c_AB_ValeeraAmbush             = "ValeeraAmbush";
+const string c_AB_ValeeraCheapshot          = "ValeeraCheapShot";
+const string c_AB_ValeeraSap                = "ValeeraSap";
+const string c_AB_ValeeraShadowStep         = "ValeeraShadowStep";
+const string c_AB_ValeeraStealth            = "ValeeraStealth";
+const string c_AB_ValeeraCancelStealth      = "ValeeraCancelStealth";
+const string c_AB_ValeeraKidneyShot         = "ValeeraKidneyShot";
+const string c_AB_ValeeraSinisterStrike     = "ValeeraSinisterStrike";
+const string c_AB_ValeeraBladeFlurry        = "ValeeraBladeFlurry";
+const string c_AB_ValeeraCloakOfShadows     = "ValeeraCloakOfShadows";
+const string c_AB_ValeeraCripplingPoison    = "ValeeraCripplingPoison";
+const string c_AB_ValeeraSprint             = "ValeeraSprint";
+const string c_AB_ValeeraGarrote            = "ValeeraGarrote";
+const string c_AB_ValeeraThistleTea         = "ValeeraThistleTea";
+const string c_AB_ValeeraPreparation        = "ValeeraPreparation";
+const string c_AB_ValeeraSmokeBomb          = "ValeeraSmokeBomb";
+const string c_AB_ValeeraWoundPoison        = "ValeeraWoundPoison";
+const string c_AB_ValeeraColdBlood          = "ValeeraColdBlood";
+
+// Behaviors
+const string c_BHV_ValeeraStealth           = "ValeeraStealthAbilities";
+const string c_BHV_ValeeraComboPoints       = "ValeeraComboPoints";
+const string c_BHV_ValeeraWoundPoisonWeapon = "ValeeraWoundPoisonWeapon";
+const string c_BHV_ValeeraCripplingPoisonWeapon = "ValeeraCripplingPoisonWeapon";
+const string c_BHV_ValeeraColdBloodWeapon = "ValeeraColdBloodWeapon";
+
+// Talents
+const string c_Talent_ValeeraAssasinate            = "ValeeraAssassinate";
+const string c_Talent_ValeeraHemorrhage            = "ValeeraHemorrhage";
+const string c_Talent_ValeeraSealFate              = "ValeeraSealFate";
+const string c_Talent_ValeeraWoundPoison           = "ValeeraWoundPoison";
+const string c_Talent_ValeeraCripplingPoison       = "ValeeraCripplingPoison";
+const string c_Talent_ValeeraColdBlood             = "ValeeraColdBlood";
+
+// Constants
+const fixed c_stealthTargetingDistance = 12.0;
+const fixed c_meleeTargetingDistance = 4.0;
+const fixed c_thistleTeaPercent = 50.0;
+const fixed c_sinisterStrikeRange = 4.0;
+
+//---------------------------------------------------------------------------------------------
+bool ValeeraThistleTeaCallback (
+    int player, 
+    unit aiUnit, 
+    unitgroup scanGroup, 
+    string itemType, 
+    order ord, 
+    order ordTarget, 
+    order ordTogOn, 
+    order ordTogOff
+) {
+    if (itemType == c_AB_ValeeraThistleTea) {
+        return UnitIssueOrder(aiUnit, ord, c_orderQueueAddToFront);
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+bool ValeeraCripplingPoisonCallback (
+    int player, 
+    unit aiUnit, 
+    unitgroup scanGroup, 
+    string itemType, 
+    order ord, 
+    order ordTarget, 
+    order ordTogOn, 
+    order ordTogOff
+) {
+    if (itemType == c_AB_ValeeraCripplingPoison) {
+        return UnitIssueOrder(aiUnit, ord, c_orderQueueAddToFront);
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+bool ValeeraColdBloodCallback (
+    int player, 
+    unit aiUnit, 
+    unitgroup scanGroup, 
+    string itemType, 
+    order ord, 
+    order ordTarget, 
+    order ordTogOn, 
+    order ordTogOff
+) {
+    if (itemType == c_AB_ValeeraColdBlood) {
+        return UnitIssueOrder(aiUnit, ord, c_orderQueueAddToFront);
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+bool ValeeraWoundPoisonCallback (
+    int player, 
+    unit aiUnit, 
+    unitgroup scanGroup, 
+    string itemType, 
+    order ord, 
+    order ordTarget, 
+    order ordTogOn, 
+    order ordTogOff
+) {
+    if (itemType == c_AB_ValeeraWoundPoison) {
+        return UnitIssueOrder(aiUnit, ord, c_orderQueueAddToFront);
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+bool AttemptUseThistleTea (int player, unit aiUnit, unitgroup scanGroup) {
+    fixed energyPercent = 
+        UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+
+    if (energyPercent > c_thistleTeaPercent) {
+        return false;
+    }
+
+    return UseItem(player, aiUnit, scanGroup, ValeeraThistleTeaCallback);
+}
+
+//---------------------------------------------------------------------------------------------
+bool AttemptUseTargetedAbility(
+    int player, 
+    unit aiUnit, 
+    unitgroup scanGroup, 
+    unit target, 
+    string abilName, 
+    bool targetIsMinion
+) {
+    order spellOrd;
+
+    if (!UnitIsValid(target)) {
+        return false;
+    }
+
+    spellOrd = StormHeroAICreateOrder(player, abilName, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    
+    if (!HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueReplace, target, null)) {
+        return false;
+    }
+
+    if (!targetIsMinion) {
+        if (PlayerHasTalent(player, c_Talent_ValeeraWoundPoison)
+         && !UnitHasBehavior(aiUnit, c_BHV_ValeeraWoundPoisonWeapon)
+        ) {
+            UseItem(player, aiUnit, scanGroup, ValeeraWoundPoisonCallback);
+        }
+    
+        if (PlayerHasTalent(player, c_Talent_ValeeraCripplingPoison)
+         && !UnitHasBehavior(aiUnit, c_BHV_ValeeraCripplingPoisonWeapon)
+        ) {
+            UseItem(player, aiUnit, scanGroup, ValeeraCripplingPoisonCallback);
+        }
+    }
+
+    return true;
+}
+
+//---------------------------------------------------------------------------------------------
+bool AttemptUseAbility(
+    int player, 
+    unit aiUnit, 
+    unitgroup scanGroup, 
+    string abilName
+) {
+    order spellOrd;
+    
+    spellOrd = StormHeroAICreateOrder(player, abilName, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueReplace, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool AttemptUseSinisterStrike(
+    int player, 
+    unit aiUnit, 
+    unitgroup scanGroup,
+    unit targetEnemy,
+    bool targetIsMinion
+) {
+    point targetPosition;
+    point attackerPosition;
+    fixed distanceSq;
+
+    fixed currentHealthPercent = 
+        UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent);
+
+    bool canStartOffensive = 
+        currentHealthPercent >= libAIAI_gv_aIHeroes[player].lv_startOffensiveHealth;
+
+    // Only use sinister strike if we are safe to initiate so we don't dive into danger. 
+    if (!canStartOffensive) {
+        return false;
+    }
+
+    // Only use sinister strike if the target is in range.
+    targetPosition = UnitGetPosition(targetEnemy);
+    attackerPosition = UnitGetPosition(aiUnit);
+    distanceSq = DistanceSquaredBetweenPoints(targetPosition, attackerPosition);
+
+    if (distanceSq > c_sinisterStrikeRange * c_sinisterStrikeRange) {
+        return false;
+    }
+
+    return AttemptUseTargetedAbility(
+        player, 
+        aiUnit, 
+        scanGroup, 
+        targetEnemy, 
+        c_AB_ValeeraSinisterStrike, 
+        targetIsMinion
+    );
+}
+
+//---------------------------------------------------------------------------------------------
+bool AIThinkNoStealth (
+    int player, 
+    unit aiUnit, 
+    unitgroup scanGroup, 
+    fixed range, 
+    bool attackMinions, 
+    bool inTeamFight, 
+    bool canUseUltimates
+) {
+    Storm_AI_TargetQueryOptions query;
+    fixed comboPoints = 0;
+    unit targetEnemy;
+    bool hasSealFateTalent = false;
+    bool hasMultipleTargets = false;
+    bool targetIsMinion = false;
+    unitgroup nearbyEnemies;
+    
+    query.lv_maxHealthPercent = 100.0;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_maxDistance = range;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+
+    if (!UnitIsValid(targetEnemy) && attackMinions) {
+        targetEnemy = FindBestTacticalTarget(scanGroup, aiUnit, query);
+        targetIsMinion = false;
+    }
+
+    if (!UnitIsValid(targetEnemy)) {
+        return false;
+    }
+
+    if (inTeamFight && canUseUltimates && AttemptUseAbility(player, aiUnit, scanGroup, c_AB_ValeeraSmokeBomb)) {
+        return true;
+    }
+
+    comboPoints = UnitBehaviorCount(aiUnit, c_BHV_ValeeraComboPoints);
+
+    // If she has full combo points, use eviscerate on the target. 
+    if (!targetIsMinion 
+     && comboPoints >= 3 
+     && AttemptUseTargetedAbility(player, aiUnit, scanGroup, targetEnemy, c_AB_ValeeraEviscerate, targetIsMinion)
+    ) {
+        if (PlayerHasTalent(player, c_Talent_ValeeraColdBlood)
+         && !UnitHasBehavior(aiUnit, c_BHV_ValeeraColdBloodWeapon)
+        ) {
+            UseItem(player, aiUnit, scanGroup, ValeeraColdBloodCallback);
+        }
+
+        return true;
+    }
+        
+    // If she doesn't have full combo points, attempt to generate them using the most efficient generators. 
+    if(comboPoints < 2) {
+        hasSealFateTalent = PlayerHasTalent(player, c_Talent_ValeeraSealFate);
+        if (hasSealFateTalent 
+         && UnitTestState(targetEnemy, c_unitStateStunned) 
+         && AttemptUseSinisterStrike(player, aiUnit, scanGroup, targetEnemy, targetIsMinion)
+        ) {
+            return true;
+        }
+        
+        nearbyEnemies = UnitsInArea(scanGroup, UnitGetPosition(aiUnit), 4.0);
+        hasMultipleTargets = EnoughEnemiesInArea(
+            nearbyEnemies, 
+            UnitGetPosition(aiUnit), 
+            4, 
+            c_Storm_AI_AtLeast2Heroes, 
+            c_Storm_AI_AtLeast3Creeps, 
+            c_Storm_AI_AtLeast3Minions
+        );
+        
+        if (hasMultipleTargets && AttemptUseAbility(player, aiUnit, scanGroup, c_AB_ValeeraBladeFlurry)) {
+            return true;
+        }
+    }
+
+    // If she doesn't have full combo points, attempt to generate them. 
+    if (comboPoints < 3 && AttemptUseSinisterStrike(player, aiUnit, scanGroup, targetEnemy, targetIsMinion)) {
+        return true;
+    }
+    
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+void AIThinkValeera (int player, unit aiUnit, unitgroup scanGroup) {
+    bool inStealth = false;
+    bool canUseUltimates = false;
+    bool inTeamFight = false;
+    bool retreating = false;
+    point unitPos;
+    unit targetEnemy;
+    Storm_AI_TargetQueryOptions query;
+    fixed currentHealthPercent = 0.0;
+    bool hasHemorrhageTalent = false;
+    bool hasAssasinateTalent = false;
+    bool shouldMount = false; 
+    bool isMounted = false;
+    bool targetIsMinion = false;
+    bool canStartOffensive = false;
+    bool attackedRecently = false;
+    fixed enemyThreat = 0.0;
+    fixed allyThreat = 0.0;
+    fixed allyThreatConfidence = 0.25;
+    unitgroup enemies;
+    unitfilter filter;
+    point moveTarget;
+    order ord;
+
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (UseDefensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+    
+    attackedRecently = HaveBeenAttackedRecently(aiUnit);
+    currentHealthPercent = UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent);
+    canStartOffensive = currentHealthPercent >= libAIAI_gv_aIHeroes[player].lv_startOffensiveHealth
+        || enemyThreat < allyThreat;
+
+    canUseUltimates = libAIAI_gf_HeroAIShouldUseUltimates(player);
+    unitPos = UnitGetPosition(aiUnit);
+    inTeamFight = TeamFightInArea(player, scanGroup, unitPos, c_Storm_AI_DefaultTeamfightRange);
+    
+    inStealth = UnitHasBehavior(aiUnit, c_BHV_ValeeraStealth);
+
+    // attempt to stealth to prepare for initiation. 
+    if (!inTeamFight && !inStealth) {
+        shouldMount = libAIAI_gf_HeroAIShouldMount(player);
+        isMounted = libAIAI_gf_HeroAIIsMountedorMounting(player);
+
+        // Don't stealth if she should mount, since it will interrupt stealth and burn the cooldown. 
+        if (!isMounted && !shouldMount && AttemptUseAbility(player, aiUnit, scanGroup, c_AB_ValeeraStealth)) {
+            return;
+        }
+    }
+
+    if (canUseUltimates) {
+        // If we are in a team fight, use cloak of shadows for sustain during the fight. 
+        if (inTeamFight && attackedRecently) {
+            if (AttemptUseAbility(player, aiUnit, scanGroup, c_AB_ValeeraCloakOfShadows)) {
+                return;
+            }
+        }
+    }
+
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+    
+    // todo talent abilities
+    // Todo: strangle talent.
+
+    query.lv_maxHealthPercent = 100.0;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_maxDistance = c_meleeTargetingDistance;
+
+    if (inStealth) {
+        allyThreat = AIGetAllyThreatNearPos(aiUnit, unitPos, 10.0, true) + allyThreatConfidence;
+        enemyThreat = AIGetEnemyThreatNearPos(aiUnit, unitPos, 10.0);
+        targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+
+        // If we are low health, just stay stealthed and wait for regen/healing.
+        // If the allies out-number the enemies, she can still attack
+        if (!canStartOffensive && enemyThreat >= allyThreat) {
+            return;
+        }
+
+        if (!UnitIsValid(targetEnemy)) {
+            // We didn't find any heros in range. Check to see if any minions are nearby. 
+            targetEnemy = FindBestTacticalTarget(scanGroup, aiUnit, query);
+            
+            if (!UnitIsValid(targetEnemy)) {
+                // Acquire a passive target if we are not moving too far away.
+                moveTarget = UnitGetLastMoveTargetPoint(aiUnit);
+                if (moveTarget != null 
+                 && DistanceSquaredBetweenPoints(moveTarget, unitPos) > 16.0
+                ) {
+                    return;
+                }
+
+                filter = UnitFilter(
+                    0, 
+                    0, 
+                    (1 << c_targetFilterPlayer) | (1 << c_targetFilterAlly) | (1 << c_targetFilterMissile), 
+                    (1 << (c_targetFilterInvulnerable - 32)) | (1 << (c_targetFilterStasis - 32)) | (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))
+                );
+                enemies = UnitGroupFilter(null, c_playerAny, scanGroup, filter, 0);
+                targetEnemy = FindBestUnit(enemies, scanGroup, aiUnit, query);
+            }
+
+            targetIsMinion = true;
+        }
+
+        if (UnitIsValid(targetEnemy)) {
+
+            // Don't use heavy initiation on minions.
+            if (!targetIsMinion) {
+                // With the assassinate talent, use ambush first since it is prioritized due to talent selection.
+                if (!inTeamFight) {
+                    hasAssasinateTalent = PlayerHasTalent(player, c_Talent_ValeeraAssasinate);
+                    if (hasAssasinateTalent && AttemptUseTargetedAbility(player, aiUnit, scanGroup, targetEnemy, c_AB_ValeeraAmbush, targetIsMinion)) {
+                        return;
+                    }
+                }
+
+                // With he hemmorhage talent, garrote takes higher priority. 
+                hasHemorrhageTalent = PlayerHasTalent(player, c_Talent_ValeeraHemorrhage);
+                if (hasHemorrhageTalent) {
+                    if (AttemptUseTargetedAbility(player, aiUnit, scanGroup, targetEnemy, c_AB_ValeeraGarrote, targetIsMinion)) {
+                        return;
+                    }
+                }
+
+                // Initiate with a stun.
+                if (AttemptUseTargetedAbility(player, aiUnit, scanGroup, targetEnemy, c_AB_ValeeraCheapshot, targetIsMinion)) {
+                    return;
+                }
+
+                // Initiate with a silence.
+                if (AttemptUseTargetedAbility(player, aiUnit, scanGroup, targetEnemy, c_AB_ValeeraGarrote, targetIsMinion)) {
+                    return;
+                }
+            }
+
+            // Initiate with damage
+            if (!inTeamFight && AttemptUseTargetedAbility(player, aiUnit, scanGroup, targetEnemy, c_AB_ValeeraAmbush, targetIsMinion)) {
+                return;
+            }
+        }
+    }
+    
+    // Regenerate energy if she can.
+    if (AttemptUseThistleTea(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (!inStealth) {
+        // Attempt to use a nonstealth ability on nearby heroes.
+        if (AIThinkNoStealth(player, aiUnit, scanGroup, c_meleeTargetingDistance, false, inTeamFight, canUseUltimates)) {
+            return;
+        }
+
+        // If we've made it here and are not in stealth, attempt to stealth. 
+        if (AttemptUseAbility(player, aiUnit, scanGroup, c_AB_ValeeraStealth)) {
+            return;
+        }
+
+        // Attempt to use a nonstealth ability on heroes or minions in the area.
+        if (AIThinkNoStealth(player, aiUnit, scanGroup, 0.0, true, inTeamFight, canUseUltimates)) {
+            return;
+        }
+    }
+        
+    if (UseOffensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        // we know Valeera can't reveal cloaked enemies, so she must be moving towards one
+        // so we pop out of stealth when near the target.
+        ord = UnitOrder(aiUnit, 0);
+        if (OrderGetAbilityCommand(ord) == AbilityCommand("move", 0)) {
+            moveTarget = OrderGetTargetPoint(ord);
+            if (moveTarget != null && DistanceSquaredBetweenPoints(moveTarget, unitPos) < 9.0) {
+                AttemptUseAbility(player, aiUnit, scanGroup, c_AB_ValeeraCancelStealth);
+            }
+        }
+        return;
+    }
+}

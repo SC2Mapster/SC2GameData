@@ -1,0 +1,395 @@
+//---------------------------------------------------------------------------------------------
+// Murky Tactical
+//---------------------------------------------------------------------------------------------
+
+const string c_AB_MurkySlime                = "MurkySlime";
+const string c_AB_MurkyPufferfish           = "MurkyPufferfish";
+const string c_AB_MurkySafetyBubble         = "MurkySafetyBubble";
+const string c_AB_MurkyRespawnEgg           = "MurkyRespawnEgg";
+const string c_AB_MurkyMarchoftheMurlocs    = "MurkyMarchoftheMurlocs";
+const string c_AB_MurkyMarchoftheMurlocsNeverEndingMurlocsTalent = "MurkyMarchoftheMurlocsNeverEndingMurlocsTalent";
+const string c_AB_MurkyCancelMarchoftheMurlocs = "MurkyCancelMarchoftheMurlocs";
+const string c_AB_MurkyOctoGrab             = "MurkyOctoGrab";
+const string c_MurkyBiggerSlimeTalent       = "MurkyMasteryBiggerSlime";
+const fixed c_MurkyMarchTimeout = 10.0;
+unit[libCore_gv_bALMaxPlayers] g_MurkyEgg;
+fixed[libCore_gv_bALMaxPlayers] g_MurkyMarchTimeout;
+
+//---------------------------------------------------------------------------------------------
+bool MurkySlime (int player, unit aiUnit, unitgroup scanGroup) {    
+    // PB-AOE slimes, damages nearby enemies plus slows&dots them
+    order spellOrd;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    fixed minEnemyEval;
+    fixed minHeroEval;
+    unit nearbyHero;
+    Storm_AI_TargetQueryOptions query;
+    fixed range;
+    
+    spellOrd = StormHeroAICreateOrder(player, c_AB_MurkySlime, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    
+    if (PlayerHasTalent(player, c_DemonHunterFrostShotTalent)) {
+        range = 3.5;
+    }
+    else {
+        range = 2.5;
+    }
+    
+    // Cast if there is a weak hero
+    query.lv_maxDistance = range;
+    query.lv_maxHealthPercent = 50.0;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    nearbyHero = FindBestHero(scanGroup, aiUnit, query);
+    
+    if (UnitIsValid(nearbyHero)) {
+        return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+    
+    // Cast if there is a large number of enemies
+    if (energy > libAIAI_gv_aIHeroHighEnergyPercent) {
+        minEnemyEval = 2;
+    }
+    else if (energy > libAIAI_gv_aIHeroLowEnergyPercent) {
+        minEnemyEval = 3;
+    }
+    else {
+        minEnemyEval = 6;
+    }
+    minHeroEval = minEnemyEval/3;
+    
+    if (!EnoughEnemiesInArea(scanGroup, UnitGetPosition(aiUnit), range, minHeroEval, minEnemyEval, minEnemyEval)) {
+        return false;
+    }
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool MurkyPufferfish (int player, unit aiUnit, unitgroup scanGroup) {    
+    // Places a bomb that damages and stuns nearby enemies after a delay
+    order spellOrd;
+    unit targetHero;
+    point targetPos;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    fixed healthReq;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_MurkyPufferfish, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+ 
+    if (energy > libAIAI_gv_aIHeroLowEnergyPercent) {
+        healthReq = 80.0;
+    }
+    else {
+        healthReq = 50.0;
+    }
+    
+    // Shoot at a nearby hero
+    query.lv_maxDistance = 6.0;
+    query.lv_maxHealthPercent = healthReq;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    targetHero = FindBestHero(scanGroup, aiUnit, query);
+
+    if (!UnitIsValid(targetHero)) {
+        // Shoot a minion if high mana
+        if (energy < libAIAI_gv_aIHeroHighEnergyPercent) {
+            return false;
+        }
+         
+        targetPos = UnitGroupCenterOfGroup(scanGroup);
+        if (CountEnemiesInArea(scanGroup, targetPos, 3.0, 0, 1) < 3) {
+            return false;
+        }
+        if (!EnoughEnemiesInArea(scanGroup, targetPos, 3.0,  c_Storm_AI_AtLeast1Hero, c_Storm_AI_AtLeast2Creeps, c_Storm_AI_AtLeast3Minions)) {
+        return false;
+        }
+    }
+    else {
+        targetPos = UnitGetPosition(targetHero);
+    }
+    
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, targetPos);
+}
+
+//---------------------------------------------------------------------------------------------
+bool MurkySafetyBubble (int player, unit aiUnit, unitgroup scanGroup) {
+    // Makes murky invulnerable but he can't attack, use when we're under attack and low health
+    order spellOrd;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_MurkySafetyBubble, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    
+    if (HaveBeenAttackedRecently(aiUnit) && UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+bool MurkyRespawnEgg (int player, unit aiUnit, unitgroup scanGroup) {
+    // Creates an egg that murky can respawn at.
+    // Cast an egg in a safe location near the fight unless we already have a nearby egg    
+    order ord;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    point placementPosition;
+    unitgroup nearbyAllies;
+    unit nearbyTower;
+    point curPosition;
+    point contentionPoint;
+
+    if ((player > libCore_gv_bALMaxPlayers) || (player < 1)) {
+        return false;
+    }
+    
+    ord = StormHeroAICreateOrder(player, c_AB_MurkyRespawnEgg, 0);
+    if (!UnitOrderIsValid(aiUnit, ord)) {
+        return false;
+    }
+
+    // Already going to place an egg?
+    if (libAIAI_gv_aIHeroes[player].lv_heroState == libAIAI_ge_HeroAIStates_HSCastTactical) {
+        return false;
+    }
+    
+    // Is this a good location to place?
+    curPosition = UnitGetPosition(aiUnit);
+
+    // If we don't have any egg and we're near our spawn, place an egg here
+    if (!UnitIsValid(g_MurkyEgg[player - 1]) && DistanceBetweenPoints(curPosition, libGame_gv_players[player].lv_spawnPoint) < 15.0) {
+        placementPosition = curPosition;
+    }
+    else {
+        // Only place on our side of the map
+        if (!libCore_gf_TestLocationClosertoFactionSide(curPosition, libGame_gv_players[player].lv_faction, 1.0)) {
+            return false;
+        }
+
+        // Only place if we have a tower nearby
+        nearbyAllies = AllyUnitsInArea(player, curPosition, 8.0);
+        nearbyTower = GetNearbyTower(aiUnit, nearbyAllies);
+        if (!UnitIsAlive(nearbyTower)) {
+            return false;
+        }
+
+        // And only if we are near the contention point or near enemies
+        contentionPoint = libAIAI_gv_heroAITeamData[libAIAI_gf_HeroAIGetAllyTeamIndex(player)].lv_laneData[libAIAI_gv_aIHeroes[player].lv_currentLane].lv_contentionPoint;
+        if (contentionPoint == null || DistanceBetweenPoints(curPosition, contentionPoint) > 40.0) {
+            if (UnitGroupCount(UnitGroupFilterHeroOrMinion(scanGroup), c_unitCountAlive) == 0) {
+                return false;
+            }
+        }
+        
+        // Place behind the tower
+        placementPosition = libAIAI_gf_HeroAIGetRetreatPosition(player, 10.0, UnitGetPosition(nearbyTower));
+    }
+   
+    // If an egg is already placed and close by, don't replace
+    if (UnitIsValid(g_MurkyEgg[player - 1]) && DistanceBetweenPoints(UnitGetPosition(g_MurkyEgg[player - 1]), placementPosition) < 40.0) {
+        return false;
+    }
+ 
+    // Deliberately setting the ord point here and passing in "null, null" since we don't want to fudge this position   
+    OrderSetTargetPoint(ord,placementPosition);
+    if (!UnitOrderIsValid(aiUnit, ord)) {
+        return false;
+    }
+
+    if (HeroIssueOrder (player, aiUnit, ord, null, c_orderQueueReplace, null, null)) {
+        if ((libAIAI_gf_HeroAIHasGameStarted() == true)) {
+            HeroClaimForTactical(player, 6.0, true); // time to retreat and cast the egg.
+        }
+        return true;
+    }
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+bool MurkyMarchoftheMurlocs (int player, unit aiUnit, unitgroup scanGroup) {    
+    // Deals damage to large area in front of hero
+    order spellOrd;
+    point center;
+    unit targetHero;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_MurkyMarchoftheMurlocs, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        spellOrd = StormHeroAICreateOrder(player, c_AB_MurkyMarchoftheMurlocsNeverEndingMurlocsTalent, 0);
+        if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+            return false;
+        }
+    }
+    
+    //Only use if we have enough health and a team fight is on
+    if (UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        return false;
+    }
+    if (!TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), 10.0)) {
+        return false;
+    }
+    
+    // Target towards a nearby hero
+    query.lv_maxDistance = 8.0;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    targetHero = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetHero)) {
+        return false;
+    }
+    
+    center = UnitGetPosition(targetHero);
+
+    if (!EnoughEnemiesInArea(scanGroup, center, 5.0,  c_Storm_AI_AtLeast2Heroes, 0, 0)) {
+        return false;
+    }
+  
+    // setup a timeout
+    g_MurkyMarchTimeout[player - 1] = TimerGetElapsed(libGame_gv_gameTimer) + c_MurkyMarchTimeout;
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, center);
+}
+
+//---------------------------------------------------------------------------------------------
+bool CheckCancelMarchoftheMurlocs (int player, unit aiUnit, unitgroup scanGroup) {
+    order ord;
+    point inFrontofHero;
+    Storm_AI_TargetQueryOptions query;
+    unit targetHero;
+    
+    ord = StormHeroAICreateOrder(player, c_AB_MurkyCancelMarchoftheMurlocs, 0);
+    if (!UnitOrderIsValid(aiUnit, ord)) {
+        return false;
+    }
+
+    // We can cancel, so see if we should
+    if (!HaveBeenAttackedRecently(aiUnit) || UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) >= libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        // We do not need to cancel to flee.
+        if (TimerGetElapsed(libGame_gv_gameTimer) < g_MurkyMarchTimeout[player - 1]) {
+            // We also have not timed out, so finally, check for any enemies remaining
+            inFrontofHero = PointWithOffsetPolar(UnitGetPosition(aiUnit), 4.0, UnitGetFacing(aiUnit));
+            if (AnyAttackableUnitsInArea(scanGroup, inFrontofHero, 5.0)) {
+                return true; // we do not want to continue checking abilities because we're channeling.
+            }
+            inFrontofHero = PointWithOffsetPolar(UnitGetPosition(aiUnit), 7.0, UnitGetFacing(aiUnit));
+            if (AnyAttackableUnitsInArea(scanGroup, inFrontofHero, 5.0)) {
+                return true; // we do not want to continue checking abilities because we're channeling.
+            }
+        }
+    }
+
+    HeroIssueOrder(player, aiUnit, ord, null, c_orderQueueAddToFront, null, null);
+    return true; // we do not want to continue checking abilities because we're channeling.
+}
+
+//---------------------------------------------------------------------------------------------
+bool MurkyOctoGrab (int player, unit aiUnit, unitgroup scanGroup) {
+    // Leap onto enemy hero, stunning and damaging them
+    order spellOrd;
+    order attackOrd;
+    unit targetEnemy;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_MurkyOctoGrab, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+     // Don't jump into battle if low health
+    if(UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_startOffensiveHealth) {
+        return false;
+    }
+
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+    
+    // Find a target hero 
+    query.lv_maxDistance = 6.5;
+    query.lv_maxHealthPercent = 70.0;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    query.lv_ignoreTargetsBehindGate = true;
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+
+    if (!UnitIsValid(targetEnemy)) { 
+        return false;
+    } 
+
+    //Only octograb if allies nearby
+    if (!RequiredAllyPlayerCountInArea(2, player, UnitGetPosition(targetEnemy), 8)){
+        return false;
+    }
+    
+    return HeroIssueOrder (player, aiUnit, spellOrd, attackOrd, c_orderQueueAddToFront, targetEnemy, null);
+}
+
+//---------------------------------------------------------------------------------------------
+void AIThinkMurky (int player, unit aiUnit, unitgroup scanGroup) {   
+
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (CheckCancelMarchoftheMurlocs(player, aiUnit, scanGroup)) {
+        return;
+    }
+    
+    if (UseDefensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+    
+    if (MurkySafetyBubble(player, aiUnit, scanGroup)) {
+        return;
+    }
+    
+    if (MurkyRespawnEgg(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && MurkyMarchoftheMurlocs(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && MurkyOctoGrab(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (MurkySlime(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (MurkyPufferfish(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (UseOffensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+}
+
+//---------------------------------------------------------------------------------------------
+void AIThinkMurkyEgg (int player, unit aiUnit, unitgroup scanGroup) {
+    if (player > libCore_gv_bALMaxPlayers) {
+        return;
+    }
+    
+    g_MurkyEgg[player - 1] = aiUnit;
+}

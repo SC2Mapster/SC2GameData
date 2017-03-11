@@ -1,0 +1,564 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/AILib"
+include "TriggerLibs/UILib"
+include "TriggerLibs/SupportLib"
+
+include "LibHVAR_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Varian
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libHVAR_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+    libAIAI_InitVariables();
+    libUIUI_InitVariables();
+    libSprt_InitVariables();
+}
+
+// Variable Initialization
+bool libHVAR_InitVariables_completed = false;
+
+void libHVAR_InitVariables () {
+    if (libHVAR_InitVariables_completed) {
+        return;
+    }
+
+    libHVAR_InitVariables_completed = true;
+
+}
+
+// Custom Script
+//--------------------------------------------------------------------------------------------------
+// Custom Script: #Include Varian Tactical AI
+//--------------------------------------------------------------------------------------------------
+include "StormTactical.galaxy"
+include "VarianTactical.galaxy"
+
+void libHVAR_InitCustomScript () {
+}
+
+// Functions
+void libHVAR_gf_HeroVarianIncrementHeroCount () {
+    // Implementation
+    libHVAR_gv_heroVarianTriggerRegistrationCount += 1;
+    if ((libHVAR_gv_heroVarianTriggerRegistrationCount == 1)) {
+        TriggerEnable(libHVAR_gt_VarianHighKingsQuestHeroTakedown, true);
+        TriggerEnable(libHVAR_gt_VarianHighKingsQuestRegenGlobeProc, true);
+        TriggerEnable(libHVAR_gt_VarianParryBehaviorMonitor, true);
+        TriggerEnable(libHVAR_gt_VarianShatteringThrowPassive, true);
+        TriggerEnable(libHVAR_gt_VarianShatteringThrowActive, true);
+        TriggerEnable(libHVAR_gt_VarianVictoryRushTakedownReset, true);
+        TriggerEnable(libHVAR_gt_VarianTargetTaunted, true);
+        TriggerEnable(libHVAR_gt_VarianUIFloatingCombatTextParried, true);
+    }
+
+}
+
+void libHVAR_gf_HeroVarianDecrementHeroCount () {
+    // Implementation
+    libHVAR_gv_heroVarianTriggerRegistrationCount -= 1;
+    if ((libHVAR_gv_heroVarianTriggerRegistrationCount < 0)) {
+        libHVAR_gv_heroVarianTriggerRegistrationCount = 0;
+    }
+
+    if ((libHVAR_gv_heroVarianTriggerRegistrationCount == 0)) {
+        TriggerEnable(libHVAR_gt_VarianHighKingsQuestHeroTakedown, false);
+        TriggerEnable(libHVAR_gt_VarianHighKingsQuestRegenGlobeProc, false);
+        TriggerEnable(libHVAR_gt_VarianParryBehaviorMonitor, false);
+        TriggerEnable(libHVAR_gt_VarianShatteringThrowPassive, false);
+        TriggerEnable(libHVAR_gt_VarianShatteringThrowActive, false);
+        TriggerEnable(libHVAR_gt_VarianVictoryRushTakedownReset, false);
+        TriggerEnable(libHVAR_gt_VarianTargetTaunted, false);
+        TriggerEnable(libHVAR_gt_VarianUIFloatingCombatTextParried, false);
+    }
+
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Misc Mod Initialization
+//--------------------------------------------------------------------------------------------------
+bool libHVAR_gt_HeroAIMiscModInitialization_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_HeroAIInitializeHeroTierData, libHVAR_gt_HeroAIAddToTierDataVarian);
+    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_HeroAIInitAbilities, libHVAR_gt_HeroAIInitAbilitiesVarian);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHVAR_gt_HeroAIMiscModInitialization_Init () {
+    libHVAR_gt_HeroAIMiscModInitialization = TriggerCreate("libHVAR_gt_HeroAIMiscModInitialization_Func");
+    TriggerAddEventMapInit(libHVAR_gt_HeroAIMiscModInitialization);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Add To Tier Data - Varian
+//--------------------------------------------------------------------------------------------------
+bool libHVAR_gt_HeroAIAddToTierDataVarian_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libAIAI_gf_HeroAIAddHeroToTierData(libAIAI_ge_HeroAIHeroTiers_TierMid, "Varian");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHVAR_gt_HeroAIAddToTierDataVarian_Init () {
+    libHVAR_gt_HeroAIAddToTierDataVarian = TriggerCreate("libHVAR_gt_HeroAIAddToTierDataVarian_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Init Abilities - Varian
+//--------------------------------------------------------------------------------------------------
+bool libHVAR_gt_HeroAIInitAbilitiesVarian_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitGetType(libCore_gv_segTriggerUnit) == "HeroVarian")) {
+        libAIAI_gv_heroAIInitAbilitesHeroFound = true;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_hasTactical = true;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_hasMount = true;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[0] = AbilityCommand("VarianLionsFang", 0);
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[0] = libAIAI_ge_HeroAISpellType_PointEnemy;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[0] = 7.5;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[1] = AbilityCommand("VarianParry", 0);
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[1] = libAIAI_ge_HeroAISpellType_SelfBuff;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[2] = AbilityCommand("VarianCharge", 0);
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[2] = libAIAI_ge_HeroAISpellType_TargetEnemy;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[2] = 6.0;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[3] = AbilityCommand("VarianTaunt", 0);
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[3] = libAIAI_ge_HeroAISpellType_PointEnemy;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[3] = 2.0;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[4] = AbilityCommand("VarianColossusSmash", 0);
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[4] = libAIAI_ge_HeroAISpellType_PointEnemy;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[4] = 3.5;
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHVAR_gt_HeroAIInitAbilitiesVarian_Init () {
+    libHVAR_gt_HeroAIInitAbilitiesVarian = TriggerCreate("libHVAR_gt_HeroAIInitAbilitiesVarian_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Varian - High King's Quest - Regen Globe Proc
+//--------------------------------------------------------------------------------------------------
+bool libHVAR_gt_VarianHighKingsQuestRegenGlobeProc_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_varianUnit;
+    int lv_player;
+
+    // Variable Initialization
+    lv_varianUnit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_player = UnitGetOwner(lv_varianUnit);
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_player > 0))) {
+            return false;
+        }
+
+        if (!((lv_player <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+
+        if (!((PlayerHasTalent(lv_player, "VarianHighKingsQuestQuest") == true))) {
+            return false;
+        }
+
+        if (!((UnitBehaviorCount(lv_varianUnit, "VarianHighKingsQuestRegenGlobeQuestToken") < CatalogFieldValueGetAsInt(c_gameCatalogBehavior, "VarianHighKingsQuestRegenGlobeQuestToken", "Max", 0)))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(lv_varianUnit, "VarianHighKingsQuestModifyRegenGlobeQuestToken", lv_varianUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHVAR_gt_VarianHighKingsQuestRegenGlobeProc_Init () {
+    libHVAR_gt_VarianHighKingsQuestRegenGlobeProc = TriggerCreate("libHVAR_gt_VarianHighKingsQuestRegenGlobeProc_Func");
+    TriggerEnable(libHVAR_gt_VarianHighKingsQuestRegenGlobeProc, false);
+    TriggerAddEventPlayerEffectUsed(libHVAR_gt_VarianHighKingsQuestRegenGlobeProc, c_playerAny, "RegenGlobeImpactSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Varian - High King's Quest - Hero Takedown
+//--------------------------------------------------------------------------------------------------
+bool libHVAR_gt_VarianHighKingsQuestHeroTakedown_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_killingPlayer;
+    unit lv_varianUnit;
+
+    // Variable Initialization
+    lv_killingPlayer = libGame_gf_HeroParticipatedInTakedownKillingPlayer();
+    lv_varianUnit = libGame_gv_players[lv_killingPlayer].lv_heroUnit;
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerHasTalent(lv_killingPlayer, "VarianHighKingsQuestQuest") == true))) {
+            return false;
+        }
+
+        if (!((UnitBehaviorCount(lv_varianUnit, "VarianHighKingsQuestHeroTakedownQuestToken") < CatalogFieldValueGetAsInt(c_gameCatalogBehavior, "VarianHighKingsQuestHeroTakedownQuestToken", "Max", 0)))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(lv_varianUnit, "VarianHighKingsQuestModifyHeroTakedownQuestToken", lv_varianUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHVAR_gt_VarianHighKingsQuestHeroTakedown_Init () {
+    libHVAR_gt_VarianHighKingsQuestHeroTakedown = TriggerCreate("libHVAR_gt_VarianHighKingsQuestHeroTakedown_Func");
+    TriggerEnable(libHVAR_gt_VarianHighKingsQuestHeroTakedown, false);
+    libGame_gf_HeroParticipatedInTakedown(libHVAR_gt_VarianHighKingsQuestHeroTakedown);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Varian - UI - Floating Combat Text - Parried
+//--------------------------------------------------------------------------------------------------
+bool libHVAR_gt_VarianUIFloatingCombatTextParried_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    playergroup lv_players;
+
+    // Variable Initialization
+    lv_players = PlayerGroupEmpty();
+
+    // Conditions
+    if (testConds) {
+        if (!((libSprt_gv_dEBUGCombatTextEnabled == true))) {
+            return false;
+        }
+
+        if (!((UnitTypeTestAttribute(UnitGetType(EventPlayerEffectUsedUnit(c_effectUnitTarget)), c_unitAttributeStructure) == false))) {
+            return false;
+        }
+
+        if (!((UnitTypeTestAttribute(UnitGetType(EventPlayerEffectUsedUnit(c_effectUnitTarget)), c_unitAttributeHeroic) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    PlayerGroupAdd(lv_players, EventPlayerEffectUsedUnitOwner(c_effectPlayerTarget));
+    PlayerGroupAdd(lv_players, EventPlayerEffectUsedUnitOwner(c_effectPlayerCaster));
+    PlayerGroupAdd(lv_players, EventPlayerEffectUsedUnitOwner(c_effectPlayerSource));
+    FloatingCombatElementCreateTextAtUnit(lv_players, "FloatingCombatElements/FloatingCombatElementTemplate", "", EventPlayerEffectUsedUnit(c_effectUnitSource), StringExternal("Param/Value/lib_HVAR_1FAF1667"), libNtve_gv_FloatingCombatTextAutoRandomSeed);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHVAR_gt_VarianUIFloatingCombatTextParried_Init () {
+    libHVAR_gt_VarianUIFloatingCombatTextParried = TriggerCreate("libHVAR_gt_VarianUIFloatingCombatTextParried_Func");
+    TriggerEnable(libHVAR_gt_VarianUIFloatingCombatTextParried, false);
+    TriggerAddEventPlayerEffectUsed(libHVAR_gt_VarianUIFloatingCombatTextParried, c_playerAny, "VarianParryDummyDamage");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Varian - Parry Behavior Monitor
+//--------------------------------------------------------------------------------------------------
+bool libHVAR_gt_VarianParryBehaviorMonitor_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_triggeringUnitOwner;
+
+    // Variable Initialization
+    lv_triggeringUnitOwner = UnitGetOwner(EventUnit());
+
+    // Conditions
+    if (testConds) {
+        if (!((EventUnitBehaviorCumulativeDamageModification() > 0.0))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    FloatingCombatElementCreateNumberTextAtUnit(PlayerGroupSingle(lv_triggeringUnitOwner), "FloatingCombatElements/FloatingCombatAmountReadable", "", EventUnit(), FixedToInt(EventUnitBehaviorCumulativeDamageModification()), StringExternal("Param/Value/lib_HVAR_D90A4267"), libNtve_gv_FloatingCombatTextAutoRandomSeed);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHVAR_gt_VarianParryBehaviorMonitor_Init () {
+    libHVAR_gt_VarianParryBehaviorMonitor = TriggerCreate("libHVAR_gt_VarianParryBehaviorMonitor_Func");
+    TriggerEnable(libHVAR_gt_VarianParryBehaviorMonitor, false);
+    TriggerAddEventUnitBehaviorChange(libHVAR_gt_VarianParryBehaviorMonitor, null, "VarianParryIncomingDamageReduction", c_unitBehaviorChangeRefresh);
+    TriggerAddEventUnitBehaviorChange(libHVAR_gt_VarianParryBehaviorMonitor, null, "VarianParryIncomingDamageReduction", c_unitBehaviorChangeDecrease);
+    TriggerAddEventUnitBehaviorChange(libHVAR_gt_VarianParryBehaviorMonitor, null, "VarianParryShieldWall", c_unitBehaviorChangeRefresh);
+    TriggerAddEventUnitBehaviorChange(libHVAR_gt_VarianParryBehaviorMonitor, null, "VarianParryShieldWall", c_unitBehaviorChangeDecrease);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Varian - Shattering Throw - Passive
+//--------------------------------------------------------------------------------------------------
+bool libHVAR_gt_VarianShatteringThrowPassive_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_impactedUnit;
+    unit lv_varianUnit;
+    int lv_damagingPlayer;
+    fixed lv_targetShieldDamage;
+    fixed lv_targetShieldAmount;
+    fixed lv_finalShieldDamage;
+    fixed lv_highKingsQuestStackCount;
+    string lv_damageLookupEffect;
+
+    // Variable Initialization
+    lv_impactedUnit = EventPlayerEffectUsedUnitImpact();
+    lv_varianUnit = EventPlayerEffectUsedUnitLaunch();
+    lv_damagingPlayer = UnitGetOwner(lv_varianUnit);
+    lv_targetShieldDamage = StringToFixed(CatalogFieldValueGet(c_gameCatalogEffect, "VarianHeroWeaponDamageBase", "Amount", lv_damagingPlayer));
+    lv_damageLookupEffect = "VarianHeroWeaponDamageBase";
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerHasTalent(lv_damagingPlayer, "VarianShatteringThrow") == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_targetShieldAmount = (libCore_gf_GetTotalHPForUnitIncludingAllShields(lv_impactedUnit) - UnitGetPropertyFixed(lv_impactedUnit, c_unitPropLife, c_unitPropCurrent));
+    if ((lv_targetShieldAmount >= 1.0)) {
+        lv_targetShieldDamage = StringToFixed(CatalogFieldValueGet(c_gameCatalogEffect, lv_damageLookupEffect, "Amount", lv_damagingPlayer));
+        if ((PlayerHasTalent(lv_damagingPlayer, "VarianHighKingsQuestQuest") == true)) {
+            lv_highKingsQuestStackCount = UnitBehaviorCount(lv_varianUnit, "VarianHighKingsQuestMasterQuestToken");
+            if ((lv_highKingsQuestStackCount >= 3.0)) {
+                lv_targetShieldDamage += (lv_highKingsQuestStackCount * 20.0);
+            }
+            else {
+                lv_targetShieldDamage += (lv_highKingsQuestStackCount * 10.0);
+            }
+        }
+
+        if ((PlayerHasTalent(lv_damagingPlayer, "VarianColossusSmash") == true)) {
+            lv_targetShieldDamage *= (1.0 + StringToFixed(CatalogFieldValueGet(c_gameCatalogEffect, "VarianHeroWeaponDamageBase", "MultiplicativeModifierArray[VarianColossusSmashWeapon].Modifier", c_playerAny)));
+        }
+        else {
+            if ((PlayerHasTalent(lv_damagingPlayer, "VarianTwinBladesOfFury") == true)) {
+                lv_targetShieldDamage *= (1.0 + StringToFixed(CatalogFieldValueGet(c_gameCatalogEffect, "VarianHeroWeaponDamageBase", "MultiplicativeModifierArray[VarianTwinBladesOfFuryWeapon].Modifier", c_playerAny)));
+            }
+
+        }
+        lv_targetShieldDamage *= 2.0;
+        UnitDamage(lv_varianUnit, "VarianShatteringThrowMeleeTriggerDamage", lv_impactedUnit, MinF(lv_targetShieldDamage, lv_targetShieldAmount));
+    }
+
+    UnitCreateEffectUnit(lv_varianUnit, "VarianHeroWeaponMasterImpactSet", lv_impactedUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHVAR_gt_VarianShatteringThrowPassive_Init () {
+    libHVAR_gt_VarianShatteringThrowPassive = TriggerCreate("libHVAR_gt_VarianShatteringThrowPassive_Func");
+    TriggerEnable(libHVAR_gt_VarianShatteringThrowPassive, false);
+    TriggerAddEventPlayerEffectUsed(libHVAR_gt_VarianShatteringThrowPassive, c_playerAny, "VarianHeroWeaponShatteringThrowDummy");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Varian - Shattering Throw - Active
+//--------------------------------------------------------------------------------------------------
+bool libHVAR_gt_VarianShatteringThrowActive_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_impactedUnit;
+    unit lv_casterUnit;
+    int lv_launchedPlayer;
+    fixed lv_targetShieldAmount;
+    fixed lv_shatteringShieldDamage;
+    fixed lv_finalShieldDamage;
+
+    // Variable Initialization
+    lv_impactedUnit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_casterUnit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_launchedPlayer = UnitGetOwner(lv_casterUnit);
+    lv_shatteringShieldDamage = StringToFixed(CatalogFieldValueGet(c_gameCatalogEffect, "VarianShatteringThrowShieldDamage", "Amount", lv_launchedPlayer));
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_targetShieldAmount = (libCore_gf_GetTotalHPForUnitIncludingAllShields(lv_impactedUnit) - UnitGetPropertyFixed(lv_impactedUnit, c_unitPropLife, c_unitPropCurrent));
+    if ((lv_shatteringShieldDamage >= lv_targetShieldAmount)) {
+        lv_finalShieldDamage = lv_targetShieldAmount;
+    }
+    else {
+        lv_finalShieldDamage = lv_shatteringShieldDamage;
+    }
+    UnitDamage(lv_casterUnit, "VarianShatteringThrowTriggerDamage", lv_impactedUnit, lv_finalShieldDamage);
+    UnitCreateEffectUnit(lv_casterUnit, "VarianShatteringThrowUnshieldedDamageNoCrit", lv_impactedUnit);
+    UnitCreateEffectUnit(lv_casterUnit, "CameraShakeLightTauntingTotemSet", lv_impactedUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHVAR_gt_VarianShatteringThrowActive_Init () {
+    libHVAR_gt_VarianShatteringThrowActive = TriggerCreate("libHVAR_gt_VarianShatteringThrowActive_Func");
+    TriggerEnable(libHVAR_gt_VarianShatteringThrowActive, false);
+    TriggerAddEventPlayerEffectUsed(libHVAR_gt_VarianShatteringThrowActive, c_playerAny, "VarianShatteringThrowShieldedImpact");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Varian - Victory Rush - Takedown Reset
+//--------------------------------------------------------------------------------------------------
+bool libHVAR_gt_VarianVictoryRushTakedownReset_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_localPlayer;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!(((PlayerHasTalent(libGame_gf_HeroParticipatedInNPCTakedownKillingPlayer(), "VarianVictoryRush") == true) || (PlayerHasTalent(libGame_gf_SpecialCaseUnitParticipatedInNPCTakedownPlayerParticipant(), "VarianVictoryRush") == true)))) {
+            return false;
+        }
+
+        if (!((((UnitIsValid(libGame_gf_HeroParticipatedInNPCTakedownMinion()) == true) && (UnitFilterMatch(libGame_gf_HeroParticipatedInNPCTakedownMinion(), 1, UnitFilter(0, 0, 0, (1 << (c_targetFilterSummoned - 32)))) == true)) || ((UnitIsValid(libGame_gf_SpecialCaseUnitParticipatedInNPCTakedownMinion()) == true) && (UnitFilterMatch(libGame_gf_SpecialCaseUnitParticipatedInNPCTakedownMinion(), 1, UnitFilter(0, 0, 0, (1 << (c_targetFilterSummoned - 32)))) == true))))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((PlayerHero(libGame_gf_HeroParticipatedInNPCTakedownKillingPlayer()) == "Varian")) {
+        lv_localPlayer = libGame_gf_HeroParticipatedInNPCTakedownKillingPlayer();
+        UnitCreateEffectUnit(libGame_gv_players[lv_localPlayer].lv_heroUnit, "VarianVictoryRushCasterReset", libGame_gv_players[lv_localPlayer].lv_heroUnit);
+    }
+    else if ((PlayerHero(libGame_gf_SpecialCaseUnitParticipatedInNPCTakedownPlayerParticipant()) == "Varian")) {
+        lv_localPlayer = libGame_gf_SpecialCaseUnitParticipatedInNPCTakedownPlayerParticipant();
+        UnitCreateEffectUnit(libGame_gv_players[lv_localPlayer].lv_heroUnit, "VarianVictoryRushCasterReset", libGame_gv_players[lv_localPlayer].lv_heroUnit);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHVAR_gt_VarianVictoryRushTakedownReset_Init () {
+    libHVAR_gt_VarianVictoryRushTakedownReset = TriggerCreate("libHVAR_gt_VarianVictoryRushTakedownReset_Func");
+    TriggerEnable(libHVAR_gt_VarianVictoryRushTakedownReset, false);
+    libGame_gf_HeroParticipatedInNPCTakedown(libHVAR_gt_VarianVictoryRushTakedownReset);
+    libGame_gf_SpecialCaseParticipatedInNPCTakedown(libHVAR_gt_VarianVictoryRushTakedownReset);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Varian - Target - Taunted
+//--------------------------------------------------------------------------------------------------
+bool libHVAR_gt_VarianTargetTaunted_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_tauntedPlayer;
+    unit lv_tauntedUnit;
+    string lv_tauntBehavior;
+    unit lv_casterUnit;
+
+    // Variable Initialization
+    lv_tauntedPlayer = UnitGetOwner(EventUnit());
+    lv_tauntedUnit = EventUnit();
+    lv_tauntBehavior = EventUnitBehavior();
+    lv_casterUnit = UnitBehaviorEffectUnit(lv_tauntedUnit, lv_tauntBehavior, c_effectUnitCaster, 0);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libNtve_gf_MakeUnitUncommandable(lv_tauntedUnit, true);
+    UnitCreateEffectUnit(lv_casterUnit, "VarianTauntClearTargetOrders", lv_tauntedUnit);
+    UnitIssueOrder(lv_tauntedUnit, OrderTargetingUnit(AbilityCommand("attack", 0), lv_casterUnit), c_orderQueueReplace);
+    libGame_gf_PlayerHeroDisplacementCameraLock(lv_tauntedUnit, lv_tauntBehavior);
+    if ((UnitIsAlive(lv_tauntedUnit) == true) && (UnitTestState(lv_tauntedUnit, c_unitStateHallucination) == false) && (UnitHasBehavior2(lv_tauntedUnit, "HeroGenericIgnoreFullscreenOverlay") == false)) {
+        libUIUI_gf_FullscreenOverlayAddItemForPlayer(lv_tauntedPlayer, libUIUI_ge_FullscreenOverlayPriorities_Stasis, "Cutscenes\\GameUI_TauntOverlay.StormCutscene", lv_tauntBehavior);
+    }
+
+    while ((UnitHasBehavior2(lv_tauntedUnit, lv_tauntBehavior) == true)) {
+        if (((OrderGetTargetType(UnitOrder(lv_tauntedUnit, 0)) != c_orderTargetUnit) || (OrderGetTargetUnit(UnitOrder(lv_tauntedUnit, 0)) != lv_casterUnit))) {
+            UnitCreateEffectUnit(lv_casterUnit, "VarianTauntClearTargetOrders", lv_tauntedUnit);
+            UnitIssueOrder(lv_tauntedUnit, OrderTargetingUnit(AbilityCommand("attack", 0), lv_casterUnit), c_orderQueueReplace);
+        }
+
+        Wait(0.0625, c_timeGame);
+    }
+    libNtve_gf_MakeUnitUncommandable(lv_tauntedUnit, false);
+    if ((UnitTestState(lv_tauntedUnit, c_unitStateHallucination) == false) && (UnitHasBehavior2(lv_tauntedUnit, "HeroGenericIgnoreFullscreenOverlay") == false)) {
+        libUIUI_gf_FullscreenOverlayRemoveItemFromQueueForPlayer(lv_tauntedPlayer, "Cutscenes\\GameUI_SylvanasOverlay.StormCutscene", lv_tauntBehavior);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHVAR_gt_VarianTargetTaunted_Init () {
+    libHVAR_gt_VarianTargetTaunted = TriggerCreate("libHVAR_gt_VarianTargetTaunted_Func");
+    TriggerEnable(libHVAR_gt_VarianTargetTaunted, false);
+    TriggerAddEventUnitBehaviorChange(libHVAR_gt_VarianTargetTaunted, null, "VarianTaunted", c_unitBehaviorChangeCreate);
+}
+
+void libHVAR_InitTriggers () {
+    libHVAR_gt_HeroAIMiscModInitialization_Init();
+    libHVAR_gt_HeroAIAddToTierDataVarian_Init();
+    libHVAR_gt_HeroAIInitAbilitiesVarian_Init();
+    libHVAR_gt_VarianHighKingsQuestRegenGlobeProc_Init();
+    libHVAR_gt_VarianHighKingsQuestHeroTakedown_Init();
+    libHVAR_gt_VarianUIFloatingCombatTextParried_Init();
+    libHVAR_gt_VarianParryBehaviorMonitor_Init();
+    libHVAR_gt_VarianShatteringThrowPassive_Init();
+    libHVAR_gt_VarianShatteringThrowActive_Init();
+    libHVAR_gt_VarianVictoryRushTakedownReset_Init();
+    libHVAR_gt_VarianTargetTaunted_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libHVAR_InitLib_completed = false;
+
+void libHVAR_InitLib () {
+    if (libHVAR_InitLib_completed) {
+        return;
+    }
+
+    libHVAR_InitLib_completed = true;
+
+    libHVAR_InitLibraries();
+    libHVAR_InitVariables();
+    libHVAR_InitCustomScript();
+    libHVAR_InitTriggers();
+}
+

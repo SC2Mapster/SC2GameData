@@ -1,0 +1,343 @@
+//---------------------------------------------------------------------------------------------
+// Jaina Tactical
+//---------------------------------------------------------------------------------------------
+const string c_AB_JainaFrostbolt                    = "JainaFrostbolt";
+const string c_AB_JainaFrostburn                    = "JainaBlizzard";
+const string c_AB_JainaConeofCold                   = "JainaConeOfCold";
+const string c_AB_JainaSummonWaterElemental         = "JainaSummonWaterElemental";
+const string c_AB_JainaRingOfFrost                  = "JainaRingOfFrost";
+
+const string c_AB_JainaSicWaterElemental            = "JainaSicWaterElemental";
+const string c_JainaWintersReachTalent              = "JainaFrostboltWintersReach";
+
+//---------------------------------------------------------------------------------------------
+bool JainaFrostbolt (int player, unit aiUnit, unitgroup scanGroup) {
+    // Skill-shot that chills target
+    order spellOrd;
+    order attackOrd;
+    unit targetHero;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    fixed healthReq;
+    fixed range;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_JainaFrostbolt, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+    
+    if (energy > libAIAI_gv_aIHeroLowEnergyPercent) {
+        healthReq = 100.0;
+    }
+    else {
+        healthReq = 60.0;
+    }
+    
+    if (PlayerHasTalent(player, c_JainaWintersReachTalent)) {
+        range = 12.0;
+    }
+    else {
+        range = 8.0;
+    }
+
+    // Use on a weak enemy hero
+    query.lv_maxDistance = range;
+    query.lv_maxHealthPercent = healthReq;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_lineOfSightRequired = c_Storm_AI_LOS_Required;
+    targetHero = FindBestHero(scanGroup, aiUnit, query);
+    
+    if (!UnitIsValid(targetHero)) {        
+        // If we have nearly full energy, we're allowed to target minions
+        if (energy < libAIAI_gv_aIHeroHighEnergyPercent) {
+            return false;
+        }
+        
+        query.lv_maxHealthPercent = 100;
+        query.lv_lineOfSightRequired = c_Storm_AI_LOS_Optional;
+        targetHero = FindBestMinion(scanGroup, aiUnit, query);
+        if (!UnitIsValid(targetHero)) {
+            return false;
+        }
+    }
+    
+    return HeroIssueOrder (player, aiUnit, spellOrd, attackOrd, c_orderQueueReplace, targetHero, UnitGetPosition(targetHero));
+}
+
+//---------------------------------------------------------------------------------------------
+bool JainaFrostburn (int player, unit aiUnit, unitgroup scanGroup) {
+    // AoE that deals damage to area over the next few seconds and chills targets
+    order spellOrd;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    unitgroup nearbyEnemies;
+    unitgroup nearbyEnemyHeroes;
+    unit targetEnemy;
+    point center;
+    fixed minEnemyEval;
+    fixed minHeroEval;
+    Storm_AI_TargetQueryOptions query;
+    
+    spellOrd = StormHeroAICreateOrder(player, c_AB_JainaFrostburn, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    
+    // Cast on a weak enemy hero
+    query.lv_maxDistance = 7;
+    query.lv_maxHealthPercent = 60;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+  
+    if (UnitIsValid(targetEnemy)) {
+        return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+    }
+   
+    // Center on heroes are any is nearby
+    nearbyEnemies = UnitsInArea(scanGroup, UnitGetPosition(aiUnit), 7.0);
+    nearbyEnemyHeroes = UnitGroupFilterHeroes(nearbyEnemies);
+    
+    if (UnitGroupCount(nearbyEnemyHeroes, c_unitCountAll) > 0) {
+        center = UnitGroupCenterOfGroup(nearbyEnemyHeroes);
+    }
+    // Target minions instead
+    else {
+        targetEnemy = FindBestMinion(scanGroup, aiUnit, query);
+        
+        if (!UnitIsValid(targetEnemy)) {
+            return false;
+        }
+        
+        center = UnitGetPosition(targetEnemy);
+    }
+
+    // Cast if there is a large number of enemies
+    if (energy > libAIAI_gv_aIHeroHighEnergyPercent) {
+        minEnemyEval = 3;
+    }
+    else if (energy > libAIAI_gv_aIHeroLowEnergyPercent) {
+        minEnemyEval = 4;
+    }
+    else {
+        minEnemyEval = 6;
+    }
+    minHeroEval = minEnemyEval/3;
+
+    if (!EnoughEnemiesInArea(scanGroup, center, 2.0, minHeroEval, minEnemyEval, minEnemyEval)) {
+        return false;
+    }
+    
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, center);
+}
+
+//---------------------------------------------------------------------------------------------
+bool JainaConeofCold (int player, unit aiUnit, unitgroup scanGroup) {
+    // Deals damage to all enemies in a cone in front
+    order spellOrd;
+    unitgroup nearbyEnemies;
+    unit targetEnemy;
+    point center;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    fixed minEnemyEval;
+    fixed minHeroEval;
+    Storm_AI_TargetQueryOptions query;
+    
+    spellOrd = StormHeroAICreateOrder(player, c_AB_JainaConeofCold, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Cast on a weak enemy hero
+    query.lv_maxDistance = 5;
+    query.lv_maxHealthPercent = 40;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+
+    if (UnitIsValid(targetEnemy)) {
+        return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+    }
+    
+    // Cast if there is a large number of enemies
+    if (energy > libAIAI_gv_aIHeroHighEnergyPercent) {
+        minEnemyEval = 3;
+    }
+    else if (energy > libAIAI_gv_aIHeroLowEnergyPercent) {
+        minEnemyEval = 5;
+    }
+    else {
+        minEnemyEval = 7;
+    }
+    minHeroEval = minEnemyEval/3;
+        
+    nearbyEnemies = UnitsInArea(scanGroup, UnitGetPosition(aiUnit), 5.0);
+    center = UnitGroupCenterOfGroup(nearbyEnemies);
+
+    if (!EnoughEnemiesInArea(scanGroup, center, 3.0, minHeroEval, minEnemyEval, minEnemyEval)) {
+        return false;
+    }    
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, center);
+}
+
+//---------------------------------------------------------------------------------------------
+bool JainaSummonWaterElemental (int player, unit aiUnit, unitgroup scanGroup) {
+    // Summons water elemental
+    order spellOrd;
+    unitgroup nearbyEnemies;
+    point center;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_JainaSummonWaterElemental, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+  
+    // Activate when enough enemy force nearby
+    if (!HaveBeenAttackedRecently(aiUnit) || !TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), 10.0)) {
+        return false;
+    }
+
+    nearbyEnemies = UnitsInArea(scanGroup, UnitGetPosition(aiUnit), 10.0);
+    center = UnitGroupCenterOfGroup(nearbyEnemies);
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, center);
+}
+
+//---------------------------------------------------------------------------------------------
+bool JainaRingOfFrost (int player, unit aiUnit, unitgroup scanGroup) {
+    // AoE that deals damage to area over the next few seconds and chills targets
+    order spellOrd;
+    point center;
+    unitgroup nearbyEnemies;
+    unitgroup nearbyEnemyHeroes;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_JainaRingOfFrost, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Center on heroes if any nearby
+    nearbyEnemies = UnitsInArea(scanGroup, UnitGetPosition(aiUnit), 10.0);
+    nearbyEnemyHeroes = UnitGroupFilterHeroes(nearbyEnemies);
+
+    // Activate if there is a team fight
+    if (!TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), 10.0)) {
+        return false;
+    }
+
+    center = AIBestTargetPoint(
+        nearbyEnemyHeroes,
+        1, // min hits
+        1, // damage base
+        1.0, // min score
+        4.0,
+        UnitGetPosition(aiUnit),
+        10,
+        c_unitAttributeNone
+    );
+    if (center == null) {
+        return false;
+    }
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, center);
+}
+
+//---------------------------------------------------------------------------------------------
+void AIThinkJaina (int player, unit aiUnit, unitgroup scanGroup) {
+
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (UseDefensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }  
+    
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (JainaConeofCold(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && JainaRingOfFrost(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (JainaFrostbolt(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (JainaFrostburn(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && JainaSummonWaterElemental(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (UseOffensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+}
+
+//---------------------------------------------------------------------------------------------
+void AIThinkWaterElem (int player, unit aiUnit, unitgroup scanGroup) {
+    // Variable Declarations
+    order heroOrder;
+    order newOrder;
+    unit currentTarget;
+
+    // Variable Initialization
+
+    // Implementation
+    if (player > libCore_gv_bALMaxPlayers) {
+        return;
+    }
+
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    // Attack weakest enemy hero if any
+    currentTarget = FindClosestWeakHero(scanGroup, aiUnit, 0.0, 11.0, 60.0, -1, -1, c_Storm_AI_LOS_Optional);
+    if (UnitIsValid(currentTarget)) {
+        newOrder = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+        OrderSetTargetUnit(newOrder, currentTarget);
+        if (UnitOrderIsValid(aiUnit, newOrder)) {
+            UnitIssueOrder(aiUnit, newOrder, c_orderQueueAddToFront);
+            return;
+        }
+    }
+
+    // If Jaina is attacking someone, Water Elemental should also attack same target
+    heroOrder = UnitOrder(libGame_gv_players[player].lv_heroUnit, 0);
+    if ((heroOrder != null) && ((OrderGetAbilityCommand(heroOrder) == AbilityCommand("attack", 0)) || (OrderGetAbilityCommand(heroOrder) == AbilityCommand("AttackAlly", 0))) && (OrderGetTargetType(heroOrder) == c_orderTargetUnit)) {
+        currentTarget = OrderGetTargetUnit(heroOrder);
+        if (UnitIsAlive(currentTarget)) {
+            newOrder = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+            OrderSetTargetUnit(newOrder, currentTarget);
+            if (UnitOrderIsValid(aiUnit, newOrder)) {
+                UnitIssueOrder(aiUnit, newOrder, c_orderQueueAddToFront);
+                return;
+            }
+        }
+    }
+
+    // Follow Jaina
+    newOrder = StormHeroAICreateOrder(player, c_Storm_AB_Move, 1);
+    OrderSetTargetUnit(newOrder, libGame_gv_players[player].lv_heroUnit);
+    if (UnitOrderIsValid(aiUnit, newOrder)) {
+        UnitIssueOrder(aiUnit, newOrder, c_orderQueueAddToFront);
+        return;
+    }
+}
+

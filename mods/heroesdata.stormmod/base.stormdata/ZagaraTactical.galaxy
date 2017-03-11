@@ -1,0 +1,558 @@
+//---------------------------------------------------------------------------------------------
+// Zagara Tactical
+//---------------------------------------------------------------------------------------------
+const string c_AB_ZagaraSummonCreepTumor                            = "ZagaraSummonCreepTumor";
+const string c_AB_ZagaraBanelingBarrage                             = "ZagaraBanelingBarrage";
+const string c_AB_ZagaraSummonHydralisk                             = "ZagaraSummonHydralisk";
+const string c_AB_ZagaraInfestedDrop                                = "ZagaraInfestedDrop";
+const string c_AB_ZagaraSummonNydusWorm                             = "ZagaraSummonNydusWorm";
+const string c_AB_ZagaraDevouringMaw                                = "ZagaraDevouringMaw";
+const string c_AB_ZagaraEnterNydusWorm                              = "ZagaraEnterNydusWorm";
+const string c_AB_ZagaraExitNydusWorm                               = "ZagaraFuzzyExitNydusWorm";
+
+// Items
+const string c_ZagaraEnvenomedSpinesItem                            = "ZagaraEnvenomedSpines";
+
+// Behaviors
+const string c_ZagaraInsideNydusWormBehavior                        = "ZagaraInsideNydusWorm";
+
+// Talents and modifiers
+const fixed c_ZagaraBanelingBarrageVolatileAcidTalentRangeModifier  = 1.5;
+const string c_ZagaraBanelingBarrageVolatileAcidTalent              = "ZagaraMasteryVolatileAcid";
+const string c_ZagaraCreepTumorBurrowed                             = "ZagaraCreepTumorBurrowed";
+const string c_ZagaraNydusWorm                                      = "ZagaraNydusWorm";
+
+// Range, Radius, Misc Variables
+const fixed c_ZagaraCreepTumorShrubSearchDistance                   = 6.0;
+const fixed c_ZagaraBanelingBarrageRange                            = 12.5;
+const fixed c_ZagaraBanelingBarrageLeadScalar                       = 1.5;
+const fixed c_ZagaraBanelingBarrageImpactSearchRadius               = 2.75;
+const fixed c_ZagaraHunterKillerRange                               = 7.0;
+const fixed c_ZagaraInfestedDropRange                               = 10.0;
+const fixed c_ZagaraInfestedDropImpactSearchRadius                  = 1.5;
+const fixed c_ZagaraDevouringMawRange                               = 8.0;
+const fixed c_ZagaraCreepTumorPlacementRadius                       = 10.0;
+const fixed c_ZagaraCreepTumorShrubRadius                           = 5.0;
+const fixed c_ZagaraNydusWormRetreatScanRadius                      = 20.0;
+const fixed c_ZagaraNydusWormRechargeScanRadius                     = 40.0;
+const fixed c_ZagaraNydusWormPlacementRadius                        = 25.0;
+const fixed c_ZagaraEnterNydusHP                                    = 50.0;
+const fixed c_ZagaraExitNydusHP                                     = 100.0;
+const fixed c_ZagaraEnterNydusEnergy                                = 20.0;
+const fixed c_ZagaraExitNydusEnergy                                 = 90.0;
+
+point[libCore_gv_bALMaxPlayers + 1] g_CurrentNydusPositon;
+
+//---------------------------------------------------------------------------------------------
+bool ZagaraNydusCreepTumor (int player, unit aiUnit, unitgroup scanGroup) {
+    // Place the creep tumor that our Nydus will use as a cast location
+    order TumorOrd;
+    order NydusOrd;
+    point currentPosition;
+    point placementPosition;
+    unitgroup nearbyAllies;
+    unit nearbyTower;
+    unitgroup nearbyNydusWorms;
+
+    NydusOrd = StormHeroAICreateOrder(player, c_AB_ZagaraSummonNydusWorm, 0);
+    if (!UnitOrderIsValid(aiUnit, NydusOrd)) {
+        return false;
+    }
+    TumorOrd = StormHeroAICreateOrder(player, c_AB_ZagaraSummonCreepTumor, 0);
+    if (!UnitOrderIsValid(aiUnit, TumorOrd)) {
+        return false;
+    }
+
+    // Already going to place a Nydus tumor?
+    if (libAIAI_gv_aIHeroes[player].lv_heroState == libAIAI_ge_HeroAIStates_HSCastTactical) {
+        return false;
+    }
+
+    currentPosition = UnitGetPosition(aiUnit);
+
+    // Only place on our side of the map, unless we need to recharge
+    if (!libCore_gf_TestLocationClosertoFactionSide(currentPosition, libGame_gv_players[player].lv_faction, 1.0)) {
+        // unlike ZagaraEnterNydusWorm, we only consider this offensive nydus in enemy territory
+        // if we are both lowish on hp AND energy
+        if (UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < c_ZagaraEnterNydusHP
+         && UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent) < c_ZagaraEnterNydusEnergy) {
+
+            // Order setup
+            placementPosition = libAIAI_gf_HeroAIGetRetreatPosition(player, 8.0, null);
+            OrderSetTargetPoint(TumorOrd,placementPosition);
+            if (!UnitOrderIsValid(aiUnit, TumorOrd)) {
+                return false;
+            }
+
+            // save this tumor location for casting Nydus. We clear this point when Nydus is cast.
+            g_CurrentNydusPositon[player] = placementPosition;
+            HeroClaimForTactical(player,6.0, true); // time to retreat and place a tumor
+            return UnitIssueOrder(aiUnit, TumorOrd, c_orderQueueReplace);
+        }
+    }
+
+    // Only place if we have a tower nearby.
+    nearbyAllies = AllyUnitsInArea(player, currentPosition, 8.0);
+    nearbyTower = GetNearbyTower(aiUnit, nearbyAllies);
+    if (!UnitIsAlive(nearbyTower)) {
+        return false;
+    }
+
+    // Place behind the tower.
+    placementPosition = libAIAI_gf_HeroAIGetRetreatPosition(player, 8.0, UnitGetPosition(nearbyTower));
+    // and only place if there isn't already a Nydus worm near placementPosition
+    nearbyNydusWorms = UnitGroup(c_ZagaraNydusWorm, player, RegionCircle(placementPosition, c_ZagaraNydusWormPlacementRadius), null, 0);
+    if (UnitGroupCount(nearbyNydusWorms, c_unitCountAll) != 0) {
+        return false;
+    }
+
+    OrderSetTargetPoint(TumorOrd,placementPosition);
+    if (!UnitOrderIsValid(aiUnit, TumorOrd)) {
+        return false;
+    }
+
+    // save this tumor location for casting Nydus. We clear this point when Nydus is cast.
+    g_CurrentNydusPositon[player] = placementPosition;
+    HeroClaimForTactical(player, 6.0, true); // time to retreat and place a tumor
+    return UnitIssueOrder(aiUnit, TumorOrd, c_orderQueueReplace);
+}
+
+//---------------------------------------------------------------------------------------------
+bool ZagaraSummonCreepTumor (int player, unit aiUnit, unitgroup scanGroup) {
+    // Places a creep tumor, Zagara attacks and moves faster on creep
+    order spellOrd;
+    bool didOrder;
+    point pos;
+    point shrubPos;
+    unitgroup nearbyCreepTumors;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ZagaraSummonCreepTumor, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Already going to place a Nydus tumor?
+    if (libAIAI_gv_aIHeroes[player].lv_heroState == libAIAI_ge_HeroAIStates_HSCastTactical) {
+        return false;
+    }
+
+    pos = UnitGetPosition(aiUnit);
+    // Is there a shrub nearby?
+    shrubPos = FindClosestShrub(pos, c_ZagaraCreepTumorShrubSearchDistance);
+
+    nearbyCreepTumors = UnitGroup(c_ZagaraCreepTumorBurrowed, player, RegionCircle(shrubPos, c_ZagaraCreepTumorShrubRadius), null, 0);
+    // Should we cast in shrub? We treat shrub vision as more important.
+    // Reduced tumor search range incase shrubs are near other shrubs.
+    if (shrubPos != null
+     && InShrub(shrubPos)
+     && UnitGroupCount(nearbyCreepTumors, c_unitCountAll) == 0) {
+        // Deliberately setting the spellOrd point here and passing in "null, null"
+        //since we don't want to fudge this position
+        OrderSetTargetPoint(spellOrd,shrubPos);
+        if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+            return false;
+        }
+
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+
+    // Shrub placement failed. Don't place a tumor if we're too close to another burrowed tumor
+    nearbyCreepTumors = UnitGroup(c_ZagaraCreepTumorBurrowed, player, RegionCircle(pos, c_ZagaraCreepTumorPlacementRadius), null, 0);
+    if (UnitGroupCount(nearbyCreepTumors, c_unitCountAll) != 0) {
+        return false;
+    }
+
+    // Deliberately setting the spellOrd point here and passing in "null, null"
+    // since we don't want to fudge this position
+    OrderSetTargetPoint(spellOrd,pos);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool ZagaraBanelingBarrage (int player, unit aiUnit, unitgroup scanGroup) {
+    // Skill-shot send a baneling in a line toward the target point
+    order spellOrd;
+    fixed energy;
+    fixed healthReq;
+    fixed minCreeps;
+    fixed minMinions;
+    fixed abilityRange;
+    unit targetEnemy;
+    point enemyPoint;
+    point leadPoint;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ZagaraBanelingBarrage, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Modify ability range based on talent
+    abilityRange = c_ZagaraBanelingBarrageRange;
+    if (PlayerHasTalent(player, c_ZagaraBanelingBarrageVolatileAcidTalent)) {
+        abilityRange *= c_ZagaraBanelingBarrageVolatileAcidTalentRangeModifier;
+    }
+
+    // Prefer close, weak enemy hero who is in LOS
+    query.lv_maxDistance = abilityRange;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    query.lv_lineOfSightRequired = c_Storm_AI_LOS_Required;
+
+    // Find weak hero
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        // if no hero found, find a minion
+        targetEnemy = FindBestTacticalTarget(scanGroup, aiUnit, query);
+        // Early out if the unit is not valid
+        if (!UnitIsValid(targetEnemy)) {
+                // Can we cast on a tower?
+                targetEnemy = FindBestUnit(UnitGroupFilterTowers(scanGroup), scanGroup, aiUnit, query);
+                if (targetEnemy != null) {
+                    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+                }
+            return false;
+        }
+
+        energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+        // Set thresholds for use on minions based on energy level
+        if (energy > libAIAI_gv_aIHeroMediumEnergyPercent) {
+            minCreeps = c_Storm_AI_AtLeast2Creeps;
+            minMinions = c_Storm_AI_AtLeast3Minions;
+        }
+        else if (energy > libAIAI_gv_aIHeroLowEnergyPercent) {
+            minCreeps = c_Storm_AI_AtLeast2Creeps;
+            minMinions = c_Storm_AI_AtLeast4Minions;
+        }
+        else {
+            minCreeps = c_Storm_AI_AtLeast3Creeps;
+            minMinions = c_Storm_AI_AtLeast5Minions;
+        }
+
+        if (!EnoughEnemiesInArea(scanGroup, UnitGetPosition(targetEnemy), c_ZagaraBanelingBarrageImpactSearchRadius, 0, minCreeps, minMinions)) {
+            return false;
+        }
+    }
+
+    // lead our hero target slightly
+    enemyPoint = UnitGetPosition(targetEnemy);
+    leadPoint = LeadPoint(UnitGetPosition(aiUnit), enemyPoint, targetEnemy, c_ZagaraBanelingBarrageLeadScalar, true, false);
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, leadPoint);
+}
+
+//---------------------------------------------------------------------------------------------
+bool ZagaraSummonHydralisk (int player, unit aiUnit, unitgroup scanGroup) {
+    // Summons a hydralisk to attack the given target
+    order spellOrd;
+    unit targetHero;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ZagaraSummonHydralisk, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Pick on closer, low health Heroes
+    query.lv_maxDistance = c_ZagaraHunterKillerRange;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    targetHero = FindBestHero(scanGroup, aiUnit, query);
+
+    if (!UnitIsValid(targetHero)) {
+        return false;
+    }
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, targetHero, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool ZagaraInfestedDrop (int player, unit aiUnit, unitgroup scanGroup) {
+    // Delayed AoE damage at target point that also spawns Roaches
+    order spellOrd;
+    fixed energy;
+    Storm_AI_TargetQueryOptions query;
+    unit targetEnemy;
+    point targetPos;
+    fixed scalar = 2.0;
+    fixed minHeroes;
+    fixed minCreeps;
+    fixed minMinions;
+    point playerUnitPos;
+    point targetUnitPos;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ZagaraInfestedDrop, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    query.lv_maxDistance = c_ZagaraInfestedDropRange - scalar;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_lineOfSightRequired = c_Storm_AI_LOS_Optional;
+
+    // Cast on a weak enemy hero if possible
+    playerUnitPos = UnitGetPosition(aiUnit);
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (UnitIsValid(targetEnemy)) {
+        targetUnitPos = UnitGetPosition(targetEnemy);
+        // Lead the target by Scalar distance since it is delayed
+        targetPos = LeadPoint(playerUnitPos, targetUnitPos, targetEnemy, scalar, true, false);
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, targetPos);
+    }
+
+    // Can we cast on a tower?
+    targetEnemy = FindBestUnit(UnitGroupFilterTowers(scanGroup), scanGroup, aiUnit, query);
+    if (targetEnemy != null) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, targetEnemy, null);
+    }
+
+    // Find the best target since we haven't found a hero 
+    targetEnemy = FindBestTacticalTarget(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        return false;
+    }
+
+    energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    // Limit usage of the ability based on how much mana we have.
+    if (energy > libAIAI_gv_aIHeroMediumEnergyPercent) {
+        minCreeps = c_Storm_AI_AtLeast1Creep;
+        minMinions = c_Storm_AI_AtLeast2Minions;
+    }
+    else if (energy > libAIAI_gv_aIHeroLowEnergyPercent) {
+        minCreeps = c_Storm_AI_AtLeast1Creep;
+        minMinions = c_Storm_AI_AtLeast3Minions;
+    }
+    else {
+        minHeroes = c_Storm_AI_AtLeast1Hero;
+        minCreeps = c_Storm_AI_AtLeast1Creep;
+        minMinions = c_Storm_AI_AtLeast3Minions;
+    }
+
+    targetUnitPos = UnitGetPosition(targetEnemy);
+    // Only use if it will likely hit a hero or group of enemies
+    if (!EnoughEnemiesInArea(scanGroup, targetUnitPos, c_ZagaraInfestedDropImpactSearchRadius, minHeroes, minCreeps, minMinions)) {
+       return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, targetUnitPos);
+}
+
+//---------------------------------------------------------------------------------------------
+bool ZagaraSummonNydusWorm (int player, unit aiUnit, unitgroup scanGroup) {
+    // Summon a Nydus worm that Zagara can enter and regenerate her health and mana.
+    order ord;
+
+    if (g_CurrentNydusPositon[player] == null){
+        return false;
+}
+
+    ord = StormHeroAICreateOrder(player, c_AB_ZagaraSummonNydusWorm, 0);
+    if (!UnitOrderIsValid(aiUnit, ord)) {
+        g_CurrentNydusPositon[player] = null;
+        return false;
+    }
+
+    // Deliberately setting the ord point here and passing in "null, null" since we don't want to fudge this position
+    OrderSetTargetPoint(ord,g_CurrentNydusPositon[player]);
+    if (!UnitOrderIsValid(aiUnit, ord)) {
+        return false;
+    }
+
+    // Clear Previous Nydus placement point and prepare for a new point via ZagaraNydusCreepTumor.
+    g_CurrentNydusPositon[player] = null;
+    return HeroIssueOrder (player, aiUnit, ord, null, c_orderQueueAddToFront, null, null);
+}
+
+// //---------------------------------------------------------------------------------------------
+bool ZagaraEnterNydusWorm (int player, unit aiUnit, unitgroup scanGroup) {
+    // Enter Nydus to regen health instead of hearthing if we are safe
+    order enterNydusOrder;
+    unitgroup nydusUnitGroup;
+    point pos;
+    unit nydusUnit;
+
+    enterNydusOrder = StormHeroAICreateOrder(player, c_AB_ZagaraEnterNydusWorm, 0);
+    if (!UnitOrderIsValid(aiUnit, enterNydusOrder)) {
+        return false;
+    }
+
+    pos = UnitGetPosition(aiUnit);
+    // Retreating logic. We must be in retreat state and have low health.
+    if (libAIAI_gv_aIHeroes[player].lv_heroState == libAIAI_ge_HeroAIStates_HSRetreat
+     && UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        nydusUnitGroup = UnitGroup(c_ZagaraNydusWorm, player, RegionCircle(pos, c_ZagaraNydusWormRetreatScanRadius), null, 0);
+        if (UnitGroupCount(nydusUnitGroup, c_unitCountAll) == 0) {
+            return false;
+        }
+        nydusUnit = UnitGroupUnit(nydusUnitGroup, 1);
+        if (!UnitIsValid(nydusUnit)) {
+            return false;
+        }
+        // Order setup
+        HeroClaimForTactical(player, 6.0, true); // time to retreat into the worm!
+        return HeroIssueOrder(player, aiUnit, enterNydusOrder, null, c_orderQueueReplace, nydusUnit, null);
+    }
+
+    // We want to recharge ourselves if there's a Nydus nearby.
+    // Are we low on health or mana?
+    if (UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < c_ZagaraEnterNydusHP
+     || UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent) < c_ZagaraEnterNydusEnergy) {
+        nydusUnitGroup = UnitGroup(c_ZagaraNydusWorm, player, RegionCircle(pos, c_ZagaraNydusWormRechargeScanRadius), null, 0);
+        if (UnitGroupCount(nydusUnitGroup, c_unitCountAll) == 0) {
+            return false;
+        }
+        nydusUnit = UnitGroupUnit(nydusUnitGroup, 1);
+        if (!UnitIsValid(nydusUnit)) {
+            return false;
+        }
+        // Order setup
+        HeroClaimForTactical(player, 12.0, true); // time to retreat into the worm!
+        return HeroIssueOrder(player, aiUnit, enterNydusOrder, null, c_orderQueueReplace, nydusUnit, null);
+    }
+
+    return false;
+}
+// //---------------------------------------------------------------------------------------------
+bool ZagaraExitNydusWorm (int player, unit aiUnit, unitgroup scanGroup) {
+    // Exit Nydus worm once we have regenerated enough hp/energy
+    order spellOrd;
+    unitgroup nydusUnitGroup;
+    point pos;
+    unit nydusUnit;
+
+    // Only run if we are currently inside a Nydus worm.
+    if (!UnitHasBehavior2(aiUnit, c_ZagaraInsideNydusWormBehavior)) {
+        return false;
+    }
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ZagaraExitNydusWorm, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // We must meet HP/energy requirements before exiting.
+    if (UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) >= c_ZagaraExitNydusHP
+        && UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent) >= c_ZagaraExitNydusEnergy) {
+        pos = UnitGetPosition(aiUnit);
+        nydusUnitGroup = UnitGroup(c_ZagaraNydusWorm, player, RegionCircle(pos, 3.0), null, 0);
+        if (UnitGroupCount(nydusUnitGroup, c_unitCountAll) == 0) {
+            return false;
+        }
+        nydusUnit = UnitGroupUnit(nydusUnitGroup, 1);
+        if (!UnitIsValid(nydusUnit)) {
+            return false;
+        }
+        // Order setup
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueReplace, nydusUnit, null);
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+bool ZagaraDevouringMaw (int player, unit aiUnit, unitgroup scanGroup) {
+    // Summons a worm that stuns and damages enemies in target area
+    order spellOrd;
+    order attackOrd;
+    unit targetEnemy;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ZagaraDevouringMaw, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Define all the ability range from the constant
+    query.lv_maxDistance = c_ZagaraDevouringMawRange;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+
+    // Cast on a weak enemy hero if possible 
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+}
+
+//---------------------------------------------------------------------------------------------
+bool ZagaraOffensiveItemCallback (int player, unit aiUnit, unitgroup scanGroup, string itemType, order ord, order ordTarget, order ordTogOn, order ordTogOff) {
+
+    if (itemType == c_ZagaraEnvenomedSpinesItem) {
+        // Don't use if not enough enemies around
+        if (!TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), c_Storm_AI_DefaultTeamfightRange)) {
+            return false;
+        }
+
+        return UnitIssueOrder(aiUnit, ord, c_orderQueueAddToFront);;
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+void AIThinkZagara (int player, unit aiUnit, unitgroup scanGroup) {
+
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (ZagaraExitNydusWorm(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (ZagaraEnterNydusWorm(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (UseDefensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (UseItem(player, aiUnit, scanGroup, ZagaraOffensiveItemCallback)) {
+        return;
+    }
+
+    if (ZagaraSummonHydralisk(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (ZagaraInfestedDrop(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (ZagaraBanelingBarrage(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && ZagaraSummonNydusWorm(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && ZagaraDevouringMaw(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (ZagaraNydusCreepTumor(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (ZagaraSummonCreepTumor(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (UseOffensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+}

@@ -1,0 +1,267 @@
+//-------------------------------------------------------------------------------------------------
+// Lucio Tactical
+//-------------------------------------------------------------------------------------------------
+
+// Abilities and Behaviors
+const string c_AB_LucioCrossfade                                    = "LucioCrossfade";
+const string c_AB_LucioAmpItUp                                      = "LucioAmpItUp";
+const string c_AB_LucioSoundwave                                    = "LucioSoundwave";
+const string c_AB_LucioSoundBarrier                                 = "LucioSoundBarrier";
+const string c_AB_LucioReverseAmp                                   = "LucioReverseAmp";
+const string c_LucioCrossfadeHealingBoost                           = "LucioCrossfadeHealingBoost";
+const string c_LucioCrossfadeSpeedBoost                             = "LucioCrossfadeSpeedBoost";
+
+// Items (CUnit IDs of the items)
+const string c_LucioBoomboxItem                                  = "LucioBoomboxItem";
+
+// Range, Radius, Misc Variables
+const fixed c_LucioBoomboxRange                                  = 5.0;
+const fixed c_LucioSoundwaveRange                                   = 4.5;
+const fixed c_LucioCrossfadeRadius                                  = 7.0;
+const fixed c_LucioCrossfadeHealthThreshold                         = 90.0;
+const fixed c_LucioAmpItUpHealthThreshold                           = 70.0;
+const fixed c_LucioSoundBarrierRadius                               = 7.0;
+const fixed c_LucioSoundBarrierHealthThreshold                      = 60.0;
+const fixed c_LucioSoundBarrierHealthCriticalThreshold              = 30.0;
+const fixed c_LucioSoundBarrierHealthBuffer                         = 15.0;
+const fixed c_LucioReverseAmpRadius                                 = 7.0;
+const int c_LucioCrossfadeStateNone                                 = 0;
+const int c_LucioCrossfadeStateHealing                              = 1;
+const int c_LucioCrossfadeStateSpeed                                = 2;
+
+int[libCore_gv_bALMaxPlayers + 1] lucioCrossfadeCurrentState;
+
+//-------------------------------------------------------------------------------------------------
+bool LucioCrossfadeState (int player, unit aiUnit, unitgroup scanGroup) {
+    order spellOrd;
+    point playerPoint;
+
+    // Get the current Crossfade state on Lucio:
+    if (UnitHasBehavior2(aiUnit, c_LucioCrossfadeHealingBoost)) {
+        lucioCrossfadeCurrentState[player] = c_LucioCrossfadeStateHealing;
+    }
+
+    else if (UnitHasBehavior2(aiUnit, c_LucioCrossfadeSpeedBoost)) {
+        lucioCrossfadeCurrentState[player] = c_LucioCrossfadeStateSpeed;
+    }
+    else {
+        lucioCrossfadeCurrentState[player] = c_LucioCrossfadeStateNone;
+    }
+
+    // Crossfade logic:
+    if (lucioCrossfadeCurrentState[player] == c_LucioCrossfadeStateSpeed) {
+        // validate order index 0 (Toggle On)
+        spellOrd = StormHeroAICreateOrder(player, c_AB_LucioCrossfade, 0);
+        if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+            return false;
+        }
+
+        if (FindWeakestNearbyAllyHero(player, aiUnit, c_LucioCrossfadeRadius, c_LucioCrossfadeHealthThreshold, -1, false) != null) {
+            // activate healing index 0 (Toggle On)
+            return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+        }
+    }
+
+    else if (lucioCrossfadeCurrentState[player] == c_LucioCrossfadeStateHealing) {
+        // validate order index 1 (Toggle Off)
+        spellOrd = StormHeroAICreateOrder(player, c_AB_LucioCrossfade, 1);
+        if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+            return false;
+        }
+
+        // very situational retreat logic to switch to speed
+        playerPoint = UnitGetPosition(aiUnit);
+        if ((libAIAI_gv_aIHeroes[player].lv_heroState == libAIAI_ge_HeroAIStates_HSRetreat)
+         && UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) <= libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth
+         && !AnyHeroesInArea(scanGroup, playerPoint, c_LucioCrossfadeRadius)) {
+            // deactivate healing index 1 (Toggle Off)
+            return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+         }
+
+         // we aren't retreating so check if we should deactivate healing based on ally missing health
+        if (FindWeakestNearbyAllyHero(player, aiUnit, c_LucioCrossfadeRadius, c_LucioCrossfadeHealthThreshold, -1, false) == null) {
+            // deactivate healing index 1 (Toggle Off)
+            return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+        }
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool LucioAmpItUp (int player, unit aiUnit, unitgroup scanGroup) {
+    // boosts the effect of the curret song (healing or speed)
+    fixed currentHealth;
+    order spellOrd;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_LucioAmpItUp, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    currentHealth = UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent);
+
+    // Cast if we are relatively injured.
+    // Due to the nature of lucio's heal over time, keeping himself alive for as long
+    // as possible is beneficial for his team.
+    if (currentHealth < libAIAI_gv_aIHeroes[player].lv_startOffensiveHealth) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+
+    // if we aren't that badly injured, are there allies nearby who are below 70% hp?
+    if (FindWeakestNearbyAllyHero(player, aiUnit, c_LucioSoundBarrierRadius, c_LucioAmpItUpHealthThreshold, -1, false) != null) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool LucioSoundWave (int player, unit aiUnit, unitgroup scanGroup) {
+    // Cone knockback, reserved for knocking people away who are in Lucio's personal space.
+    order spellOrd;
+    fixed currentHealth;
+    unit targetEnemy;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_LucioSoundwave, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Prefer close, healthy enemy hero
+    query.lv_maxDistance = c_LucioSoundwaveRange;
+    query.lv_healthFactor = c_Storm_AI_StronglyPreferHealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_StronglyPreferCloserTargets;
+
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        return false;
+    }
+
+    // save ourselves?
+    currentHealth = UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent);
+    if (currentHealth <= libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+    }
+
+    // otherwise only consider using if we are even or being outnumbered, otherwise we could be
+    // accidentally saving targets from own team.
+    if (CountTeamOutnumberedBy(player, scanGroup, UnitGetPosition(aiUnit), c_Storm_AI_DefaultTeamfightRange) >= 0) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool LucioSoundBarrier (int player, unit aiUnit, unitgroup scanGroup) {
+    // AoE that places a strong shield on all nearby allies
+    point playerPoint;
+    fixed currentHealth;
+    order spellOrd;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_LucioSoundBarrier, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    currentHealth = UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent);
+
+    // Cast if we are badly injured + buffer (15%) due to 1 second cast time
+    if (currentHealth <= (libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth + c_LucioSoundBarrierHealthBuffer)) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+
+    // is there an ally nearby who is critically injured but we aren't in a teamfight?
+    if (FindWeakestNearbyAllyHero(player, aiUnit, c_LucioSoundBarrierRadius, c_LucioSoundBarrierHealthCriticalThreshold, -1, true) != null) {
+        // try to save them
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+
+    // if we aren't that badly injured, are we teamfighting and is there an ally nearby who is below 60% hp?
+    playerPoint = UnitGetPosition(aiUnit);
+    if (TeamFightInArea(player, scanGroup, playerPoint, c_Storm_AI_DefaultTeamfightRange)
+     && FindWeakestNearbyAllyHero(player, aiUnit, c_LucioSoundBarrierRadius, c_LucioSoundBarrierHealthThreshold, -1, false) != null) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool LucioReverseAmp (int player, unit aiUnit, unitgroup scanGroup) {
+    // deals damage or slows nearby enemies depending on current song
+    point playerPoint;
+    order spellOrd;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_LucioReverseAmp, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // if there's a teamfight and there's an enemy in range, DO IT!
+    playerPoint = UnitGetPosition(aiUnit);
+    if (TeamFightInArea(player, scanGroup, playerPoint, c_Storm_AI_DefaultTeamfightRange)
+     && AnyHeroesInArea(scanGroup, UnitGetPosition(aiUnit), c_LucioReverseAmpRadius)){
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool LucioDefensiveItemCallback (int player, unit aiUnit, unitgroup scanGroup, string itemType, order ord, order ordTarget, order ordTogOn, order ordTogOff) {
+    point pos;
+
+    if (itemType == c_LucioBoomboxItem) {
+        // Check if there's at least an ally who is injured nearby, excluding ourself.
+        if (FindWeakestNearbyAllyHero(player, aiUnit, c_LucioCrossfadeRadius, c_LucioCrossfadeHealthThreshold, -1, true) != null) {
+            // Place a boombox that plays current song in a safe(ish) place
+            pos = libAIAI_gf_HeroAIGetRetreatPosition(UnitGetOwner(aiUnit), c_LucioBoomboxRange, null);
+            return HeroIssueOrder(player, aiUnit, ordTarget, null, c_orderQueueReplace, null, pos);
+        }
+    }
+
+    return false;
+}
+//-------------------------------------------------------------------------------------------------
+void AIThinkLucio (int player, unit aiUnit, unitgroup scanGroup) {
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (LucioCrossfadeState(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (LucioAmpItUp(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (LucioSoundWave(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player)) {
+        if (LucioSoundBarrier(player, aiUnit, scanGroup)) {
+            return;
+        }
+
+        if (LucioReverseAmp(player, aiUnit, scanGroup)) {
+            return;
+        }
+    }
+
+    if (UseItem(player, aiUnit, scanGroup, LucioDefensiveItemCallback)) {
+        return;
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+}

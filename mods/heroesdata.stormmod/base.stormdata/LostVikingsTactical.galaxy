@@ -1,0 +1,391 @@
+//---------------------------------------------------------------------------------------------
+// LostVikings Tactical
+//---------------------------------------------------------------------------------------------
+const string c_AB_LostVikingsSpeedMount            = "LostVikingsGoGoGo";
+const string c_AB_LostVikingsVikingBribery         = "LostVikingsVikingBribery";
+const string c_AB_LostVikingsJump                  = "LostVikingsPressA";
+const string c_AB_LostVikingsNordicAttackSquad     = "LostVikingsNordicAttackSquad";
+const string c_AB_LostVikingsSpinToWin             = "LostVikingsSpinToWin";
+const string c_AB_LostVikingsNorseForce            = "LostVikingsNorseForce";
+const string c_AB_LostVikingsPlayAgain             = "LostVikingsPlayAgain";
+const string c_AB_LostVikingsLongboatRaid          = "LostVikingsLongboatRaidNewer";
+const string c_AB_LostVikingsLongboatRaidMortar    = "LostVikingsLongboatRaidMortar";
+
+//---------------------------------------------------------------------------------------------
+bool LostVikingsSpeedMount (int player, unit aiUnit, unitgroup scanGroup) {
+    // Increases movement speed, used for retreating and reaching other heroes
+    order spellOrd;
+
+    // Don't use when longboat is active. Unfortunately the order validation doesn't pick up this case.
+    if (libGDHL_gv_lostVikingsPlayer[player].lv_boat != null) {
+        return false;
+    }
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_LostVikingsSpeedMount, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // If our health is high enough and we're close enough to the main hero, no need to speed boose
+    if (UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) >= libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        if (DistanceBetweenPoints(UnitGetPosition(aiUnit), UnitGetPosition(libGame_gv_players[player].lv_heroUnit)) < 20.0) {
+            return false;
+        }
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool LostVikingsVikingBribery (int player, unit aiUnit, unitgroup scanGroup) {
+    // Bribe mercs
+    order spellOrd;
+    unitgroup mercs;
+    unit merc;
+    int index;
+    point ourPos;
+    fixed bestHealth;
+    unit bestMerc;
+
+    // don't consider using this unless we are attacking a camp
+    if (libAIAI_gv_aIHeroes[player].lv_heroState != libAIAI_ge_HeroAIStates_HSAttackSoloCamp) {
+        return false;
+    }
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_LostVikingsVikingBribery, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // use on the healthiest merc in range.
+    mercs = UnitGroupFilter(null, c_playerAny, scanGroup, c_Storm_AI_PassiveCreepFilter, 0); // only consider passive creeps
+    ourPos = UnitGetPosition(aiUnit);
+    index = UnitGroupCount(mercs, c_unitCountAll);
+    bestMerc = null;
+    bestHealth = 10.0; // don't bother using if the only mercs left have less than 10 % health
+    while (index > 0) {
+        merc = UnitGroupUnit(mercs, index);
+        index = index - 1;
+        if (DistanceBetweenPoints(UnitGetPosition(merc), ourPos) < 6.0) {
+            if (UnitIsAlive(merc)) {
+                if (UnitGetPropertyFixed(merc, c_unitPropLifePercent, c_unitPropCurrent) > bestHealth) {
+                    bestHealth = UnitGetPropertyFixed(merc, c_unitPropLifePercent, c_unitPropCurrent);
+                    bestMerc = merc;
+                }
+            }
+        }
+    }
+
+    if (bestMerc != null) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, bestMerc, null);
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+bool LostVikingsJump (int player, unit aiUnit, unitgroup scanGroup) {    
+    // Makes the viking invulnerable but he can't attack or move, use when we're under attack and low health
+    // Affects all three vikings
+    order spellOrd;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_LostVikingsJump, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    
+    if (!HaveBeenAttackedRecently(aiUnit) || UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) >= libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        return false;
+    }
+    
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool LostVikingsNordicAttackSquad (int player, unit aiUnit, unitgroup scanGroup) {
+    // self buff
+    // Affects all three vikings
+    order spellOrd;
+    unit nearbyHero;
+    
+    spellOrd = StormHeroAICreateOrder(player, c_AB_LostVikingsNordicAttackSquad, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    
+    if (UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_startOffensiveHealth) {
+        return false;
+    }
+
+    // Cast if there are a few nearby enemies
+    if (!EnoughEnemiesInArea(scanGroup, UnitGetPosition(aiUnit), 6.0, c_Storm_AI_AtLeast1Hero, c_Storm_AI_AtLeast3Creeps, c_Storm_AI_AtLeast3Minions)) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool LostVikingsSpinToWin (int player, unit aiUnit, unitgroup scanGroup) {
+    // Does damage to units in melee range of each viking
+    // Affects all three vikings
+    order spellOrd;
+    unit nearbyHero;
+    Storm_AI_TargetQueryOptions query;
+    
+    spellOrd = StormHeroAICreateOrder(player, c_AB_LostVikingsSpinToWin, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    
+    // Cast if there is a weak nearby hero
+    query.lv_maxDistance = 2.5;
+    query.lv_healthFactor  = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;   
+    query.lv_maxHealthPercent = 70;
+    nearbyHero = FindBestHero (scanGroup, aiUnit, query);
+ 
+    if (UnitIsValid(nearbyHero)) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+    
+    // Cast if there is a few nearby enemies  (lowered this all the way down to 2, spamming this ability is fine).
+    if (!EnoughEnemiesInArea(scanGroup, UnitGetPosition(aiUnit), 3.0, c_Storm_AI_AtLeast2Heroes, c_Storm_AI_AtLeast2Creeps, c_Storm_AI_AtLeast2Minions)) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool LostVikingsNorseForce (int player, unit aiUnit, unitgroup scanGroup) {    
+    // Long cooldown shield, use when we're under attack and low health
+    // Affects all three vikings
+    order spellOrd;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_LostVikingsNorseForce, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    
+    if (!HaveBeenAttackedRecently(aiUnit) || UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) >= 50.0) {
+        return false;
+    }
+    
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool LostVikingsPlayAgain (int player, unit aiUnit, unitgroup scanGroup) {
+    // Places down an item that the vikings can instantly rez at for a few seconds.
+    // The item can be killed, so should be placed in a vaguely safe area.
+    order spellOrd;
+    int countDead = 0;
+    point placementPosition;
+    bool baleogDown = false;
+    bool erikDown = false;
+    bool olafDown = false;
+
+    spellOrd = UnitOrder(aiUnit, 0);
+    if ((spellOrd != null) && OrderGetAbilityCommand(spellOrd) == AbilityCommand(c_AB_LostVikingsPlayAgain, 0)) {
+        HeroClaimForTactical(player, 1.25, false); // continue moving back to cast the egg.
+        return true;
+    }
+    
+    spellOrd = StormHeroAICreateOrder(player, c_AB_LostVikingsPlayAgain, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Count the number of vikings down, only use this if both other vikings are dead
+    if (UnitHasBehavior2(aiUnit, "LostVikingsBaleogDowned") == true) {
+        countDead += 1;
+        baleogDown = true;
+    }
+    if (UnitHasBehavior2(aiUnit, "LostVikingsErikDowned") == true) {
+        countDead += 1;
+        erikDown = true;
+    }
+    if (UnitHasBehavior2(aiUnit, "LostVikingsOlafDowned") == true) {
+        countDead += 1;
+        olafDown = true;
+    }
+    if (countDead < 2) {
+        return false;
+    }
+    
+    // Place back a little bit
+    placementPosition = libAIAI_gf_HeroAIGetRetreatPosition(player, 12.0, null);
+    
+    // Deliberately setting the ord point here and passing in "null, null" since we don't want to fudge this position   
+    OrderSetTargetPoint(spellOrd,placementPosition);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    if (HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueReplace, null, null)) {
+        // For now commenting this out, both other vikings will be dead.
+        //// Have other vikings retreat back as well, otherwise they'll be left behind as this become a tactical controlled unit.
+        //if (baleogDown==false && libHLOS_gv_lostVikingsPlayer[player].lv_baleog != aiUnit) {
+        //    UnitIssueOrder(libHLOS_gv_lostVikingsPlayer[player].lv_baleog, OrderTargetingPoint(libAIAI_gv_aIMoveAbil, placementPosition), c_orderQueueReplace);
+        //}
+        //if (erikDown==false && libHLOS_gv_lostVikingsPlayer[player].lv_erik != aiUnit) {
+        //    UnitIssueOrder(libHLOS_gv_lostVikingsPlayer[player].lv_erik, OrderTargetingPoint(libAIAI_gv_aIMoveAbil, placementPosition), c_orderQueueReplace);
+        //}
+        //if (olafDown==false && libHLOS_gv_lostVikingsPlayer[player].lv_olaf != aiUnit) {
+        //    UnitIssueOrder(libHLOS_gv_lostVikingsPlayer[player].lv_olaf, OrderTargetingPoint(libAIAI_gv_aIMoveAbil, placementPosition), c_orderQueueReplace);
+        //}
+
+        HeroClaimForTactical(player, 1.25, false); // time to retreat and cast the egg.
+        return true;
+    }
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+bool LostVikingsLongboatRaid (int player, unit aiUnit, unitgroup scanGroup) {
+    // Nearby vikings all jump in a long boat which can attack 2 targets at once.
+    // Use in team fights
+    
+    order spellOrd;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_LostVikingsLongboatRaid, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }    
+    
+    // Activate if there is a team fight
+    if (!HaveBeenAttackedRecently(aiUnit) || !TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), 9.0)) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool LostVikingsLongboatRaidMortar (int player, unit aiUnit, unitgroup scanGroup) {
+    // AoE
+    order spellOrd;
+    unit nearbyUnit;
+    Storm_AI_TargetQueryOptions query;
+    
+    spellOrd = StormHeroAICreateOrder(player, c_AB_LostVikingsLongboatRaidMortar, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    
+    // Cast if there is a weak nearby hero
+    query.lv_maxDistance = 12.0;
+    query.lv_healthFactor  = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;   
+    query.lv_maxHealthPercent = 70;
+    nearbyUnit = FindBestHero (scanGroup, aiUnit, query);
+
+    if (UnitIsValid(nearbyUnit)) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, nearbyUnit, null);
+    }
+    
+    // Cast if there is a nearby tower 
+    nearbyUnit = FindClosestWeakTowerOrCore(scanGroup, player, aiUnit, 0.0, 12.0, 100.0, -1, -1, c_Storm_AI_LOS_Optional);
+    if (UnitIsValid(nearbyUnit)) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, nearbyUnit, null);
+    }
+
+    // Cast if there is a nearby hero or minion
+    query.lv_maxHealthPercent = 100;
+    nearbyUnit = FindBestMinion (scanGroup, aiUnit, query);
+
+    if (UnitIsValid(nearbyUnit)) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, nearbyUnit, null);
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+void AIThinkLVShared (int player, unit aiUnit, unitgroup scanGroup) {
+
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (UseDefensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && LostVikingsPlayAgain(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (LostVikingsNorseForce(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (LostVikingsJump(player, aiUnit, scanGroup)) {
+        return;
+    }
+    
+    if (LostVikingsSpeedMount(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (LostVikingsSpinToWin(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (LostVikingsVikingBribery(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (LostVikingsNordicAttackSquad(player, aiUnit, scanGroup)) {
+        return;
+    }
+    
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && LostVikingsLongboatRaid(player, aiUnit, scanGroup)) {
+        return;
+    }
+    
+    if (UseOffensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+}
+
+//---------------------------------------------------------------------------------------------
+void AIThinkLVController (int player, unit aiUnit, unitgroup scanGroup) {
+    // Nothing run for controller
+}
+
+//---------------------------------------------------------------------------------------------
+void AIThinkErik (int player, unit aiUnit, unitgroup scanGroup) {
+    AIThinkLVShared(player, aiUnit, scanGroup);
+}
+
+//---------------------------------------------------------------------------------------------
+void AIThinkBaleog (int player, unit aiUnit, unitgroup scanGroup) {
+    AIThinkLVShared(player, aiUnit, scanGroup);
+}
+
+//---------------------------------------------------------------------------------------------
+void AIThinkOlaf (int player, unit aiUnit, unitgroup scanGroup) {
+    AIThinkLVShared(player, aiUnit, scanGroup);
+}
+
+//---------------------------------------------------------------------------------------------
+void AIThinkLongboat (int player, unit aiUnit, unitgroup scanGroup) {
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (LostVikingsLongboatRaidMortar(player, aiUnit, scanGroup)) {
+        return;
+    }
+}
+

@@ -1,0 +1,256 @@
+//-------------------------------------------------------------------------------------------------
+// Ragnaros 'BigRag' Tactical
+//-------------------------------------------------------------------------------------------------
+
+// Abilities and Behaviors
+const string c_AB_BigRagMoltenSwing                             = "RagnarosBigRagMoltenSwing";
+const string c_AB_BigRagMeteorShower                            = "RagnarosBigRagMeteorShower";
+const string c_AB_BigRagExplosiveRune                           = "RagnarosBigRagExplosiveRune";
+const string c_AB_BigRagSulfurasSmash                           = "RagnarosBigRagSulfurasSmash";
+const string c_AB_BigRagLavaWave                                = "RagnarosLavaWaveTargetPoint";
+
+// Range, Radius, Misc Variables
+const fixed c_BigRagRangeWithUnitRadius                         = 38.0;
+const fixed c_BigRagMoltenSwingRange                            = 12.0;
+const fixed c_BigRagMeteorShowerRange                           = 35.0;
+const fixed c_BigRagMeteorShowerScalar                          = 10.0;
+const fixed c_BigRagMeteorShowerDelay                           = 0.125;
+const fixed c_BigRagExplosiveRuneRange                          = 35.0;
+const fixed c_BigRagExplosiveRuneRadius                         = 3.5;
+const fixed c_BigRagExplosiveRuneDelay                          = 1.0;
+const fixed c_BigRagSulfurasSmashCastRange                      = 35.0;
+const fixed c_BigRagSulfurasSmashRadius                         = 3.75;
+const fixed c_BigRagSulfurasSmashLeadScalar                     = 1.0;
+const fixed c_BigRagSulfurasSmashTeamFightRange                 = 35.0;
+
+unitgroup BigRagGeneratePredictionUnitGroup (int player) {
+    // generate a unit group of valid units that we can predict
+    int itPlayer;
+    unitgroup retVal = UnitGroupEmpty();
+    
+    // iterate through all players
+    for (itPlayer = 1; itPlayer <= libCore_gv_bALMaxEnginePlayerCount; itPlayer += 1) {
+        // if itPlayer is on the opposing team and has a heroUnit..
+        if (UnitIsValid(libGame_gv_players[itPlayer].lv_heroUnit)
+         && libGame_gv_players[itPlayer].lv_faction != libGame_gv_players[player].lv_faction) {
+            // check CanPredict
+            if (libAIAI_gf_HeroAICanPredictHeroLocation(player, itPlayer, 3.0, true, false)) {
+                // add valid unit to predict unit group
+                UnitGroupAdd(retVal, libGame_gv_players[itPlayer].lv_heroUnit);
+            }
+        }
+    }
+
+    return retVal;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool BigRagMoltenSwing (int player, unit aiUnit, unitgroup scanGroup) {
+    // A 180 degree arc that deals damage and stuns anything in range centered on big rag
+    order spellOrd;
+    point targetPoint;
+    Storm_AI_TargetQueryOptions query;
+    unit targetEnemy;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_BigRagMoltenSwing, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    query.lv_maxDistance = c_BigRagMoltenSwingRange;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        targetEnemy = FindBestTacticalTarget(scanGroup, aiUnit, query);
+        if (!UnitIsValid(targetEnemy)){
+            return false;
+        }
+    }
+
+    targetPoint = UnitGetPosition(targetEnemy);
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, targetPoint);
+}
+
+//-------------------------------------------------------------------------------------------------
+bool BigRagMeteorShower (int player, unit aiUnit, unitgroup predictionGroup) {
+    // vector targetted ability that deals damage in a line along the vector
+    // only targets heroes
+    order spellOrd;
+    point vectorEndPoint;
+    point targetPoint;
+    unit targetEnemy;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_BigRagMeteorShower, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // find a weak hero as our primary target
+    query.lv_maxDistance = c_BigRagMeteorShowerRange;
+    query.lv_healthFactor = c_Storm_AI_StronglyPreferUnhealthyTargets;
+
+    targetEnemy = FindBestHero(predictionGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        // early out if the target is not valid
+        return false;
+    }
+
+    // launch the meteor based on target unit locations
+    targetPoint = libAIAI_gf_HeroAIPredictHeroLocation(player, UnitGetOwner(targetEnemy), c_BigRagMeteorShowerDelay);
+    OrderSetTargetPoint(spellOrd, targetPoint);
+    vectorEndPoint = LeadPoint(null, targetPoint, targetEnemy, c_BigRagMeteorShowerScalar, true, false);
+    OrderSetVectorPoint(spellOrd, vectorEndPoint);
+
+    return UnitIssueOrder(aiUnit, spellOrd, c_orderQueueAddToFront);
+}
+
+//-------------------------------------------------------------------------------------------------
+bool BigRagExplosiveRune (int player, unit aiUnit, unitgroup scanGroup, unitgroup predictionGroup) {
+    // deals damage in a radius after a small delay
+    order spellOrd;
+    Storm_AI_TargetQueryOptions query;
+    unit targetEnemy;
+    point targetPoint;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_BigRagExplosiveRune, 0);
+
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    query.lv_maxDistance = c_BigRagExplosiveRuneRange;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+
+    // Cast on a weak enemy hero if possible
+    targetEnemy = FindBestHero(predictionGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        // only use on minions/creep if we can hit a hero or a group of minions
+        // can only taget units that are within his vision range
+        targetEnemy = FindBestTacticalTarget(scanGroup, aiUnit, query);
+        if (!UnitIsValid(targetEnemy)
+         || !EnoughEnemiesInArea(scanGroup, UnitGetPosition(targetEnemy), c_BigRagExplosiveRuneRadius, 0, c_Storm_AI_AtLeast1Creep, c_Storm_AI_AtLeast2Minions)){
+            return false;
+        }
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+    }
+
+    targetPoint = libAIAI_gf_HeroAIPredictHeroLocation(player, UnitGetOwner(targetEnemy), c_BigRagExplosiveRuneDelay);
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, targetPoint);
+}
+
+//-------------------------------------------------------------------------------------------------
+bool BigRagSulfurasSmash (int player, unit aiUnit, unitgroup predictionGroup) {
+    // AoE ability that damages in a large area, and stuns in a small center area
+    // only targets heroes
+    order spellOrd;
+    Storm_AI_TargetQueryOptions query;
+    unit targetEnemy;
+    point leadPoint;
+    point enemyPoint;
+    point playerPoint;
+    bool castBetweenCasterAndTarget;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_BigRagSulfurasSmash, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // we compensate our ability range for our lead vector offset.
+    // if we don't do this Big Rag will never cast the ability
+    // since he will be out of range of the target point and cannot move
+    query.lv_maxDistance = c_BigRagSulfurasSmashCastRange - c_BigRagSulfurasSmashLeadScalar;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    // cast slighty ahead of target
+    castBetweenCasterAndTarget = false;
+
+    // Find a hero target
+    targetEnemy = FindBestHero(predictionGroup, aiUnit, query);
+    // Validate our initial unit
+    if (!UnitIsValid(targetEnemy)) {
+         return false;
+    }
+
+    enemyPoint = UnitGetPosition(targetEnemy);
+    // exit if there isn't a team fight near our target
+    if (!TeamFightInArea(player, predictionGroup, enemyPoint, c_BigRagSulfurasSmashTeamFightRange)){
+        return false;
+    }
+
+    // lead the ability
+    playerPoint = UnitGetPosition(aiUnit);
+    leadPoint = LeadPoint(playerPoint, enemyPoint, targetEnemy, c_BigRagSulfurasSmashLeadScalar, false, castBetweenCasterAndTarget);
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, leadPoint);
+}
+
+//-------------------------------------------------------------------------------------------------
+bool BigRagLavaWave (int player, unit aiUnit, unitgroup scanGroup) {
+    // send a wave of lava down a lane that instantly kills minions and deals damage to mercs
+    // and heroes. Does not damage buildings.
+    point targetPoint;
+    int playerFaction;
+    order spellOrd;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_BigRagLavaWave, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // if we are pushing into enemy territory, use on the lane we are closest to
+    // which is already calculated by data/triggers
+    if (TowardFarSideOfTheMap(player, aiUnit)) {
+        targetPoint = UnitGetPosition(aiUnit);
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, targetPoint);
+    }
+    
+    // otherwise find our team's weakest lane and help push that lane
+    playerFaction = libGame_gv_players[player].lv_faction;
+    targetPoint = libAIAI_gv_heroAITeamData[playerFaction].lv_laneData[libAIAI_gv_heroAITeamData[playerFaction].lv_weakestLane].lv_contentionPoint;
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, targetPoint);
+}
+
+//-------------------------------------------------------------------------------------------------
+void AIThinkBigRag (int player, unit aiUnit, unitgroup scanGroup) {
+    unitgroup predictUnitGroup;
+
+    // GenerateBigRagScanGroup(player, aiUnit);
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+
+    predictUnitGroup = BigRagGeneratePredictionUnitGroup(player);
+
+    if (BigRagMoltenSwing(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (BigRagMeteorShower(player, aiUnit, predictUnitGroup)) {
+        return;
+    }
+
+    if (BigRagExplosiveRune(player, aiUnit, scanGroup, predictUnitGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player)) {
+        if (BigRagSulfurasSmash(player, aiUnit, predictUnitGroup)) {
+            return;
+        }
+
+        if (BigRagLavaWave(player, aiUnit, scanGroup)) {
+            return;
+        }
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+}

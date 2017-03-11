@@ -1,0 +1,418 @@
+//---------------------------------------------------------------------------------------------
+// Chromie Tactical
+//---------------------------------------------------------------------------------------------
+
+// Abilities and Behaviors
+const string c_AB_ChromieSandBlast             = "ChromieSandBlast";
+const string c_AB_ChromieDragonsBreath         = "ChromieDragonsBreath";
+const string c_AB_ChromieTimeTrap              = "ChromieTimeTrap";
+const string c_AB_ChromieSlowingSands          = "ChromieSlowingSands";
+const string c_AB_ChromieSlowingSandsCancel    = "ChromieSlowingSandsCancel";
+const string c_AB_ChromieTemporalLoop          = "ChromieTemporalLoop";
+const string c_ChromieTimeOutBehavior          = "ChromieTimeOutBehavior";
+
+// Items
+const string c_ChromiePeerIntoTheFutureItem    = "ChromiePeerIntoTheFuture";
+const string c_ChromieQuantumOverdriveItem     = "ChromieQuantumOverdriveItem";
+const string c_ChromieTimeOutItem              = "ChromieTimeOutItem";
+
+// Talents and modifiers
+const fixed c_ChromieDragonsBreathEnvelopingAssaultRadiusModifier   = 1.25;
+const fixed c_ChromieReachingThroughTimeRangeModifier               = 1.25;
+const string c_ChromieReachingThroughTimeTalent                     = "ChromieReachingThroughTime";
+const string c_ChromieDragonsBreathEnvelopingAssaultTalent          = "ChromieDragonsBreathEnvelopingAssault";
+const string c_ChromieSandBlastPiercingSandsTalent                  = "ChromieSandBlastPiercingSands";
+const string c_ChromieSlowingSandsActiveBehavior                    = "ChromieSlowingSandsCasterBehavior";
+
+// Range and Radius
+const fixed c_ChromieTimeTrapShrubSearchDistance                = 8.0;
+const fixed c_ChromieSlowingSandsRange                          = 10.0;
+const fixed c_ChromieSlowingSandsRadius                         = 3.5;
+const fixed c_ChromieSlowingSandsCancelRadiusCheck              = 16.0;
+const fixed c_ChromieDragonsBreathRange                         = 16.0;
+const fixed c_ChromieDragonsBreathRadius                        = 2.0;
+const fixed c_ChromieTemporalLoopRange                          = 12.0;
+const fixed c_ChromieSandBlastRange                             = 16.0;
+
+//---------------------------------------------------------------------------------------------
+bool ChromieSandBlast (int player, unit aiUnit, unitgroup scanGroup) {
+    // Low cooldown, long range, delayed skillshot that can
+    // penetrate 1 hero with talent. Cannot hit non-heroes
+    unit targetHero;
+    order spellOrd;
+    order attackOrd;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    Storm_AI_TargetQueryOptions query;
+    fixed abilityRange;
+    point targetPos;
+    point playerUnitPos;
+    point targetUnitPos;
+    fixed scalar = 2.0;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ChromieSandBlast, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    playerUnitPos = UnitGetPosition(aiUnit);
+    // Determines agressive and liberal we are with using the ability when at high mana
+    if (energy > libAIAI_gv_aIHeroHighEnergyPercent) {
+        query.lv_maxHealthPercent = libAIAI_gv_aIHeroHighHealthPercent;
+    }
+    else  {
+        query.lv_maxHealthPercent = libAIAI_gv_aIHeroMediumHealthPercent;
+    }
+
+    // Defines ability range
+    abilityRange = c_ChromieSandBlastRange;
+    // Modify range based on talent
+    if (PlayerHasTalent(player, c_ChromieReachingThroughTimeTalent)) {
+        abilityRange *= c_ChromieReachingThroughTimeRangeModifier;
+    }
+
+    query.lv_maxDistance = abilityRange;
+    query.lv_lineOfSightRequired = c_Storm_AI_LOS_Optional;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+
+    // Picks different target distance preferences based on talents
+    if (PlayerHasTalent(player, c_ChromieSandBlastPiercingSandsTalent)) {
+        query.lv_distanceFactor = c_Storm_AI_PreferDistantTargets;
+    }
+
+    // Find a target hero
+    targetHero = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetHero)) {
+        return false;
+    }
+
+    targetUnitPos = UnitGetPosition(targetHero);
+    targetPos = LeadPoint(playerUnitPos, targetUnitPos, targetHero, scalar, true, false);
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, targetPos);
+}
+
+//---------------------------------------------------------------------------------------------
+bool ChromieDragonsBreath (int player, unit aiUnit, unitgroup scanGroup) {
+    // does a small aoe at a point after a small delay
+    order spellOrd;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    Storm_AI_TargetQueryOptions query;
+    fixed abilityRange;
+    unit targetEnemy;
+    point targetPos;
+    fixed scalar = 2.0;
+    fixed radius;
+    fixed minHeroes;
+    fixed minCreeps;
+    fixed minMinions;
+    point playerUnitPos;
+    point targetUnitPos;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ChromieDragonsBreath, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Define all the ability range from the constant
+    abilityRange = c_ChromieDragonsBreathRange;
+    radius = c_ChromieDragonsBreathRadius;
+
+    // check if we have increased radius and range from talents
+    if (PlayerHasTalent(player, c_ChromieReachingThroughTimeTalent)) {
+        abilityRange *= c_ChromieReachingThroughTimeRangeModifier;
+    }
+    if (PlayerHasTalent(player, c_ChromieDragonsBreathEnvelopingAssaultTalent)) {
+        radius *= c_ChromieDragonsBreathEnvelopingAssaultRadiusModifier;
+    }
+
+    query.lv_maxDistance = abilityRange;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_lineOfSightRequired = c_Storm_AI_LOS_Optional;
+
+    // Cast on a weak enemy hero if possible
+    playerUnitPos = UnitGetPosition(aiUnit);
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (UnitIsValid(targetEnemy)) {
+        targetUnitPos = UnitGetPosition(targetEnemy);
+        targetPos = LeadPoint(playerUnitPos, targetUnitPos, targetEnemy, scalar, true, false);
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, targetPos);
+    }
+
+    // Limit usage of the ability based on how much mana we have.
+    if (energy > libAIAI_gv_aIHeroMediumEnergyPercent) {
+        minHeroes = c_Storm_AI_AtLeast1Hero;
+        minCreeps = c_Storm_AI_AtLeast1Creep;
+        minMinions = c_Storm_AI_AtLeast2Minions;
+    }
+    else if (energy > libAIAI_gv_aIHeroLowEnergyPercent) {
+        minHeroes = c_Storm_AI_AtLeast1Hero;
+        minCreeps = c_Storm_AI_AtLeast2Creeps;
+        minMinions = c_Storm_AI_AtLeast3Minions;
+    }
+    else {
+        minHeroes = c_Storm_AI_AtLeast2Heroes;
+        minCreeps = c_Storm_AI_AtLeast2Creeps;
+        minMinions = c_Storm_AI_AtLeast4Minions;
+    }
+
+    // Find the best tactical since we haven't found a hero
+    targetEnemy = FindBestTacticalTarget(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        return false;
+    }
+
+    targetUnitPos = UnitGetPosition(targetEnemy);
+    targetPos = LeadPoint(playerUnitPos, targetUnitPos, targetEnemy, scalar, true, false);
+
+    // Only use if it will likely hit a hero or group of enemies
+    if (!EnoughEnemiesInArea(scanGroup, targetPos, radius, minHeroes, minCreeps, minMinions)) {
+       return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, targetPos);
+}
+
+//---------------------------------------------------------------------------------------------
+bool ChromieTimeTrap (int player, unit aiUnit, unitgroup scanGroup) {
+    order spellOrd;
+    point shrubPos;
+    point pos;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ChromieTimeTrap, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Find the nearest shrub
+    pos = UnitGetPosition(aiUnit);
+    shrubPos = FindClosestShrub(pos, c_ChromieTimeTrapShrubSearchDistance);
+
+    // If our shrubPos is null, we just cast the ability at our current position
+    if (shrubPos == null) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, pos);
+    }
+
+    // If point is valid but the point is somehow not in a shrub then we end
+    if (!InShrub(shrubPos)) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, shrubPos);
+}
+
+//---------------------------------------------------------------------------------------------
+bool ChromieTemporalLoop (int player, unit aiUnit, unitgroup scanGroup) {
+    unit targetHero;
+    Storm_AI_TargetQueryOptions query;
+    unitgroup allyUnitGroup;
+    order spellOrd;
+    fixed abilityRange;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ChromieTemporalLoop, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    abilityRange = c_ChromieTemporalLoopRange;
+    query.lv_maxDistance = c_ChromieTemporalLoopRange;
+
+    // If outnumbered, send away the highest health enemy
+    if (CountTeamOutnumberedBy(player, scanGroup, UnitGetPosition(aiUnit), abilityRange) >= 1) {
+        query.lv_healthFactor = c_Storm_AI_PreferHealthyTargets;
+        query.lv_distanceFactor = c_Storm_AI_StronglyPreferCloserTargets;
+        targetHero = FindBestHero(scanGroup, aiUnit, query);
+    }
+    // If outnumbering, bring in a low health enemy
+    if (CountTeamOutnumberedBy(player, scanGroup, UnitGetPosition(aiUnit),abilityRange) < 1) {
+        query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+        query.lv_distanceFactor = c_Storm_AI_PreferDistantTargets;
+        targetHero = FindBestHero(scanGroup, aiUnit, query);
+    }
+
+    if (!UnitIsValid(targetHero)) {
+        return false;
+    }
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, targetHero, null);
+
+}
+
+//---------------------------------------------------------------------------------------------
+bool ChromieSlowingSands (int player, unit aiUnit, unitgroup scanGroup) {
+    // Place AoE slowing field
+    order spellOrd;
+    Storm_AI_TargetQueryOptions query;
+    unit targetEnemy;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ChromieSlowingSands, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Don't create another Slowing Sands if one already exists
+    if (UnitHasBehavior(aiUnit, c_ChromieSlowingSandsActiveBehavior)) {
+        return false;
+    }
+
+    // Define all the ability range from the constant
+    query.lv_maxDistance = c_ChromieSlowingSandsRange;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+
+    // Cast on a weak enemy hero if possible
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+
+}
+
+//---------------------------------------------------------------------------------------------
+bool ChromieSlowingSandsCancel (int player, unit aiUnit, unitgroup scanGroup) {
+    // Cancel any active Slowing Sandss. Ability has built in effect to
+    // caster distance validation (30 range limit).
+    order cancelOrd;
+
+    cancelOrd = StormHeroAICreateOrder(player, c_AB_ChromieSlowingSandsCancel, 0);
+    if (!UnitOrderIsValid(aiUnit, cancelOrd)) {
+        return false;
+    }
+
+    // Don't cancel (return False) unless there aren't any enemy heroes around the caster
+    if (EnoughEnemiesInArea(scanGroup, UnitGetPosition(aiUnit), c_ChromieSlowingSandsCancelRadiusCheck, c_Storm_AI_AtLeast1Hero, 0, 0)) {
+       return false;
+    }
+
+    return UnitIssueOrder(aiUnit, cancelOrd, c_orderQueueReplace);
+
+}
+
+//---------------------------------------------------------------------------------------------
+bool ChromieDefensiveItemCallback (int player, unit aiUnit, unitgroup scanGroup, string itemType, order ord, order ordTarget, order ordTogOn, order ordTogOff) {
+
+    if (itemType == c_ChromieTimeOutItem && UnitHasBehavior(aiUnit, c_ChromieTimeOutBehavior)) {
+        // Toggle cancel logic since stasis is very long at 7 seconds:
+        // if there is no longer a team fight nearby or we outnumber the opponent == togOff
+        if ((CountTeamOutnumberedBy(player, scanGroup, UnitGetPosition(aiUnit),c_Storm_AI_DefaultTeamfightRange) < -1)
+          || !TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), c_Storm_AI_DefaultTeamfightRange)) {
+             UnitIssueOrder(aiUnit, ordTogOff, c_orderQueueAddToFront);
+             return true;
+        }
+
+    }
+
+    if (itemType == c_ChromieTimeOutItem && !UnitHasBehavior(aiUnit, c_ChromieTimeOutBehavior)) {
+        // Become invulnerable if you become very low health during a team fight
+        if (HaveBeenAttackedRecently(aiUnit)
+         && UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth
+         && TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), c_Storm_AI_DefaultTeamfightRange)) {
+            UnitIssueOrder(aiUnit, ordTogOn, c_orderQueueAddToFront);
+            return true;
+        }
+
+    }
+
+    return false;
+
+}
+
+//----------------------------------------------------------------------------------------------
+bool ChromieOffensiveItemCallback (int player, unit aiUnit, unitgroup scanGroup, string itemType, order ord, order ordTarget, order ordTogOn, order ordTogOff) {
+    unit target;
+    point pos;
+
+    if (itemType == c_ChromiePeerIntoTheFutureItem) {
+        // Use when we have been damaged a lot but there are no enemies
+        // in sight, and we are not near a tower
+        pos = UnitGetPosition(aiUnit);
+        if (UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth
+         && CountEnemiesInArea(scanGroup, pos, 20.0, 1, 1) == 0
+         && !UnitIsValid(GetNearbyTower(aiUnit, scanGroup))) {
+            return HeroIssueOrder(player, aiUnit, ordTarget, null, c_orderQueueAddToFront, null, pos);
+        }
+
+        // also check for decloaking nearby players
+        target = libAIAI_gf_HeroAIGetCloakedEnemyToReveal(player);
+        if (UnitIsAlive(target)) {
+            if (HeroIssueOrder(player, aiUnit, ordTarget, null, c_orderQueueAddToFront, null, UnitGetPosition(target))) {
+                libAIAI_gf_HeroAIResetRevealCloakedEnemyTimer(player);
+                return true;
+            }
+
+        }
+
+    }
+
+    else if (itemType == c_ChromieQuantumOverdriveItem) {
+        // Temporarily buff abilities if we are in a team fight
+        if (UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_startOffensiveHealth) {
+            return false;
+        }
+
+        if (UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent) < libAIAI_gv_aIHeroLowEnergyPercent) {
+            return false;
+        }
+
+        if (!TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), c_Storm_AI_DefaultTeamfightRange)) {
+            return false;
+        }
+
+        UnitIssueOrder(aiUnit, ord, c_orderQueueAddToFront);
+        return true;
+    }
+
+    return false;
+
+}
+
+//---------------------------------------------------------------------------------------------
+void AIThinkChromie (int player, unit aiUnit, unitgroup scanGroup) {
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (UseItem(player, aiUnit, scanGroup, ChromieDefensiveItemCallback)) {
+        return;
+    }
+
+    if (ChromieSandBlast(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (ChromieDragonsBreath(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (ChromieSlowingSandsCancel(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player)) {
+        if (ChromieTemporalLoop(player, aiUnit, scanGroup)) {
+            return;
+        }
+
+        if (ChromieSlowingSands(player, aiUnit, scanGroup)) {
+            return;
+        }
+    }
+
+    if (UseItem(player, aiUnit, scanGroup, ChromieOffensiveItemCallback)) {
+        return;
+    }
+
+    if (ChromieTimeTrap(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+}

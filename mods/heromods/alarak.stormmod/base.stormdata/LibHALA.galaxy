@@ -1,0 +1,840 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/AILib"
+include "TriggerLibs/UILib"
+
+include "LibHALA_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Alarak
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libHALA_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+    libAIAI_InitVariables();
+    libUIUI_InitVariables();
+}
+
+// Variable Initialization
+bool libHALA_InitVariables_completed = false;
+
+void libHALA_InitVariables () {
+    int init_i;
+
+    if (libHALA_InitVariables_completed) {
+        return;
+    }
+
+    libHALA_InitVariables_completed = true;
+
+    for (init_i = 0; init_i <= libCore_gv_bALMaxPlayers; init_i += 1) {
+        libHALA_gv_heroAlarakCounterStrikeUnitGroup[init_i] = UnitGroupEmpty();
+    }
+    libHALA_gv_alarakUI.lv_mainPanel = c_invalidDialogControlId;
+    libHALA_gv_alarakUI.lv_sadismProgressBar = c_invalidDialogControlId;
+    libHALA_gv_alarakUI.lv_sadismPercentageLabel = c_invalidDialogControlId;
+    libHALA_gv_alarakUI.lv_sadismExtraGlowImage = c_invalidDialogControlId;
+}
+
+// Custom Script
+//--------------------------------------------------------------------------------------------------
+// Custom Script: #Include Alarak Tactical AI
+//--------------------------------------------------------------------------------------------------
+include "StormTactical.galaxy"
+include "AlarakTactical.galaxy"
+
+void libHALA_InitCustomScript () {
+}
+
+// Functions
+void libHALA_gf_HeroAlarakIncrementHeroCountFunction () {
+    // Implementation
+    libHALA_gv_heroAlarakTriggerRegistrationVariable += 1;
+    if ((libHALA_gv_heroAlarakTriggerRegistrationVariable == 1)) {
+        TriggerEnable(libHALA_gt_HeroAlarakCounterStrikeSetFacing, true);
+        TriggerEnable(libHALA_gt_HeroAlarakCounterStrikeDamageResponseProc, true);
+        TriggerEnable(libHALA_gt_HeroAlarakCounterStrikeUnitGroupReset, true);
+        TriggerEnable(libHALA_gt_HeroAlarakPureMaliceAllyDeathProc, true);
+        TriggerEnable(libHALA_gt_HeroAlarakDeadlyChargeCast, true);
+        TriggerEnable(libHALA_gt_HeroAlarakDeadlyChargeUnleashActivate, true);
+        TriggerEnable(libHALA_gt_HeroAlarakSadismRespecReset, true);
+        TriggerEnable(libHALA_gt_HeroAlarakCounterStrikeProtectedOnOff, true);
+        TriggerEnable(libHALA_gt_HeroAlarakSadismTokensModified, true);
+        TriggerEnable(libHALA_gt_HeroAlarakSurgeActorMessages, true);
+    }
+
+}
+
+void libHALA_gf_HeroAlarakDecrementHeroCountFunction () {
+    // Implementation
+    libHALA_gv_heroAlarakTriggerRegistrationVariable -= 1;
+    if ((libHALA_gv_heroAlarakTriggerRegistrationVariable < 0)) {
+        libHALA_gv_heroAlarakTriggerRegistrationVariable = 0;
+    }
+
+    if ((libHALA_gv_heroAlarakTriggerRegistrationVariable == 0)) {
+        TriggerEnable(libHALA_gt_HeroAlarakCounterStrikeSetFacing, false);
+        TriggerEnable(libHALA_gt_HeroAlarakCounterStrikeDamageResponseProc, false);
+        TriggerEnable(libHALA_gt_HeroAlarakCounterStrikeUnitGroupReset, false);
+        TriggerEnable(libHALA_gt_HeroAlarakPureMaliceAllyDeathProc, false);
+        TriggerEnable(libHALA_gt_HeroAlarakDeadlyChargeCast, false);
+        TriggerEnable(libHALA_gt_HeroAlarakDeadlyChargeUnleashActivate, false);
+        TriggerEnable(libHALA_gt_HeroAlarakSadismRespecReset, false);
+        TriggerEnable(libHALA_gt_HeroAlarakCounterStrikeProtectedOnOff, false);
+        TriggerEnable(libHALA_gt_HeroAlarakSadismTokensModified, false);
+        TriggerEnable(libHALA_gt_HeroAlarakSurgeActorMessages, false);
+    }
+
+}
+
+void libHALA_gf_HeroAlarakDeadlyChargeActivation (int lp_player) {
+    // Variable Declarations
+    fixed lv_offsetValue;
+    unit lv_alarakUnit;
+    int lv_stackCount;
+    int lv_alarakPlayer;
+    point lv_playerTargetPoint;
+    fixed lv_alarakUnitRadius;
+    point lv_actualTargetPoint;
+    fixed lv_modifiedDistance;
+    point lv_positionOfAlarak;
+
+    // Variable Initialization
+    lv_alarakPlayer = lp_player;
+
+    // Implementation
+    if ((UnitGetType(libGame_gv_players[lv_alarakPlayer].lv_heroUnit) != "HeroAlarak")) {
+        lv_alarakUnit = libGame_gv_players[lv_alarakPlayer].lv_activeVehicle;
+    }
+    else {
+        lv_alarakUnit = libGame_gv_players[lv_alarakPlayer].lv_heroUnit;
+    }
+    lv_stackCount = UnitBehaviorCount(lv_alarakUnit, "AlarakDeadlyChargeStack");
+    lv_offsetValue = (IntToFixed(lv_stackCount) * libHALA_gv_heroAlarakDeadlyChargeDistanceOffset);
+    lv_modifiedDistance = AbsF(lv_offsetValue);
+    lv_positionOfAlarak = UnitGetPosition(lv_alarakUnit);
+    lv_alarakUnitRadius = StringToFixed(CatalogFieldValueGet(c_gameCatalogUnit, (UnitGetType(lv_alarakUnit)), "Radius", lv_alarakPlayer));
+    lv_playerTargetPoint = PointWithOffsetPolar(lv_positionOfAlarak, lv_modifiedDistance, UnitGetFacing(lv_alarakUnit));
+    lv_actualTargetPoint = lv_playerTargetPoint;
+    while ((libNtve_gf_UnitCanCreateEffectAtPoint(lv_alarakUnit, "AlarakDeadlyChargeLaunchMissile", lv_actualTargetPoint) == false)) {
+        lv_modifiedDistance -= 0.125;
+        lv_actualTargetPoint = libNtve_gf_PointOffsetTowardsPoint(UnitGetPosition(lv_alarakUnit), lv_modifiedDistance, lv_playerTargetPoint);
+        if ((DistanceBetweenPoints(lv_positionOfAlarak, lv_actualTargetPoint) <= (lv_alarakUnitRadius + 0.125))) {
+            libNtve_gf_UIErrorMessage(libCore_gv_playerGroupFromPlayer[lv_alarakPlayer], StringExternal("Param/Value/lib_HALA_F6A6F45D"), SoundLink("UI_GenericError", -1));
+            UnitCreateEffectUnit(lv_alarakUnit, "AlarakDeadlyChargeTriggerNoPathableCancelOrder", lv_alarakUnit);
+            UnitCreateEffectUnit(lv_alarakUnit, "AlarakDeadlyCharge2ndHeroicTriggerNoPathableCancelOrder", lv_alarakUnit);
+            return ;
+        }
+
+    }
+    if ((UnitIsAlive(lv_alarakUnit) == true)) {
+        CatalogFieldValueSet(c_gameCatalogEffect, "AlarakDeadlyChargeOffsetPersistent", "InitialOffset", lv_alarakPlayer, ("0," + FixedToString((lv_modifiedDistance * -1.0), 4) + ",0"));
+        UnitCreateEffectUnit(lv_alarakUnit, "AlarakDeadlyChargeDestroyPersistent", lv_alarakUnit);
+        libHALA_gv_heroAlarakDeadlyChargeActive[lv_alarakPlayer] = false;
+    }
+
+    PlayerGroupLoopBegin(libCore_gv_activeHumanPlayers);
+    for ( ; !PlayerGroupLoopDone() ; PlayerGroupLoopStep() ) {
+        if ((libHALA_gv_heroAlarakDeadlyChargeActive[PlayerGroupLoopCurrent()] == true)) {
+            return ;
+        }
+
+    }
+    PlayerGroupLoopEnd();
+    TriggerEnable(libHALA_gt_HeroAlarakDeadlyChargeLeftClickActivate, false);
+}
+
+void libHALA_gf_HeroAlarakUpdateSadismUI (int lp_player) {
+    // Variable Declarations
+    int lv_player;
+    unit lv_alarakUnit;
+    fixed lv_sadismValue;
+    string lv_sadismString;
+
+    // Variable Initialization
+    lv_alarakUnit = libGame_gv_players[lp_player].lv_heroUnit;
+    lv_sadismString = "";
+
+    // Implementation
+    lv_sadismValue = (StringToFixed(CatalogFieldValueGet(c_gameCatalogAccumulator, "AlarakSadismAccumulator", "Scale", lp_player)) * UnitGetTokenCount(lv_alarakUnit, CatalogFieldValueGet(c_gameCatalogAccumulator, "AlarakSadismAccumulator", "TokenId", lp_player)));
+    lv_sadismValue = (lv_sadismValue + (StringToFixed(CatalogFieldValueGet(c_gameCatalogAccumulator, "AlarakSadismPureMaliceAccumulator", "Scale", lp_player)) * UnitGetTokenCount(lv_alarakUnit, CatalogFieldValueGet(c_gameCatalogAccumulator, "AlarakSadismPureMaliceAccumulator", "TokenId", lp_player))));
+    lv_sadismValue = (lv_sadismValue * 100.0);
+    if ((lv_sadismValue > 100.0)) {
+        if ((lv_sadismValue > 100.0) && (lv_sadismValue < 109.0)) {
+            DialogControlSendAnimationEvent(libHALA_gv_alarakUI.lv_sadismExtraGlowImage, libCore_gv_playerGroupFromPlayer[lp_player], "PureMaliceStack1");
+        }
+
+        if ((lv_sadismValue > 109.0) && (lv_sadismValue < 117.0)) {
+            DialogControlSendAnimationEvent(libHALA_gv_alarakUI.lv_sadismExtraGlowImage, libCore_gv_playerGroupFromPlayer[lp_player], "PureMaliceStack2");
+        }
+
+        if ((lv_sadismValue > 117.0) && (lv_sadismValue < 125.0)) {
+            DialogControlSendAnimationEvent(libHALA_gv_alarakUI.lv_sadismExtraGlowImage, libCore_gv_playerGroupFromPlayer[lp_player], "PureMaliceStack3");
+        }
+
+        if ((lv_sadismValue > 125.0) && (lv_sadismValue < 133.0)) {
+            DialogControlSendAnimationEvent(libHALA_gv_alarakUI.lv_sadismExtraGlowImage, libCore_gv_playerGroupFromPlayer[lp_player], "PureMaliceStack4");
+        }
+
+        if ((lv_sadismValue > 133.0)) {
+            DialogControlSendAnimationEvent(libHALA_gv_alarakUI.lv_sadismExtraGlowImage, libCore_gv_playerGroupFromPlayer[lp_player], "PureMaliceStack5");
+        }
+
+    }
+    else {
+        DialogControlSetVisible(libHALA_gv_alarakUI.lv_sadismExtraGlowImage, libCore_gv_playerGroupFromPlayer[lp_player], false);
+    }
+    libNtve_gf_SetDialogItemCurrentValue(libHALA_gv_alarakUI.lv_sadismProgressBar, FixedToInt(lv_sadismValue), libCore_gv_playerGroupFromPlayer[lp_player]);
+    libNtve_gf_SetDialogItemText(libHALA_gv_alarakUI.lv_sadismPercentageLabel, FixedToText(lv_sadismValue, 0), libCore_gv_playerGroupFromPlayer[lp_player]);
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Misc Mod Initialization
+//--------------------------------------------------------------------------------------------------
+bool libHALA_gt_HeroAIMiscModInitialization_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_HeroAIInitializeHeroTierData, libHALA_gt_HeroAIAddToTierDataAlarak);
+    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_HeroAIInitAbilities, libHALA_gt_HeroAIInitAbilitiesAlarak);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHALA_gt_HeroAIMiscModInitialization_Init () {
+    libHALA_gt_HeroAIMiscModInitialization = TriggerCreate("libHALA_gt_HeroAIMiscModInitialization_Func");
+    TriggerAddEventMapInit(libHALA_gt_HeroAIMiscModInitialization);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Add To Tier Data - Alarak
+//--------------------------------------------------------------------------------------------------
+bool libHALA_gt_HeroAIAddToTierDataAlarak_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libAIAI_gf_HeroAIAddHeroToTierData(libAIAI_ge_HeroAIHeroTiers_TierHigh, "Alarak");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHALA_gt_HeroAIAddToTierDataAlarak_Init () {
+    libHALA_gt_HeroAIAddToTierDataAlarak = TriggerCreate("libHALA_gt_HeroAIAddToTierDataAlarak_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Init Abilities - Alarak
+//--------------------------------------------------------------------------------------------------
+bool libHALA_gt_HeroAIInitAbilitiesAlarak_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitGetType(libCore_gv_segTriggerUnit) == "HeroAlarak")) {
+        libAIAI_gv_heroAIInitAbilitesHeroFound = true;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_hasTactical = true;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_hasMount = true;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[0] = AbilityCommand("AlarakDiscordStrike", 0);
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[0] = libAIAI_ge_HeroAISpellType_PointHeroEnemy;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[0] = 5.0;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[1] = null;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[2] = AbilityCommand("AlarakLightningSurge", 0);
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[2] = libAIAI_ge_HeroAISpellType_TargetEnemy;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[2] = 10.0;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[3] = null;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[4] = null;
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHALA_gt_HeroAIInitAbilitiesAlarak_Init () {
+    libHALA_gt_HeroAIInitAbilitiesAlarak = TriggerCreate("libHALA_gt_HeroAIInitAbilitiesAlarak_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Alarak - Deadly Charge - Cast
+//--------------------------------------------------------------------------------------------------
+bool libHALA_gt_HeroAlarakDeadlyChargeCast_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Variable Initialization
+    lv_player = UnitGetOwner(EventUnit());
+
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(libHALA_gt_HeroAlarakDeadlyChargeLeftClickActivate) == false))) {
+            return false;
+        }
+
+        if (!((lv_player <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(libHALA_gt_HeroAlarakDeadlyChargeLeftClickActivate, true);
+    libHALA_gv_heroAlarakDeadlyChargeActive[lv_player] = true;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHALA_gt_HeroAlarakDeadlyChargeCast_Init () {
+    libHALA_gt_HeroAlarakDeadlyChargeCast = TriggerCreate("libHALA_gt_HeroAlarakDeadlyChargeCast_Func");
+    TriggerEnable(libHALA_gt_HeroAlarakDeadlyChargeCast, false);
+    TriggerAddEventUnitBehaviorChange(libHALA_gt_HeroAlarakDeadlyChargeCast, null, "AlarakDeadlyChargeCaster", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Alarak - Deadly Charge - Left Click Activate
+//--------------------------------------------------------------------------------------------------
+bool libHALA_gt_HeroAlarakDeadlyChargeLeftClickActivate_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_offsetValue;
+    unit lv_unit;
+    int lv_stackCount;
+    int lv_player;
+
+    // Variable Initialization
+    lv_player = EventPlayer();
+
+    // Conditions
+    if (testConds) {
+        if (!(((UnitGetType(libGame_gv_players[lv_player].lv_heroUnit) == "HeroAlarak") || (UnitGetType(libGame_gv_players[lv_player].lv_activeVehicle) == "HeroAlarak")))) {
+            return false;
+        }
+
+        if (!(((UnitBehaviorCount(libGame_gv_players[lv_player].lv_heroUnit, "AlarakDeadlyChargeCaster") == 1) || (UnitBehaviorCount(libGame_gv_players[lv_player].lv_activeVehicle, "AlarakDeadlyChargeCaster") == 1)))) {
+            return false;
+        }
+
+        if (!(((UnitBehaviorCount(libGame_gv_players[lv_player].lv_heroUnit, "AlarakDeadlyChargeStack") >= libHALA_gv_heroAlarakDeadlyChargeMinimumCastStackCount) || (UnitBehaviorCount(libGame_gv_players[lv_player].lv_activeVehicle, "AlarakDeadlyChargeStack") >= libHALA_gv_heroAlarakDeadlyChargeMinimumCastStackCount)))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libHALA_gf_HeroAlarakDeadlyChargeActivation(lv_player);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHALA_gt_HeroAlarakDeadlyChargeLeftClickActivate_Init () {
+    libHALA_gt_HeroAlarakDeadlyChargeLeftClickActivate = TriggerCreate("libHALA_gt_HeroAlarakDeadlyChargeLeftClickActivate_Func");
+    TriggerEnable(libHALA_gt_HeroAlarakDeadlyChargeLeftClickActivate, false);
+    TriggerAddEventMouseClicked(libHALA_gt_HeroAlarakDeadlyChargeLeftClickActivate, c_playerAny, c_mouseButtonLeft, true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Alarak - Deadly Charge - Unleash Activate
+//--------------------------------------------------------------------------------------------------
+bool libHALA_gt_HeroAlarakDeadlyChargeUnleashActivate_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_offsetValue;
+    unit lv_unit;
+    int lv_stackCount;
+    int lv_player;
+
+    // Variable Initialization
+    lv_player = EventPlayerEffectUsedUnitOwner(c_effectPlayerCaster);
+
+    // Conditions
+    if (testConds) {
+        if (!(((UnitGetType(libGame_gv_players[lv_player].lv_heroUnit) == "HeroAlarak") || (UnitGetType(libGame_gv_players[lv_player].lv_activeVehicle) == "HeroAlarak")))) {
+            return false;
+        }
+
+        if (!(((UnitBehaviorCount(libGame_gv_players[lv_player].lv_heroUnit, "AlarakDeadlyChargeCaster") == 1) || (UnitBehaviorCount(libGame_gv_players[lv_player].lv_activeVehicle, "AlarakDeadlyChargeCaster") == 1)))) {
+            return false;
+        }
+
+        if (!(((UnitBehaviorCount(libGame_gv_players[lv_player].lv_heroUnit, "AlarakDeadlyChargeStack") >= libHALA_gv_heroAlarakDeadlyChargeMinimumCastStackCount) || (UnitBehaviorCount(libGame_gv_players[lv_player].lv_activeVehicle, "AlarakDeadlyChargeStack") >= libHALA_gv_heroAlarakDeadlyChargeMinimumCastStackCount)))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libHALA_gf_HeroAlarakDeadlyChargeActivation(lv_player);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHALA_gt_HeroAlarakDeadlyChargeUnleashActivate_Init () {
+    libHALA_gt_HeroAlarakDeadlyChargeUnleashActivate = TriggerCreate("libHALA_gt_HeroAlarakDeadlyChargeUnleashActivate_Func");
+    TriggerEnable(libHALA_gt_HeroAlarakDeadlyChargeUnleashActivate, false);
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakDeadlyChargeUnleashActivate, c_playerAny, "AlarakDeadlyChargeUnleashCastSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Alarak - Counter-Strike - Set Facing
+//--------------------------------------------------------------------------------------------------
+bool libHALA_gt_HeroAlarakCounterStrikeSetFacing_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libNtve_gf_MakeUnitFacePoint(EventPlayerEffectUsedUnit(c_effectUnitCaster), UnitGetPosition(EventPlayerEffectUsedUnit(c_effectUnitTarget)), 0.0);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHALA_gt_HeroAlarakCounterStrikeSetFacing_Init () {
+    libHALA_gt_HeroAlarakCounterStrikeSetFacing = TriggerCreate("libHALA_gt_HeroAlarakCounterStrikeSetFacing_Func");
+    TriggerEnable(libHALA_gt_HeroAlarakCounterStrikeSetFacing, false);
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakCounterStrikeSetFacing, c_playerAny, "AlarakCounterStrikeProcSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Alarak - Counter-Strike - Damage Response Proc
+//--------------------------------------------------------------------------------------------------
+bool libHALA_gt_HeroAlarakCounterStrikeDamageResponseProc_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_caster;
+    unit lv_target;
+
+    // Variable Initialization
+    lv_caster = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_target = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_target != null))) {
+            return false;
+        }
+
+        if (!((EventPlayerEffectUsedUnitOwner(c_effectPlayerTarget) <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitBehaviorCount(lv_caster, "AlarakCounterStrikeReady") == 0)) {
+        UnitCreateEffectUnit(lv_target, "AlarakCounterStrikeApplyReadyBehavior", lv_caster);
+        UnitGroupAdd(libHALA_gv_heroAlarakCounterStrikeUnitGroup[UnitGetOwner(lv_caster)], libGame_gv_players[UnitGetOwner(lv_target)].lv_heroUnit);
+    }
+
+    if ((PlayerHasTalent(UnitGetOwner(lv_caster), "AlarakPainReversal") == true) && (UnitGroupHasUnit(libHALA_gv_heroAlarakCounterStrikeUnitGroup[UnitGetOwner(lv_caster)], libGame_gv_players[UnitGetOwner(lv_target)].lv_heroUnit) == false)) {
+        UnitGroupAdd(libHALA_gv_heroAlarakCounterStrikeUnitGroup[UnitGetOwner(lv_caster)], libGame_gv_players[UnitGetOwner(lv_target)].lv_heroUnit);
+        UnitCreateEffectUnit(lv_target, "AlarakCounterStrikeApplyDamageStack", lv_caster);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHALA_gt_HeroAlarakCounterStrikeDamageResponseProc_Init () {
+    libHALA_gt_HeroAlarakCounterStrikeDamageResponseProc = TriggerCreate("libHALA_gt_HeroAlarakCounterStrikeDamageResponseProc_Func");
+    TriggerEnable(libHALA_gt_HeroAlarakCounterStrikeDamageResponseProc, false);
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakCounterStrikeDamageResponseProc, c_playerAny, "AlarakCounterStrikeDamageResponseDummy");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Alarak - Counter-Strike - Unit Group Reset
+//--------------------------------------------------------------------------------------------------
+bool libHALA_gt_HeroAlarakCounterStrikeUnitGroupReset_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_caster;
+
+    // Variable Initialization
+    lv_caster = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupClear(libHALA_gv_heroAlarakCounterStrikeUnitGroup[UnitGetOwner(lv_caster)]);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHALA_gt_HeroAlarakCounterStrikeUnitGroupReset_Init () {
+    libHALA_gt_HeroAlarakCounterStrikeUnitGroupReset = TriggerCreate("libHALA_gt_HeroAlarakCounterStrikeUnitGroupReset_Func");
+    TriggerEnable(libHALA_gt_HeroAlarakCounterStrikeUnitGroupReset, false);
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakCounterStrikeUnitGroupReset, c_playerAny, "AlarakCounterStrikeCastSet");
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakCounterStrikeUnitGroupReset, c_playerAny, "AlarakCounterStrikeProcPersistentFinalSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Alarak - Counter-Strike Protected On/Off
+//--------------------------------------------------------------------------------------------------
+bool libHALA_gt_HeroAlarakCounterStrikeProtectedOnOff_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+    int lv_index;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetOwner(EventUnit()) >= 1))) {
+            return false;
+        }
+
+        if (!((UnitGetOwner(EventUnit()) <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+
+        if (!((UnitTestState(EventUnit(), c_unitStateHallucination) == false))) {
+            return false;
+        }
+
+        if (!((UnitBehaviorCount(EventUnit(), "HeroGenericHasNoStatusBar") == 0))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_player = UnitGetOwner(EventUnit());
+    lv_index = libUIUI_gf_UIUnitStatusFramesGetUnitIndex(lv_player, EventUnit());
+    if ((EventUnitBehaviorChange() == c_unitBehaviorChangeActivate)) {
+        DialogControlSendAnimationEvent(libUIUI_gv_uIHeroStatusFrames[lv_player].lv_unitHealthBarInvincible[lv_index], PlayerGroupAll(), "InvincibleOn");
+        libUIUI_gv_uIHeroBehaviorStates[lv_player].lv_invincibleActive[lv_index] = true;
+    }
+    else {
+        DialogControlSendAnimationEvent(libUIUI_gv_uIHeroStatusFrames[lv_player].lv_unitHealthBarInvincible[lv_index], PlayerGroupAll(), "InvincibleOff");
+        libUIUI_gv_uIHeroBehaviorStates[lv_player].lv_invincibleActive[lv_index] = false;
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHALA_gt_HeroAlarakCounterStrikeProtectedOnOff_Init () {
+    libHALA_gt_HeroAlarakCounterStrikeProtectedOnOff = TriggerCreate("libHALA_gt_HeroAlarakCounterStrikeProtectedOnOff_Func");
+    TriggerEnable(libHALA_gt_HeroAlarakCounterStrikeProtectedOnOff, false);
+    TriggerAddEventUnitBehaviorChange(libHALA_gt_HeroAlarakCounterStrikeProtectedOnOff, null, "AlarakCounterStrikeShield", c_unitBehaviorChangeActivate);
+    TriggerAddEventUnitBehaviorChange(libHALA_gt_HeroAlarakCounterStrikeProtectedOnOff, null, "AlarakCounterStrikeShield", c_unitBehaviorChangeDeactivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Alarak - Pure Malice - Ally Death Proc
+//--------------------------------------------------------------------------------------------------
+bool libHALA_gt_HeroAlarakPureMaliceAllyDeathProc_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+    unit lv_pickedUnit;
+    int lv_deadUnitOwner;
+    point lv_deadUnitLocation;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((EventGenericName() == "HeroKilled")) {
+        lv_deadUnitOwner = libGame_gf_HeroKilledPlayer();
+        lv_deadUnitLocation = libGame_gf_HeroKilledLocation();
+    }
+    else {
+        lv_deadUnitOwner = libGame_gf_HeroAllyKilledPlayer();
+        lv_deadUnitLocation = libGame_gf_HeroAllyKilledLocation();
+    }
+    PlayerGroupLoopBegin(PlayerGroupAlliance(c_playerGroupAlly, lv_deadUnitOwner));
+    for ( ; !PlayerGroupLoopDone() ; PlayerGroupLoopStep() ) {
+        lv_player = PlayerGroupLoopCurrent();
+        if ((lv_player != lv_deadUnitOwner) && (UnitIsAlive(libGame_gv_players[lv_player].lv_heroUnit) == true) && (lv_player <= libCore_gv_bALMaxPlayers) && (UnitGetType(libGame_gv_players[lv_player].lv_heroUnit) == "HeroAlarak") && (PlayerHasTalent(lv_player, "AlarakPureMalice") == true)) {
+            lv_pickedUnit = libGame_gv_players[lv_player].lv_heroUnit;
+            if ((UnitBehaviorCount(lv_pickedUnit, "AlarakSadismPureMaliceQuestToken") < 5)) {
+                UnitCreateEffectUnit(lv_pickedUnit, "AlarakSadismPureMaliceIncrementQuestToken", lv_pickedUnit);
+            }
+
+        }
+
+    }
+    PlayerGroupLoopEnd();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHALA_gt_HeroAlarakPureMaliceAllyDeathProc_Init () {
+    libHALA_gt_HeroAlarakPureMaliceAllyDeathProc = TriggerCreate("libHALA_gt_HeroAlarakPureMaliceAllyDeathProc_Func");
+    TriggerEnable(libHALA_gt_HeroAlarakPureMaliceAllyDeathProc, false);
+    libGame_gf_HeroKilled(libHALA_gt_HeroAlarakPureMaliceAllyDeathProc);
+    libGame_gf_HeroAllyKilled(libHALA_gt_HeroAlarakPureMaliceAllyDeathProc);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Alarak - Sadism Respec Reset
+//--------------------------------------------------------------------------------------------------
+bool libHALA_gt_HeroAlarakSadismRespecReset_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Variable Initialization
+    lv_player = libGame_gf_HeroRespecsTalentsPlayer();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(libGame_gv_players[lv_player].lv_heroUnit) == "HeroAlarak"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitSetTokenCount(libGame_gv_players[lv_player].lv_heroUnit, CatalogFieldValueGet(c_gameCatalogBehavior, "AlarakSadismToken", "TokenId", c_playerAny), StringToFixed(CatalogFieldValueGet(c_gameCatalogBehavior, "AlarakSadismToken", "Max", c_playerAny)));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHALA_gt_HeroAlarakSadismRespecReset_Init () {
+    libHALA_gt_HeroAlarakSadismRespecReset = TriggerCreate("libHALA_gt_HeroAlarakSadismRespecReset_Func");
+    TriggerEnable(libHALA_gt_HeroAlarakSadismRespecReset, false);
+    libGame_gf_HeroRespecsTalents(libHALA_gt_HeroAlarakSadismRespecReset);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Alarak - Sadism Tokens Modified
+//--------------------------------------------------------------------------------------------------
+bool libHALA_gt_HeroAlarakSadismTokensModified_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Variable Initialization
+    lv_player = EventPlayerEffectUsedUnitOwner(c_effectPlayerTarget);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libHALA_gf_HeroAlarakUpdateSadismUI(lv_player);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHALA_gt_HeroAlarakSadismTokensModified_Init () {
+    libHALA_gt_HeroAlarakSadismTokensModified = TriggerCreate("libHALA_gt_HeroAlarakSadismTokensModified_Func");
+    TriggerEnable(libHALA_gt_HeroAlarakSadismTokensModified, false);
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakSadismTokensModified, c_playerAny, "AlarakSadismTokenModifiedDummy");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Alarak - Surge Actor Messages
+//--------------------------------------------------------------------------------------------------
+bool libHALA_gt_HeroAlarakSurgeActorMessages_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_unit;
+    int lv_player;
+    string lv_effectString;
+    string lv_searchNumber;
+    fixed lv_finalNumberReal;
+    string lv_finalNumberString;
+    text lv_finalNumberText;
+
+    // Variable Initialization
+    lv_unit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_player = EventPlayerEffectUsedUnitOwner(c_effectPlayerCaster);
+    lv_effectString = (EventPlayerEffectUsed());
+    lv_searchNumber = StringReplaceWord(lv_effectString, "AlarakLightningSurgeSearch", "", c_stringReplaceAll, c_stringCase);
+    lv_finalNumberReal = (StringToFixed(lv_searchNumber) * 0.12);
+    lv_finalNumberString = FixedToString(lv_finalNumberReal, 3);
+    lv_finalNumberText = StringToText(lv_finalNumberString);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_finalNumberReal = (StringToFixed(lv_searchNumber) * 0.12);
+    if ((lv_searchNumber == "1")) {
+        lv_finalNumberReal = 0.2;
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeReticule", "AnimSetTime Custom 0.200000");
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeBeam", "AnimSetTime Custom 0.200000");
+    }
+    else if ((lv_searchNumber == "2")) {
+        lv_finalNumberReal = 0.3;
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeReticule", "AnimSetTime Custom 0.300000");
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeBeam", "AnimSetTime Custom 0.300000");
+    }
+    else if ((lv_searchNumber == "3")) {
+        lv_finalNumberReal = 0.39;
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeReticule", "AnimSetTime Custom 0.390000");
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeBeam", "AnimSetTime Custom 0.390000");
+    }
+    else if ((lv_searchNumber == "4")) {
+        lv_finalNumberReal = 0.43;
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeReticule", "AnimSetTime Custom 0.430000");
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeBeam", "AnimSetTime Custom 0.430000");
+    }
+    else if ((lv_searchNumber == "5")) {
+        lv_finalNumberReal = 0.54;
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeReticule", "AnimSetTime Custom 0.540000");
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeBeam", "AnimSetTime Custom 0.540000");
+    }
+    else if ((lv_searchNumber == "6")) {
+        lv_finalNumberReal = 0.6;
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeReticule", "AnimSetTime Custom 0.600000");
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeBeam", "AnimSetTime Custom 0.600000");
+    }
+    else if ((lv_searchNumber == "7")) {
+        lv_finalNumberReal = 0.68;
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeReticule", "AnimSetTime Custom 0.680000");
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeBeam", "AnimSetTime Custom 0.680000");
+    }
+    else if ((lv_searchNumber == "8")) {
+        lv_finalNumberReal = 0.74;
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeReticule", "AnimSetTime Custom 0.740000");
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeBeam", "AnimSetTime Custom 0.740000");
+    }
+    else if ((lv_searchNumber == "9")) {
+        lv_finalNumberReal = 0.81;
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeReticule", "AnimSetTime Custom 0.810000");
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeBeam", "AnimSetTime Custom 0.810000");
+    }
+    else if ((lv_searchNumber == "10")) {
+        lv_finalNumberReal = 0.88;
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeReticule", "AnimSetTime Custom 0.880000");
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeBeam", "AnimSetTime Custom 0.880000");
+    }
+    else if ((lv_searchNumber == "11")) {
+        lv_finalNumberReal = 0.96;
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeReticule", "AnimSetTime Custom 0.960000");
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeBeam", "AnimSetTime Custom 0.960000");
+    }
+    else if ((lv_searchNumber == "12")) {
+        lv_finalNumberReal = 1.0;
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeReticule", "AnimSetTime Custom 1.000000");
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeBeam", "AnimSetTime Custom 1.000000");
+    }
+    lv_finalNumberString = FixedToString(lv_finalNumberReal, 3);
+    lv_finalNumberText = StringToText(lv_finalNumberString);
+    ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeReticule", "AnimSetPaused Custom");
+    ActorSendTo(libNtve_gf_MainActorofUnit(lv_unit), "AlarakLightningSurgeBeam", "AnimSetPaused Custom");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHALA_gt_HeroAlarakSurgeActorMessages_Init () {
+    libHALA_gt_HeroAlarakSurgeActorMessages = TriggerCreate("libHALA_gt_HeroAlarakSurgeActorMessages_Func");
+    TriggerEnable(libHALA_gt_HeroAlarakSurgeActorMessages, false);
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakSurgeActorMessages, c_playerAny, "AlarakLightningSurgeSearch1");
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakSurgeActorMessages, c_playerAny, "AlarakLightningSurgeSearch2");
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakSurgeActorMessages, c_playerAny, "AlarakLightningSurgeSearch3");
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakSurgeActorMessages, c_playerAny, "AlarakLightningSurgeSearch4");
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakSurgeActorMessages, c_playerAny, "AlarakLightningSurgeSearch5");
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakSurgeActorMessages, c_playerAny, "AlarakLightningSurgeSearch6");
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakSurgeActorMessages, c_playerAny, "AlarakLightningSurgeSearch7");
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakSurgeActorMessages, c_playerAny, "AlarakLightningSurgeSearch8");
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakSurgeActorMessages, c_playerAny, "AlarakLightningSurgeSearch9");
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakSurgeActorMessages, c_playerAny, "AlarakLightningSurgeSearch10");
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakSurgeActorMessages, c_playerAny, "AlarakLightningSurgeSearch11");
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakSurgeActorMessages, c_playerAny, "AlarakLightningSurgeSearch12");
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakSurgeActorMessages, c_playerAny, "AlarakLightningSurgeSearch13");
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakSurgeActorMessages, c_playerAny, "AlarakLightningSurgeSearch14");
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakSurgeActorMessages, c_playerAny, "AlarakLightningSurgeSearch15");
+    TriggerAddEventPlayerEffectUsed(libHALA_gt_HeroAlarakSurgeActorMessages, c_playerAny, "AlarakLightningSurgeSearch16");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Alarak - UI Initialize
+//--------------------------------------------------------------------------------------------------
+bool libHALA_gt_HeroAlarakUIInitialize_Func (bool testConds, bool runActions) {
+    int init_i;
+
+    // Variable Declarations
+    int[6] lv_panels;
+    int lv_currentPanelLayer;
+
+    // Variable Initialization
+    for (init_i = 0; init_i <= 5; init_i += 1) {
+        lv_panels[init_i] = c_invalidDialogControlId;
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    DialogControlHookup(libUIUI_gv_heroSpecificStatusContainer, c_triggerControlTypePanel, "AlarakFrame");
+    libHALA_gv_alarakUI.lv_mainPanel = DialogControlLastCreated();
+    lv_currentPanelLayer += 1;
+    lv_panels[lv_currentPanelLayer] = DialogControlLastCreated();
+    DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeProgressBar, "UnitStatusFrame0/AlarakSadismProgressBar");
+    libHALA_gv_alarakUI.lv_sadismProgressBar = DialogControlLastCreated();
+    DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeLabel, "UnitStatusFrame0/SadismLabel");
+    libHALA_gv_alarakUI.lv_sadismPercentageLabel = DialogControlLastCreated();
+    DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeImage, "UnitStatusFrame0/ExtraGlowImage");
+    libHALA_gv_alarakUI.lv_sadismExtraGlowImage = DialogControlLastCreated();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHALA_gt_HeroAlarakUIInitialize_Init () {
+    libHALA_gt_HeroAlarakUIInitialize = TriggerCreate("libHALA_gt_HeroAlarakUIInitialize_Func");
+    libCore_gf_IncludeModInitialization(libHALA_gt_HeroAlarakUIInitialize);
+}
+
+void libHALA_InitTriggers () {
+    libHALA_gt_HeroAIMiscModInitialization_Init();
+    libHALA_gt_HeroAIAddToTierDataAlarak_Init();
+    libHALA_gt_HeroAIInitAbilitiesAlarak_Init();
+    libHALA_gt_HeroAlarakDeadlyChargeCast_Init();
+    libHALA_gt_HeroAlarakDeadlyChargeLeftClickActivate_Init();
+    libHALA_gt_HeroAlarakDeadlyChargeUnleashActivate_Init();
+    libHALA_gt_HeroAlarakCounterStrikeSetFacing_Init();
+    libHALA_gt_HeroAlarakCounterStrikeDamageResponseProc_Init();
+    libHALA_gt_HeroAlarakCounterStrikeUnitGroupReset_Init();
+    libHALA_gt_HeroAlarakCounterStrikeProtectedOnOff_Init();
+    libHALA_gt_HeroAlarakPureMaliceAllyDeathProc_Init();
+    libHALA_gt_HeroAlarakSadismRespecReset_Init();
+    libHALA_gt_HeroAlarakSadismTokensModified_Init();
+    libHALA_gt_HeroAlarakSurgeActorMessages_Init();
+    libHALA_gt_HeroAlarakUIInitialize_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libHALA_InitLib_completed = false;
+
+void libHALA_InitLib () {
+    if (libHALA_InitLib_completed) {
+        return;
+    }
+
+    libHALA_InitLib_completed = true;
+
+    libHALA_InitLibraries();
+    libHALA_InitVariables();
+    libHALA_InitCustomScript();
+    libHALA_InitTriggers();
+}
+

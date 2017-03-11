@@ -1,0 +1,260 @@
+//---------------------------------------------------------------------------------------------
+// Monk Tactical
+//---------------------------------------------------------------------------------------------
+const string c_AB_MonkDash                  = "MonkRadiantDash";
+const string c_AB_MonkBreathOfHeaven        = "MonkBreathOfHeaven";
+const string c_AB_MonkDeadlyReach           = "MonkDeadlyReach";
+const string c_AB_MonkSevenSidedStrike      = "MonkSevenSidedStrike";
+const string c_AB_MonkDivinePalm            = "MonkDivinePalm";
+
+//---------------------------------------------------------------------------------------------
+bool MonkDash (int player, unit aiUnit, unitgroup scanGroup) {
+    // single target, can be enemy or ally
+    fixed life;
+    order spellOrd = StormHeroAICreateOrder(player, c_AB_MonkDash, 0);
+    order attackOrd;
+    unit targetHero;
+    point ourPosition;
+    region r;
+    point retreatPosition;
+    unitgroup nearbyAllies;
+    int allyCount;    
+    unit unitToCheck;
+    point unitPosition;
+    fixed distance;
+    fixed bestDistance;
+    unitgroup targets;
+    Storm_AI_TargetQueryOptions query;
+
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    life = UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent);
+
+    if (life > libAIAI_gv_aIHeroes[player].lv_startOffensiveHealth && !HaveBeenAttackedRecently(aiUnit)) {
+        // We are healthy enough for an attack.
+        // Check whether we currently have a valid target close by.
+        query.lv_maxDistance = 3.0;
+        query.lv_maxHealthPercent = libAIAI_gv_aIHeroMediumHealthPercent;
+        targets = FilterBadHeroTargets(UnitGroupFilterHeroes(scanGroup), player);
+        targetHero = FindBestUnit(targets, scanGroup, aiUnit, query);
+        if (UnitIsAlive(targetHero)) {
+            return false;
+        }
+        // Target an enemy that is not right near by and has low health and is safe to jump to them to finish them off
+        query.lv_minDistance = 3.0;
+        query.lv_maxDistance = 9.0;
+        query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+        query.lv_ignoreTargetsBehindGate = true;
+        targetHero = FindBestUnit(targets, scanGroup, aiUnit, query);
+        if (!UnitIsAlive(targetHero)) {
+            return false;
+        }
+        attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+        if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+            attackOrd = null;
+        }
+        if (HeroIssueOrder(player, aiUnit, spellOrd, attackOrd, c_orderQueueReplace, targetHero, null)) {
+            HeroClaimForTactical(player, 1.0, true);
+            return true;
+        }
+        return false;
+    }
+    else if (HaveBeenAttackedRecently(aiUnit) && life < libAIAI_gv_aIHeroes[player].lv_endOffensiveHealth) {
+        // We are taking damage, so jump to a high health player that is closer to our retreat position than us.
+        // The retreat position is the spawnpoint, unless we are underworld, in which case it is the closest exit point.
+        retreatPosition = libGame_gv_players[player].lv_spawnPoint;
+        if (libAIAI_gf_HeroAIIsUnitInUnderworld(aiUnit)) {
+            if (UnitIsValid(libAIAI_gv_aIHeroes[player].lv_curTargetUnderworldExit)) {
+                retreatPosition = UnitGetPosition(libAIAI_gv_aIHeroes[player].lv_curTargetUnderworldExit);
+            }
+            else {
+                return false;
+            }
+        }
+        ourPosition = UnitGetPosition(aiUnit);
+        r = RegionCircle(ourPosition, 9.0); // get targets within the range of Dash.
+        nearbyAllies = UnitGroupAlliance(player, c_unitAllianceAlly, r, null, c_noMaxCount);
+        nearbyAllies = UnitGroupFilterHeroes(nearbyAllies);
+        allyCount = UnitGroupCount(nearbyAllies, c_unitCountAll);
+        // we want to find an ally that is closer to our retreat position than us by at least 2 units.
+        bestDistance = DistanceBetweenPoints(ourPosition, retreatPosition) - 2.0;
+        targetHero = null;
+        while (allyCount > 0) {
+            unitToCheck = UnitGroupUnit(nearbyAllies, allyCount);
+            allyCount = allyCount - 1;
+            unitPosition = UnitGetPosition(unitToCheck);
+            // The target must be at least 3 units from us, because it is not worth jumping such a short distance.
+            if (DistanceSquaredBetweenPoints(ourPosition, unitPosition) > 3.0 * 3.0) {
+                // The target must be closer than our best distance to the retreat position.
+                distance = DistanceBetweenPoints(unitPosition, retreatPosition);
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    targetHero = unitToCheck;
+                }
+            }
+        }
+        if (!UnitIsValid(targetHero)) {
+            return false;
+        }
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueReplace, targetHero, null);
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+bool MonkBreathOfHeaven (int player, unit aiUnit, unitgroup scanGroup) {
+    // heals monk and surrounding heroes
+    fixed life;
+    order spellOrd = StormHeroAICreateOrder(player, c_AB_MonkBreathOfHeaven, 0);
+
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+  
+    life = UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent);
+
+    // Cast if we are badly injured
+    if (life < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth
+    || (life < libAIAI_gv_aIHeroes[player].lv_startOffensiveHealth
+    &&  UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent) > libAIAI_gv_aIHeroMediumEnergyPercent)) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+
+    // Cast if it will heal enough health from us and allies around us
+    if (GetTotalLifeHealInBlast(player, aiUnit, 5.5, 700) > 1300) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+bool MonkDeadlyReach (int player, unit aiUnit, unitgroup scanGroup) {
+    // buff to attacks
+    order spellOrd;
+    unit targetUnit;
+   
+    spellOrd = StormHeroAICreateOrder(player, c_AB_MonkDeadlyReach, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // as long as there is a target enemy nearby, we should buff ourselves
+    if (!AnyEnemiesInArea(scanGroup, UnitGetPosition(aiUnit), 4.0)) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool MonkSevenSidedStrike (int player, unit aiUnit, unitgroup scanGroup) {
+    // deals a lot of damage to an enemy player
+    fixed life = UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent);
+    order spellOrd;
+    order attackOrd;
+    unit targetHero;
+    Storm_AI_TargetQueryOptions query;
+
+    if (life < libAIAI_gv_aIHeroes[player].lv_startOffensiveHealth) {
+        return false;
+    }
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_MonkSevenSidedStrike, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+  
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        attackOrd = null;
+    }
+
+    // Cast on enemy hero
+    query.lv_maxDistance = 6.0;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_maxHealthPercent = 70.0;
+    targetHero = FindBestHero(scanGroup, aiUnit, query);
+
+    if (!UnitIsValid(targetHero)) {
+        return false;
+    }
+
+    // to make the secondary attack valid we need to set its target here because we pass a null target into the main order
+    OrderSetTargetUnit(attackOrd, targetHero);
+    return HeroIssueOrder(player, aiUnit, spellOrd, attackOrd, c_orderQueueReplace, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool MonkDivinePalm (int player, unit aiUnit, unitgroup scanGroup) {
+    // saves an ally about to die
+    order spellOrd;
+    unit targetHero;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_MonkDivinePalm, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    if ( UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) > 15){
+        // Cast on an ally hero about to die
+        targetHero = FindWeakestNearbyAllyHero(player, aiUnit, 4.5, 15.0, -1, false);
+        if (!UnitIsValid(targetHero)) {
+            return false;
+        }
+    }
+    else
+    {
+        targetHero = aiUnit;
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, targetHero, null);
+}
+
+
+//---------------------------------------------------------------------------------------------
+void AIThinkMonk (int player, unit aiUnit, unitgroup scanGroup) {
+
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (UseDefensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (MonkDash(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (MonkBreathOfHeaven(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && MonkSevenSidedStrike(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && MonkDivinePalm(player, aiUnit, scanGroup)) {
+        return;
+    }
+    
+    if (UseOffensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    // Deadly reach is prioritised low because it is so easy to use and has a fast cooldown. This gives other abilities a chance to be used.
+    if (MonkDeadlyReach(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+}

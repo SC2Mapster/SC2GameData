@@ -1,0 +1,282 @@
+//---------------------------------------------------------------------------------------------
+// Azmodan Tactical
+//---------------------------------------------------------------------------------------------
+const string c_AB_AzmodanGlobeOfAnnihilation        = "AzmodanGlobeOfAnnihilation";
+const string c_AB_AzmodanSummonDemonWarrior                = "AzmodanSummonDemonWarrior";
+const string c_AB_AzmodanGeneralOfHell              = "AzmodanGeneralOfHell";
+const string c_AB_AzmodanAllShallBurn               = "AzmodanAllShallBurn";
+const string c_AB_AzmodanBlackPool                  = "AzmodanBlackPool";
+const string c_AB_AzmodanDemonicInvasion                 = "AzmodanDemonicInvasion";
+
+//---------------------------------------------------------------------------------------------
+bool AzmodanGlobeOfAnnihilation (int player, unit aiUnit, unitgroup scanGroup) {
+    // AOE damage to all enemies in a radius
+    order spellOrd;
+    unitgroup nearbyEnemies;
+    point center;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    unit targetEnemy;
+    fixed minEnemyEval;
+    fixed minHeroEval;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_AzmodanGlobeOfAnnihilation, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Cast on a weak enemy hero
+    
+    query.lv_maxDistance = 15.0;
+    query.lv_maxHealthPercent = 50;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    
+    if (UnitIsValid(targetEnemy)) {
+        return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+    }
+
+    // Cast if there is a large number of enemies
+    if (energy > libAIAI_gv_aIHeroHighEnergyPercent) {
+        minEnemyEval = 3;
+    }
+    else if (energy > libAIAI_gv_aIHeroLowEnergyPercent) {
+        minEnemyEval = 5;
+    }
+    else {
+        minEnemyEval = 7;
+    }
+
+    minHeroEval = (minEnemyEval/3);
+    // Target minion instead
+    nearbyEnemies = UnitsInArea(scanGroup, UnitGetPosition(aiUnit), 15.0);
+    center = UnitGroupCenterOfGroup(nearbyEnemies);
+
+  
+    if (!EnoughEnemiesInArea(nearbyEnemies, center, 4.0, minHeroEval, minEnemyEval, minEnemyEval)) {
+        return false;
+    }
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, center);
+}
+
+//---------------------------------------------------------------------------------------------
+bool AzmodanSummonDemonWarrior (int player, unit aiUnit, unitgroup scanGroup) {
+    // Summon Demon Warrior that moves towards target location
+    order spellOrd;
+    fixed minEnemyEval;
+    fixed minHeroEval;
+    unit targetEnemy;
+    unitgroup nearbyEnemies;
+    point center;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_AzmodanSummonDemonWarrior, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Cast on a weak enemy hero
+    
+    query.lv_maxDistance = 5.0;
+    query.lv_maxHealthPercent = 40;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (UnitIsValid(targetEnemy)) {
+        return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+    }
+
+    // Cast if there is a large number of enemies
+    if (energy > libAIAI_gv_aIHeroHighEnergyPercent) {
+        minEnemyEval = 2;
+    }
+    else if (energy > libAIAI_gv_aIHeroLowEnergyPercent) {
+        minEnemyEval = 3;
+    }
+    else {
+        minEnemyEval = 5;
+    }
+    minHeroEval = (minEnemyEval/3);
+    nearbyEnemies = UnitsInArea(scanGroup, UnitGetPosition(aiUnit), 7.0);
+    center = UnitGroupCenterOfGroup(nearbyEnemies);
+
+    if (!EnoughEnemiesInArea(nearbyEnemies, center, 4.0, minHeroEval, minEnemyEval, minEnemyEval)) {
+        return false;
+    }
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, center);
+}
+
+//---------------------------------------------------------------------------------------------
+bool AzmodanGeneralOfHell (int player, unit aiUnit, unitgroup scanGroup) {
+    // Summon Demon Warrior as companion to target
+    order spellOrd;
+    unitgroup nearbyAllies;
+    unit targetAlly;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_AzmodanGeneralOfHell, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    nearbyAllies = AllyUnitsInArea(player, UnitGetPosition(aiUnit), 7.0);
+    targetAlly = FindClosestWeakMinion(nearbyAllies, aiUnit, 0.0, 5.0, 100.0, -1, -1, c_Storm_AI_LOS_Optional);
+    if (!UnitIsValid(targetAlly)) {
+        return false;
+    }
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, targetAlly, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool AzmodanAllShallBurn (int player, unit aiUnit, unitgroup scanGroup) {
+    // Targetted shot that does continuous damage to target
+    order spellOrd;
+    unit targetEnemy;
+    fixed energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_AzmodanAllShallBurn, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Cast on a weak enemy hero
+    query.lv_maxDistance = 10.0;
+    query.lv_maxHealthPercent = 40;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    
+    if (UnitIsValid(targetEnemy)) {
+        return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, targetEnemy, null);
+    }
+
+    // Cast on tower if enough energy
+    if (energy < libAIAI_gv_aIHeroLowEnergyPercent) {
+        return false;
+    }
+    targetEnemy = FindClosestWeakTowerOrCore(scanGroup, player, aiUnit, 0.0, 8.0, 100.0, -1, -1, c_Storm_AI_LOS_Optional);
+    if (UnitIsValid(targetEnemy)) {
+        return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, targetEnemy, null);
+    }
+
+    // Cast on minions if enough energy
+    if (energy < libAIAI_gv_aIHeroHighEnergyPercent) {
+        return false;
+    }
+        query.lv_maxHealthPercent = 100;
+        targetEnemy = FindBestTacticalTarget(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        return false;
+    }
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, targetEnemy, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool AzmodanBlackPool (int player, unit aiUnit, unitgroup scanGroup) {
+    // Creates a pool that buffs Azmodan, his demons, and allied minions
+    order spellOrd;
+    unitgroup nearbyAllies;
+    int allyCount;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_AzmodanBlackPool, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Only Cast if there is a team fight nearby
+    if (!TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), 15.0) && !EnoughEnemiesInArea(scanGroup, UnitGetPosition(aiUnit), 8.0, c_Storm_AI_AtLeast2Heroes, c_Storm_AI_AtLeast2Creeps, c_Storm_AI_AtLeast8Minions)) {
+        return false;
+    }
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(aiUnit));
+}
+
+//---------------------------------------------------------------------------------------------
+bool AzmodanDemonicInvasion (int player, unit aiUnit, unitgroup scanGroup) {
+    // AOE damage at target location and also summons minions in a radius
+    order spellOrd;
+    unit target;
+    point targetPosition;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_AzmodanDemonicInvasion, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Activate if there is a team fight
+    if (RequiredAllyPlayerCountInArea(2, player, UnitGetPosition(aiUnit), 10.0)) {
+        return false;
+    }
+
+    // center it on the most vulnerable enemy hero
+    query.lv_maxDistance = 20.0;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_minScore = c_Storm_AI_FullHeroScore;
+    target = FindBestHero(scanGroup, aiUnit, query);
+    if (target == null) {
+        return false;
+    }
+
+    // make sure there are enough enemy heroes hit by it.
+    targetPosition = UnitGetPosition(target);
+    
+    if (!EnoughEnemiesInArea(scanGroup, targetPosition, 5.5, c_Storm_AI_AtLeast2Heroes, c_Storm_AI_AtLeast4Creeps, c_Storm_AI_AtLeast8Minions)) {
+        return false;
+    }
+
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, targetPosition);
+}
+
+//---------------------------------------------------------------------------------------------
+void AIThinkAzmodan (int player, unit aiUnit, unitgroup scanGroup) {
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (UseDefensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (AzmodanGlobeOfAnnihilation(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (AzmodanSummonDemonWarrior(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (AzmodanGeneralOfHell(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (AzmodanAllShallBurn(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && AzmodanBlackPool(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && AzmodanDemonicInvasion(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (UseOffensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+}

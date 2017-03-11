@@ -1,0 +1,274 @@
+//---------------------------------------------------------------------------------------------
+// Wizard Tactical
+//---------------------------------------------------------------------------------------------
+
+// Abilities
+const string c_AB_SpectralScythe = "NecromancerSpectralScythe";
+const string c_AB_RaisedMage = "NecromancerRaisedMage";
+const string c_BoneSpear = "NecromancerBoneSpear";
+const string c_AB_BonePrison = "NecromancerBonePrison";
+const string c_AB_PoisonNova = "NecromancerPoisonNovaInstant";
+const string c_AB_SkeletalMages = "NecromancerSkeletalMages";
+const string c_AB_CursedStrikes = "NecromancerCursedStrikes";
+
+
+const fixed c_SpectralScytheRange = 8.0;
+const fixed c_CursedStrikesRange  = 5.0;
+const fixed c_BonePrisonRange     = 3.0;
+const fixed c_SkeletalMageRange   = 12.0;
+const fixed c_PoisonNovaRange     = 16.0;
+const fixed c_BoneSpearRange      = 12.0;
+const fixed c_PoisonNovaInitRange = 6.0;
+// Skeletal Mage radius is purposely less than the real number to guarantee good hits
+const fixed c_SkeletalMageRadius = 4.0;
+
+
+const fixed c_PoisonNovaCastTime = .5;
+
+const string c_BoneArmorItem = "NecromancerTalentBoneArmorItem";
+
+//-------------------------------------------------------------------------------------------------
+bool NecromancerSpectralScythe (int player, unit aiUnit, unitgroup scanGroup) {
+    order spellOrd;
+    Storm_AI_TargetQueryOptions query;
+    unit potentialTarget;
+    point checkPoint;
+    fixed percentMana;
+    fixed careForMinions;
+    fixed careForCreeps;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_SpectralScythe, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    percentMana = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    // Scale the search terms based on our mana.
+    if (percentMana > libAIAI_gv_aIHeroMediumEnergyPercent) {
+        query.lv_maxHealthPercent = libAIAI_gv_aIHeroHighHealthPercent;
+        careForCreeps = c_Storm_AI_AtLeast1Creep;
+        careForMinions = c_Storm_AI_AtLeast2Minions;
+    }
+    else if (percentMana > libAIAI_gv_aIHeroLowEnergyPercent) {
+        query.lv_maxHealthPercent = libAIAI_gv_aIHeroMediumHealthPercent;
+        careForCreeps = c_Storm_AI_AtLeast2Creeps;
+        careForMinions = c_Storm_AI_AtLeast3Minions;
+    }
+    else {
+        query.lv_maxHealthPercent = libAIAI_gv_aIHeroLowHealthPercent;
+        careForCreeps = 0.0;
+        careForMinions = 0.0;
+    }
+    
+    query.lv_maxDistance = c_SpectralScytheRange;
+    potentialTarget = FindBestHero(scanGroup, aiUnit, query);
+
+    if (UnitIsValid(potentialTarget)) {
+        // Get the mid point
+        checkPoint = MovePointTowardsPoint(UnitGetPosition(potentialTarget), UnitGetPosition(aiUnit), .5);
+
+        if (EnoughEnemiesInArea(scanGroup, checkPoint, 1.5, c_Storm_AI_AtLeast1Hero, careForCreeps, careForMinions)) {
+            // Casting it at checkpoint is fine here since it will always max range itself
+            return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, checkPoint);
+        }
+    }
+
+    if (EnoughEnemiesInArea(scanGroup, UnitGetPosition(aiUnit), c_SpectralScytheRange, c_Storm_AI_AtLeast1Hero, careForCreeps, careForMinions)) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGroupCenterOfGroup(scanGroup));
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool NecromancerCursedStrikes (int player, unit aiUnit, unitgroup scanGroup) {
+    order spellOrd;
+    Storm_AI_TargetQueryOptions query;
+    unit potentialTarget;
+    fixed careForCreeps;
+    fixed careForMinions;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_CursedStrikes, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    if (UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent) > libAIAI_gv_aIHeroLowEnergyPercent) {
+        careForCreeps = c_Storm_AI_AtLeast2Creeps;
+        careForMinions = c_Storm_AI_AtLeast3Minions;
+    }
+    else {
+        careForCreeps = 0.0;
+        careForMinions = 0.0;
+    }
+
+    if (EnoughEnemiesInArea(scanGroup, UnitGetPosition(aiUnit), c_CursedStrikesRange, c_Storm_AI_AtLeast2Heroes, careForCreeps, careForMinions)) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool NecromancerBonePrison (int player, unit aiUnit, unitgroup scanGroup) {
+    order spellOrd;
+    Storm_AI_TargetQueryOptions query;
+    unit potentialTarget;
+    fixed percentMana;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_BonePrison, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    percentMana = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+
+    if (percentMana > libAIAI_gv_aIHeroMediumEnergyPercent) {
+        query.lv_maxHealthPercent = libAIAI_gv_aIHeroHighHealthPercent;
+    }
+    else if (percentMana > libAIAI_gv_aIHeroLowEnergyPercent) {
+        query.lv_maxHealthPercent = libAIAI_gv_aIHeroMediumHealthPercent;
+    }
+    else {
+        query.lv_maxHealthPercent = libAIAI_gv_aIHeroLowHealthPercent;
+    }
+
+
+    query.lv_maxDistance = c_BonePrisonRange;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    potentialTarget = FindBestHero(scanGroup, aiUnit, query);
+
+    if (UnitIsValid(potentialTarget)) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, potentialTarget, null);
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool NecromancerPoisonNova (int player, unit aiUnit, unitgroup scanGroup) {
+    order spellOrd;
+    Storm_AI_TargetQueryOptions query;
+    unit potentialTarget;
+    fixed percentMana;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_PoisonNova, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Init range is lower because it gives better, more optimal abil usage.
+    if (RequiredEnemyPlayerCountInArea(2, scanGroup, UnitGetPosition(aiUnit), c_PoisonNovaInitRange)) {
+        HeroClaimForTactical(player, c_PoisonNovaCastTime, false);
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueReplace, null, null);
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool NecromancerSkeletalMages (int player, unit aiUnit, unitgroup scanGroup) {
+    order spellOrd;
+    Storm_AI_TargetQueryOptions query;
+    unit potentialTarget;
+    point position;
+    unitgroup heroes;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_SkeletalMages, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    heroes = UnitGroupFilterHeroes(scanGroup);
+
+    if (UnitGroupCount(heroes, c_unitCountAll) > 2) {
+        position = UnitGroupCenterOfGroup(scanGroup);
+        if (RequiredEnemyPlayerCountInArea(2, scanGroup, position, c_SkeletalMageRadius)) {
+            return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueReplace, null, position);
+        }
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool NecromancerDefensiveItemCallback (int player, unit aiUnit, unitgroup scanGroup, string itemType, order ord, order ordTarget, order ordTogOn, order ordTogOff) {
+
+    if (itemType == c_BoneArmorItem) {
+        // If we have been attacked recently && there are enemies, since we don't want to
+        // cast a shield if no one is around.
+        if (HaveBeenAttackedRecently(aiUnit) 
+         && RequiredEnemyPlayerCountInArea(1, scanGroup, UnitGetPosition(aiUnit), 4.0)) {
+            UnitIssueOrder(aiUnit, ord, c_orderQueueAddToFront);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool NecromancerOffensiveItemCallback (int player, unit aiUnit, unitgroup scanGroup, string itemType, order ord, order ordTarget, order ordTogOn, order ordTogOff) {
+    order spellOrd;
+    Storm_AI_TargetQueryOptions query;
+    unit potentialTarget;
+    fixed percentMana;
+
+    if (itemType == c_BoneSpear) {
+        query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+        query.lv_maxDistance = c_BoneSpearRange;
+        query.lv_lineOfSightRequired = true;
+        potentialTarget = FindBestHero(scanGroup, aiUnit, query);
+
+        if (UnitIsValid(potentialTarget)) {
+            return HeroIssueOrder(player, aiUnit, ordTarget, null, c_orderQueueAddToFront, null, UnitGetPosition(potentialTarget));
+        }
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+void AIThinkNecromancer (int player, unit aiUnit, unitgroup scanGroup) {
+
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (UseItem(player, aiUnit, scanGroup, NecromancerDefensiveItemCallback)) {
+        return;
+    }
+
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+
+    // Bone prison is first to guarantee we snare someone if we can.
+    if (NecromancerBonePrison(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (NecromancerCursedStrikes(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (NecromancerSpectralScythe(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && NecromancerPoisonNova(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player) && NecromancerSkeletalMages(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (UseItem(player, aiUnit, scanGroup, NecromancerOffensiveItemCallback)) {
+        return;
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+}

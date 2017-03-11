@@ -1,0 +1,407 @@
+//---------------------------------------------------------------------------------------------
+// Medivh Tactical
+//---------------------------------------------------------------------------------------------
+
+// Abilities
+const string c_AB_ArcaneRift = "MedivhArcaneRift";
+const string c_AB_ForceOfWill = "MedivhForceOfWill";
+const string c_AB_PortalInstant = "MedivhPortalInstant";
+const string c_AB_PortalInitial = "MedivhPortal1";
+const string c_AB_PortalFinal = "MedivhPortal2";
+const string c_AB_PortalCancel = "MedivhPortalCancel";
+const string c_AB_PolyBomb = "MedivhPolyBomb";
+const string c_AB_LeyLineSeal = "MedivhLeyLineSeal";
+const string c_AB_MedivhCheats = "MedivhLeyLineSealMedivhCheats";
+const string c_AB_TransformRavenBirdsEyeView = "MedivhTransformRavenBirdsEyeViewItem";
+const string c_AB_DustOfAppearance = "MedivhDustOfAppearanceItem";
+const string c_AB_Invisibility = "MedivhInvisibilityItem";
+const string c_AB_ArcaneBrilliance = "MedivhArcaneBrillianceItem";
+const string c_AB_TransformRaven = "MedivhTransformRaven";
+const string c_AB_TransformRavenLand = "MedivhTransformRavenLand";
+const string c_AB_TransformRavenFountain = "MedivhTransformRavenFountain";
+
+
+// Radii
+const fixed c_ArcaneRiftRange = 10.0;
+const fixed c_ArcaneRiftRadius = 1.15;
+const fixed c_ForceOfWillRange = 13.0;
+const fixed c_PortalMaxRange = 16.0;
+const fixed c_SquaredPortalMaxRange = 256.0;
+const fixed c_SquaredPortalDeadZone = 64.0;
+const fixed c_PortalDeadZone = 8.0;
+const fixed c_PolyBombRange = 10.0;
+const fixed c_PolyBombRadius = 3.5;
+// Lowered Leyline Seal range because we wont ever hit anyone at 30.
+const fixed c_LeyLineSealRange = 18.0;
+const fixed c_MedivhCheatsRange = 15.0;
+const fixed c_InvisibilityRange = 9.0;
+const fixed c_RavenDangerDistance = 12.0;
+
+
+// Timers
+const fixed c_RavenTacticalTime = 2.0;
+
+// Behaviors and talents
+const string c_PortalPortalMastery = "MedivhPortalPortalMastery";
+const string c_PortalMarkerCarryBehavior = "MedivhPortalMarkerCarry";
+
+int[libCore_gv_bALMaxPlayers + 1] g_portalActiveThinkCount;
+int[libCore_gv_bALMaxPlayers + 1] g_ravenIdleThinkCount;
+ 
+point[libCore_gv_bALMaxPlayers + 1] g_medivhRavenIdlePoint;
+
+//---------------------------------------------------------------------------------------------
+bool MedivhItemCallback (int player, unit aiUnit, unitgroup scanGroup, string itemType, order ord, order ordTarget, order ordTogOn, order ordTogOff) {
+    region r;
+    point pos;
+    unit savedUnit;
+    bool isInShrub;
+
+    if (itemType == c_AB_DustOfAppearance) {
+        pos = UnitGetPosition(aiUnit);
+
+        isInShrub = InShrub(pos);
+
+        // If not in a shrub, calculate lane distance.
+        if (!isInShrub) {
+            libGame_gf_CalculateClosestLaneData(pos);
+        }
+
+        // Use is in shrub again to avoid going to the array.
+        if (isInShrub
+         || libGame_gv_closestLaneData.lv_laneData[libGame_gv_closestLaneData.lv_closestLane].lv_closestDist >= c_RavenDangerDistance) {
+            r = RegionCircle(pos, 15.0);
+
+            return HeroIssueOrder(player, aiUnit, ordTarget, null, c_orderQueueAddToFront, null, pos);
+        }
+    }
+    else if (itemType == c_AB_Invisibility) {
+        savedUnit = FindBestHealTarget(player, aiUnit, c_ForceOfWillRange, false, true);
+        if (UnitIsValid(savedUnit)
+         && HaveBeenAttackedRecently(savedUnit)
+         && UnitGetPropertyFixed(savedUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroLowHealthPercent) {
+            return HeroIssueOrder(player, aiUnit, ordTarget, null, c_orderQueueAddToFront, savedUnit, null);
+        }
+    }
+    else if (itemType == c_AB_ArcaneBrilliance) {
+        if (UnitGroupCount(AllyHeroUnitsInArea(player, UnitGetPosition(aiUnit), c_PortalDeadZone), c_unitCountAll) > 2
+         && TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), 12)) {
+            return HeroIssueOrder(player, aiUnit, ord, null, c_orderQueueAddToFront, null, null);
+        }
+    }
+    else if (itemType == c_AB_TransformRavenBirdsEyeView) {
+        if ((libGame_gv_players[player].lv_faction == libGame_ge_Faction_Order)) {
+            r = libCore_gv_mAPOrderBaseRegion;
+        }
+        else {
+            r = libCore_gv_mAPChaosBaseRegion;
+        }
+
+        if (!RegionContainsPoint(r, UnitGetPosition(aiUnit))) {
+            return HeroIssueOrder(player, aiUnit, ord, null, c_orderQueueAddToFront, null, null);
+        }
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool MedivhArcaneRift (int player, unit aiUnit, unitgroup scanGroup) {
+    order spellOrd;
+    Storm_AI_TargetQueryOptions query;
+    fixed percentMana;
+    unit potentialTarget;
+    point targetPos;
+    fixed reqHeroCount;
+    fixed reqNonHeroCount;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_ArcaneRift, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    percentMana = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+
+    query.lv_maxDistance = c_ArcaneRiftRange;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_lineOfSightRequired = false;
+
+    if (percentMana <= libAIAI_gv_aIHeroLowEnergyPercent) {
+        query.lv_maxHealthPercent = libAIAI_gv_aIHeroMediumHealthPercent;
+        reqNonHeroCount = 0;
+        reqHeroCount = 2;
+        potentialTarget = FindBestTacticalTarget(scanGroup, aiUnit, query);
+    }
+    else {
+        reqNonHeroCount = 3;
+        reqHeroCount = 1;
+        potentialTarget = FindBestTacticalTarget(scanGroup, aiUnit, query);
+    }
+
+    if (potentialTarget == null) {
+        return false;
+    }
+
+    targetPos = UnitGetPosition(potentialTarget);
+    if (!EnoughEnemiesInArea(scanGroup, targetPos, c_ArcaneRiftRadius, reqHeroCount, 1, reqNonHeroCount)) {
+        // try towers if we have the mana
+        if (percentMana <= libAIAI_gv_aIHeroLowEnergyPercent) {
+            return false;
+        }
+
+        potentialTarget = FindClosestWeakTowerOrCore(scanGroup, player, aiUnit, 0.0, c_ArcaneRiftRange, 100, -1, -1, false);
+        if (potentialTarget == null) {
+            return false;
+        }
+        targetPos = UnitGetPosition(potentialTarget);
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, targetPos);
+}
+
+//-------------------------------------------------------------------------------------------------
+bool MedivhForceOfWill (int player, unit aiUnit, unitgroup scanGroup) {
+    // Shields a single target for 10-15 seconds
+    order ord;
+    fixed curHealth;
+    unit targetUnit;
+    fixed targetHealth;
+
+    ord = StormHeroAICreateOrder(player, c_AB_ForceOfWill, 0);
+    if (!UnitOrderIsValid(aiUnit, ord)) {
+        return false;
+    }
+
+    // Find weakest nearby ally hero
+    targetUnit = FindBestHealTarget(player, aiUnit, c_ForceOfWillRange, false, false);
+
+    if (UnitIsValid(targetUnit)
+     && HaveBeenAttackedRecently(targetUnit)) {
+        return HeroIssueOrder(player, aiUnit, ord, null, c_orderQueueAddToFront, targetUnit, null);
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+// First pass, if I'm moving to the location, try to use a portal
+bool MedivhPortal (int player, unit aiUnit, unitgroup scanGroup) {
+    order portalOrderInitial;
+    point targetPointOfOrder;
+    unit  toSave;
+    bool hasPortalMastery = PlayerHasTalent(player, c_PortalPortalMastery);
+
+    // Activate if there is a team fight
+    if (!TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), c_PortalMaxRange)) {
+        return false;
+    }
+
+    if (hasPortalMastery) {
+        portalOrderInitial = StormHeroAICreateOrder(player, c_AB_PortalInitial, 0);
+    } 
+    else {
+        portalOrderInitial = StormHeroAICreateOrder(player, c_AB_PortalInstant, 0);
+    }
+
+    if (!UnitOrderIsValid(aiUnit, portalOrderInitial)) {
+        return false;
+    }
+
+    toSave = FindBestHealTarget(player, aiUnit, c_PortalMaxRange, false, false);
+
+    if (!UnitIsValid(toSave)) {
+        return false;
+    }
+
+    if (!hasPortalMastery) {
+        targetPointOfOrder = libAIAI_gf_HeroAIGetRetreatPosition(UnitGetOwner(toSave), c_PortalMaxRange, null);
+    }
+    else {
+        libAIAI_gv_heroAIMedivhCurrentSavedUnit[player] = toSave;
+        targetPointOfOrder = UnitGetPosition(toSave);
+    }
+
+    if (targetPointOfOrder == null) {
+        return false;
+    }
+
+    OrderSetTargetPoint(portalOrderInitial, targetPointOfOrder);
+    return UnitIssueOrder(aiUnit, portalOrderInitial, c_orderQueueReplace);
+}
+
+//-------------------------------------------------------------------------------------------------
+bool MedivhPolyBomb (int player, unit aiUnit, unitgroup scanGroup) {
+    order spellOrd;
+    Storm_AI_TargetQueryOptions query;
+    unit potentialTarget;
+    point targetPos;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_PolyBomb, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    query.lv_maxDistance = c_PolyBombRange;
+    potentialTarget = FindBestHero(scanGroup, aiUnit, query);
+
+    if (!UnitIsValid(potentialTarget)) {
+        return false;
+    }
+
+    // Use polybomb radius since it is the sameish
+    if (EnoughEnemiesInArea(scanGroup, UnitGetPosition(potentialTarget), c_PolyBombRadius, c_Storm_AI_AtLeast2Heroes, 0, 0)) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueReplace, potentialTarget, targetPos);
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool MedivhLeyLineSeal (int player, unit aiUnit, unitgroup scanGroup) {
+    order spellOrd;
+    Storm_AI_TargetQueryOptions query;
+    unit potentialTarget;
+    point targetPos;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_LeyLineSeal, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    query.lv_maxDistance = c_LeyLineSealRange;
+    potentialTarget = FindBestHero(scanGroup, aiUnit, query);
+
+    if (!UnitIsValid(potentialTarget)) {
+        return false;
+    }
+
+    // I use polybomb radius because it is the same radius as the leyline seal's rectangle
+    if (EnoughEnemiesInArea(scanGroup, UnitGetPosition(potentialTarget), c_PolyBombRadius, c_Storm_AI_AtLeast2Heroes, 0, 0)) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueReplace, potentialTarget, targetPos);
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool MedivhHumanLogic (int player, unit aiUnit, unitgroup scanGroup) {
+
+    if (MedivhPortal(player, aiUnit, scanGroup)) {
+        return true;
+    }
+
+    if (MedivhArcaneRift(player, aiUnit, scanGroup)) {
+        return true;
+    }
+
+    if (MedivhForceOfWill(player, aiUnit, scanGroup)) {
+        return true;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player)) {
+
+        if (MedivhPolyBomb(player, aiUnit, scanGroup)) {
+            return true;
+        }
+
+        if (MedivhLeyLineSeal(player, aiUnit, scanGroup)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool CheckForAndCancelBadPortal (int player, unit aiUnit) {
+    order spellOrd;
+    if (UnitHasBehavior2(aiUnit, c_PortalMarkerCarryBehavior)) {
+        g_portalActiveThinkCount[player] += 1;
+        if (g_portalActiveThinkCount[player] > 2) {
+            spellOrd = StormHeroAICreateOrder(player, c_AB_PortalCancel, 0);
+            if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+                return false;
+            }
+            g_portalActiveThinkCount[player] = 0;
+            return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueReplace, null, null);
+         }
+    }
+    else {
+        g_portalActiveThinkCount[player] = 0;
+    }
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool MedivhShouldStopRavening (int player, unit aiUnit) {
+    order spellOrd;
+    point currPoint = UnitGetPosition(aiUnit);
+    
+    if (g_medivhRavenIdlePoint[player] == currPoint) {
+        g_ravenIdleThinkCount[player] += 1;
+    }
+    else {
+        g_medivhRavenIdlePoint[player] = currPoint;
+        g_ravenIdleThinkCount[player] = 0;
+    }
+
+    if (g_ravenIdleThinkCount[player] > 3) {
+        spellOrd = StormHeroAICreateOrder(player, c_AB_TransformRavenLand, 0);
+        if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+            return false;
+        }
+        g_ravenIdleThinkCount[player] = 0;
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueReplace, null, null);
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+void AIThinkMedivh(int player, unit aiUnit, unitgroup scanGroup) {
+
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (CheckForAndCancelBadPortal(player, aiUnit)) {
+        return;
+    }
+
+    if (UseItem(player, aiUnit, scanGroup, MedivhItemCallback)) {
+        return;
+    }
+
+    if (UnitHasBehavior2(aiUnit, c_AB_TransformRaven)) {
+        if (CheckIfTooLowHealthOrNearbyTower(aiUnit, scanGroup, 0)) {
+            return;
+        }
+
+        if (MedivhShouldStopRavening(player, aiUnit)) {
+            return;
+        }
+    }
+
+    if (MedivhHumanLogic(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (UseOffensiveItem(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+    
+}
+
+
+
+
+
+
+
+
+
