@@ -18,7 +18,12 @@
 
 #endif
 
-half3x4    p_mBlendMatrices[MAX_BONE_MATRICES];       // Transposed for efficiency
+// CShaderCore relies on this being in the first register for an optimization, on D3D9 we need to force it
+#if CPP_SHADER || VSVersion > SHADER_VERSION_VS_30 || defined(COMPILING_SHADER_FOR_OPENGL) || defined(COMPILING_SHADER_FOR_METAL)
+    half3x4    p_mBlendMatrices[MAX_BONE_MATRICES];       // Transposed for efficiency
+#else
+    half3x4    p_mBlendMatrices[MAX_BONE_MATRICES] : register(c0);
+#endif
 
 //--------------------------------------------------------------------------------------------------
 void Skin( inout float4 vPosition, inout HALF3 vNormal, inout HALF3 vTangent, inout HALF3 vBinormal, HALF4 vBlendWeights, HALF4 vBlendIndices ) {

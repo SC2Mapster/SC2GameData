@@ -1,0 +1,199 @@
+include "TriggerLibs/HeroesLib"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Hanamura
+//--------------------------------------------------------------------------------------------------
+// Constants
+const string libMHmu_gv_hanamuraMechanicName_C = "Hanamura";
+const int libMHmu_gv_firstPayloadTimerDuration_C = 165;
+const int libMHmu_gv_secondPayloadTimerDuration_C = 285;
+const int libMHmu_gv_payloadWarningCoundownDuration_C = 10;
+const int libMHmu_gv_payloadRespawnWarningCoundownDuration_C = 245;
+const int libMHmu_gv_maxPathWaypoint_C = 40;
+const int libMHmu_gv_payloadNearbyRadius_C = 8;
+const int libMHmu_gv_maxPayloadCount_C = 2;
+const int libMHmu_gv_payload_XP_Reward_Amount_C = 1200;
+
+// Structures
+struct libMHmu_gs_PayloadTimers {
+    timer[libMHmu_gv_maxPayloadCount_C + 1] lv_spawnTimer;
+    timer[libMHmu_gv_maxPayloadCount_C + 1] lv_showWarningTimer;
+    timer[libMHmu_gv_maxPayloadCount_C + 1] lv_warningTimer;
+    timer[libMHmu_gv_maxPayloadCount_C + 1] lv_audioTimer;
+};
+
+struct libMHmu_gs_PayloadPath {
+    int lv_pathIndex;
+    point[libMHmu_gv_maxPayloadCount_C + 1][libMHmu_gv_maxPathWaypoint_C + 1] lv_path;
+    bool[libMHmu_gv_maxPayloadCount_C + 1][libMHmu_gv_maxPathWaypoint_C + 1] lv_pathPointIsWaypoint;
+    int[libMHmu_gv_maxPayloadCount_C + 1] lv_lastCheckpointReachedIndex;
+    int[libMHmu_gv_maxPayloadCount_C + 1] lv_finalWaypointIndex;
+    int[libMHmu_gv_maxPayloadCount_C + 1] lv_payloadCurrentIndex;
+    int[libMHmu_gv_maxPayloadCount_C + 1] lv_payloadCurrentDestinationPointIndex;
+    int[libMHmu_gv_maxPayloadCount_C + 1] lv_pathDisplay_Minimap;
+    int[libMHmu_gv_maxPayloadCount_C + 1] lv_pathCurrentIndex;
+    int[libMHmu_gv_maxPayloadCount_C + 1] lv_pathIndexMax;
+    unit[libMHmu_gv_maxPayloadCount_C + 1][libMHmu_gv_maxPathWaypoint_C + 1] lv_payloadCheckpointUnit;
+    int[libMHmu_gv_maxPayloadCount_C + 1][libMHmu_gv_maxPathWaypoint_C + 1] lv_checkpointTextTagAlly;
+    int[libMHmu_gv_maxPayloadCount_C + 1][libMHmu_gv_maxPathWaypoint_C + 1] lv_checkpointTextTagEnemy;
+    fixed[libMHmu_gv_maxPayloadCount_C + 1] lv_totalDistance;
+};
+
+struct libMHmu_gs_Payload {
+    unit[libMHmu_gv_maxPayloadCount_C + 1] lv_payload;
+    unit[libMHmu_gv_maxPayloadCount_C + 1] lv_payloadDestinationMinimapUnit;
+    fixed lv_timeWhenLastPayloadReachedDestination;
+    fixed[libMHmu_gv_maxPayloadCount_C + 1] lv_spawnTime;
+    bool[libMHmu_gv_maxPayloadCount_C + 1] lv_payloadAttackingCore;
+};
+
+struct libMHmu_gs_HanamuraUI {
+    int lv_mainPanel;
+    int lv_payloadPanel;
+    int lv_payloadSpawningOrder;
+    int lv_payloadSpawningChaos;
+    int lv_payloadSpawningBoth;
+    int lv_payloadSpawningNotificationLabel_Both;
+    int lv_payloadSpawningNotificationLabelOrder;
+    int lv_payloadSpawningNotificationLabelChaos;
+    int lv_payloadSpawningTimerFrameOrder_Path1;
+    int lv_payloadSpawningTimerFrameOrder_Path2;
+    int lv_payloadSpawningTimerFrameChaos_Path1;
+    int lv_payloadSpawningTimerFrameChaos_Path2;
+    int lv_payloadSpawningTimerLabel_Both;
+    int lv_payloadSpawningTimerLabelOrder_Path1;
+    int lv_payloadSpawningTimerLabelOrder_Path2;
+    int lv_payloadSpawningTimerLabelChaos_Path1;
+    int lv_payloadSpawningTimerLabelChaos_Path2;
+    int lv_orderTeamAttackedCoreFrame;
+    int lv_chaosTeamAttackedCoreFrame;
+    int lv_orderTeamAttackedCoreLabel;
+    int lv_chaosTeamAttackedCoreLabel;
+    int lv_potentialShotsPanel;
+    int lv_potentialShotsLabel;
+    int lv_leftPotentialShotsLabel;
+    int lv_rightPotentialShotsLabel;
+    int lv_payloadBGBarOrderPath1;
+    int lv_payloadBGBarOrderPath2;
+    int lv_payloadBGBarChaosPath1;
+    int lv_payloadBGBarChaosPath2;
+    int lv_payloadProgressBarOrderPath1;
+    int lv_payloadProgressBarOrderPath2;
+    int lv_payloadProgressBarChaosPath1;
+    int lv_payloadProgressBarChaosPath2;
+    int lv_payloadStatusFrameOrderPath1;
+    int lv_payloadStatusFrameOrderPath2;
+    int lv_payloadStatusFrameChaosPath1;
+    int lv_payloadStatusFrameChaosPath2;
+    int lv_payloadBlockedLabelFrame;
+    int lv_payloadBlockedFrameTop;
+    int lv_payloadBlockedFrameBottom;
+    int lv_payloadContestedFrame;
+    int lv_payloadBlockedIndicatorTopOrder;
+    int lv_payloadBlockedIndicatorTopChaos;
+    int lv_payloadBlockedIndicatorBottomOrder;
+    int lv_payloadBlockedIndicatorBottomChaos;
+    int lv_payloadBlockedFrameTopOrder;
+    int lv_payloadBlockedFrameTopChaos;
+    int lv_payloadBlockedFrameBottomOrder;
+    int lv_payloadBlockedFrameBottomChaos;
+};
+
+// Variable Declarations
+libMHmu_gs_PayloadTimers[libCore_gv_bALMaxTeams + 1] libMHmu_gv_payloadTimers;
+int libMHmu_gv_payloadWarningDuration;
+int libMHmu_gv_payloadRespawnTimerDuration_C;
+int libMHmu_gv_bossCapturedVolleyAmount;
+libMHmu_gs_PayloadPath[libCore_gv_bALMaxTeams + 1] libMHmu_gv_payloadPath;
+int libMHmu_gv_payloadDefaultPowerLevel;
+int libMHmu_gv_payloadEmpowermentValue_KeepDestroyed;
+int libMHmu_gv_payloadEmpowermentValue_FortDestroyed;
+int[libCore_gv_bALMaxTeams + 1] libMHmu_gv_teamEmpowermentLevel;
+libMHmu_gs_Payload[libCore_gv_bALMaxTeams + 1] libMHmu_gv_payload;
+libMHmu_gs_HanamuraUI libMHmu_gv_hanamuraUI;
+bool libMHmu_gv_path1PayloadsInitiallySpawned;
+bool libMHmu_gv_path2PayloadsInitiallySpawned;
+unit[libCore_gv_bALMaxPlayers + 1] libMHmu_gv_heroInTargetMode;
+timer[libCore_gv_bALMaxPlayers + 1] libMHmu_gv_eOMPusherTimer;
+
+// Function Declarations
+void libMHmu_gf_ResetPayloadPathInformation (int lp_team, int lp_pathIndex);
+void libMHmu_gf_CreatePayloadPathForward (unit lp_payloadUnit);
+void libMHmu_gf_CreatePayloadPathBackward (unit lp_payloadUnit);
+void libMHmu_gf_CreatePayloadWarningForTeam (int lp_team, int lp_pathIndex);
+void libMHmu_gf_CreatePayloadForTeam (int lp_pathIndex, int lp_team, int lp_payloadOwner);
+void libMHmu_gf_MovePayloadForward (unit lp_payloadUnit);
+void libMHmu_gf_MovePayloadBackward (unit lp_payloadUnit);
+int libMHmu_gf_OtherPathIndex (int lp_pathIndex);
+void libMHmu_gf_MakePayloadAttackCore (int lp_team, unit lp_payload, unit lp_enemyCore, int lp_pathIndex, int lp_powerLevel);
+void libMHmu_gf_AttackCoreShakeMissile (point lp_targetLocation);
+void libMHmu_gf_MapMechanicUIInit (int lp_parentPanel);
+void libMHmu_gf_ShowPayloadsSpawningFrameCombined ();
+void libMHmu_gf_ShowRelevantPayloadTimers ();
+void libMHmu_gf_ShowPayloadTimers (int lp_teamOfPayload, int lp_pathIndex);
+void libMHmu_gf_SetPayloadTimerText (timer lp_timer, int lp_dialogItem);
+void libMHmu_gf_ShowPayloadArrows (int lp_teamOfPayload, int lp_pathIndex);
+void libMHmu_gf_PayloadSpawnedSetUI (int lp_teamOfPayload, int lp_pathIndex);
+void libMHmu_gf_PayloadTimerResetSetUI (int lp_teamOfPayload, int lp_pathIndex);
+void libMHmu_gf_ShowHideAttackingEnemyCoreFrameForTeam (bool lp_showHide, int lp_teamOfPayload);
+void libMHmu_gf_ShowHidePotentialPointsPanel (bool lp_showHide);
+void libMHmu_gf_UpdatePotentialPointsPanelForTeam (int lp_team);
+fixed libMHmu_gf_CalculatePayloadTravelDistancetoDestination (int lp_team, int lp_pathIndex);
+fixed libMHmu_gf_CalculatePayloadTravelDistanceToCheckPoint (int lp_pathIndex, int lp_team);
+fixed libMHmu_gf_PayloadCurrentDistance (int lp_team, int lp_pathIndex);
+void libMHmu_gf_UpdateProgressBarForPayload (int lp_team, int lp_pathIndex, int lp_progressBar);
+void libMHmu_gf_ResetProgressBarForPayload (int lp_progressBar);
+void libMHmu_gf_DeactivateAndKillUnit (unit lp_unit, int lp_team);
+void libMHmu_gf_PayloadsInitiallySpawning ();
+void libMHmu_gf_PayloadsInitiallySpawned ();
+void libMHmu_gf_PayloadsSpawningOrder ();
+void libMHmu_gf_PayloadsSpawningChaos ();
+void libMHmu_gf_PayloadsSpawningBoth ();
+void libMHmu_gf_PayloadsSpawnedOrder ();
+void libMHmu_gf_PayloadsSpawnedChaos ();
+void libMHmu_gf_PayloadsSpawnedBoth ();
+void libMHmu_gf_PayloadsPathCompletedOrder ();
+void libMHmu_gf_PayloadsPathCompletedChaos ();
+void libMHmu_gf_OrderCoreAt1HP ();
+void libMHmu_gf_ChaosCoreAt1HP ();
+void libMHmu_gf_EOMInitializeEndofMatchAward ();
+
+// Trigger Declarations
+trigger libMHmu_gt_MapMechanicInitialized;
+trigger libMHmu_gt_InitializeVariables;
+trigger libMHmu_gt_OpenTheGatesTimerExpires;
+trigger libMHmu_gt_OrderPayloadWarningTimerExpires;
+trigger libMHmu_gt_OrderPayloadAudioTimerExpires;
+trigger libMHmu_gt_ChaosPayloadWarningTimerExpires;
+trigger libMHmu_gt_ChaosPayloadAudioTimerExpires;
+trigger libMHmu_gt_BossCampCaptured;
+trigger libMHmu_gt_DebugBossCampCapturedAttackCore;
+trigger libMHmu_gt_PayloadGainsReverseBehavior;
+trigger libMHmu_gt_PayloadLosesReverseBehavior;
+trigger libMHmu_gt_AttackCoreMissileCreated;
+trigger libMHmu_gt_MapMechanicUIInitialize;
+trigger libMHmu_gt_PayloadGainsBlockedBehavior;
+trigger libMHmu_gt_PayloadLosesBlockedBehavior;
+trigger libMHmu_gt_PayloadGainsContestedBehavior;
+trigger libMHmu_gt_PayloadLosesContestedBehavior;
+trigger libMHmu_gt_SetUpMinionData;
+trigger libMHmu_gt_MinionScalingData;
+trigger libMHmu_gt_FortOrKeepDies;
+trigger libMHmu_gt_PayloadTargetOn;
+trigger libMHmu_gt_PayloadTargetOff;
+trigger libMHmu_gt_PayloadTurretBehaviorIncrement;
+trigger libMHmu_gt_PayloadTurretBehaviorDecrement;
+trigger libMHmu_gt_EOMInitializePusherBehaviors;
+trigger libMHmu_gt_EOMPusherAdded;
+trigger libMHmu_gt_EOMPusherRemoved;
+trigger libMHmu_gt_EOMReportPushingScore;
+trigger libMHmu_gt_DebugSetWarningTime;
+trigger libMHmu_gt_DebugDeliverAllyPayload;
+trigger libMHmu_gt_DebugDeliverEnemyPayload;
+trigger libMHmu_gt_DebugDeliverAllyAndEnemyPayload;
+trigger libMHmu_gt_DebugDisableEvent;
+trigger libMHmu_gt_DebugShowLivingPayloads;
+
+// Library Initialization
+void libMHmu_InitVariables ();
+

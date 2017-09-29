@@ -1,0 +1,576 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/AILib"
+include "TriggerLibs/GameDataHelperLib"
+
+include "LibHMTH_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Malthael
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libHMTH_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+    libAIAI_InitVariables();
+    libGDHL_InitVariables();
+}
+
+// Variable Initialization
+bool libHMTH_InitVariables_completed = false;
+
+void libHMTH_InitVariables () {
+    if (libHMTH_InitVariables_completed) {
+        return;
+    }
+
+    libHMTH_InitVariables_completed = true;
+
+    libHMTH_gv_heroMalthaelTouchOfDeathHealingPreventScale = CatalogFieldValueGetAsFixed(c_gameCatalogBehavior, "MalthaelReapersMarkTouchOfDeathDebuff", "Modification.HealTakenAdditiveMultiplier[" + IntToString(0) + "]", c_playerAny);
+    libHMTH_gv_heroMalthaelNoOneCanStopDeathDeathTimerExtendScale = CatalogFieldValueGetAsFixed(c_gameCatalogEffect, "MalthaelNoOneCanStopDeathDummyRespawnTimeScale", "XP", 0);
+}
+
+// Custom Script
+//--------------------------------------------------------------------------------------------------
+// Custom Script: #Include Malthael Tactical AI
+//--------------------------------------------------------------------------------------------------
+include "StormTactical.galaxy"
+include "MalthaelTactical.galaxy"
+
+void libHMTH_InitCustomScript () {
+}
+
+// Functions
+void libHMTH_gf_HeroMalthaelIncrementHeroCountFunction () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHMTH_gv_heroMalthaelTriggerRegistrationVariable += 1;
+    if ((libHMTH_gv_heroMalthaelTriggerRegistrationVariable == 1)) {
+        TriggerEnable(libHMTH_gt_HeroMalthaelReapersMarkSpecialCaseAbathurUltimateEvolutionLabelAdd, true);
+        TriggerEnable(libHMTH_gt_HeroMalthaelReapersMarkSpecialCaseAbathurUltimateEvolutionLabelRemove, true);
+        TriggerEnable(libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedInitializer, true);
+        TriggerEnable(libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTrackerOn, true);
+        TriggerEnable(libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTrackerOff, true);
+        TriggerEnable(libHMTH_gt_HeroMalthaelReaperOfSoulsProc, true);
+        TriggerEnable(libHMTH_gt_HeroMalthaelAngelOfDeathTalentPicked, true);
+        TriggerEnable(libHMTH_gt_HeroMalthaelNoOneCanStopDeathAbilityCast, true);
+        TriggerEnable(libHMTH_gt_HeroMalthaelNoOneCanStopDeathMalthaelDiesAndNextRespawnTimerUpdates, true);
+    }
+
+}
+
+void libHMTH_gf_HeroMalthaelDecrementHeroCountFunction () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHMTH_gv_heroMalthaelTriggerRegistrationVariable -= 1;
+    if ((libHMTH_gv_heroMalthaelTriggerRegistrationVariable < 0)) {
+        libHMTH_gv_heroMalthaelTriggerRegistrationVariable = 0;
+    }
+
+    if ((libHMTH_gv_heroMalthaelTriggerRegistrationVariable == 0)) {
+        TriggerEnable(libHMTH_gt_HeroMalthaelReapersMarkSpecialCaseAbathurUltimateEvolutionLabelAdd, false);
+        TriggerEnable(libHMTH_gt_HeroMalthaelReapersMarkSpecialCaseAbathurUltimateEvolutionLabelRemove, false);
+        TriggerEnable(libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedInitializer, false);
+        TriggerEnable(libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTrackerOn, false);
+        TriggerEnable(libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTracker, false);
+        TriggerEnable(libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTrackerOff, false);
+        TriggerEnable(libHMTH_gt_HeroMalthaelReaperOfSoulsProc, false);
+        TriggerEnable(libHMTH_gt_HeroMalthaelAngelOfDeathTalentPicked, false);
+        TriggerEnable(libHMTH_gt_HeroMalthaelNoOneCanStopDeathAbilityCast, false);
+        TriggerEnable(libHMTH_gt_HeroMalthaelNoOneCanStopDeathMalthaelDiesAndNextRespawnTimerUpdates, false);
+    }
+
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Malthael - Misc Mod Initialization
+//--------------------------------------------------------------------------------------------------
+bool libHMTH_gt_HeroAIMalthaelMiscModInitialization_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_HeroAIInitializeHeroTierData, libHMTH_gt_HeroAIMalthaelAddToTierData);
+    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_HeroAIInitAbilities, libHMTH_gt_HeroAIMalthaelInitAbilities);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMTH_gt_HeroAIMalthaelMiscModInitialization_Init () {
+    libHMTH_gt_HeroAIMalthaelMiscModInitialization = TriggerCreate("libHMTH_gt_HeroAIMalthaelMiscModInitialization_Func");
+    TriggerAddEventMapInit(libHMTH_gt_HeroAIMalthaelMiscModInitialization);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Malthael - Add To Tier Data
+//--------------------------------------------------------------------------------------------------
+bool libHMTH_gt_HeroAIMalthaelAddToTierData_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libAIAI_gf_HeroAIAddHeroToTierData(libAIAI_ge_HeroAIHeroTiers_TierMid, "Malthael");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMTH_gt_HeroAIMalthaelAddToTierData_Init () {
+    libHMTH_gt_HeroAIMalthaelAddToTierData = TriggerCreate("libHMTH_gt_HeroAIMalthaelAddToTierData_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Malthael - Init Abilities
+//--------------------------------------------------------------------------------------------------
+bool libHMTH_gt_HeroAIMalthaelInitAbilities_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitGetType(libCore_gv_segTriggerUnit) == "HeroMalthael")) {
+        libAIAI_gv_heroAIInitAbilitesHeroFound = true;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_hasTactical = true;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_hasMount = true;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[0] = AbilityCommand("MalthaelSoulRip", 0);
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[0] = libAIAI_ge_HeroAISpellType_EffectInstant;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[0] = 6.5;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[1] = AbilityCommand("MalthaelWraithStrike", 0);
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[1] = libAIAI_ge_HeroAISpellType_TargetEnemy;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[1] = 8.0;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[2] = AbilityCommand("MalthaelDeathShroud", 0);
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[2] = libAIAI_ge_HeroAISpellType_PointEnemy;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[2] = 12.0;
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMTH_gt_HeroAIMalthaelInitAbilities_Init () {
+    libHMTH_gt_HeroAIMalthaelInitAbilities = TriggerCreate("libHMTH_gt_HeroAIMalthaelInitAbilities_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Malthael - Reaper's Mark - Special Case - Abathur Ultimate Evolution - Label Add
+//--------------------------------------------------------------------------------------------------
+bool libHMTH_gt_HeroMalthaelReapersMarkSpecialCaseAbathurUltimateEvolutionLabelAdd_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_abathurPlayer;
+    int lv_malthaelPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_abathurPlayer = libGDHL_gf_AbathurUltimateEvolutionHeroCopiedAbathurOwner();
+    lv_malthaelPlayer = libGDHL_gf_AbathurUltimateEvolutionHeroCopiedTargetOwner();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(libGame_gv_players[lv_malthaelPlayer].lv_heroUnit) == "HeroMalthael"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    PlayerAddLabel(lv_abathurPlayer, "HeroMalthael");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMTH_gt_HeroMalthaelReapersMarkSpecialCaseAbathurUltimateEvolutionLabelAdd_Init () {
+    libHMTH_gt_HeroMalthaelReapersMarkSpecialCaseAbathurUltimateEvolutionLabelAdd = TriggerCreate("libHMTH_gt_HeroMalthaelReapersMarkSpecialCaseAbathurUltimateEvolutionLabelAdd_Func");
+    TriggerEnable(libHMTH_gt_HeroMalthaelReapersMarkSpecialCaseAbathurUltimateEvolutionLabelAdd, false);
+    libGDHL_gf_AbathurUltimateEvolutionHeroCopied(libHMTH_gt_HeroMalthaelReapersMarkSpecialCaseAbathurUltimateEvolutionLabelAdd);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Malthael - Reaper's Mark - Special Case - Abathur Ultimate Evolution - Label Remove
+//--------------------------------------------------------------------------------------------------
+bool libHMTH_gt_HeroMalthaelReapersMarkSpecialCaseAbathurUltimateEvolutionLabelRemove_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_abathurPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_abathurPlayer = libGDHL_gf_AbathurUltimateEvolutionEndedAbathurPlayer();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    PlayerRemoveLabel(lv_abathurPlayer, "HeroMalthael");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMTH_gt_HeroMalthaelReapersMarkSpecialCaseAbathurUltimateEvolutionLabelRemove_Init () {
+    libHMTH_gt_HeroMalthaelReapersMarkSpecialCaseAbathurUltimateEvolutionLabelRemove = TriggerCreate("libHMTH_gt_HeroMalthaelReapersMarkSpecialCaseAbathurUltimateEvolutionLabelRemove_Func");
+    TriggerEnable(libHMTH_gt_HeroMalthaelReapersMarkSpecialCaseAbathurUltimateEvolutionLabelRemove, false);
+    libGDHL_gf_AbathurUltimateEvolutionEnded(libHMTH_gt_HeroMalthaelReapersMarkSpecialCaseAbathurUltimateEvolutionLabelRemove);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Malthael - Touch Of Death - Healing Absorbed Initializer
+//--------------------------------------------------------------------------------------------------
+bool libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedInitializer_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_casterPlayer;
+    int lv_targetPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_casterPlayer = EventPlayerEffectUsedUnitOwner(c_effectPlayerCaster);
+    lv_targetPlayer = EventPlayerEffectUsedUnitOwner(c_effectPlayerTarget);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libHMTH_gv_heroMalthaelTouchOfDeathCaster[lv_targetPlayer] = lv_casterPlayer;
+    libHMTH_gv_heroMalthaelTouchOfDeathHealingAbsorbedAmount[lv_casterPlayer] = 0.0;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedInitializer_Init () {
+    libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedInitializer = TriggerCreate("libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedInitializer_Func");
+    TriggerEnable(libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedInitializer, false);
+    TriggerAddEventPlayerEffectUsed(libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedInitializer, c_playerAny, "MalthaelReapersMarkTouchOfDeathApplyBehavior");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Malthael - Touch Of Death - Healing Absorbed Tracker On
+//--------------------------------------------------------------------------------------------------
+bool libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTrackerOn_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libHMTH_gv_heroMalthaelTouchOfDeathRegistrationVariable += 1;
+    if ((libHMTH_gv_heroMalthaelTouchOfDeathRegistrationVariable == 1)) {
+        TriggerEnable(libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTracker, true);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTrackerOn_Init () {
+    libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTrackerOn = TriggerCreate("libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTrackerOn_Func");
+    TriggerEnable(libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTrackerOn, false);
+    TriggerAddEventUnitBehaviorChange(libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTrackerOn, null, "MalthaelReapersMarkTouchOfDeathDebuff", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Malthael - Touch Of Death - Healing Absorbed Tracker
+//--------------------------------------------------------------------------------------------------
+bool libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTracker_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_targetUnit;
+    int lv_targetPlayer;
+    int lv_casterPlayer;
+    string lv_healingEffect;
+    int lv_touchOfDeathCaster;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_targetUnit = EventUnit();
+    lv_targetPlayer = UnitGetOwner(lv_targetUnit);
+    lv_casterPlayer = UnitGetOwner(EventUnitHealLaunchUnit());
+    lv_healingEffect = EventUnitHealEffect();
+    lv_touchOfDeathCaster = libHMTH_gv_heroMalthaelTouchOfDeathCaster[lv_targetPlayer];
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitBehaviorEnabled(lv_targetUnit, "MalthaelReapersMarkTouchOfDeathDebuff") == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libHMTH_gv_heroMalthaelTouchOfDeathHealingAbsorbedAmount[lv_touchOfDeathCaster] += (CatalogFieldValueGetAsFixed(c_gameCatalogEffect, lv_healingEffect, "RechargeVitalRate", lv_casterPlayer) * AbsF(libHMTH_gv_heroMalthaelTouchOfDeathHealingPreventScale));
+    libHMTH_gv_heroMalthaelTouchOfDeathHealingAbsorbedAmount[lv_touchOfDeathCaster] += ((CatalogFieldValueGetAsFixed(c_gameCatalogEffect, lv_healingEffect, "RechargeVitalFraction", lv_casterPlayer) * CatalogFieldValueGetAsFixed(c_gameCatalogUnit, UnitGetType(lv_targetUnit), "LifeMax", lv_targetPlayer)) * AbsF(libHMTH_gv_heroMalthaelTouchOfDeathHealingPreventScale));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTracker_Init () {
+    libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTracker = TriggerCreate("libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTracker_Func");
+    TriggerEnable(libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTracker, false);
+    TriggerAddEventUnitHealed(libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTracker, null, c_unitVitalLife, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Malthael - Touch Of Death - Healing Absorbed Tracker Off
+//--------------------------------------------------------------------------------------------------
+bool libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTrackerOff_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_malthaelUnit;
+    int lv_malthaelPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_malthaelUnit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_malthaelPlayer = UnitGetOwner(lv_malthaelUnit);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libHMTH_gv_heroMalthaelTouchOfDeathRegistrationVariable -= 1;
+    if ((libHMTH_gv_heroMalthaelTouchOfDeathRegistrationVariable < 0)) {
+        libHMTH_gv_heroMalthaelTouchOfDeathRegistrationVariable = 0;
+    }
+
+    if ((libHMTH_gv_heroMalthaelTouchOfDeathRegistrationVariable == 0)) {
+        TriggerEnable(libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTracker, false);
+        FloatingCombatElementCreateNumberTextAtUnit(PlayerGroupSingle(lv_malthaelPlayer), "FloatingCombatElements/FloatingCombatAmountReadable", "", lv_malthaelUnit, FixedToInt(libHMTH_gv_heroMalthaelTouchOfDeathHealingAbsorbedAmount[lv_malthaelPlayer]), StringExternal("Param/Value/lib_HMTH_D2D24E65"), libNtve_gv_FloatingCombatTextAutoRandomSeed);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTrackerOff_Init () {
+    libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTrackerOff = TriggerCreate("libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTrackerOff_Func");
+    TriggerEnable(libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTrackerOff, false);
+    TriggerAddEventPlayerEffectUsed(libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTrackerOff, c_playerAny, "MalthaelReapersMarkTouchOfDeathDummyRemove");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Malthael - Reaper Of Souls - Proc
+//--------------------------------------------------------------------------------------------------
+bool libHMTH_gt_HeroMalthaelReaperOfSoulsProc_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+    unit lv_zeratul;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_player = libGame_gf_HeroParticipatedInTakedownKillingPlayer();
+    lv_zeratul = libGame_gv_players[lv_player].lv_heroUnit;
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_player >= 1))) {
+            return false;
+        }
+
+        if (!((lv_player <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+
+        if (!((PlayerHasTalent(lv_player, "MalthaelReaperOfSouls") == true))) {
+            return false;
+        }
+
+        if (!((UnitBehaviorDurationTotal(lv_zeratul, "MalthaelTormentedSoulsBuff") > 0.0))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(lv_zeratul, "MalthaelTormentedSoulsReaperOfSoulsDummyApplyBuffBehavior", lv_zeratul);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMTH_gt_HeroMalthaelReaperOfSoulsProc_Init () {
+    libHMTH_gt_HeroMalthaelReaperOfSoulsProc = TriggerCreate("libHMTH_gt_HeroMalthaelReaperOfSoulsProc_Func");
+    TriggerEnable(libHMTH_gt_HeroMalthaelReaperOfSoulsProc, false);
+    libGame_gf_HeroParticipatedInTakedown(libHMTH_gt_HeroMalthaelReaperOfSoulsProc);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Malthael - Angel Of Death - Talent Picked
+//--------------------------------------------------------------------------------------------------
+bool libHMTH_gt_HeroMalthaelAngelOfDeathTalentPicked_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_malthaelPlayer;
+    unit lv_malthaelUnit;
+    int lv_lastRitesCurrentTokenCount;
+    int lv_lastRitesOldMaxCount;
+    int lv_lastRitesNewMaxCount;
+    fixed lv_lastRitesCooldownReductionScale;
+    int lv_lastRitesBaseCooldown;
+    int lv_lastRitesNewCooldown;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_malthaelPlayer = libGame_gf_HeroGainTalentPlayer();
+    lv_malthaelUnit = libGame_gv_players[lv_malthaelPlayer].lv_heroUnit;
+
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gf_HeroGainTalentGainedTalent() == "MalthaelAngelOfDeath"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_lastRitesCurrentTokenCount = UnitBehaviorCount(lv_malthaelUnit, "MalthaelLastRitesQuestCooldownToken");
+    lv_lastRitesOldMaxCount = CatalogFieldValueGetAsInt(c_gameCatalogBehavior, "MalthaelLastRitesQuestCooldownToken", "Max", 0);
+    lv_lastRitesNewMaxCount = (lv_lastRitesOldMaxCount / libHMTH_gv_heroMalthaelAngelOfDeathStackCountScale);
+    lv_lastRitesCooldownReductionScale = CatalogFieldValueGetAsFixed(c_gameCatalogEffect, "MalthaelLastRitesAngelOfDeathQuestModifyPlayerCooldown", "EffectArray[" + IntToString(0) + "].Value", 0);
+    lv_lastRitesBaseCooldown = CatalogFieldValueGetAsInt(c_gameCatalogAbil, "MalthaelLastRites", "Cost.Cooldown.TimeUse", 0);
+    lv_lastRitesNewCooldown = (lv_lastRitesBaseCooldown - (lv_lastRitesCurrentTokenCount * FixedToInt(lv_lastRitesCooldownReductionScale)));
+    if ((lv_lastRitesCurrentTokenCount < lv_lastRitesNewMaxCount) && (lv_lastRitesNewCooldown > 0)) {
+        CatalogFieldValueModifyInt(c_gameCatalogAbil, "MalthaelLastRites", "Cost.Cooldown.TimeUse", lv_malthaelPlayer, lv_lastRitesNewCooldown, c_upgradeOperationSet);
+    }
+
+    if ((lv_lastRitesCurrentTokenCount >= lv_lastRitesNewMaxCount)) {
+        UnitSetTokenCount(lv_malthaelUnit, CatalogFieldValueGet(c_gameCatalogBehavior, "MalthaelLastRitesQuestCooldownToken", "TokenId", lv_malthaelPlayer), lv_lastRitesNewMaxCount, lv_malthaelUnit);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMTH_gt_HeroMalthaelAngelOfDeathTalentPicked_Init () {
+    libHMTH_gt_HeroMalthaelAngelOfDeathTalentPicked = TriggerCreate("libHMTH_gt_HeroMalthaelAngelOfDeathTalentPicked_Func");
+    TriggerEnable(libHMTH_gt_HeroMalthaelAngelOfDeathTalentPicked, false);
+    libGame_gf_HeroGainTalent(libHMTH_gt_HeroMalthaelAngelOfDeathTalentPicked);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Malthael - No One Can Stop Death - Ability Cast
+//--------------------------------------------------------------------------------------------------
+bool libHMTH_gt_HeroMalthaelNoOneCanStopDeathAbilityCast_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_unit;
+    int lv_player;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_unit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_player = UnitGetOwner(lv_unit);
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitIsAlive(lv_unit) == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGame_gv_players[lv_player].lv_suppressReviveVOSound = true;
+    UnitBehaviorAdd(lv_unit, "MalthaelNoOneCanStopDeathActivated", lv_unit, 1);
+    libGame_gf_HeroDeathUpdateRespawnTimer(lv_player, 0.0);
+    UIDisplayMessage(PlayerGroupAll(), c_messageAreaChat, StringExternal("Param/Value/lib_HMTH_1736E322"));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMTH_gt_HeroMalthaelNoOneCanStopDeathAbilityCast_Init () {
+    libHMTH_gt_HeroMalthaelNoOneCanStopDeathAbilityCast = TriggerCreate("libHMTH_gt_HeroMalthaelNoOneCanStopDeathAbilityCast_Func");
+    TriggerEnable(libHMTH_gt_HeroMalthaelNoOneCanStopDeathAbilityCast, false);
+    TriggerAddEventPlayerEffectUsed(libHMTH_gt_HeroMalthaelNoOneCanStopDeathAbilityCast, c_playerAny, "MalthaelNoOneCanStopDeathInitialModifyPlayer");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Malthael - No One Can Stop Death - Malthael Dies And Next Respawn Timer Updates
+//--------------------------------------------------------------------------------------------------
+bool libHMTH_gt_HeroMalthaelNoOneCanStopDeathMalthaelDiesAndNextRespawnTimerUpdates_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_unit;
+    int lv_player;
+    fixed lv_malthaelRespawnTimer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_unit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_player = UnitGetOwner(lv_unit);
+    lv_malthaelRespawnTimer = (libHMTH_gv_heroMalthaelNoOneCanStopDeathDeathTimerExtendScale + 1.0);
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitIsAlive(lv_unit) == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGame_gv_players[lv_player].lv_suppressReviveVOSound = false;
+    UnitBehaviorRemove(lv_unit, "MalthaelNoOneCanStopDeathActivated", 1);
+    UnitBehaviorAdd(lv_unit, "MalthaelNoOneCanStopDeathTracker", lv_unit, 1);
+    libGame_gf_HeroDeathUpdateRespawnTimer(lv_player, (lv_malthaelRespawnTimer * libCore_gf_HeroDeathTime(lv_player, UnitLevel(libGame_gv_players[lv_player].lv_heroUnit))));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMTH_gt_HeroMalthaelNoOneCanStopDeathMalthaelDiesAndNextRespawnTimerUpdates_Init () {
+    libHMTH_gt_HeroMalthaelNoOneCanStopDeathMalthaelDiesAndNextRespawnTimerUpdates = TriggerCreate("libHMTH_gt_HeroMalthaelNoOneCanStopDeathMalthaelDiesAndNextRespawnTimerUpdates_Func");
+    TriggerEnable(libHMTH_gt_HeroMalthaelNoOneCanStopDeathMalthaelDiesAndNextRespawnTimerUpdates, false);
+    TriggerAddEventPlayerEffectUsed(libHMTH_gt_HeroMalthaelNoOneCanStopDeathMalthaelDiesAndNextRespawnTimerUpdates, c_playerAny, "MalthaelNoOneCanStopDeathDummyExtendRespawn");
+}
+
+void libHMTH_InitTriggers () {
+    libHMTH_gt_HeroAIMalthaelMiscModInitialization_Init();
+    libHMTH_gt_HeroAIMalthaelAddToTierData_Init();
+    libHMTH_gt_HeroAIMalthaelInitAbilities_Init();
+    libHMTH_gt_HeroMalthaelReapersMarkSpecialCaseAbathurUltimateEvolutionLabelAdd_Init();
+    libHMTH_gt_HeroMalthaelReapersMarkSpecialCaseAbathurUltimateEvolutionLabelRemove_Init();
+    libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedInitializer_Init();
+    libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTrackerOn_Init();
+    libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTracker_Init();
+    libHMTH_gt_HeroMalthaelTouchOfDeathHealingAbsorbedTrackerOff_Init();
+    libHMTH_gt_HeroMalthaelReaperOfSoulsProc_Init();
+    libHMTH_gt_HeroMalthaelAngelOfDeathTalentPicked_Init();
+    libHMTH_gt_HeroMalthaelNoOneCanStopDeathAbilityCast_Init();
+    libHMTH_gt_HeroMalthaelNoOneCanStopDeathMalthaelDiesAndNextRespawnTimerUpdates_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libHMTH_InitLib_completed = false;
+
+void libHMTH_InitLib () {
+    if (libHMTH_InitLib_completed) {
+        return;
+    }
+
+    libHMTH_InitLib_completed = true;
+
+    libHMTH_InitLibraries();
+    libHMTH_InitVariables();
+    libHMTH_InitCustomScript();
+    libHMTH_InitTriggers();
+}
+

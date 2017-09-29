@@ -81,21 +81,25 @@
     <!-- ABILITIES - R1: Resurrect                      -->
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <CAbilEffectTarget id="AurielResurrect">
-        <Cost>
-            <Cooldown Location="Unit" TimeUse="70"/>
-        </Cost>
-        <Range value="5"/>
-        <ShowProgressArray index="Cast" value="1"/>
-        <CmdButtonArray index="Execute" DefaultButtonFace="AurielResurrect" Requirements="Ultimate1Unlocked"/>
-        <TargetFilters value="Heroic,Invulnerable,Benign;Player,Enemy"/>
         <Activity value="Auriel/Activity/Resurrect"/>
-        <PrepEffect value="AurielResurrectInitialSet"/>
+        <PrepEffect value="AurielResurrectPrepareSet"/>
         <Effect value="AurielResurrectInitialDummy"/>
-        <!-- If the Cast Time changes, we need to change the Spell animation duration to match -->
-        <CastIntroTime value="3"/>
         <Flags index="ClearLastAttackTargetOutOfRange" value="1"/>
         <Flags index="ClearLastMoveTarget" value="1"/>
-        <ValidatedArray index="Cast" value="0"/>
+        <Cost>
+            <Cooldown Location="Unit" TimeUse="100"/>
+        </Cost>
+        <InterruptArray index="Cast" value="1"/>
+        <InterruptCost>
+            <Cooldown Location="Unit" TimeUse="10"/>
+        </InterruptCost>
+        <TargetFilters value="Heroic,Invulnerable,Benign;Player,Enemy"/>
+        <Range value="5"/>
+        <!-- If the Cast Time changes, we need to change the Spell animation duration to match -->
+        <CastIntroTime value="0.5"/>
+        <ShowProgressArray index="Cast" value="1"/>
+        <UninterruptibleArray index="Cast" value="1"/>
+        <CmdButtonArray index="Execute" DefaultButtonFace="AurielResurrect" Requirements="Ultimate1Unlocked"/>
     </CAbilEffectTarget>
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <!-- ABILITIES - R2: Crystal Aegis                  -->
@@ -108,7 +112,7 @@
             <Charge Link="Abil/AurielCrystalAegisSingleTarget"/>
             <Cooldown Link="Abil/AurielCrystalAegisSingleTarget" Location="Unit" TimeUse="60"/>
         </Cost>
-        <TargetFilters value="Heroic;Neutral,Enemy,Hover,User1,Missile,Item,Stasis,Dead,Hallucination,Invulnerable,Benign,MapBoss"/>
+        <TargetFilters value="Heroic;Neutral,Enemy,ImmuneToFriendlyAbilities,User1,Missile,Item,Stasis,Dead,Invulnerable,Benign,MapBoss"/>
         <Range value="8"/>
         <Arc value="360"/>
         <CmdButtonArray index="Execute" DefaultButtonFace="AurielCrystalAegis" Requirements="Ultimate2Unlocked"/>
@@ -146,7 +150,7 @@
         <EditorCategories value="AbilityorEffectType:Units"/>
         <Effect value="AurielShieldOfHopeInitialSet"/>
         <Cost>
-            <Cooldown Location="Unit" TimeUse="45"/>
+            <Cooldown Location="Unit" TimeUse="60"/>
         </Cost>
         <CmdButtonArray index="Execute" DefaultButtonFace="AurielShieldOfHopeTalent"/>
         <PrepEffect value="AbilityUseResponseSetDismountDecloak"/>
@@ -163,7 +167,7 @@
         <TokenId value="AurielSacredSweepIncreasingClarityQuestToken"/>
     </CAccumulatorToken>
     <CAccumulatorToken id="AurielSacredSweepIncreasingClarityAccumulator" parent="BaseTokenAccumulator">
-        <MaxAccumulation value="120"/>
+        <MaxAccumulation value="150"/>
         <ApplicationRule value="Add"/>
         <TokenId value="AurielSacredSweepIncreasingClarityQuestToken"/>
         <Scale value="2"/>
@@ -174,15 +178,15 @@
         <TokenId value="AurielDetainmentStrikeRepeatedOffenseQuestToken"/>
     </CAccumulatorToken>
     <CAccumulatorToken id="AurielDetainmentStrikeRepeatedOffenseAccumulator" parent="BaseTokenAccumulator">
-        <MaxAccumulation value="200"/>
+        <MaxAccumulation value="250"/>
         <ApplicationRule value="Add"/>
         <TokenId value="AurielDetainmentStrikeRepeatedOffenseQuestToken"/>
         <Scale value="10"/>
     </CAccumulatorToken>
     <CActorModel id="AurielCrystalAegisExplosionFX" parent="StormModelAnimationStyleOneShot">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielCrystalAegisExplosionSearch.Start; At Effect" Send="Create"/>
         <On Terms="ActorCreation" Send="Create AurielCrystalAegisExplosionSound"/>
+        <HostSiteOps Ops="SOpPointSouthWorld" HoldPosition="1" HoldRotation="1"/>
     </CActorModel>
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
@@ -218,9 +222,7 @@
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <!-- ACTORS - Auriel 	                        	-->
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
-    <CActorModel id="AurielDanceFX" parent="StormModelAnimationStyleOneShotUnit">
-        <EditorCategories value=""/>
-    </CActorModel>
+    <CActorModel id="AurielDanceFX" parent="StormModelAnimationStyleOneShotUnit"/>
     <CActorSound id="HeroAurielTauntUEVO" parent="SoundOneShot">
         <Sound value="AurielBase_Taunt_Evo"/>
     </CActorSound>
@@ -250,9 +252,13 @@
     </CActorSound>
     <CActorModel id="HeroAurielDeathRagdoll" parent="StormHeroDeathRagdoll"/>
     <CActorUnit id="HeroAuriel" parent="StormHeroBase" unitName="HeroAuriel">
-        <EditorCategories value=""/>
         <PortraitModel value="AurielPortrait"/>
         <HighlightTooltip value="Unit/Name/Auriel"/>
+        <!-- Sounds for Movement -->
+        <On Terms="UnitMovementUpdate.*.Walk; ValidateUnit CasterNotBurrowChargingAndNotMounted" Send="Create AurielMoveLoopContinuous"/>
+        <On Terms="UnitMovementUpdate.*.Stand" Target="AurielMoveLoopContinuous" Send="Destroy"/>
+        <On Terms="UnitMovementUpdate.*.Walk" Target="AurielAngelicFlightLaunchSound" Send="Destroy"/>
+        <On Terms="TimerExpired; TimerName WalkSoundTimer; ValidateUnit CasterIsMoving" Send="Create AurielMoveLoopContinuous"/>
         <!--               =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- -->
         <!-- Basic Attacks =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- -->
         <!--               =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- -->
@@ -342,6 +348,7 @@
         <!--       =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- -->
         <On Terms="UnitTaunt.*.Start; Taunt Dance" Send="Create AurielDanceFX"/>
         <On Terms="UnitTaunt.*.Stop; Taunt Dance" Target="AurielDanceFX" Send="AnimBracketStop BSD"/>
+        <On Terms="UnitTaunt.*.Cancel; Taunt Dance" Target="AurielDanceFX" Send="AnimBracketStop BSD"/>
         <PortraitActor value="AurielPortrait"/>
         <AbilSoundArray AbilCmd="AurielRayOfHeaven,Execute" Sound="AurielBase_VOX_CastingD"/>
         <AbilSoundArray AbilCmd="AurielSacredSweep,Execute" Sound="AurielBase_VOX_CastingQ"/>
@@ -349,7 +356,7 @@
         <AbilSoundArray AbilCmd="AurielBestowHope,Execute" Sound="AurielBase_VOX_CastingE"/>
         <AbilSoundArray AbilCmd="AurielResurrect,Execute" Sound="StormNoSound"/>
         <AbilSoundArray AbilCmd="AurielCrystalAegis,Execute" Sound="AurielBase_Ultimate2Used"/>
-        <CustomUnitStatusFrame value="UnitStatus/HeroUnitStatusFrameYellowEnergy"/>
+        <CustomUnitStatusFrame value="Auriel/AurielUnitStatusFrameTemplate"/>
         <VitalNames index="Energy" value="UI/HeroEnergyType/StoredHealing"/>
         <MinimapIconBackgroundScale value="0.950000"/>
         <HeroIcon value="Assets\Textures\ui_targetportrait_hero_Auriel.dds"/>
@@ -360,11 +367,13 @@
         <SoundArray index="Attack" value="AurielBase_Attack"/>
         <SoundArray index="Pissed" value="AurielBase_Pissed"/>
     </CActorUnit>
+    <CActorSound id="AurielMoveLoopContinuous" parent="SoundContinuous">
+        <Sound value="Auriel_Movement_Loop"/>
+    </CActorSound>
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <!-- ACTORS - E: Ray of Heaven                      -->
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <CActorModel id="AurielRayOfHeavenHighHealingStoredImpactFX" parent="StormModelAnimationStyleOneShotUnit">
-        <EditorCategories value=""/>
         <Preload index="0" value="AurielRayOfHeavenLowHealingStoredImpactFX"/>
         <On Terms="Effect.AurielRayOfHeavenHighHealingStoredSearchImpactSet.Start; At Target" Send="Create"/>
         <On Terms="ActorCreation" Send="AnimBracketStart BSD Birth,A Stand Death ContentPlayOnce"/>
@@ -372,7 +381,6 @@
         <Model value="AurielRayOfHeavenBuffImpactFX"/>
     </CActorModel>
     <CActorModel id="AurielRayOfHeavenMaxHealingStoredImpactFX" parent="StormModelAnimationStyleOneShotUnit">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielRayOfHeavenMaxHealingStoredSearchImpactSet.Start; At Target" Send="Create"/>
         <On Terms="ActorCreation" Send="AnimBracketStart BSD Birth,B Stand Death ContentPlayOnce"/>
         <Remove Terms="ActorCreation" Send="AnimBracketStart BSD Birth Stand Death ContentPlayOnce"/>
@@ -381,16 +389,12 @@
     <CActorSplat id="AurielRayOfHeavenCursorSplat" parent="StormGuideVisualCircle" abil="AurielRayOfHeaven">
         <Model value="AurielRayOfHeavenCursorSplat"/>
     </CActorSplat>
-    <CActorRange id="AurielRayOfHeavenGuide" parent="StormRangeAbilPlusSplat" abil="AurielRayOfHeaven">
-        <EditorCategories value=""/>
-    </CActorRange>
+    <CActorRange id="AurielRayOfHeavenGuide" parent="StormRangeAbilPlusSplat" abil="AurielRayOfHeaven"/>
     <CActorModel id="AurielRayOfHeavenLowHealingStoredImpactFX" parent="StormModelAnimationStyleOneShotUnit">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielRayOfHeavenLowHealingStoredSearchImpactSet.Start; At Target" Send="Create"/>
         <Model value="AurielRayOfHeavenBuffImpactFX"/>
     </CActorModel>
     <CActorModel id="AurielRayOfHeavenLowHealingStoredCastFX" parent="StormModelAnimationStyleOneShot">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielRayOfHeavenLowHealingStoredInitialSet.Start; At Effect" Send="Create"/>
         <On Terms="ActorCreation" Send="Create AurielRayOfHeavenCastSound"/>
         <HostSiteOps Ops="SOpAttachOriginStationary"/>
@@ -400,7 +404,6 @@
         <Filter index="Ally" value="1"/>
         <Filter index="Neutral" value="1"/>
         <Filter index="Enemy" value="1"/>
-        <EditorCategories value=""/>
         <On Terms="Behavior.AurielRayOfHeavenMaxHealingStored.On" Send="Create"/>
         <Host Subject="::Creator"/>
         <Sound value="Auriel_RayOfHeaven_MaxHealingStored_Alert"/>
@@ -409,21 +412,17 @@
         <Scale value="8.000000"/>
     </CActorSplat>
     <CActorSound id="AurielRayOfHeavenCastSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <Sound value="Auriel_RayOfHeaven_Launch"/>
     </CActorSound>
     <CActorSound id="AurielRayOfHeavenHighImpactSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielRayOfHeavenHighHealingStoredInitialSet.Start; At Effect" Send="Create"/>
         <Sound value="Auriel_RayOfHeaven_High_Impact"/>
     </CActorSound>
     <CActorSound id="AurielRayOfHeavenMaxImpactSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielRayOfHeavenMaxHealingStoredInitialSet.Start; At Effect" Send="Create"/>
         <Sound value="Auriel_RayOfHeaven_Max_Impact"/>
     </CActorSound>
     <CActorSound id="AurielRayOfHeavenLowImpactSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielRayOfHeavenLowHealingStoredInitialSet.Start; At Effect" Send="Create"/>
         <Sound value="Auriel_RayOfHeaven_Low_Impact"/>
     </CActorSound>
@@ -433,44 +432,36 @@
         <On Terms="ActorCreation" Send="Create AurielRayOfHeavenSearingLightImpactSound"/>
     </CActorModel>
     <CActorModel id="AurielRayOfHeavenSearingLightLaunchFX" parent="StormModelAnimationStyleOneShotUnit">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielRayOfHeavenSearingLightSearchArea.Start; At Target" Send="Create"/>
         <On Terms="ActorCreation" Send="SetTintColor 242,0,218"/>
         <On Terms="ActorCreation" Send="Create AurielRayOfHeavenSearingLightLaunchSound"/>
         <Model value="AurielRayOfHeavenSearingLightLauncFX"/>
-        <Scale value="0.660000"/>
         <HostSiteOps Ops="SOpAttachCenter"/>
     </CActorModel>
     <CActorSound id="AurielRayOfHeavenSearingLightLaunchSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <Sound value="Auriel_RayOfHeaven_SearingLight_Launch"/>
     </CActorSound>
     <CActorSound id="AurielRayOfHeavenSearingLightImpactSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <Sound value="Auriel_RayOfHeaven_SearingLight_Impact"/>
     </CActorSound>
     <CActorModel id="AurielRayOfHeavenHighHealingStoredCastFX" parent="StormModelAnimationStyleOneShot">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielRayOfHeavenHighHealingStoredInitialSet.Start; At Effect" Send="Create"/>
         <On Terms="ActorCreation" Send="Create AurielRayOfHeavenCastSound"/>
         <HostSiteOps Ops="SOpAttachOriginStationary"/>
         <Model value="AurielRayOfHeavenCastFX"/>
     </CActorModel>
     <CActorModel id="AurielRayOfHeavenMaxHealingStoredCastFX" parent="StormModelAnimationStyleOneShot">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielRayOfHeavenMaxHealingStoredInitialSet.Start; At Effect" Send="Create"/>
         <On Terms="ActorCreation" Send="Create AurielRayOfHeavenCastSound"/>
         <HostSiteOps Ops="SOpAttachOriginStationary"/>
         <Model value="AurielRayOfHeavenCastFX"/>
     </CActorModel>
     <CActorModelMaterial id="AurielRayOfHeavenImpactGlaze" parent="BuffOneShot">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielRayOfHeavenMaxHealingStoredGlazeDummy.Start; At Target" Send="Create"/>
         <On Terms="ActorCreation" Send="ModelMaterialApplyTo ::Main"/>
         <ModelFlags index="AutomateGlobalLoops" value="1"/>
     </CActorModelMaterial>
     <CActorModelMaterial id="AurielRayOfHeavenSearingLightImpactGlaze" parent="BuffOneShot">
-        <EditorCategories value=""/>
         <On Terms="ActorCreation" Send="ModelMaterialApplyTo ::Main"/>
         <ModelFlags index="AutomateGlobalLoops" value="1"/>
     </CActorModelMaterial>
@@ -482,7 +473,6 @@
     <!-- ACTORS - Q: Sacred Sweep                      -->
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <CActorModel id="AurielSacredSweepTrailFX" parent="StormModelAnimationStyleOneShot">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielSacredSweepInitialPersistent.Start; At Caster" Send="Create"/>
         <On Terms="ActorCreation; ValidatePlayer AurielHasSwiftSweepSacredSweep" Send="AnimSetTimeScale BSD 1.500000"/>
         <On Terms="ActorCreation; ValidateUnit AurielSacredSweepIncreasingClarityComplete" Send="AnimPlay BirthA Birth,A"/>
@@ -493,7 +483,6 @@
         <VisibilityShape Shape="AurielSacredSweepVisibilityShape"/>
     </CActorModel>
     <CActorModel id="AurielSacredSweepGroundFX" parent="StormModelAnimationStyleOneShot">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielSacredSweepInitialPersistent.Start; At Caster" Send="Create"/>
         <On Terms="ActorCreation; ValidatePlayer AurielHasSwiftSweepSacredSweep" Send="AnimSetTimeScale BSD 1.500000"/>
         <On Terms="ActorCreation; ValidateUnit AurielSacredSweepIncreasingClarityComplete" Send="ModelSwap AurielSacredSweepIncreasingClarityGroundFX"/>
@@ -503,34 +492,28 @@
         <VisibilityShape Shape="AurielSacredSweepVisibilityShape"/>
     </CActorModel>
     <CActorSound id="AurielSacredSweepImpactSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielSacredSweepLeftWingImpactSet.Start; At Effect" Send="Create"/>
         <On Terms="Effect.AurielSacredSweepRightWingImpactSet.Start; At Effect" Send="Create"/>
         <Sound value="Auriel_AngelicWhip_Impact"/>
     </CActorSound>
     <CActorSound id="AurielSacredSweepCastSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielSacredSweepInitialPersistent.Start; At Caster; ValidateUnit AurielDoesNotHaveIncreasingClarityQuestCompleteAndDoesNotHaveSwiftSweepSacredSweep" Send="Create"/>
         <Sound value="Auriel_AngelicWhip_Launch"/>
     </CActorSound>
     <CActorSound id="AurielSacredSweepCenterProcSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielSacredSweepCenterSearch.Start; At Caster" Send="Create"/>
         <Sound value="Auriel_AngelicWhip_Center"/>
     </CActorSound>
     <CActorArc id="AurielSacredSweepGuide" parent="StormGuideVisualArc" abil="AurielSacredSweep">
-        <EditorCategories value=""/>
         <Model value="AurielSacredSweepCursorSplat"/>
     </CActorArc>
     <CActorArc id="AurielSacredSweepInnerGuide" parent="StormGuideVisualArc" abil="AurielSacredSweep">
-        <EditorCategories value=""/>
         <Aliases index="1" removed="1"/>
         <Model value="AurielSacredSweepInnerCursorSplat"/>
         <Angle value="30.000000"/>
         <Radius value="7.000000"/>
     </CActorArc>
     <CActorModel id="AurielSacredSweepImpactFX" parent="StormModelAnimationStyleOneShotUnit">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielSacredSweepLeftWingImpactSet.Start; At Target" Send="Create"/>
         <On Terms="Effect.AurielSacredSweepRightWingImpactSet.Start; At Target" Send="Create"/>
         <On Terms="Effect.AurielSacredSweepCenterDamageSet.Start; At Target" Send="Create"/>
@@ -539,24 +522,20 @@
     <CActorModel id="AurielSacredSweepIncreasingClarityImpactFX" parent="StormModelAnimationStyleOneShotUnit">
         <On Terms="Effect.AurielSacredSweepIncreasingClarityTargetArtDummy.Start; At Target" Send="Create"/>
         <HostSiteOps Ops="SOpAttachCenter"/>
-        <Scale value="2.000000"/>
     </CActorModel>
     <CActorModel id="AurielSacredSweepBlindingFlashBlindFX" parent="StormBlind">
         <On Terms="Behavior.AurielSacredSweepBlindingFlashBlind.On" Send="Create"/>
         <On Terms="Behavior.AurielSacredSweepBlindingFlashBlind.Off" Send="Destroy"/>
     </CActorModel>
     <CActorSound id="AurielSacredSweepIncreasingClarityCastSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielSacredSweepInitialPersistent.Start; At Caster; ValidateUnit AurielSacredSweepIncreasingClarityComplete" Send="Create"/>
         <Sound value="Auriel_AngelicWhip_IncreasingClarity_Slam"/>
     </CActorSound>
     <CActorSound id="AurielSacredSweepSwiftSweepCastSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielSacredSweepInitialPersistent.Start; At Caster; ValidateUnit AurielHasSwiftSweepSacredSweep" Send="Create"/>
         <Sound value="Auriel_AngelicWhip_SwiftSweep_Launch"/>
     </CActorSound>
     <CActorSound id="AurielSacredSweepCenterImpactSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielSacredSweepCenterImpactSet.Start; At Effect" Send="Create"/>
         <Sound value="Auriel_AngelicWhip_Impact_Center"/>
     </CActorSound>
@@ -564,7 +543,6 @@
     <!-- ACTORS - W: Detainment Strike                   -->
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <CActorSound id="AurielDetainmentStrikeImpactSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <Sound value="Auriel_DetainmentStrike_Impact"/>
         <On Terms="Effect.AurielDetainmentStrikeMissileImpactSet.Start" Send="Create"/>
         <On Terms="Effect.AurielDetainmentStrikePiercingLashMissileImpactSet.Start" Send="Create"/>
@@ -576,22 +554,18 @@
     </CActorModel>
     <CActorSound id="AurielDetainmentStrikeLaunchSound" parent="SoundOneShot">
         <On Terms="Abil.AurielDetainmentStrike.SourceCastStart" Send="Create"/>
-        <EditorCategories value=""/>
         <Sound value="Auriel_DetainmentStrike_Launch"/>
     </CActorSound>
     <CActorModel id="AurielDetainmentStrikeHeavyBurdenSlow" parent="StormSlow">
-        <EditorCategories value=""/>
         <On Terms="Behavior.AurielDetainmentStrikeHeavyBurdenSlow.On" Send="Create"/>
         <On Terms="Behavior.AurielDetainmentStrikeHeavyBurdenSlow.Off" Send="AnimBracketStop BSD"/>
         <Model value="SlowDebuffLarge"/>
     </CActorModel>
     <CActorSound id="AurielDetainmentStrikeStunImpactSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <Sound value="Auriel_DetainmentStrike_StunImpact"/>
         <On Terms="Behavior.AurielDetainmentStrikeStun.On" Send="Create"/>
     </CActorSound>
     <CActorQuad id="AurielDetainmentStrikeGuide" parent="StormGuideVisualQuadDownClosestFantasy" abil="AurielDetainmentStrike">
-        <EditorCategories value=""/>
         <Height value="8.000000"/>
         <Width value="1.000000"/>
     </CActorQuad>
@@ -638,7 +612,6 @@
         <VisibilityShape Shape="AurielDetainmentStrikeVisibilityShape"/>
     </CActorModel>
     <CActorSound id="DetainmentStrikeChainBreak" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <On Terms="Behavior.AurielDetainmentStrikeStun.Off" Send="Create"/>
         <Sound value="Auriel_DetainmentStrike_StunChainBreak"/>
     </CActorSound>
@@ -646,18 +619,19 @@
     <!-- ACTORS - D: Bestow Hope 		                -->
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <CActorModel id="AurielBestowHopeCastFX" parent="StormModelAnimationStyleOneShotUnit">
-        <EditorCategories value=""/>
         <On Terms="Abil.AurielBestowHope.SourceCastStart" Send="Create"/>
         <HostSiteOps Ops="SOpAttachHandLeft"/>
     </CActorModel>
     <CActorSound id="AurielBestowHopeCastSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielBestowHopeInitialSet.Start; At Effect" Send="Create"/>
         <Sound value="Auriel_BestowHope_Cast"/>
     </CActorSound>
     <CActorModel id="AurielBestowHopeBuffFX" parent="MorphAwareModelASCUnit" siteOps="{SOpAttachHead SOp2DRotation SOpMoveUpByDot5}">
         <Remove Terms="AnimBracketState.*.AfterClosing; !AnimBracketExitReason ModelSwap; AnimName BSD" Send="Destroy"/>
-        <On Terms="Effect.AurielBestowHopeApplyProxyBehavior.Start; At Target" Send="Create"/>
+        <On Terms="Effect.AurielBestowHopeApplyProxyBehavior.Start; At Target; ValidateUnit TargetNotGall" Send="Create"/>
+        <!-- If the crown goes on a target when they're already out of range (Ragnaros), hide it. The actor is being created from an effect, which procs before the behavior technically exists. I'm not sure there's a better way to do this without heavily reworking how the ability works at its core -DPW 3/16 -->
+        <On Terms="ActorCreation" Send="TimerSet 0.000000 VisibilityCheck"/>
+        <On Terms="TimerExpired; TimerName VisibilityCheck; ValidateUnit AurielSourceDoesNotHaveBestowHopeProxyBehavior" Send="AnimBracketStop BSD"/>
         <On Terms="Behavior.AurielBestowHopeProxyBehavior.Off" Send="AnimBracketStop BSD"/>
         <On Terms="Behavior.AurielBestowHopeProxyBehavior.On" Send="AnimBracketStart BSD Birth,A Stand Death"/>
         <On Terms="Behavior.AurielBestowHopeProxyBehavior.Destroy" Send="Destroy"/>
@@ -671,15 +645,12 @@
         </ModelAspectSets>
         <Macros value="RemovePolymorphMacroEffects"/>
     </CActorModel>
-    <CActorRange id="AurielBestowHopeGuide" parent="StormRangeAbilPlusSplat" abil="AurielBestowHope">
-        <EditorCategories value=""/>
-    </CActorRange>
+    <CActorRange id="AurielBestowHopeGuide" parent="StormRangeAbilPlusSplat" abil="AurielBestowHope"/>
     <CActorSplat id="AurielBestowHopeGuideSplat" parent="StormRangeSplat">
         <Scale value="11.000000"/>
     </CActorSplat>
     <CActorRange id="AurielBestowHopeRange">
         <Terms value="Cap 1"/>
-        <EditorCategories value=""/>
         <Host Subject="_Unit"/>
         <Range value="19.500000"/>
         <Icon value="Assets\Textures\storm_fx_auriel_base_bestowhope_range.dds"/>
@@ -694,7 +665,6 @@
     <!-- ACTORS - R1: Resurrect                         -->
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <CActorModel id="AurielResurrectChannelFX" parent="StormModelAnimationStyleOneShot">
-        <EditorCategories value=""/>
         <On Terms="Behavior.AurielResurrectMarkerBehavior.On" Send="Create"/>
         <On Terms="Behavior.AurielResurrectMarkerBehavior.Off" Send="AnimBracketStop BSD"/>
         <Inherits index="Visibility" value="1"/>
@@ -703,41 +673,24 @@
     </CActorModel>
     <CActorModel id="AurielResurrectLightSpeedBuffFX" parent="StormModelAnimationStyleOneShotUnit">
         <On Terms="Behavior.AurielResurrectLightSpeedSpeedBehavior.On" Send="Create"/>
+        <On Terms="Behavior.AurielResurrectLightSpeedSpeedBehavior.Off" Send="Destroy"/>
         <HostSiteOps Ops="SOpAttachCenter SOp2DRotation"/>
     </CActorModel>
     <CActorSound id="AurielResurrectCastSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielResurrectWingsDummy.Start; At Target" Send="Create"/>
         <Sound value="Auriel_Resurrect_Cast"/>
-        <Layers>
-            <Sound value="Auriel_Resurrect_Cast_Choir"/>
-            <PitchSource value="Sound"/>
-            <PlayDelaySource value="Sound"/>
-            <VolumeSource value="Sound"/>
-            <Chance value="100"/>
-            <Pitch value="0.000000,0.000000"/>
-            <PlayDelay value="0,0"/>
-            <Volume value="0.000000,0.000000"/>
-        </Layers>
+        <Layers Sound="Auriel_Resurrect_Cast_Choir"/>
     </CActorSound>
-    <CActorSound id="AurielResurrectChannelSound" parent="SoundContinuous">
-        <EditorCategories value=""/>
+    <CActorSound id="AurielResurrectLaunchSound" parent="SoundContinuous">
         <On Terms="Behavior.AurielResurrectMarkerBehavior.On" Send="Create"/>
         <On Terms="Behavior.AurielResurrectMarkerBehavior.Off" Send="Destroy"/>
+        <Sound value="Auriel_Resurrect_Launch"/>
+    </CActorSound>
+    <CActorSound id="AurielResurrectSpiritSound" parent="SoundContinuous">
+        <On Terms="Behavior.AurielResurrectActivelyResurrecting.On" Send="Create"/>
         <Sound value="Auriel_Resurrect_Channel"/>
-        <Layers>
-            <Sound value="Auriel_Resurrect_Launch"/>
-            <PitchSource value="Sound"/>
-            <PlayDelaySource value="Sound"/>
-            <VolumeSource value="Sound"/>
-            <Chance value="100"/>
-            <Pitch value="0.000000,0.000000"/>
-            <PlayDelay value="0,0"/>
-            <Volume value="0.000000,0.000000"/>
-        </Layers>
     </CActorSound>
     <CActorUnit id="AurielResurrectSpirit" parent="GenericUnitStandard" unitName="AurielResurrectSpirit">
-        <EditorCategories value=""/>
         <On Terms="ActorCreation" Send="SetOpacity 0.660000"/>
         <On Terms="Signal.*.Taunt" Send="AnimPlay Taunt Taunt"/>
         <On Terms="Signal.*.Cheer" Send="$Stand,Victory"/>
@@ -810,15 +763,19 @@
         <FilterPlayers index="8" value="1"/>
         <FilterPlayers index="9" value="1"/>
         <FilterPlayers index="10" value="1"/>
-        <EditorCategories value=""/>
         <HostSiteOps Ops="SOpShadow"/>
         <FogVisibility value="Hidden"/>
         <Inherits index="Visibility" value="1"/>
         <Host Subject="_Unit"/>
     </CActorModel>
+    <CActorModelMaterial id="AurielResurrectGlaze" parent="BuffContinuous">
+        <On Terms="Behavior.AurielResurrectMarkerBehavior.On" Send="Create"/>
+        <On Terms="ActorCreation" Send="ModelMaterialApplyTo ::Main"/>
+        <On Terms="Behavior.AurielResurrectMarkerBehavior.Off" Send="AnimBracketStop BSD"/>
+        <ModelFlags index="AutomateGlobalLoops" value="1"/>
+    </CActorModelMaterial>
     <CActorRange id="AurielResurrectGuide" parent="StormRangeAbilPlusSplat" abil="AurielResurrect"/>
     <CActorSplat id="AurielResurrectGuideSplat" parent="StormRangeSplat">
-        <EditorCategories value=""/>
         <Scale value="5.500000"/>
     </CActorSplat>
     <CActorModel id="AurielResurrectWings" parent="StormModelAnimationStyleOneShotUnit">
@@ -827,21 +784,14 @@
         <!--On Terms="Effect.AurielResurrectWingsDummy.Start; At Target" Send="Create"/-->
         <HostSiteOps Ops="SOpAttachCenter"/>
     </CActorModel>
-    <CActorModelMaterial id="AurielResurrectGlaze" parent="BuffContinuous">
-        <On Terms="Behavior.AurielResurrectMarkerBehavior.On" Send="Create"/>
-        <On Terms="ActorCreation" Send="ModelMaterialApplyTo ::Main"/>
-        <On Terms="Behavior.AurielResurrectMarkerBehavior.Off" Send="AnimBracketStop BSD"/>
-        <ModelFlags index="AutomateGlobalLoops" value="1"/>
-    </CActorModelMaterial>
     <CActorModelMaterial id="AurielResurrectSpiritGlaze" parent="BuffContinuous">
         <ModelFlags index="AutomateGlobalLoops" value="1"/>
     </CActorModelMaterial>
     <CActorModel id="AurielResurrectCastFX" parent="StormModelAnimationStyleContinuousUnit">
-        <EditorCategories value=""/>
         <On Terms="Abil.AurielResurrect.SourceCastStart" Send="Create"/>
         <On Terms="Abil.AurielResurrect.SourceCastStop" Send="TimerSet 0.062500 Death"/>
         <On Terms="ActorCreation" Send="AnimGroupApply A"/>
-        <On Terms="Effect.AurielResurrectInitialSet.Start" Send="AnimGroupRemove A"/>
+        <On Terms="Effect.AurielResurrectInitialDummy.Start" Send="AnimGroupRemove A"/>
         <On Terms="TimerExpired; TimerName Death" Send="AnimBracketStop BSD"/>
         <HostSiteOps Ops="SOpAttachCenter"/>
     </CActorModel>
@@ -849,7 +799,6 @@
     <!-- ACTORS - R2: Crystal Aegis                     -->
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <CActorModel id="AurielCrystalAegisCastFX" parent="StormModelAnimationStyleOneShotUnit">
-        <EditorCategories value=""/>
         <On Terms="Abil.AurielCrystalAegis.SourceCastStart" Send="Create"/>
         <HostSiteOps Ops="SOpAttachHandRight"/>
     </CActorModel>
@@ -867,35 +816,23 @@
     </CActorSplat>
     <CActorSound id="AurielCrystalAegisChargingSound" parent="SoundOneShot">
         <Sound value="Auriel_CrystalAegis_Charging"/>
-        <Layers>
-            <Sound value="Auriel_CrystalAegis_Start"/>
-            <PitchSource value="Sound"/>
-            <PlayDelaySource value="Sound"/>
-            <VolumeSource value="Sound"/>
-            <Chance value="100"/>
-            <Pitch value="0.000000,0.000000"/>
-            <PlayDelay value="0,0"/>
-            <Volume value="0.000000,0.000000"/>
-        </Layers>
+        <Layers Sound="Auriel_CrystalAegis_Start"/>
         <Host Subject="::Creator"/>
     </CActorSound>
     <CActorModel id="AurielCrystalAegisImpactFX" parent="StormModelAnimationStyleOneShotUnit">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielCrystalAegisExplosionImpactSet.Start; At Target" Send="Create"/>
         <HostSiteOps Ops="SOpAttachCenter"/>
     </CActorModel>
     <CActorSound id="AurielCrystalAegisImpactSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <Sound value="Auriel_CrystalAegis_Impact"/>
     </CActorSound>
-    <CActorModel id="AurielCrystalAegisBuffFX" parent="StormModelAnimationStyleOneShotUnit">
-        <EditorCategories value=""/>
+    <CActorModel id="AurielCrystalAegisBuffFX" parent="StormModelAnimationStyleContinuousUnit">
         <On Terms="Behavior.AurielCrystalAegisStasisBehavior.On" Send="Create"/>
         <On Terms="ActorCreation" Send="Create AurielCrystalAegisChargingSound"/>
         <On Terms="ActorCreation" Send="$Birth PlayForever,NonLooping"/>
         <On Terms="Behavior.AurielCrystalAegisStasisBehavior.Off" Send="Destroy"/>
         <Remove Terms="ActorCreation" Send="AnimBracketStart BSD Birth Stand Death ContentPlayOnce"/>
-        <HostSiteOps Ops="SOpShadow" HoldPosition="1" HoldRotation="1"/>
+        <HostSiteOps Ops="SOpShadow SOpPointSouthWorld" HoldRotation="1"/>
         <Inherits index="TimeScale" value="1"/>
         <VisibilityShape Shape="AurielCrystalAegisVisibilityShape"/>
     </CActorModel>
@@ -904,7 +841,6 @@
         <Host Subject="::Creator"/>
     </CActorSound>
     <CActorSimple id="AurielCrystalAegisHidePlayer">
-        <EditorCategories value=""/>
         <On Terms="Behavior.AurielCrystalAegisStasisBehavior.On" Target="::Creator" Send="SetScale 0.250000 0.250000 Shrink"/>
         <On Terms="Behavior.AurielCrystalAegisStasisBehavior.On" Send="TimerSet 0.250000 ShrinkTimer"/>
         <On Terms="TimerExpired; TimerName ShrinkTimer" Send="SetVisibility"/>
@@ -929,36 +865,29 @@
     <!-- ACTOR - Talents 			                    -->
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <CActorSound id="AurielAngelicFlightLaunchSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <On Terms="Abil.AurielAngelicFlight.SourceCastStart" Send="Create"/>
         <Sound value="Auriel_AngelicFlight_Launch"/>
     </CActorSound>
     <CActorSound id="AurielAngelicFlightLandSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielAngelicFlightFinishDummy.Start; At Caster" Send="Create"/>
         <Sound value="Auriel_AngelicFlight_End"/>
     </CActorSound>
     <CActorSound id="AurielAngelicFlightLaunchJumpSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <On Terms="Abil.AurielAngelicFlight.SourceCastStop" Send="Create"/>
         <Sound value="Auriel_AngelicFlight_Launch_Jump"/>
     </CActorSound>
     <CActorSound id="AurielAngelicFlightLoopSound" parent="SoundContinuous">
-        <EditorCategories value=""/>
         <On Terms="Behavior.AurielAngelicFlightCloakChecker.On" Send="Create"/>
         <On Terms="Behavior.AurielAngelicFlightCloakChecker.Off" Send="Destroy"/>
         <Sound value="Auriel_AngelicFlight_Flying"/>
     </CActorSound>
-    <CActorUnit id="AurielShieldOfHope" parent="StormItemBase" unitName="AurielShieldOfHope">
-        <EditorCategories value=""/>
-    </CActorUnit>
+    <CActorUnit id="AurielShieldOfHope" parent="StormItemBase" unitName="AurielShieldOfHope"/>
     <CActorModel id="AurielShieldOfHopeBuffFX" parent="StormModelAnimationStyleOneShotUnit">
-        <On Terms="Behavior.AurielShieldOfHopeShieldBehavior.On" Send="Create"/>
+        <On Terms="Effect.AurielShieldOfHopeImpactSet.Start; At Target" Send="Create"/>
         <On Terms="ActorCreation" Send="Create AurielShieldOfHopeLoopSound"/>
         <HostSiteOps Ops="SOpAttachCenter" HoldRotation="1"/>
     </CActorModel>
     <CActorModel id="AurielShieldOfHopeGroundFX" parent="StormModelAnimationStyleOneShot">
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielShieldOfHopeSearchArea.Start; At Effect" Send="Create"/>
         <On Terms="ActorCreation" Send="Create AurielShieldOfHopeLaunchSound"/>
     </CActorModel>
@@ -970,26 +899,19 @@
         <On Terms="Behavior.AurielShieldOfHopeShieldBehavior.Off" Send="Destroy"/>
         <Sound value="Auriel_ShieldOfHope_Loop"/>
     </CActorSound>
-    <CActorRange id="AurielShieldOfHopeGuide" parent="StormRangeAbilPlusSplat" abil="AurielShieldOfHope">
-        <EditorCategories value=""/>
-    </CActorRange>
+    <CActorRange id="AurielShieldOfHopeGuide" parent="StormRangeAbilPlusSplat" abil="AurielShieldOfHope"/>
     <CActorSplat id="AurielShieldOfHopeGuideSplat" parent="StormRangeSplat">
-        <EditorCategories value=""/>
         <Scale value="8.000000"/>
     </CActorSplat>
     <CActorSound id="AurielShieldOfHopeLaunchSound" parent="SoundOneShot">
-        <EditorCategories value=""/>
         <Sound value="Auriel_ShieldOfHope_Launch"/>
     </CActorSound>
-    <CActorUnit id="AurielAngelicFlight" parent="StormItemBase" unitName="AurielAngelicFlight">
-        <EditorCategories value=""/>
-    </CActorUnit>
+    <CActorUnit id="AurielAngelicFlight" parent="StormItemBase" unitName="AurielAngelicFlight"/>
     <CActorModel id="AurielAngelicFlightEffectModel" parent="StormModelAnimationStyleContinuousUnit">
         <Macros index="0" removed="1"/>
         <Macros index="1" removed="1"/>
         <Flags index="SuppressSaveLoad" value="1"/>
         <Inherits index="Visibility" value="0"/>
-        <EditorCategories value=""/>
         <On Terms="Effect.AurielAngelicFlightApplyCloakChecker.Start" Send="Create"/>
         <On Terms="Effect.AurielAngelicFlightFinishDummy.Start; ValidateEffect AurielHasAurielAngelicFlightShortJump" Send="Destroy"/>
         <On Terms="Effect.AurielAngelicFlightFinishDummy.Start; !ValidateEffect AurielHasAurielAngelicFlightShortJump" Send="AnimBracketStop BSD 0 1.000000 AsTimeScale"/>
@@ -999,7 +921,6 @@
     <CActorRange id="AurielAngelicFlightRange">
         <Flags index="SuppressSaveLoad" value="1"/>
         <Inherits index="TeamColor" value="1"/>
-        <EditorCategories value=""/>
         <On Terms="Abil.AurielAngelicFlight.TargetOn" Send="Create"/>
         <On Terms="Abil.AurielAngelicFlight.TargetOff" Send="Destroy"/>
         <On Terms="Abil.AurielAngelicFlight.ButtonHoverOn" Send="Create"/>
@@ -1055,12 +976,6 @@
         <Model value="AurielAngelicFlightWarningVisual"/>
         <ModelFlags index="CloakedUndetectedIsHidden" value="1"/>
     </CActorModel>
-    <CActorRegionCircle id="DoodadImpactSearch3">
-        <On Terms="Effect.AurielDetainmentStrikeHeroMissileScan.Start; At Effect" Send="Create"/>
-    </CActorRegionCircle>
-    <CActorRegionCircle id="DoodadImpactSearch6">
-        <On Terms="Effect.AurielCrystalAegisExplosionSearch.Start; At Effect" Send="Create"/>
-    </CActorRegionCircle>
     <CActorForceSphere id="AurielCrystalAegisForce">
         <On Terms="Effect.AurielCrystalAegisExplosionSearch.Start" Send="Create"/>
         <HostSiteOps Ops="SOpTargetPoint"/>
@@ -1079,15 +994,19 @@
         <Length value="7.500000"/>
         <ForceFlags index="FallOff" value="0"/>
     </CActorForceConeRoundedEnd>
-    <CActorRegionArc id="AurielSacredSweepDoodadRegion">
-        <On Terms="ActorCreation" Send="QueryRegion ::Self DoodadImpactable AgainstCenter"/>
-        <On Terms="ActorCreation" Send="TimerSet 0.062500 Die"/>
-        <On Terms="Effect.AurielSacredSweepRightWingSearchArea3.Start" Send="Create"/>
-        <On Terms="Effect.AurielSacredSweepLeftWingSearchArea3.Start" Send="Create"/>
-        <On Terms="TimerExpired; TimerName Die" Send="Destroy"/>
-        <Angle value="180.000000"/>
-        <Radius value="6.500000"/>
-    </CActorRegionArc>
+    <CActorScene id="SYSTEM_Scene">
+        <On Terms="SceneEffectSearchNotifyResults.AurielSacredSweepRightWingSearchArea1" Send="SceneEffectSearchResponse DoodadImpactable"/>
+        <On Terms="SceneEffectSearchNotifyResults.AurielSacredSweepRightWingSearchArea2" Send="SceneEffectSearchResponse DoodadImpactable"/>
+        <On Terms="SceneEffectSearchNotifyResults.AurielSacredSweepRightWingSearchArea3" Send="SceneEffectSearchResponse DoodadImpactable"/>
+        <On Terms="SceneEffectSearchNotifyResults.AurielSacredSweepRightWingSearchArea4" Send="SceneEffectSearchResponse DoodadImpactable"/>
+        <On Terms="SceneEffectSearchNotifyResults.AurielSacredSweepLeftWingSearchArea1" Send="SceneEffectSearchResponse DoodadImpactable"/>
+        <On Terms="SceneEffectSearchNotifyResults.AurielSacredSweepLeftWingSearchArea2" Send="SceneEffectSearchResponse DoodadImpactable"/>
+        <On Terms="SceneEffectSearchNotifyResults.AurielSacredSweepLeftWingSearchArea3" Send="SceneEffectSearchResponse DoodadImpactable"/>
+        <On Terms="SceneEffectSearchNotifyResults.AurielSacredSweepLeftWingSearchArea4" Send="SceneEffectSearchResponse DoodadImpactable"/>
+        <On Terms="SceneEffectSearchNotifyResults.AurielSacredSweepLeftWingSearchArea5" Send="SceneEffectSearchResponse DoodadImpactable"/>
+        <On Terms="SceneEffectSearchNotifyResults.AurielDetainmentStrikeHeroMissileScan" Send="SceneEffectSearchResponse DoodadImpactable"/>
+        <On Terms="SceneEffectSearchNotifyResults.AurielCrystalAegisExplosionSearch" Send="SceneEffectSearchResponse DoodadImpactable"/>
+    </CActorScene>
     <CActorForceConeRoundedEnd id="AurielSacredSweepForce">
         <On Terms="Effect.AurielSacredSweepRightWingSearchArea3.Start" Send="Create"/>
         <On Terms="Effect.AurielSacredSweepLeftWingSearchArea3.Start" Send="Create"/>
@@ -1120,17 +1039,32 @@
         <SortIndex value="60"/>
         <Max value="65535"/>
     </CBehaviorTokenCounter>
+    <CBehaviorBuff id="AurielResurrectActivelyResurrecting">
+        <Duration value="5"/>
+    </CBehaviorBuff>
+    <CBehaviorBuff id="AurielResurrectNotRezzable"/>
+    <CBehaviorBuff id="AurielResurrectPendingResurrect">
+        <RemoveValidatorArray value="IsDead"/>
+    </CBehaviorBuff>
+    <CBehaviorBuff id="AurielResurrectLightSpeedTalentCooldownController">
+        <EditorCategories value="AbilityorEffectType:Units"/>
+        <RemoveValidatorArray value="AurielResurrectNotOffCooldown"/>
+        <RemoveValidatorArray value="AurielResurrectTargetNotDead"/>
+        <RemoveValidatorArray value="AurielResurrectTargetNotInSpecialDeathState"/>
+        <RemoveValidatorArray value="VikingNotDownedCombine"/>
+        <Period value="0.25"/>
+        <PeriodicEffect value="AurielResurrectLightSpeedTalentModifyCooldown"/>
+    </CBehaviorBuff>
     <CBehaviorBuff id="AurielResurrectMobileSpiritRoot">
         <EditorCategories value="AbilityorEffectType:Units"/>
         <Duration value="3"/>
-        <Modification PushPriority="5000">
+        <Modification PushPriority="5000" AlliedPushPriority="5000">
             <ModifyFlags index="SuppressMoving" value="1"/>
         </Modification>
     </CBehaviorBuff>
     <CBehaviorBuff id="AurielRayOfHeavenGlimmerofHopePrimed">
         <Alignment value="Positive"/>
         <InfoIcon value="Assets\Textures\storm_btn_d3ros_crusader_godray.dds"/>
-        <EditorCategories value="AbilityorEffectType:Units"/>
     </CBehaviorBuff>
     <CBehaviorBuff id="AurielRayOfHeavenEnergyStored">
         <BehaviorFlags index="Permanent" value="1"/>
@@ -1158,86 +1092,40 @@
         <FinalEffect value="AurielSacredSweepIncreasingClarityTalentQuestCompletionResetSet"/>
     </CBehaviorBuff>
     <CBehaviorBuff id="AurielSacredSweepBlindingFlashBlind" parent="StormBlind">
-        <Name value="Behavior/Name/AurielSacredSweepBlindingFlashBlind"/>
-        <Tooltip value="Behavior/Tooltip/AurielSacredSweepBlindingFlashBlind"/>
-        <Duration value="3"/>
+        <Duration value="2.25"/>
         <Period value="0.1875"/>
     </CBehaviorBuff>
     <CBehaviorBuff id="AurielSacredSweepConvergingForceMovementSpeed">
-        <BehaviorCategories index="User15" value="1"/>
         <RemoveValidatorArray value="TargetNotUnstoppable"/>
-        <RemoveValidatorArray value="TargetCleanseDebuffRemoval"/>
-        <TimeScaleSource Value="Global"/>
         <Duration value="0.0625"/>
         <Modification>
-            <StateFlags index="Daze" value="1"/>
-            <StateFlags index="SuppressCollision" value="1"/>
             <MoveSpeedMaximum value="7"/>
             <MoveSpeedMinimum value="7"/>
-            <AbilClassDisableArray index="CAbilEffectInstant" value="1"/>
-            <AbilClassDisableArray index="CAbilEffectTarget" value="1"/>
-            <AbilClassDisableArray index="CAbilMove" value="1"/>
-            <AbilLinkEnableArray value="SgtHammerSiegeMode"/>
-            <AbilLinkEnableArray value="SgtHammerTankMode"/>
-            <BehaviorCategoriesDisable index="Slow" value="1"/>
-            <BehaviorCategoriesDisable index="Fast" value="1"/>
-            <BehaviorLinkDisableArray value="SiegeModeRoot"/>
         </Modification>
-        <DisableValidatorArray value="TargetNotUnstoppable"/>
     </CBehaviorBuff>
-    <CBehaviorBuff id="AurielSacredSweepConvergingForceKnockback">
-        <Alignment value="Negative"/>
-        <InfoIcon value="Assets\Textures\storm_btn_d3ros_crusader_blessedshield.dds"/>
-        <BehaviorCategories index="Reveal" value="1"/>
-        <RemoveValidatorArray value="TargetNotUnstoppable"/>
-        <RemoveValidatorArray value="TargetCleanseDebuffRemoval"/>
-        <TimeScaleSource Value="Global"/>
+    <CBehaviorBuff id="AurielSacredSweepConvergingForceKnockback" parent="PushPullParent">
         <Duration value="0.125"/>
         <Period value="0.0625"/>
-        <Modification>
-            <ModifyFlags index="Reveal" value="1"/>
-        </Modification>
         <PeriodicEffect value="AurielSacredSweepConvergingForceKnockbackPeriodicSet"/>
     </CBehaviorBuff>
     <CBehaviorBuff id="AurielSacredSweepMarker">
-        <EditorCategories value="AbilityorEffectType:Units"/>
         <Duration value="0.25"/>
     </CBehaviorBuff>
     <CBehaviorBuff id="AurielSacredSweepSwiftSweepTimedLife">
-        <Cost>
-            <Charge Link="Behavior/AurielSacredSweepTimedLife"/>
-            <Cooldown Link="Behavior/AurielSacredSweepTimedLife"/>
-        </Cost>
-        <EditorCategories value="AbilityorEffectType:Units"/>
         <Duration value="0.4375"/>
         <ExpireEffect value="TimedLifeFate"/>
         <Modification>
             <Height value="1"/>
         </Modification>
-        <DamageResponse>
-            <Cost>
-                <Charge Link="Behavior/AurielSacredSweepTimedLife"/>
-                <Cooldown Link="Behavior/AurielSacredSweepTimedLife"/>
-            </Cost>
-        </DamageResponse>
     </CBehaviorBuff>
     <CBehaviorBuff id="AurielDetainmentStrikeKnockback" parent="PushPullParent">
-        <Alignment value="Negative"/>
-        <InfoIcon value="Assets\Textures\storm_btn_d3ros_crusader_blessedshield.dds"/>
-        <RemoveValidatorArray value="TargetNotUnstoppable"/>
-        <RemoveValidatorArray value="TargetCleanseDebuffRemoval"/>
         <Duration value="0.25"/>
         <Period value="0.0625"/>
         <PeriodicEffect value="AurielDetainmentStrikeKnockbackBehaviorPeriodicSet"/>
         <FinalEffect value="AurielDetainmentStrikeKnockbackFinalSet"/>
-        <BehaviorCategories index="Reveal" value="1"/>
         <Modification>
-            <ModifyFlags index="Reveal" value="1"/>
             <MoveSpeedMaximum value="25"/>
             <MoveSpeedMinimum value="25"/>
-            <AbilLinkEnableArray value="SgtHammerSiegeMode"/>
-            <AbilLinkEnableArray value="SgtHammerTankMode"/>
-            <BehaviorLinkDisableArray value="SiegeModeRoot"/>
         </Modification>
     </CBehaviorBuff>
     <CBehaviorBuff id="AurielDetainmentStrikeHeavyBurdenSlow" parent="StormSlowParent">
@@ -1250,10 +1138,6 @@
         <Duration value="1.25"/>
         <FinalEffect value="AurielDetainmentStrikeHeavyBurdenApplySlowBehavior"/>
         <ExpireEffect value="AurielDetainmentStrikeHeavyBurdenApplySlowBehavior"/>
-        <BehaviorCategories index="Reveal" value="1"/>
-        <Modification>
-            <ModifyFlags index="Reveal" value="1"/>
-        </Modification>
     </CBehaviorBuff>
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <!-- BEHAVIORS - E: Bestow Hope                     -->
@@ -1318,11 +1202,13 @@
         <Modification>
             <UnifiedMoveSpeedFactor value="0.0312"/>
         </Modification>
+        <InitialEffect value="AurielResurrectLightSpeedTalentApplyCooldownController"/>
+        <DisableValidatorArray value="VikingNotDownedCombine"/>
     </CBehaviorBuff>
     <CBehaviorBuff id="AurielResurrectMarkerBehavior">
         <EditorCategories value="AbilityorEffectType:Units"/>
         <RemoveValidatorArray value="CasterNotDeadOrDazedOrStunnedOrStasisExceptTimeStop"/>
-        <Duration value="3"/>
+        <Duration value="5.5"/>
     </CBehaviorBuff>
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <!-- BEHAVIORS - R2: Crystal Aegis                  -->
@@ -1336,31 +1222,14 @@
         <ArmorModification AllArmorBonus="50"/>
     </CBehaviorBuff>
     <CBehaviorBuff id="AurielCrystalAegisCarryBehavior" parent="CarryBehaviorParent"/>
-    <CBehaviorBuff id="AurielCrystalAegisStasisBehavior">
+    <CBehaviorBuff id="AurielCrystalAegisStasisBehavior" parent="StormStasisIceBlock">
         <BehaviorCategories index="Restorable" value="1"/>
-        <BehaviorCategories index="Invulnerable" value="1"/>
-        <BehaviorCategories index="User6" value="1"/>
         <Duration value="2"/>
         <ExpireEffect value="AurielCrystalAegisExpireSet"/>
-        <FinalEffect value="HeroGenericCleanseRemoveCCBehaviorCategories"/>
-        <DamageResponse Chance="1" ModifyFraction="0"/>
-        <Modification PushPriority="5000">
-            <ModifyFlags index="DisableAbils" value="1"/>
-            <ModifyFlags index="SuppressMoving" value="1"/>
-            <StateFlags index="Invulnerable" value="1"/>
-            <StateFlags index="Benign" value="1"/>
-            <StateFlags index="Stasis" value="1"/>
-            <StateFlags index="Stun" value="1"/>
-            <StateFlags index="SuppressCloak" value="1"/>
+        <FinalEffect value="HeroGenericCleanseRemoveCCBehaviorCategoriesTarget"/>
+        <Modification>
             <StateFlags index="SuppressItemUsage" value="1"/>
-            <AbilClassEnableArray index="CAbilArmMagazine" value="1"/>
-            <AbilLinkEnableArray value="StormInventory"/>
         </Modification>
-        <Alignment value="Positive"/>
-        <DisplayDuration index="Self" value="1"/>
-        <DisplayDuration index="Ally" value="1"/>
-        <DisplayDuration index="Neutral" value="1"/>
-        <DisplayDuration index="Enemy" value="1"/>
         <InfoFlags index="AlwaysUseGameText" value="1"/>
     </CBehaviorBuff>
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
@@ -1419,31 +1288,10 @@
             <AbilLinkDisableArray value="CaptureMacGuffinTwo"/>
         </Modification>
     </CBehaviorBuff>
-    <CBehaviorBuff id="AurielShieldOfHopeShieldBehavior">
-        <Alignment value="Positive"/>
-        <InfoIcon value="Assets\Textures\storm_ui_icon_tassadar_plasmashield.dds"/>
-        <BehaviorCategories index="User11" value="1"/>
-        <EditorCategories value="AbilityorEffectType:Units"/>
-        <DisplayDuration index="Self" value="1"/>
-        <DisplayDuration index="Ally" value="1"/>
-        <DisplayDuration index="Neutral" value="1"/>
-        <DisplayDuration index="Enemy" value="1"/>
-        <DisplayShield index="Self" value="1"/>
-        <DisplayShield index="Ally" value="1"/>
-        <DisplayShield index="Neutral" value="1"/>
-        <DisplayShield index="Enemy" value="1"/>
-        <BuffFlags index="RefreshStack" value="1"/>
+    <CBehaviorBuff id="AurielShieldOfHopeShieldBehavior" parent="StormShield">
         <Duration value="3"/>
         <DamageResponse>
-            <Chance value="1"/>
-            <ModifyFraction value="0"/>
-            <ModifyLimit value="1"/>
-            <Priority value="35"/>
-            <Cost>
-                <Charge Link="Behavior/PlasmaShield"/>
-                <Cooldown Link="Behavior/PlasmaShield"/>
-            </Cost>
-            <ModifyScoreArray Validator="TargetIsHero" Value="Healing"/>
+            <ModifyScoreArray index="0" Value="Healing"/>
         </DamageResponse>
     </CBehaviorBuff>
     <CBehaviorTokenCounter id="AurielSacredSweepIncreasingClarityQuestToken" parent="StormQuestToken">
@@ -1451,21 +1299,24 @@
         <!-- Token implementation done by KGu. Speak with me about any issues. 6/23/2016 -->
         <!-- Known issue: extra quest "!" icon when you complete. To be addressed by engineering on CEffectModifyTokenCount. -->
         <ConditionalEvents CompareValue="25">
-            <Event Effect="AurielSacredSweepIncreasingClarityTalentCompletionSet" ModifyParentBehaviorFace="AurielIncreasingClaritySacredSweepQuestTokenComplete"/>
+            <Event Effect="AurielSacredSweepIncreasingClarityTalentCompletionSet"/>
         </ConditionalEvents>
-        <Max value="60"/>
+        <Max value="75"/>
         <StackCountAccumulator value="AurielSacredSweepIncreasingClarityBuffBarStackDisplayAccumulator"/>
     </CBehaviorTokenCounter>
     <CBehaviorTokenCounter id="AurielDetainmentStrikeRepeatedOffenseQuestToken" parent="StormQuestToken">
         <!-- Token implementation done by KGu. Speak with me about any issues. 6/23/2016 -->
         <!-- Known issue: extra quest "!" icon when you complete. To be addressed by engineering on CEffectModifyTokenCount. -->
         <ConditionalEvents CompareValue="6">
-            <Event Effect="AurielDetainmentStrikeRepeatedOffenseTalentCompletionSet" ModifyParentBehaviorFace="AurielDetainmentStrikeRepeatedOffenseQuestTokenComplete"/>
+            <Event Effect="AurielDetainmentStrikeRepeatedOffenseTalentCompletionSet"/>
         </ConditionalEvents>
-        <Max value="20"/>
+        <Max value="25"/>
         <StackCountAccumulator value="AurielDetainmentStrikeRepeatedOffenseBuffBarStackDisplayAccumulator"/>
         <SortIndex value="20"/>
     </CBehaviorTokenCounter>
+    <CBehaviorBuff id="AurielResurrectCasterChannel">
+        <Duration value="0.5"/>
+    </CBehaviorBuff>
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <!-- BUTTONS 			                        	-->
@@ -1488,7 +1339,7 @@
         <TooltipAppender Validator="AurielHasReservoirofHopeRayofHeaven" Face="AurielReservoirofHopeRayOfHeavenTalent"/>
     </CButton>
     <CButton id="AurielGlimmerofHopeRayOfHeavenTalent">
-        <Icon value="Assets\Textures\storm_ui_icon_auriel_rayofheaven_a.dds"/>
+        <Icon value="Assets\Textures\storm_ui_icon_auriel_rayofheaven.dds"/>
         <SimpleDisplayText value="Button/Simple/AurielGlimmerofHopeRayOfHeavenTalent"/>
     </CButton>
     <CButton id="AurielBurstingLightRayOfHeavenTalent">
@@ -1518,9 +1369,8 @@
         <Icon value="Assets\Textures\storm_ui_icon_auriel_AngelicSweep.dds"/>
         <SimpleDisplayText value="Button/Simple/AurielSacredSweep"/>
         <TooltipAppender Validator="AurielHasSwiftSweepSacredSweep" Face="AurielSwiftSweepSacredSweepTalent"/>
+        <TooltipAppender Validator="AurielHasIncreasingClaritySacredSweep" Face="AurielIncreasingClaritySacredSweepTalent"/>
         <TooltipAppender Validator="AurielHasRighteousAssaultSacredSweep" Face="AurielRighteousAssaultSacredSweepTalent"/>
-        <TooltipAppender Validator="AurielHasIncreasingClarityAndDoesNotHaveQuestCompleteSacredSweep" Face="AurielIncreasingClaritySacredSweepTalent"/>
-        <TooltipAppender Validator="AurielHasIncreasingClarityQuestCompleteSacredSweep" Text="Button/TooltipAppender/AurielSacredSweepIncreasingClarity20Stacks" Face="AurielIncreasingClaritySacredSweepQuestTokenComplete"/>
         <TooltipAppender Validator="AurielHasMajesticSpanSacredSweep" Face="AurielMajesticSpanSacredSweepTalent"/>
         <TooltipAppender Validator="AurielHasBlindingFlashSacredSweep" Face="AurielBlindingFlashSacredSweepTalent"/>
         <TooltipAppender Validator="AurielHasConvergingForceSacredSweep" Face="AurielConvergingForceSacredSweepTalent"/>
@@ -1528,10 +1378,6 @@
     <CButton id="AurielIncreasingClaritySacredSweepTalent">
         <Icon value="Assets\Textures\storm_ui_icon_auriel_angelicsweep_a.dds"/>
         <SimpleDisplayText value="Button/Simple/AurielIncreasingClaritySacredSweepTalent"/>
-    </CButton>
-    <CButton id="AurielIncreasingClaritySacredSweepQuestTokenComplete">
-        <Icon value="Assets\Textures\storm_ui_icon_auriel_angelicsweep_a.dds"/>
-        <HotkeyAlias value="AurielIncreasingClaritySacredSweepTalent"/>
     </CButton>
     <CButton id="AurielMajesticSpanSacredSweepTalent">
         <Icon value="Assets\Textures\storm_ui_icon_auriel_angelicsweep.dds"/>
@@ -1560,10 +1406,10 @@
         <TooltipVitalName index="Energy" value="UI/Tooltip/Abil/Mana"/>
         <Icon value="Assets\Textures\storm_ui_icon_auriel_restrainingblow.dds"/>
         <SimpleDisplayText value="Button/Simple/AurielDetainmentStrike"/>
-        <TooltipAppender Validator="AurielHasPiercingLashDetainmentStrike" Face="AurielPiercingLashDetainmentStrikeTalent"/>
         <TooltipAppender Validator="AurielHasHeavyBurdenDetainmentStrike" Face="AurielHeavyBurdenDetainmentStrikeTalent"/>
+        <TooltipAppender Validator="AurielHasRepeatedOffenseDetainmentStrike" Face="AurielRepeatedOffenseDetainmentStrikeTalent"/>
+        <TooltipAppender Validator="AurielHasPiercingLashDetainmentStrike" Face="AurielPiercingLashDetainmentStrikeTalent"/>
         <TooltipAppender Validator="AurielHasRepellingStrikeDetainmentStrike" Face="AurielRepellingStrikeDetainmentStrikeTalent"/>
-        <TooltipAppender Validator="AurielHasRepeatedOffenseAndDoesNotHaveQuestCompleteDetainmentStrike" Face="AurielRepeatedOffenseDetainmentStrikeTalent"/>
     </CButton>
     <CButton id="AurielRepellingStrikeDetainmentStrikeTalent">
         <Icon value="Assets\Textures\storm_ui_icon_auriel_restrainingblow_a.dds"/>
@@ -1616,7 +1462,7 @@
         <TooltipFlags index="ShowTime" value="0"/>
         <TooltipFlags index="ShowRequirements" value="0"/>
         <TooltipFlags index="ShowAutocast" value="0"/>
-        <TooltipAppender Validator="AurielHasLightSpeedResurrection" Face="AurielLightSpeedResurrectTalent"/>
+        <TooltipAppender Validator="AurielResurrectLightSpeedHasTalent" Face="AurielLightSpeedResurrectTalent"/>
     </CButton>
     <CButton id="AurielLightSpeedResurrectTalent">
         <Icon value="Assets\Textures\storm_ui_icon_auriel_resurrect.dds"/>
@@ -1649,23 +1495,16 @@
         <!-- Known issue: extra quest "!" icon when you complete. To be addressed by engineering on CEffectModifyTokenCount. -->
         <Icon value="Assets\Textures\storm_ui_icon_auriel_angelicsweep_a.dds"/>
     </CButton>
-    <CButton id="AurielDetainmentStrikeRepeatedOffenseQuestTokenComplete" parent="StormButtonParent">
-        <!-- Token implementation done by KGu. Speak with me about any issues. 6/23/2016 -->
-        <!-- Known issue: extra quest "!" icon when you complete. To be addressed by engineering on CEffectModifyTokenCount. -->
-        <Icon value="Assets\Textures\storm_ui_icon_auriel_restrainingblow_a.dds"/>
-    </CButton>
     <CButton id="AurielDetainmentStrikeRepeatedOffenseQuestToken" parent="StormButtonParent">
         <!-- Token implementation done by KGu. Speak with me about any issues. 6/23/2016 -->
         <!-- Known issue: extra quest "!" icon when you complete. To be addressed by engineering on CEffectModifyTokenCount. -->
         <Icon value="Assets\Textures\storm_ui_icon_auriel_restrainingblow_a.dds"/>
     </CButton>
     <CEffectSet id="AurielDetainmentStrikeKnockbackFinalSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielDetainmentStrikeStunDamageSet"/>
         <EffectArray value="AurielDetainmentStrikeRemoveMovementSpeedBehavior"/>
     </CEffectSet>
     <CEffectDestroyPersistent id="AurielDetainmentStrikeDestroyKnockbackLargeHeroPlacementCheckPersistent">
-        <EditorCategories value=""/>
         <WhichLocation Effect="AurielDetainmentStrikeKnockbackLargeHeroPlacementCheckPersistent" Value="TargetPoint"/>
         <Effect value="AurielDetainmentStrikeKnockbackLargeHeroPlacementCheckPersistent"/>
         <Count value="1"/>
@@ -1674,30 +1513,41 @@
     <CEffectSet id="AurielAngelicFlightApplyDeathForceSet"/>
     <CEffectDamage id="AurielDamageVsHeroicTargetParent" parent="StormSpell">
         <ValidatorArray value="TargetisHeroorActiveVehicle"/>
-        <LeechFraction index="Energy" value="0.4"/>
+        <LeechFraction index="Energy" value="0.5"/>
     </CEffectDamage>
     <CEffectDamage id="AurielDamageVsNonHeroicTargetParent" parent="StormSpell">
         <ValidatorArray value="TargetNotHero"/>
-        <LeechFraction index="Energy" value="0.08"/>
+        <LeechFraction index="Energy" value="0.05"/>
     </CEffectDamage>
     <CEffectCreatePersistent id="AurielDetainmentStrikeKnockbackLargeHeroPlacementCheckPersistent">
-        <EditorCategories value=""/>
         <PeriodCount value="1"/>
         <PeriodicEffectArray value="AurielDetainmentStrikeKnockbackTerrainCollisionCheckLargeHeroTargetSet"/>
         <PeriodicPeriodArray value="0"/>
         <RevealRadius value="0.3"/>
     </CEffectCreatePersistent>
     <CEffectApplyBehavior id="AurielRayOfHeavenReservoirOfHopeApplyBonusEnergyBehavior">
-        <EditorCategories value=""/>
         <WhichUnit Value="Caster"/>
         <Behavior value="AurielRayOfHeavenReservoirOfHopeBonusEnergy"/>
     </CEffectApplyBehavior>
-    <CEffectModifyTokenCount id="AurielRayOfHeavenReservoirOfHopeQuestIncrementToken">
+    <CEffectModifyTokenCount id="AurielRayOfHeavenReservoirOfHopeQuestIncrementToken" parent="BaseEffectModifyTokenCount">
         <Chance value="0"/>
         <TokenId value="AurielRayOfHeavenReservoirOfHopeQuestToken"/>
-        <Value value="1"/>
         <EffectCategory index="Quest" value="1"/>
     </CEffectModifyTokenCount>
+    <CEffectApplyBehavior id="AurielResurrectApplyActivelyResurrecting">
+        <Behavior value="AurielResurrectActivelyResurrecting"/>
+    </CEffectApplyBehavior>
+    <CEffectApplyBehavior id="AurielResurrectApplyCasterChannelBehavior">
+        <Behavior value="AurielResurrectCasterChannel"/>
+    </CEffectApplyBehavior>
+    <CEffectApplyBehavior id="AurielResurrectLightSpeedTalentApplyCooldownController">
+        <WhichUnit Value="Caster"/>
+        <Behavior value="AurielResurrectLightSpeedTalentCooldownController"/>
+    </CEffectApplyBehavior>
+    <CEffectModifyUnit id="AurielResurrectLightSpeedTalentModifyCooldown">
+        <ImpactUnit Value="Caster"/>
+        <Cost Abil="AurielResurrect,Execute" CooldownOperation="Add" CooldownTimeUse="-0.25"/>
+    </CEffectModifyUnit>
     <CEffectApplyBehavior id="AurielSacredSweepApplyCasterCCMonitorBehavior">
         <WhichUnit Value="Caster"/>
         <Behavior value="AurielSacredSweepCasterCCMonitor"/>
@@ -1705,38 +1555,34 @@
     <CEffectLaunchMissile id="AurielHeroWeaponLaunchMissile">
         <ValidatorArray index="0" value="TargetNotDead"/>
         <ImpactEffect value="AurielHeroWeaponImpactSet"/>
-        <Flags index="TravelValidation" value="1"/>
-        <Flags index="ValidateWeapon" value="0"/>
+        <SharedFlags index="TravelValidation" value="1"/>
+        <SharedFlags index="ValidateWeapon" value="0"/>
         <AmmoUnit value="AurielHeroWeaponMissile"/>
         <ImpactRange value="0.5"/>
     </CEffectLaunchMissile>
     <CEffectDamage id="AurielHeroWeaponHeroImpactDamage" parent="StormWeapon">
         <ValidatorArray value="TargetisHeroorActiveVehicle"/>
         <Amount value="60"/>
-        <LeechFraction index="Energy" value="0.4"/>
+        <LeechFraction index="Energy" value="0.5"/>
     </CEffectDamage>
     <CEffectSet id="AurielHeroWeaponDamageSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielHeroWeaponHeroImpactDamage"/>
         <EffectArray value="AurielHeroWeaponNonHeroImpactDamage"/>
     </CEffectSet>
     <CEffectDamage id="AurielHeroWeaponNonHeroImpactDamage" parent="StormWeapon">
         <ValidatorArray value="TargetNotHero"/>
         <Amount value="60"/>
-        <LeechFraction index="Energy" value="0.08"/>
+        <LeechFraction index="Energy" value="0.05"/>
     </CEffectDamage>
     <CEffectSet id="AurielHeroWeaponImpactSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielHeroWeaponDamageSet"/>
         <EffectArray value="UniversalWeaponImpact"/>
     </CEffectSet>
     <CEffectSet id="AurielHeroWeaponInitialSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielHeroWeaponLaunchMissile"/>
         <EffectArray value="UniversalWeaponLaunchSet"/>
     </CEffectSet>
     <CEffectSet id="AurielRayOfHeavenLowHealingStoredSearchImpactSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielRayOfHeavenCreateHealer"/>
     </CEffectSet>
     <CEffectDamage id="AurielRayOfHeavenSearingLightHeroDamage" parent="AurielDamageVsHeroicTargetParent">
@@ -1748,68 +1594,61 @@
         <SourceButtonFace value="AurielSearingLightRayOfHeavenTalent"/>
     </CEffectDamage>
     <CEffectApplyBehavior id="AurielRayOfHeavenGlimmerofHopeApplyPrimedBehavior">
-        <EditorCategories value=""/>
         <Behavior value="AurielRayOfHeavenGlimmerofHopePrimed"/>
         <ValidatorArray index="0" value="AurielHasGlimmerofHopeCarryBehavior"/>
     </CEffectApplyBehavior>
     <CEffectModifyUnit id="AurielRayOfHeavenBurstingLightModifyCooldown">
-        <EditorCategories value=""/>
         <ImpactUnit Value="Source"/>
         <Cost Abil="AurielRayOfHeaven,Execute" CooldownOperation="Set" CooldownTimeUse="0.0625"/>
     </CEffectModifyUnit>
     <CEffectSet id="AurielRayOfHeavenSearingLightImpactSet">
-        <EditorCategories value=""/>
         <EffectArray value="ApplyAbilityImpactReveal"/>
         <EffectArray value="AurielRayOfHeavenSearingLightDamageSet"/>
         <EffectArray value="AurielRayOfHeavenSearingLightApplyImpactGlazeBehavior"/>
     </CEffectSet>
     <CEffectEnumArea id="AurielRayOfHeavenSearingLightSearchArea">
-        <EditorCategories value=""/>
-        <SearchFilters value="-;Self,Player,Ally,Neutral,Mechanical,Missile,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray Radius="3" Effect="AurielRayOfHeavenSearingLightImpactSet"/>
+        <SearchFilters value="-;Self,Player,Ally,Neutral,ImmuneToAOE,Missile,Stasis,Dead,Hidden,Invulnerable"/>
+        <AreaArray Effect="AurielRayOfHeavenSearingLightImpactSet">
+            <Radius value="3"/>
+        </AreaArray>
         <Chance value="0"/>
         <ValidatorArray value="AurielRayofHeavenCasterHasGreaterThan1Energy"/>
     </CEffectEnumArea>
     <CEffectDamage id="AurielSacredSweepHeroCenterDamage" parent="AurielDamageVsHeroicTargetParent">
-        <Amount value="150"/>
+        <Amount value="180"/>
         <Name value="Effect/Name/AurielSacredSweepHeroCenterDamage"/>
         <AmountAccumulator value="AurielSacredSweepIncreasingClarityAccumulator"/>
     </CEffectDamage>
     <CEffectSet id="AurielRayOfHeavenCastDummy">
-        <EditorCategories value=""/>
         <TargetLocationType value="Point"/>
     </CEffectSet>
     <CEffectSet id="AurielRayOfHeavenHighHealingStoredInitialSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielRayOfHeavenRevealPersistent"/>
         <EffectArray value="AurielRayOfHeavenHighHealingStoredSearch"/>
         <EffectArray value="AurielRayOfHeavenSearingLightSearchArea"/>
         <TargetLocationType value="Point"/>
     </CEffectSet>
     <CEffectSet id="AurielRayOfHeavenMaxHealingStoredInitialSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielRayOfHeavenMaxHealingStoredSearch"/>
         <EffectArray value="AurielRayOfHeavenRevealPersistent"/>
         <EffectArray value="AurielRayOfHeavenSearingLightSearchArea"/>
         <TargetLocationType value="Point"/>
     </CEffectSet>
     <CEffectSet id="AurielRayOfHeavenLowHealingStoredInitialSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielRayOfHeavenRevealPersistent"/>
         <EffectArray value="AurielRayOfHeavenLowHealingStoredSearch"/>
         <EffectArray value="AurielRayOfHeavenSearingLightSearchArea"/>
         <TargetLocationType value="Point"/>
     </CEffectSet>
     <CEffectCreateHealer id="AurielRayOfHeavenCreateHealer" parent="StormHealingSpell">
-        <PeriodCount value="1"/>
-        <PeriodicPeriod value="1"/>
         <ValidatorArray value="TargetLifeNotFull"/>
         <SourceButtonFace value="AurielRayOfHeaven"/>
     </CEffectCreateHealer>
     <CEffectEnumArea id="AurielRayOfHeavenLowHealingStoredSearch">
-        <EditorCategories value=""/>
-        <SearchFilters value="Heroic;Neutral,Enemy,Hover,Missile,Stasis,Dead,Benign"/>
-        <AreaArray Radius="3" Effect="AurielRayOfHeavenLowHealingStoredSearchImpactSet"/>
+        <SearchFilters value="Heroic;Neutral,Enemy,ImmuneToFriendlyAbilities,Missile,Stasis,Dead,Benign"/>
+        <AreaArray Effect="AurielRayOfHeavenLowHealingStoredSearchImpactSet">
+            <Radius value="3"/>
+        </AreaArray>
     </CEffectEnumArea>
     <CEffectSet id="AurielSacredSweepCenterImpactSet">
         <EffectArray value="AurielSacredSweepCenterDamageSet"/>
@@ -1821,11 +1660,12 @@
         <ValidatorArray value="AurielSacredSweepIncreasingClarityComplete"/>
     </CEffectModifyUnit>
     <CEffectEnumArea id="AurielRayOfHeavenMaxHealingStoredSearch">
-        <AreaArray Radius="3" Effect="AurielRayOfHeavenMaxHealingStoredSearchImpactSet"/>
-        <SearchFilters value="Heroic;Neutral,Enemy,Hover,Missile,Stasis,Dead,Benign"/>
+        <AreaArray Effect="AurielRayOfHeavenMaxHealingStoredSearchImpactSet">
+            <Radius value="3"/>
+        </AreaArray>
+        <SearchFilters value="Heroic;Neutral,Enemy,ImmuneToFriendlyAbilities,Missile,Stasis,Dead,Benign"/>
     </CEffectEnumArea>
     <CEffectSet id="AurielRayOfHeavenSearingLightDamageSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielRayOfHeavenSearingLightHeroDamage"/>
         <EffectArray value="AurielRayOfHeavenSearingLightNonHeroDamage"/>
     </CEffectSet>
@@ -1836,53 +1676,42 @@
         <LaunchLocation Effect="AurielRayOfHeavenCastDummy" Value="CasterUnit"/>
         <Name value="Effect/Name/AurielRayOfHeavenSearingLightNonHeroDamage"/>
     </CEffectDamage>
-    <CEffectSet id="AurielRayofHeavenDummyUIActivator">
-        <EditorCategories value=""/>
-    </CEffectSet>
+    <CEffectSet id="AurielRayofHeavenDummyUIActivator"/>
     <CEffectSet id="AurielRayOfHeavenMaxHealingStoredSearchImpactSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielRayOfHeavenCreateHealer"/>
         <EffectArray value="AurielRayOfHeavenMaxHealingStoredGlazeDummy"/>
     </CEffectSet>
     <CEffectSet id="AurielRayOfHeavenHighHealingStoredSearchImpactSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielRayOfHeavenCreateHealer"/>
     </CEffectSet>
     <CEffectCreatePersistent id="AurielRayOfHeavenRevealPersistent">
-        <EditorCategories value=""/>
         <ExpireDelay value="0.75"/>
         <RevealRadius value="3.75"/>
         <RevealFlags index="Unfog" value="1"/>
     </CEffectCreatePersistent>
     <CEffectEnumArea id="AurielRayOfHeavenHighHealingStoredSearch">
-        <EditorCategories value=""/>
-        <SearchFilters value="Heroic;Neutral,Enemy,Hover,Missile,Stasis,Dead,Benign"/>
-        <AreaArray Radius="3" Effect="AurielRayOfHeavenHighHealingStoredSearchImpactSet"/>
+        <SearchFilters value="Heroic;Neutral,Enemy,ImmuneToFriendlyAbilities,Missile,Stasis,Dead,Benign"/>
+        <AreaArray Effect="AurielRayOfHeavenHighHealingStoredSearchImpactSet">
+            <Radius value="3"/>
+        </AreaArray>
     </CEffectEnumArea>
-    <CEffectModifyUnit id="AurielRayOfHeavenMaxHealingStoredGlazeDummy">
-        <EditorCategories value=""/>
-    </CEffectModifyUnit>
+    <CEffectModifyUnit id="AurielRayOfHeavenMaxHealingStoredGlazeDummy"/>
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <!-- EFFECTS - Q: Sacred Sweep                     -->
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <CEffectEnumArea id="AurielSacredSweepRighteousAssaultCenterSearch">
-        <EditorCategories value=""/>
         <Marker Link="Effect/AurielSacredSweepCenterSearch"/>
         <LaunchLocation Value="CasterPoint"/>
         <ImpactLocation Value="TargetPoint"/>
-        <SearchFilters value="Heroic;Player,Ally,Mechanical,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray>
-            <Arc value="29.9707"/>
-            <MaxCount value="2"/>
+        <SearchFilters value="Heroic;Player,Ally,ImmuneToAOE,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
+        <AreaArray Arc="29.9707" Effect="AurielSacredSweepRighteousAssaultModifyCooldown">
             <Radius value="7"/>
-            <Effect value="AurielSacredSweepRighteousAssaultModifyCooldown"/>
         </AreaArray>
         <SearchFlags index="CenterAtLaunch" value="1"/>
         <SearchFlags index="OffsetAreaByAngle" value="0"/>
         <Chance value="0"/>
     </CEffectEnumArea>
     <CEffectApplyBehavior id="AurielSacredSweepApplyMarkerBehavior">
-        <EditorCategories value=""/>
         <Behavior value="AurielSacredSweepMarker"/>
     </CEffectApplyBehavior>
     <CEffectSet id="AurielSacredSweepCenterDamageSet">
@@ -1892,54 +1721,47 @@
         <EffectArray value="AurielSacredSweepNonHeroCenterDamage"/>
     </CEffectSet>
     <CEffectApplyBehavior id="AurielSacredSweepBlindingFlashApplyBlind">
-        <EditorCategories value=""/>
         <Chance value="0"/>
         <WhichUnit Effect="AurielSacredSweepCenterImpactSet"/>
         <Behavior value="AurielSacredSweepBlindingFlashBlind"/>
         <ValidatorArray index="0" value="TargetNotUnstoppable"/>
     </CEffectApplyBehavior>
     <CEffectSet id="AurielSacredSweepDamageSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielSacredSweepHeroDamage"/>
         <EffectArray value="AurielSacredSweepNonHeroDamage"/>
     </CEffectSet>
     <CEffectModifyUnit id="AurielSacredSweepRighteousAssaultModifyCooldown">
-        <EditorCategories value=""/>
         <ImpactUnit Value="Caster"/>
-        <Cost Abil="AurielSacredSweep,Execute" CooldownOperation="Add" CooldownTimeUse="-2"/>
+        <Cost Abil="AurielSacredSweep,Execute" CooldownOperation="Add" CooldownTimeUse="-3"/>
     </CEffectModifyUnit>
     <CEffectDamage id="AurielSacredSweepNonHeroCenterDamage" parent="AurielDamageVsNonHeroicTargetParent">
-        <Amount value="150"/>
+        <Amount value="180"/>
         <Name value="Effect/Name/AurielSacredSweepNonHeroCenterDamage"/>
         <AmountAccumulator value="AurielSacredSweepIncreasingClarityAccumulator"/>
     </CEffectDamage>
     <CEffectApplyForce id="AurielSacredSweepConvergingForceApplyForce">
-        <EditorCategories value=""/>
         <WhichLocation Effect="AurielSacredSweepConvergingForceSearchPersistent" Value="TargetPoint"/>
         <Amount value="-20"/>
     </CEffectApplyForce>
     <CEffectApplyBehavior id="AurielSacredSweepConvergingForceApplyKnockbackBehavior">
-        <EditorCategories value=""/>
         <Behavior value="AurielSacredSweepConvergingForceKnockback"/>
     </CEffectApplyBehavior>
     <CEffectApplyBehavior id="AurielSacredSweepConvergingForceApplyMovementSpeedBehavior">
-        <EditorCategories value=""/>
         <Behavior value="AurielSacredSweepConvergingForceMovementSpeed"/>
     </CEffectApplyBehavior>
     <CEffectCreatePersistent id="AurielSacredSweepConvergingForceCenterLinePersistent">
-        <EditorCategories value=""/>
         <WhichLocation Value="CasterPoint"/>
         <OffsetVectorStartLocation Value="CasterPoint"/>
         <PeriodCount value="35"/>
         <PeriodicEffectArray value="AurielSacredSweepConvergingForceSearchPersistent"/>
-        <PeriodicOffsetArray value="0,-0.5,0"/>
-        <PeriodicOffsetArray value="0,-1.5,0"/>
-        <PeriodicOffsetArray value="0,-2.5,0"/>
-        <PeriodicOffsetArray value="0,-3.5,0"/>
-        <PeriodicOffsetArray value="0,-4.5,0"/>
-        <PeriodicOffsetArray value="0,-5.5,0"/>
-        <PeriodicOffsetArray value="0,-6.5,0"/>
-        <PeriodicOffsetArray value="0,-7.5,0"/>
+        <PeriodicOffsetArray value="0,-0.5,0" Y="-0.5"/>
+        <PeriodicOffsetArray value="0,-1.5,0" Y="-1.5"/>
+        <PeriodicOffsetArray value="0,-2.5,0" Y="-2.5"/>
+        <PeriodicOffsetArray value="0,-3.5,0" Y="-3.5"/>
+        <PeriodicOffsetArray value="0,-4.5,0" Y="-4.5"/>
+        <PeriodicOffsetArray value="0,-5.5,0" Y="-5.5"/>
+        <PeriodicOffsetArray value="0,-6.5,0" Y="-6.5"/>
+        <PeriodicOffsetArray value="0,-7.5,0" Y="-7.5"/>
         <PeriodicPeriodArray value="0.128"/>
         <PeriodicPeriodArray value="0"/>
         <PeriodicPeriodArray value="0"/>
@@ -1951,235 +1773,213 @@
         <PeriodicValidator value="CasterNotDazedOrDeadOrPolymorphedOrSilencedOrStunnedOrStasisExceptTimeStop"/>
     </CEffectCreatePersistent>
     <CEffectSet id="AurielSacredSweepConvergingForceImpactSet">
-        <EditorCategories value=""/>
         <ValidatorArray value="AurielTargetHasSacredSweepMarkerBehavior"/>
         <ValidatorArray value="AurielTargetDoesNotHaveSacredSweepKnockbackBehavior"/>
         <EffectArray value="AurielSacredSweepConvergingForceApplyKnockbackBehavior"/>
     </CEffectSet>
     <CEffectSet id="AurielSacredSweepConvergingForceKnockbackPeriodicSet">
-        <EditorCategories value=""/>
         <EffectArray value="HeroRemovePushPullDebuffs"/>
         <EffectArray value="AurielSacredSweepConvergingForceApplyMovementSpeedBehavior"/>
         <EffectArray value="AurielSacredSweepConvergingForceApplyForce"/>
     </CEffectSet>
     <CEffectEnumArea id="AurielSacredSweepConvergingForceLeftSearch">
-        <EditorCategories value=""/>
         <SearchFilters value="-;Self,Player,Ally,Missile,Dead,Benign,Unstoppable"/>
-        <AreaArray RectangleWidth="7" RectangleHeight="1" Effect="AurielSacredSweepConvergingForceImpactSet"/>
-        <AreaRelativeOffset value="5.25,0"/>
+        <AreaArray Effect="AurielSacredSweepConvergingForceImpactSet">
+            <RectangleWidth value="7"/>
+            <RectangleHeight value="1"/>
+        </AreaArray>
+        <AreaRelativeOffset value="5.25,0" X="5.25"/>
     </CEffectEnumArea>
     <CEffectEnumArea id="AurielSacredSweepConvergingForceRightSearch">
-        <EditorCategories value=""/>
         <SearchFilters value="-;Self,Player,Ally,Missile,Dead,Benign,Unstoppable"/>
-        <AreaArray RectangleWidth="7" RectangleHeight="1" Effect="AurielSacredSweepConvergingForceImpactSet"/>
-        <AreaRelativeOffset value="-5.25,0"/>
+        <AreaArray Effect="AurielSacredSweepConvergingForceImpactSet">
+            <RectangleWidth value="7"/>
+            <RectangleHeight value="1"/>
+        </AreaArray>
+        <AreaRelativeOffset value="-5.25,0" X="-5.25"/>
     </CEffectEnumArea>
     <CEffectCreatePersistent id="AurielSacredSweepConvergingForceSearchPersistent">
-        <EditorCategories value=""/>
         <PeriodCount value="2"/>
         <PeriodicEffectArray value="AurielSacredSweepConvergingForceLeftSearch"/>
         <PeriodicEffectArray value="AurielSacredSweepConvergingForceRightSearch"/>
         <PeriodicPeriodArray value="0"/>
     </CEffectCreatePersistent>
     <CEffectDamage id="AurielSacredSweepNonHeroDamage" parent="AurielDamageVsNonHeroicTargetParent">
-        <Amount value="75"/>
+        <Amount value="60"/>
         <Name value="Effect/Name/AurielSacredSweepNonHeroDamage"/>
         <ValidatorArray value="noMarkers"/>
     </CEffectDamage>
     <CEffectDamage id="AurielSacredSweepHeroDamage" parent="AurielDamageVsHeroicTargetParent">
-        <Amount value="75"/>
+        <Amount value="60"/>
         <Name value="Effect/Name/AurielSacredSweepHeroDamage"/>
         <ValidatorArray value="noMarkers"/>
     </CEffectDamage>
     <CEffectEnumArea id="AurielSacredSweepCenterSearch">
-        <EditorCategories value=""/>
         <LaunchLocation Value="CasterPoint"/>
         <ImpactLocation Value="TargetPoint"/>
-        <SearchFilters value="-;Player,Ally,Mechanical,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray Arc="29.9816" Radius="7" Effect="AurielSacredSweepCenterImpactSet"/>
+        <SearchFilters value="-;Player,Ally,ImmuneToAOE,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
+        <AreaArray Arc="29.9816" Effect="AurielSacredSweepCenterImpactSet">
+            <Radius value="7"/>
+        </AreaArray>
         <SearchFlags index="CenterAtLaunch" value="1"/>
         <SearchFlags index="OffsetAreaByAngle" value="0"/>
     </CEffectEnumArea>
     <CEffectSet id="AurielSacredSweepRightWingImpactSet">
         <ValidatorArray value="noMarkers"/>
-        <EditorCategories value=""/>
         <EffectArray value="AurielSacredSweepDamageSet"/>
         <EffectArray value="AurielSacredSweepApplyMarkerBehavior"/>
     </CEffectSet>
     <CEffectEnumArea id="AurielSacredSweepRightWingSearchArea2">
         <Name value="Effect/Name/AurielSacredSweepRightWingSearchArea"/>
-        <EditorCategories value=""/>
         <LaunchLocation Value="CasterPoint"/>
         <ImpactLocation Value="TargetPoint"/>
-        <SearchFilters value="-;Player,Ally,Mechanical,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray>
-            <Arc value="19.995"/>
+        <SearchFilters value="-;Player,Ally,ImmuneToAOE,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
+        <AreaArray Arc="19.995" FacingAdjustment="299.9816" Effect="AurielSacredSweepRightWingImpactSet">
             <Radius value="7"/>
-            <FacingAdjustment value="299.9816"/>
-            <Effect value="AurielSacredSweepRightWingImpactSet"/>
         </AreaArray>
         <SearchFlags index="CenterAtLaunch" value="1"/>
         <SearchFlags index="OffsetAreaByAngle" value="0"/>
+        <SearchFlags index="DoActorSearch" value="1"/>
         <RevealerParams Duration="0.75" ShapeExpansion="0.5">
             <RevealFlags index="Unfog" value="1"/>
         </RevealerParams>
     </CEffectEnumArea>
     <CEffectEnumArea id="AurielSacredSweepRightWingSearchArea1">
         <Name value="Effect/Name/AurielSacredSweepRightWingSearchArea"/>
-        <EditorCategories value=""/>
         <LaunchLocation Value="CasterPoint"/>
         <ImpactLocation Value="TargetPoint"/>
-        <SearchFilters value="-;Player,Ally,Mechanical,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray>
-            <Arc value="19.995"/>
+        <SearchFilters value="-;Player,Ally,ImmuneToAOE,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
+        <AreaArray Arc="19.995" FacingAdjustment="279.9975" Effect="AurielSacredSweepRightWingImpactSet">
             <Radius value="7"/>
-            <FacingAdjustment value="279.9975"/>
-            <Effect value="AurielSacredSweepRightWingImpactSet"/>
         </AreaArray>
         <RevealerParams Duration="0.75" ShapeExpansion="0.5">
             <RevealFlags index="Unfog" value="1"/>
         </RevealerParams>
         <SearchFlags index="CenterAtLaunch" value="1"/>
         <SearchFlags index="OffsetAreaByAngle" value="0"/>
+        <SearchFlags index="DoActorSearch" value="1"/>
     </CEffectEnumArea>
     <CEffectEnumArea id="AurielSacredSweepRightWingSearchArea3">
         <Name value="Effect/Name/AurielSacredSweepRightWingSearchArea"/>
-        <EditorCategories value=""/>
         <LaunchLocation Value="CasterPoint"/>
         <ImpactLocation Value="TargetPoint"/>
-        <SearchFilters value="-;Player,Ally,Mechanical,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray>
-            <Arc value="19.995"/>
+        <SearchFilters value="-;Player,Ally,ImmuneToAOE,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
+        <AreaArray Arc="19.995" FacingAdjustment="319.9987" Effect="AurielSacredSweepRightWingImpactSet">
             <Radius value="7"/>
-            <FacingAdjustment value="319.9987"/>
-            <Effect value="AurielSacredSweepRightWingImpactSet"/>
         </AreaArray>
         <SearchFlags index="CenterAtLaunch" value="1"/>
         <SearchFlags index="OffsetAreaByAngle" value="0"/>
+        <SearchFlags index="DoActorSearch" value="1"/>
         <RevealerParams Duration="0.75" ShapeExpansion="0.5">
             <RevealFlags index="Unfog" value="1"/>
         </RevealerParams>
     </CEffectEnumArea>
     <CEffectSet id="AurielSacredSweepLeftWingImpactSet">
         <ValidatorArray value="noMarkers"/>
-        <EditorCategories value=""/>
         <EffectArray value="AurielSacredSweepDamageSet"/>
         <EffectArray value="AurielSacredSweepApplyMarkerBehavior"/>
     </CEffectSet>
     <CEffectEnumArea id="AurielSacredSweepRightWingSearchArea4">
         <Name value="Effect/Name/AurielSacredSweepRightWingSearchArea"/>
-        <EditorCategories value=""/>
         <LaunchLocation Value="CasterPoint"/>
         <ImpactLocation Value="TargetPoint"/>
-        <SearchFilters value="-;Player,Ally,Mechanical,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray>
-            <Arc value="19.995"/>
+        <SearchFilters value="-;Player,Ally,ImmuneToAOE,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
+        <AreaArray Arc="19.995" FacingAdjustment="339.983" Effect="AurielSacredSweepRightWingImpactSet">
             <Radius value="7"/>
-            <FacingAdjustment value="339.983"/>
-            <Effect value="AurielSacredSweepRightWingImpactSet"/>
         </AreaArray>
         <SearchFlags index="CenterAtLaunch" value="1"/>
         <SearchFlags index="OffsetAreaByAngle" value="0"/>
+        <SearchFlags index="DoActorSearch" value="1"/>
         <RevealerParams Duration="0.75" ShapeExpansion="0.5">
             <RevealFlags index="Unfog" value="1"/>
         </RevealerParams>
     </CEffectEnumArea>
     <CEffectDamage id="AurielDetainmentStrikeInitialHeroDamage" parent="AurielDamageVsHeroicTargetParent">
-        <Amount value="100"/>
+        <Amount value="58"/>
         <Name value="Effect/Name/AurielDetainmentStrikeInitialHeroDamage"/>
     </CEffectDamage>
     <CEffectEnumArea id="AurielSacredSweepGuideSearchDummy">
-        <EditorCategories value=""/>
         <SearchFilters value="-;Player,Ally,Neutral,Stasis,Dead,Benign"/>
-        <AreaArray Arc="180" Radius="7"/>
+        <AreaArray Arc="180">
+            <Radius value="7"/>
+        </AreaArray>
     </CEffectEnumArea>
     <CEffectEnumArea id="AurielSacredSweepLeftWingSearchArea2">
         <Name value="Effect/Name/AurielSacredSweepLeftWingSearchArea"/>
-        <EditorCategories value=""/>
         <LaunchLocation Value="CasterPoint"/>
         <ImpactLocation Value="TargetPoint"/>
-        <SearchFilters value="-;Player,Ally,Mechanical,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray>
-            <Arc value="19.995"/>
+        <SearchFilters value="-;Player,Ally,ImmuneToAOE,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
+        <AreaArray Arc="19.995" FacingAdjustment="59.9963" Effect="AurielSacredSweepLeftWingImpactSet">
             <Radius value="7"/>
-            <FacingAdjustment value="59.9963"/>
-            <Effect value="AurielSacredSweepLeftWingImpactSet"/>
         </AreaArray>
         <SearchFlags index="CenterAtLaunch" value="1"/>
         <SearchFlags index="OffsetAreaByAngle" value="0"/>
+        <SearchFlags index="DoActorSearch" value="1"/>
         <RevealerParams Duration="0.75" ShapeExpansion="0.5">
             <RevealFlags index="Unfog" value="1"/>
         </RevealerParams>
     </CEffectEnumArea>
     <CEffectEnumArea id="AurielSacredSweepLeftWingSearchArea1">
         <Name value="Effect/Name/AurielSacredSweepLeftWingSearchArea"/>
-        <EditorCategories value=""/>
         <LaunchLocation Value="CasterPoint"/>
         <ImpactLocation Value="TargetPoint"/>
-        <SearchFilters value="-;Player,Ally,Mechanical,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray>
-            <Arc value="19.995"/>
+        <SearchFilters value="-;Player,Ally,ImmuneToAOE,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
+        <AreaArray Arc="19.995" FacingAdjustment="79.9804" Effect="AurielSacredSweepLeftWingImpactSet">
             <Radius value="7"/>
-            <FacingAdjustment value="79.9804"/>
-            <Effect value="AurielSacredSweepLeftWingImpactSet"/>
         </AreaArray>
         <RevealerParams Duration="0.75" ShapeExpansion="0.5">
             <RevealFlags index="Unfog" value="1"/>
         </RevealerParams>
         <SearchFlags index="CenterAtLaunch" value="1"/>
         <SearchFlags index="OffsetAreaByAngle" value="0"/>
+        <SearchFlags index="DoActorSearch" value="1"/>
     </CEffectEnumArea>
     <CEffectEnumArea id="AurielSacredSweepLeftWingSearchArea3">
         <Name value="Effect/Name/AurielSacredSweepLeftWingSearchArea"/>
-        <EditorCategories value=""/>
         <LaunchLocation Value="CasterPoint"/>
         <ImpactLocation Value="TargetPoint"/>
-        <SearchFilters value="-;Player,Ally,Mechanical,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray>
-            <Arc value="19.995"/>
+        <SearchFilters value="-;Player,Ally,ImmuneToAOE,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
+        <AreaArray Arc="19.995" FacingAdjustment="39.9792" Effect="AurielSacredSweepLeftWingImpactSet">
             <Radius value="7"/>
-            <FacingAdjustment value="39.9792"/>
-            <Effect value="AurielSacredSweepLeftWingImpactSet"/>
         </AreaArray>
         <SearchFlags index="CenterAtLaunch" value="1"/>
         <SearchFlags index="OffsetAreaByAngle" value="0"/>
+        <SearchFlags index="DoActorSearch" value="1"/>
         <RevealerParams Duration="0.75" ShapeExpansion="0.5">
             <RevealFlags index="Unfog" value="1"/>
         </RevealerParams>
     </CEffectEnumArea>
     <CEffectEnumArea id="AurielSacredSweepLeftWingSearchArea4">
         <Name value="Effect/Name/AurielSacredSweepLeftWingSearchArea"/>
-        <EditorCategories value=""/>
         <LaunchLocation Value="CasterPoint"/>
         <ImpactLocation Value="TargetPoint"/>
-        <SearchFilters value="-;Player,Ally,Mechanical,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray>
-            <Arc value="19.995"/>
+        <SearchFilters value="-;Player,Ally,ImmuneToAOE,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
+        <AreaArray Arc="19.995" FacingAdjustment="19.995" Effect="AurielSacredSweepLeftWingImpactSet">
             <Radius value="7"/>
-            <FacingAdjustment value="19.995"/>
-            <Effect value="AurielSacredSweepLeftWingImpactSet"/>
         </AreaArray>
         <SearchFlags index="CenterAtLaunch" value="1"/>
         <SearchFlags index="OffsetAreaByAngle" value="0"/>
+        <SearchFlags index="DoActorSearch" value="1"/>
         <RevealerParams Duration="0.75" ShapeExpansion="0.5">
             <RevealFlags index="Unfog" value="1"/>
         </RevealerParams>
     </CEffectEnumArea>
     <CEffectEnumArea id="AurielSacredSweepLeftWingSearchArea5">
         <Name value="Effect/Name/AurielSacredSweepLeftWingSearchArea"/>
-        <EditorCategories value=""/>
         <LaunchLocation Value="CasterPoint"/>
         <ImpactLocation Value="TargetPoint"/>
-        <SearchFilters value="-;Player,Ally,Mechanical,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray Arc="19.995" Radius="7" Effect="AurielSacredSweepLeftWingImpactSet"/>
+        <SearchFilters value="-;Player,Ally,ImmuneToAOE,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
+        <AreaArray Arc="19.995" Effect="AurielSacredSweepLeftWingImpactSet">
+            <Radius value="7"/>
+        </AreaArray>
         <SearchFlags index="CenterAtLaunch" value="1"/>
         <SearchFlags index="OffsetAreaByAngle" value="0"/>
+        <SearchFlags index="DoActorSearch" value="1"/>
         <RevealerParams Duration="0.75" ShapeExpansion="0.5">
             <RevealFlags index="Unfog" value="1"/>
         </RevealerParams>
     </CEffectEnumArea>
     <CEffectCreatePersistent id="AurielSacredSweepInitialPersistent">
-        <EditorCategories value=""/>
         <OffsetVectorStartLocation Value="CasterPoint"/>
         <Flags index="Channeled" value="1"/>
         <PeriodCount value="11"/>
@@ -2212,7 +2012,6 @@
         <PeriodicValidator value="CasterNotDazedOrDeadOrPolymorphedOrSilencedOrStunnedOrStasisExceptTimeStop"/>
     </CEffectCreatePersistent>
     <CEffectSet id="AurielSacredSweepInitialSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielSacredSweepInitialPersistent"/>
         <EffectArray value="AurielSacredSweepConvergingForceCenterLinePersistent"/>
         <EffectArray value="AurielSacredSweepApplyCasterCCMonitorBehavior"/>
@@ -2222,18 +2021,15 @@
     <!-- EFFECTS - W: Detainment Strike                  -->
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <CEffectDestroyPersistent id="AurielDetainmentStrikeDestroyOffsetPersistent">
-        <EditorCategories value=""/>
         <WhichLocation Value="CasterPoint"/>
         <Effect value="AurielDetainmentStrikeOffsetPersistent"/>
         <Count value="1"/>
         <Radius value="1"/>
     </CEffectDestroyPersistent>
     <CEffectIssueOrder id="AurielDetainmentStrikeIssueStopOrder">
-        <EditorCategories value=""/>
         <Abil value="stop"/>
     </CEffectIssueOrder>
     <CEffectApplyForce id="AurielDetainmentStrikeApplyForce">
-        <EditorCategories value=""/>
         <WhichLocation Effect="AurielDetainmentStrikeInitialSet" Value="CasterPoint"/>
         <WhichUnit Value="Source"/>
         <Amount value="10"/>
@@ -2249,7 +2045,6 @@
         <Behavior value="AurielDetainmentStrikeStun"/>
     </CEffectApplyBehavior>
     <CEffectDestroyPersistent id="AurielDetainmentStrikeDestroyMissileScanPersistent">
-        <EditorCategories value=""/>
         <WhichLocation Value="CasterPoint"/>
         <Effect value="AurielDetainmentStrikeMissileScanPersistent"/>
         <Count value="1"/>
@@ -2257,28 +2052,26 @@
     </CEffectDestroyPersistent>
     <CEffectSet id="AurielDetainmentStrikeKnockbackTerrainCollisionCheckLargeHeroTargetSet">
         <ValidatorArray value="AurielFatTargetCollision"/>
-        <EditorCategories value=""/>
         <EffectArray value="AurielDetainmentStrikeTerrainCollisionSet"/>
         <TargetLocationType value="Point"/>
     </CEffectSet>
     <CEffectSet id="AurielDetainmentStrikeKnockbackTerrainCollisionCheckSmallHeroTargetSet">
         <ValidatorArray value="AurielDetainmentStrikeNotFatTargetCollision"/>
-        <EditorCategories value=""/>
         <EffectArray value="AurielDetainmentStrikeTerrainCollisionSet"/>
         <TargetLocationType value="Point"/>
     </CEffectSet>
     <CEffectEnumArea id="AurielDetainmentStrikeGuideDummy">
-        <EditorCategories value=""/>
         <SearchFilters value="Heroic;Player,Ally,Neutral,Structure,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray RectangleWidth="1" RectangleHeight="6"/>
+        <AreaArray>
+            <RectangleWidth value="1"/>
+            <RectangleHeight value="6"/>
+        </AreaArray>
     </CEffectEnumArea>
     <CEffectSet id="AurielDetainmentStrikeInitialSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielDetainmentStrikeOffsetPersistent"/>
         <TargetLocationType value="Point"/>
     </CEffectSet>
     <CEffectSet id="AurielDetainmentStrikeMissileImpactSet">
-        <EditorCategories value=""/>
         <EffectArray value="HeroRemovePushPullDebuffs"/>
         <EffectArray value="AurielDetainmentStrikeIssueStopOrder"/>
         <EffectArray value="AurielDetainmentStrikeDamageSet"/>
@@ -2288,36 +2081,32 @@
         <EffectArray value="CameraShakeLightTauntingTotemSet"/>
     </CEffectSet>
     <CEffectEnumArea id="AurielDetainmentStrikeHeroMissileScan">
-        <EditorCategories value=""/>
         <LaunchLocation Value="OriginPoint"/>
-        <SearchFilters value="Heroic;Player,Ally,Neutral,Massive,Structure,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray>
-            <MaxCount value="1"/>
+        <SearchFilters value="Heroic;Player,Ally,Neutral,ImmuneToSkillshots,Structure,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
+        <SearchFlags index="DoActorSearch" value="1"/>
+        <AreaArray MaxCount="1" Effect="AurielDetainmentStrikeMissileImpactSwitch">
             <RectangleWidth value="1"/>
             <RectangleHeight value="2"/>
-            <Effect value="AurielDetainmentStrikeMissileImpactSwitch"/>
         </AreaArray>
         <RevealerParams Duration="0.75" ShapeExpansion="1">
             <RevealFlags index="Unfog" value="1"/>
         </RevealerParams>
     </CEffectEnumArea>
     <CEffectCreatePersistent id="AurielDetainmentStrikeMissileScanPersistent">
-        <EditorCategories value=""/>
         <OffsetVectorStartLocation Value="OuterPoint"/>
         <PeriodCount value="1"/>
         <PeriodicEffectArray value="AurielDetainmentStrikeHeroMissileScan"/>
         <PeriodicPeriodArray value="0"/>
     </CEffectCreatePersistent>
     <CEffectCreatePersistent id="AurielDetainmentStrikeOffsetPersistent">
-        <EditorCategories value=""/>
         <WhichLocation Value="CasterPoint"/>
         <OffsetVectorStartLocation Value="CasterPoint"/>
         <PeriodCount value="4"/>
         <PeriodicEffectArray value="AurielDetainmentStrikeMissileScanPersistent"/>
-        <PeriodicOffsetArray value="0,-1,0"/>
-        <PeriodicOffsetArray value="0,-3,0"/>
-        <PeriodicOffsetArray value="0,-5,0"/>
-        <PeriodicOffsetArray value="0,-7,0"/>
+        <PeriodicOffsetArray value="0,-1,0" Y="-1"/>
+        <PeriodicOffsetArray value="0,-3,0" Y="-3"/>
+        <PeriodicOffsetArray value="0,-5,0" Y="-5"/>
+        <PeriodicOffsetArray value="0,-7,0" Y="-7"/>
         <PeriodicPeriodArray value="0.0625"/>
         <Marker Duration="1">
             <MatchFlags index="Id" value="1"/>
@@ -2330,33 +2119,29 @@
         <RevealRadius value="0.1"/>
     </CEffectCreatePersistent>
     <CEffectCreatePersistent id="AurielDetainmentStrikeKnockbackPersistent">
-        <EditorCategories value=""/>
         <WhichLocation Value="SourceUnit"/>
         <OffsetVectorStartLocation Effect="AurielDetainmentStrikeInitialSet" Value="CasterPoint"/>
         <InitialEffect value="AurielDetainmentStrikeApplyForce"/>
         <PeriodCount value="6"/>
         <PeriodicEffectArray value="AurielDetainmentStrikeKnockbackSmallHeroPlacementCheckPersistent"/>
         <PeriodicEffectArray value="AurielDetainmentStrikeKnockbackLargeHeroPlacementCheckPersistent"/>
-        <PeriodicOffsetArray value="0,-1,0"/>
-        <PeriodicOffsetArray value="0,-1,0"/>
-        <PeriodicOffsetArray value="0.8,-0.75,0"/>
-        <PeriodicOffsetArray value="1.3,-0.75,0"/>
-        <PeriodicOffsetArray value="-0.8,-0.75,0"/>
-        <PeriodicOffsetArray value="-1.3,-0.75,0"/>
+        <PeriodicOffsetArray value="0,-1,0" Y="-1"/>
+        <PeriodicOffsetArray value="0,-1.5,0" Y="-1.5"/>
+        <PeriodicOffsetArray value="0.8,-0.75,0" X="0.8" Y="-0.75"/>
+        <PeriodicOffsetArray value="1.3,-0.75,0" X="1.3" Y="-0.75"/>
+        <PeriodicOffsetArray value="-0.8,-0.75,0" X="-0.8" Y="-0.75"/>
+        <PeriodicOffsetArray value="-1.3,-0.75,0" X="-1.3" Y="-0.75"/>
         <PeriodicPeriodArray value="0"/>
     </CEffectCreatePersistent>
     <CEffectSet id="AurielDetainmentStrikeKnockbackBehaviorPeriodicSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielDetainmentStrikeKnockbackPersistent"/>
     </CEffectSet>
     <CEffectRemoveBehavior id="AurielDetainmentStrikeRemoveKnockbackBehavior">
-        <EditorCategories value=""/>
         <BehaviorLink value="AurielDetainmentStrikeKnockback"/>
         <Count value="1"/>
         <WhichUnit Effect="AurielDetainmentStrikeMissileImpactSwitch"/>
     </CEffectRemoveBehavior>
     <CEffectRemoveBehavior id="AurielDetainmentStrikeRemoveMovementSpeedBehavior">
-        <EditorCategories value=""/>
         <WhichUnit Effect="AurielDetainmentStrikeMissileImpactSwitch"/>
         <BehaviorLink value="AurielDetainmentStrikeMovementSpeed"/>
         <Count value="1"/>
@@ -2367,27 +2152,25 @@
         <Chance value="0"/>
     </CEffectApplyBehavior>
     <CEffectSet id="AurielDetainmentStrikePiercingLashMissileImpactSet">
-        <EditorCategories value=""/>
         <EffectArray value="HeroRemovePushPullDebuffs"/>
         <EffectArray value="AurielDetainmentStrikeIssueStopOrder"/>
         <EffectArray value="AurielDetainmentStrikeApplyKnockbackBehavior"/>
         <EffectArray value="AurielDetainmentStrikeDamageSet"/>
+        <EffectArray value="AurielDetainmentStrikePiercingLashModifyCooldown"/>
         <EffectArray value="CameraShakeLightTauntingTotemSet"/>
     </CEffectSet>
     <CEffectSwitch id="AurielDetainmentStrikeMissileImpactSwitch">
-        <EditorCategories value=""/>
         <CaseArray Validator="AurielHasPiercingLashDetainmentStrike" Effect="AurielDetainmentStrikePiercingLashMissileImpactSet"/>
         <CaseDefault value="AurielDetainmentStrikeMissileImpactSet"/>
         <ValidatorArray value="noMarkers"/>
     </CEffectSwitch>
     <CEffectSet id="AurielDetainmentStrikeStunDamageSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielDetainmentStrikeStunHeroDamage"/>
         <EffectArray value="AurielDetainmentStrikeRepeatedOffenseModifyQuestToken"/>
         <ValidatorArray value="AurielTargetHasDetainmentStrikeStun"/>
     </CEffectSet>
     <CEffectDamage id="AurielDetainmentStrikeStunHeroDamage" parent="AurielDamageVsHeroicTargetParent">
-        <Amount value="100"/>
+        <Amount value="174"/>
         <ImpactLocation Effect="AurielDetainmentStrikeMissileImpactSwitch" Value="TargetUnit"/>
         <LaunchLocation Effect="AurielDetainmentStrikeInitialSet" Value="CasterUnit"/>
         <Name value="Effect/Name/AurielDetainmentStrikeStunHeroDamage"/>
@@ -2395,11 +2178,9 @@
         <AmountAccumulator value="AurielDetainmentStrikeRepeatedOffenseAccumulator"/>
     </CEffectDamage>
     <CEffectSet id="AurielDetainmentStrikeDamageSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielDetainmentStrikeInitialHeroDamage"/>
     </CEffectSet>
     <CEffectDestroyPersistent id="AurielDetainmentStrikeDestroyKnockbackSmallHeroPlacementCheckPersistent">
-        <EditorCategories value=""/>
         <WhichLocation Effect="AurielDetainmentStrikeKnockbackSmallHeroPlacementCheckPersistent" Value="TargetPoint"/>
         <Effect value="AurielDetainmentStrikeKnockbackSmallHeroPlacementCheckPersistent"/>
         <Count value="1"/>
@@ -2409,18 +2190,15 @@
     <!-- EFFECTS - E: Bestow Hope                       -->
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <CEffectApplyBehavior id="AurielBestowHopeApplyCasterRangeBehavior">
-        <EditorCategories value=""/>
         <WhichUnit Value="Caster"/>
         <Behavior value="AurielBestowHopeCasterRangeBehavior"/>
     </CEffectApplyBehavior>
     <CEffectRemoveBehavior id="AurielBestowHopeRemoveCasterRangeBehavior">
-        <EditorCategories value=""/>
         <WhichUnit Value="Caster"/>
         <BehaviorLink value="AurielBestowHopeCasterRangeBehavior"/>
         <Count value="1"/>
     </CEffectRemoveBehavior>
     <CEffectRemoveBehavior id="AurielBestowHopeRemoveProxyBehavior">
-        <EditorCategories value=""/>
         <BehaviorLink value="AurielBestowHopeProxyBehavior"/>
         <Count value="1"/>
         <RequireCasterUnit Effect="AurielBestowHopeRemovalSet" Value="Caster"/>
@@ -2431,22 +2209,18 @@
         <EffectArray value="AurielBestowHopeApplyProxyBehavior"/>
     </CEffectSet>
     <CEffectApplyBehavior id="AurielBestowHopeApplyCasterBehavior">
-        <EditorCategories value=""/>
         <WhichUnit Value="Caster"/>
         <Behavior value="AurielBestowHopeCasterBehavior"/>
     </CEffectApplyBehavior>
     <CEffectRemoveBehavior id="AurielBestowHopeRemoveCasterBehavior">
-        <EditorCategories value=""/>
         <WhichUnit Value="Caster"/>
         <BehaviorLink value="AurielBestowHopeCasterBehavior"/>
         <Count value="1"/>
     </CEffectRemoveBehavior>
     <CEffectApplyBehavior id="AurielBestowHopeApplyProxyBehavior">
-        <EditorCategories value=""/>
         <Behavior value="AurielBestowHopeProxyBehavior"/>
     </CEffectApplyBehavior>
     <CEffectSet id="AurielBestowHopeInitialSet">
-        <EditorCategories value=""/>
         <ValidatorArray value="NotVehicle"/>
         <ValidatorArray value="AurielTargetDoesNotHaveBestowHopeProxyBehavior"/>
     </CEffectSet>
@@ -2457,76 +2231,58 @@
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <!-- EFFECTS - R1: Resurrect                        -->
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
-    <CEffectModifyUnit id="AurielResurrectWingsDummy">
-        <EditorCategories value=""/>
-    </CEffectModifyUnit>
+    <CEffectModifyUnit id="AurielResurrectWingsDummy"/>
     <CEffectApplyBehavior id="AurielRayOfHeavenSearingLightApplyImpactGlazeBehavior">
-        <EditorCategories value=""/>
         <Behavior value="AurielRayOfHeavenHealSearingLightImpactGlaze"/>
     </CEffectApplyBehavior>
     <CEffectSet id="AurielDetainmentStrikeTerrainCollisionSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielDetainmentStrikeApplyStunBehavior"/>
         <EffectArray value="AurielDetainmentStrikeDestroyKnockbackSmallHeroPlacementCheckPersistent"/>
         <EffectArray value="AurielDetainmentStrikeDestroyKnockbackLargeHeroPlacementCheckPersistent"/>
         <EffectArray value="AurielDetainmentStrikeRemoveKnockbackBehavior"/>
     </CEffectSet>
+    <CEffectApplyBehavior id="AurielResurrectLightSpeedApplyControllerBehavior">
+        <Behavior value="AurielResurrectLightSpeedControllerBehavior"/>
+    </CEffectApplyBehavior>
     <CEffectApplyBehavior id="AurielResurrectApplyMarkerBehavior">
-        <EditorCategories value=""/>
         <Behavior value="AurielResurrectMarkerBehavior"/>
     </CEffectApplyBehavior>
     <CEffectCreateHealer id="AurielResurrectCreateHealer" parent="StormHealingSpell">
-        <EditorCategories value=""/>
-        <PeriodCount value="1"/>
-        <PeriodicPeriod value="1"/>
         <RechargeVitalFraction value="0.5"/>
         <SourceButtonFace value="AurielResurrect"/>
     </CEffectCreateHealer>
     <CEffectApplyBehavior id="AurielResurrectLightSpeedApplySpeedBehavior">
-        <EditorCategories value=""/>
         <Behavior value="AurielResurrectLightSpeedSpeedBehavior"/>
         <Count value="64"/>
     </CEffectApplyBehavior>
-    <CEffectApplyBehavior id="AurielResurrectLightSpeedApplyControllerBehavior">
-        <EditorCategories value=""/>
-        <Behavior value="AurielResurrectLightSpeedControllerBehavior"/>
-    </CEffectApplyBehavior>
+    <CEffectSet id="AurielResurrectInitialDummy">
+        <ValidatorArray value="AurielResurrectTargetHasRezzableBehaviorOrCasterChannelBehavior"/>
+        <EffectArray value="AurielResurrectApplyActivelyResurrecting"/>
+    </CEffectSet>
     <CEffectRemoveBehavior id="AurielResurrectLightSpeedRemoveSpeedBehavior">
-        <EditorCategories value=""/>
         <WhichUnit Effect="AurielResurrectLightSpeedApplyControllerBehavior"/>
         <BehaviorLink value="AurielResurrectLightSpeedSpeedBehavior"/>
         <Count value="1"/>
     </CEffectRemoveBehavior>
-    <CEffectModifyUnit id="AurielResurrectInitialDummy">
-        <EditorCategories value=""/>
-    </CEffectModifyUnit>
-    <CEffectSet id="AurielResurrectInitialSet">
-        <EditorCategories value=""/>
-        <EffectArray value="AurielResurrectPrepareSet"/>
-        <ValidatorArray value="AurielResurrectTargetHasRezzableBehavior"/>
-    </CEffectSet>
     <CEffectSet id="AurielResurrectPrepareSet">
-        <EditorCategories value=""/>
-        <EffectArray value="AurielResurrectApplyMarkerBehavior"/>
         <EffectArray value="AbilityUseResponseSetDismountDecloak"/>
+        <EffectArray value="AurielResurrectApplyMarkerBehavior"/>
+        <EffectArray value="AurielResurrectApplyCasterChannelBehavior"/>
     </CEffectSet>
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <!-- EFFECTS - R2: Crystal Aegis                    -->
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <CEffectSet id="AurielCrystalAegisExpireSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielCrystalAegisDiamondResolveApplyDamageReduction"/>
         <EffectArray value="AurielCrystalAegisExplosionSearch"/>
         <TargetLocationType value="UnitOrPoint"/>
     </CEffectSet>
     <CEffectApplyBehavior id="AurielCrystalAegisDiamondResolveApplyDamageReduction">
-        <EditorCategories value=""/>
         <Chance value="0"/>
         <WhichUnit Effect="AurielCrystalAegisApplyStasisBehavior"/>
         <Behavior value="AurielCrystalAegisDiamondResolve"/>
     </CEffectApplyBehavior>
     <CEffectSet id="AurielCrystalAegisDamageSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielCrystalAegisHeroExplosionDamage"/>
         <EffectArray value="AurielCrystalAegisNonHeroExplosionDamage"/>
     </CEffectSet>
@@ -2540,81 +2296,65 @@
         <Name value="Effect/Name/AurielCrystalAegisHeroExplosionDamage"/>
     </CEffectDamage>
     <CEffectApplyBehavior id="AurielCrystalAegisApplyStasisBehavior">
-        <EditorCategories value=""/>
         <Behavior value="AurielCrystalAegisStasisBehavior"/>
     </CEffectApplyBehavior>
     <CEffectSet id="AurielCrystalAegisExplosionImpactSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielCrystalAegisDamageSet"/>
         <ValidatorArray value="noMarkers"/>
     </CEffectSet>
     <CEffectEnumArea id="AurielCrystalAegisExplosionSearch">
-        <EditorCategories value=""/>
         <ImpactLocation Value="SourceUnitOrPoint"/>
-        <SearchFilters value="-;Player,Ally,Neutral,Mechanical,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray Radius="7" Effect="AurielCrystalAegisExplosionImpactSet"/>
+        <SearchFilters value="-;Player,Ally,Neutral,ImmuneToAOE,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
+        <SearchFlags index="DoActorSearch" value="1"/>
+        <AreaArray Effect="AurielCrystalAegisExplosionImpactSet">
+            <Radius value="7"/>
+        </AreaArray>
         <RevealerParams Duration="0.75" ShapeExpansion="0.5">
             <RevealFlags index="Unfog" value="1"/>
         </RevealerParams>
     </CEffectEnumArea>
     <CEffectSet id="AurielCrystalAegisInitialSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielCrystalAegisApplyStasisBehavior"/>
         <ValidatorArray value="TargetIsGroundMover"/>
+        <ValidatorArray value="UserCategoryNoSpecialDeathStateTarget"/>
     </CEffectSet>
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <!-- EFFECTS - Talents 				                -->
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <CEffectApplyBehavior id="AurielAngelicFlightApplyAscendBehavior">
-        <EditorCategories value=""/>
         <Behavior value="AurielAngelicFlightAscend"/>
         <WhichUnit Value="Caster"/>
     </CEffectApplyBehavior>
     <CEffectApplyBehavior id="AurielAngelicFlightApplyCloakChecker">
-        <EditorCategories value=""/>
         <Behavior value="AurielAngelicFlightCloakChecker"/>
     </CEffectApplyBehavior>
     <CEffectApplyBehavior id="AurielAngelicFlightShortJumpApply">
         <ValidatorArray index="0" value="AurielAngelicFlightCastWithinMinRange"/>
-        <EditorCategories value=""/>
         <Behavior value="AurielAngelicFlightShortJumpBehavior"/>
     </CEffectApplyBehavior>
     <CEffectApplyBehavior id="AurielAngelicFlightApplyCloakCheckerSuppression">
-        <EditorCategories value=""/>
         <Behavior value="AurielAngelicFlightCloakCheckerSuppressor"/>
     </CEffectApplyBehavior>
     <CEffectCreatePersistent id="AurielAngelicFlightCreateSearchPersistent">
-        <EditorCategories value=""/>
-        <PeriodCount value="65535"/>
+        <Flags index="PersistUntilDestroyed" value="1"/>
         <PeriodicEffectArray value="AurielAngelicFlightSearch"/>
         <PeriodicPeriodArray value="0.0625"/>
     </CEffectCreatePersistent>
-    <CEffectDestroyPersistent id="AurielAngelicFlightDestroyPersistent">
-        <EditorCategories value=""/>
-    </CEffectDestroyPersistent>
-    <CEffectDestroyPersistent id="AurielAngelicFlightDestroySearchPersistent">
-        <EditorCategories value=""/>
-    </CEffectDestroyPersistent>
-    <CEffectSet id="AurielAngelicFlightDummySet">
-        <EditorCategories value=""/>
-    </CEffectSet>
+    <CEffectDestroyPersistent id="AurielAngelicFlightDestroyPersistent"/>
+    <CEffectDestroyPersistent id="AurielAngelicFlightDestroySearchPersistent"/>
+    <CEffectSet id="AurielAngelicFlightDummySet"/>
     <CEffectSet id="AurielAngelicFlightFinalSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielAngelicFlightRemoveAscendBehavior"/>
         <EffectArray value="AurielAngelicFlightDestroySearchPersistent"/>
         <EffectArray value="AurielAngelicFlightRemoveCloakCheckerSuppressor"/>
         <EffectArray value="AurielAngelicFlightRemoveCloakChecker"/>
     </CEffectSet>
-    <CEffectSet id="AurielAngelicFlightImpactSet">
-        <EditorCategories value=""/>
-    </CEffectSet>
+    <CEffectSet id="AurielAngelicFlightImpactSet"/>
     <CEffectSet id="AurielAngelicFlightInitialSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielAngelicFlightApplyAscendBehavior"/>
         <EffectArray value="AurielAngelicFlightCreateSearchPersistent"/>
     </CEffectSet>
     <CEffectLaunchMissile id="AurielAngelicFlightLaunchMissile">
-        <EditorCategories value=""/>
         <LaunchLocation Value="CasterUnit"/>
         <ImpactLocation Effect="AurielAngelicFlightPersistent" Value="TargetPoint"/>
         <LaunchEffect value="AurielAngelicFlightLaunchSet"/>
@@ -2623,114 +2363,101 @@
         <DeathType value="Unknown"/>
     </CEffectLaunchMissile>
     <CEffectSet id="AurielAngelicFlightLaunchSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielAngelicFlightWarningVisualPersistent"/>
         <EffectArray value="AurielAngelicFlightWarningVisualCreationSet"/>
     </CEffectSet>
     <CEffectCreatePersistent id="AurielAngelicFlightPersistent">
         <ValidatorArray value="Walkable"/>
         <ValidatorArray value="UserCategoryCasterNotRooted"/>
-        <EditorCategories value=""/>
         <Flags index="Channeled" value="1"/>
         <InitialEffect value="AurielAngelicFlightInitialSet"/>
         <ExpireEffect value="AurielAngelicFlightSet"/>
         <PeriodicValidator value="AurielAngelicFlightValidatorCombine"/>
     </CEffectCreatePersistent>
     <CEffectRemoveBehavior id="AurielAngelicFlightRemoveAscendBehavior">
-        <EditorCategories value=""/>
         <BehaviorLink value="AurielAngelicFlightAscend"/>
     </CEffectRemoveBehavior>
     <CEffectRemoveBehavior id="AurielAngelicFlightRemoveCloakChecker">
-        <EditorCategories value=""/>
         <BehaviorLink value="AurielAngelicFlightCloakChecker"/>
     </CEffectRemoveBehavior>
     <CEffectRemoveBehavior id="AurielAngelicFlightRemoveCloakCheckerSuppressor">
-        <EditorCategories value=""/>
         <BehaviorLink value="AurielAngelicFlightCloakCheckerSuppressor"/>
     </CEffectRemoveBehavior>
     <CEffectRemoveBehavior id="AurielAngelicFlightRemoveDisablerBehavior">
-        <EditorCategories value=""/>
         <BehaviorLink value="AurielAngelicFlightDisablerBehavior"/>
     </CEffectRemoveBehavior>
     <CEffectEnumArea id="AurielAngelicFlightSearch">
-        <EditorCategories value=""/>
         <LaunchLocation Value="TargetPoint"/>
         <ImpactLocation Value="TargetPoint"/>
         <SearchFilters value="-;Ally,Neutral,Enemy"/>
-        <AreaArray Radius="1.5" Effect="AurielAngelicFlightFinalSet"/>
+        <AreaArray Effect="AurielAngelicFlightFinalSet">
+            <Radius value="1.5"/>
+        </AreaArray>
     </CEffectEnumArea>
     <CEffectSet id="AurielAngelicFlightSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielAngelicFlightLaunchMissile"/>
     </CEffectSet>
     <CEffectCreatePersistent id="AurielAngelicFlightWarningEnemyVisualPersistent">
-        <EditorCategories value=""/>
         <PeriodicValidator value="AurielAngelicFlightEnemyVisualPeriodicCombine"/>
     </CEffectCreatePersistent>
     <CEffectSet id="AurielAngelicFlightWarningVisualCreationSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielAngelicFlightWarningEnemyVisualPersistent"/>
         <EffectArray value="AurielAngelicFlightApplyCloakCheckerSuppression"/>
         <EffectArray value="AurielAngelicFlightApplyCloakChecker"/>
         <EffectArray value="AurielAngelicFlightShortJumpApply"/>
     </CEffectSet>
-    <CEffectModifyUnit id="AurielAngelicFlightFinishDummy">
-        <EditorCategories value=""/>
-    </CEffectModifyUnit>
+    <CEffectModifyUnit id="AurielAngelicFlightFinishDummy"/>
     <CEffectCreatePersistent id="AurielAngelicFlightWarningVisualPersistent">
-        <EditorCategories value=""/>
         <WhichLocation Effect="AurielAngelicFlightLaunchMissile"/>
         <PeriodCount value="500"/>
         <PeriodicPeriodArray value="0.125"/>
         <PeriodicValidator value="AurielHasAurielAngelicFlightBehavior"/>
     </CEffectCreatePersistent>
-    <CEffectSet id="AurielAngelicFlightWarningVisualRecreationSet">
-        <EditorCategories value=""/>
-    </CEffectSet>
+    <CEffectSet id="AurielAngelicFlightWarningVisualRecreationSet"/>
+    <CEffectModifyUnit id="AurielDetainmentStrikePiercingLashModifyCooldown">
+        <ImpactUnit Value="Caster"/>
+        <Cost Abil="AurielDetainmentStrike,Execute" CooldownOperation="Add" CooldownTimeUse="-2"/>
+    </CEffectModifyUnit>
     <CEffectSet id="AurielShieldOfHopeImpactSet">
-        <EditorCategories value=""/>
         <ValidatorArray value="TargetNotDeadAndNoSpecialDeathState"/>
         <ValidatorArray value="TargetNotImmuneToFriendlyAbilities"/>
         <ValidatorArray value="NotVehicle"/>
     </CEffectSet>
     <CEffectApplyBehavior id="AurielShieldOfHopeApplyShieldBehavior">
-        <EditorCategories value=""/>
         <Behavior value="AurielShieldOfHopeShieldBehavior"/>
     </CEffectApplyBehavior>
     <CEffectSet id="AurielShieldOfHopeInitialSet">
-        <EditorCategories value=""/>
         <EffectArray value="AurielShieldOfHopeSearchArea"/>
     </CEffectSet>
     <CEffectEnumArea id="AurielShieldOfHopeSearchArea">
-        <EditorCategories value=""/>
-        <SearchFilters value="Heroic;Neutral,Enemy,Hover,Stasis,Dead"/>
-        <AreaArray Radius="8" Effect="AurielShieldOfHopeImpactSet"/>
+        <SearchFilters value="Heroic;Neutral,Enemy,ImmuneToFriendlyAbilities,Stasis,Dead"/>
+        <AreaArray Effect="AurielShieldOfHopeImpactSet">
+            <Radius value="8"/>
+        </AreaArray>
     </CEffectEnumArea>
-    <CEffectModifyTokenCount id="AurielSacredSweepIncreasingClarityModifyQuestToken">
+    <CEffectModifyTokenCount id="AurielSacredSweepIncreasingClarityModifyQuestToken" parent="BaseEffectModifyTokenCount">
         <ValidatorArray value="TargetIsHero"/>
         <Chance value="0"/>
         <TokenId value="AurielSacredSweepIncreasingClarityQuestToken"/>
-        <Value value="1"/>
         <EffectCategory index="Quest" value="1"/>
     </CEffectModifyTokenCount>
     <CEffectSet id="AurielSacredSweepIncreasingClarityTalentCompletionSet">
         <EffectArray value="AurielSacredSweepIncreasingClarityTalentCompletionSetTalentCompletionBonusAccumulator"/>
         <EffectArray value="AurielSacredSweepIncreasingClarityTalentCompletionSetTalentCompletionModifyPlayer"/>
     </CEffectSet>
-    <CEffectModifyTokenCount id="AurielSacredSweepIncreasingClarityTalentCompletionSetTalentCompletionBonusAccumulator">
+    <CEffectModifyTokenCount id="AurielSacredSweepIncreasingClarityTalentCompletionSetTalentCompletionBonusAccumulator" parent="BaseEffectModifyTokenCount">
         <Chance value="0"/>
         <TokenId value="AurielSacredSweepIncreasingClarityQuestToken"/>
-        <Value value="35"/>
+        <Value value="50"/>
     </CEffectModifyTokenCount>
     <CEffectModifyPlayer id="AurielSacredSweepIncreasingClarityTalentCompletionSetTalentCompletionModifyPlayer">
         <WhichPlayer Value="Caster"/>
         <EffectArray Operation="Set" Reference="Effect,AurielSacredSweepIncreasingClarityModifyQuestToken,Chance" Value="0"/>
         <EffectArray Operation="Set" Reference="Effect,AurielSacredSweepIncreasingClarityTalentCompletionSetTalentCompletionBonusAccumulator,Chance" Value="0"/>
     </CEffectModifyPlayer>
-    <CEffectModifyTokenCount id="AurielDetainmentStrikeRepeatedOffenseModifyQuestToken">
+    <CEffectModifyTokenCount id="AurielDetainmentStrikeRepeatedOffenseModifyQuestToken" parent="BaseEffectModifyTokenCount">
         <Chance value="0"/>
         <TokenId value="AurielDetainmentStrikeRepeatedOffenseQuestToken"/>
-        <Value value="1"/>
         <EffectCategory index="Quest" value="1"/>
     </CEffectModifyTokenCount>
     <CEffectSet id="AurielDetainmentStrikeRepeatedOffenseTalentCompletionSet">
@@ -2740,7 +2467,7 @@
     <CEffectModifyTokenCount id="AurielDetainmentStrikeRepeatedOffenseTalentCompletionBonusAccumulator">
         <Chance value="0"/>
         <TokenId value="AurielDetainmentStrikeRepeatedOffenseQuestToken"/>
-        <Value value="14"/>
+        <Value value="19"/>
     </CEffectModifyTokenCount>
     <CEffectModifyPlayer id="AurielDetainmentStrikeRepeatedOffenseTalentCompletionModifyPlayer">
         <WhichPlayer Value="Caster"/>
@@ -2754,20 +2481,12 @@
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <CHero id="Auriel">
         <AttributeId value="Auri"/>
+        <Flags index="GoodForModeA" value="1"/>
         <DisplayModel value="HeroAuriel"/>
         <Role value="Support"/>
         <RolesMultiClass value="Support"/>
-        <DefaultMount value="HorseCommon"/>
-        <Gender value="Female"/>
-        <ProductId value="22172"/>
-        <VariationArray value="AurielBaseVar1"/>
-        <VariationArray value="AurielBaseVar2"/>
-        <SkinArray value="AurielUltimate"/>
-        <SkinArray value="AurielDemonic"/>
-        <AllowedMountCategoryArray value="Ride"/>
-        <AllowedMountCategoryArray value="Ridebeast"/>
-        <AllowedMountCategoryArray value="Ridebike"/>
-        <AllowedMountCategoryArray value="Ridesurf"/>
+        <RoleScoreValueOverride value="Support"/>
+        <CollectionCategory value="Support"/>
         <PassiveButton value="AurielRayOfHeaven"/>
         <HeroAbilArray Abil="AurielSacredSweep" Button="AurielSacredSweep">
             <Flags index="ShowInHeroSelect" value="1"/>
@@ -2804,6 +2523,16 @@
         </HeroAbilArray>
         <HeroicAbilArray Abil="AurielResurrect"/>
         <HeroicAbilArray Abil="AurielCrystalAegis"/>
+        <SkinArray value="AurielUltimate"/>
+        <SkinArray value="AurielDemonic"/>
+        <SkinArray value="AurielHanamura"/>
+        <VoiceLineArray value="AurielBase_VoiceLine01"/>
+        <VoiceLineArray value="AurielBase_VoiceLine02"/>
+        <VoiceLineArray value="AurielBase_VoiceLine03"/>
+        <VoiceLineArray value="AurielBase_VoiceLine04"/>
+        <VoiceLineArray value="AurielBase_VoiceLine05"/>
+        <DefaultMount value="HorseCommon"/>
+        <VOArray index="EndEnemyKillSpree" value="AurielBase_Kill"/>
         <TalentTreeArray Talent="AurielSwiftSweepSacredSweepTalent" Tier="1" Column="1"/>
         <TalentTreeArray Talent="AurielIncreasingClaritySacredSweepTalent" Tier="1" Column="2"/>
         <TalentTreeArray Talent="AurielRighteousAssaultSacredSweepTalent" Tier="1" Column="3"/>
@@ -2811,10 +2540,9 @@
         <TalentTreeArray Talent="AurielMajesticSpanSacredSweepTalent" Tier="2" Column="1"/>
         <TalentTreeArray Talent="AurielHeavyBurdenDetainmentStrikeTalent" Tier="2" Column="2"/>
         <TalentTreeArray Talent="AurielRepeatedOffenseDetainmentStrikeTalent" Tier="2" Column="3"/>
-        <TalentTreeArray Talent="AurielBurstingLightRayOfHeavenTalent" Tier="3" Column="1"/>
-        <TalentTreeArray Talent="AurielGlimmerofHopeRayOfHeavenTalent" Tier="3" Column="2"/>
-        <TalentTreeArray Talent="AurielEmpathicLinkBestowHopeTalent" Tier="3" Column="3"/>
-        <TalentTreeArray Talent="AurielEnergizedCordRayOfHeavenTalent" Tier="3" Column="4"/>
+        <TalentTreeArray Talent="AurielGlimmerofHopeRayOfHeavenTalent" Tier="3" Column="1"/>
+        <TalentTreeArray Talent="AurielEmpathicLinkBestowHopeTalent" Tier="3" Column="2"/>
+        <TalentTreeArray Talent="AurielEnergizedCordRayOfHeavenTalent" Tier="3" Column="3"/>
         <TalentTreeArray Talent="AurielHeroicResurrect" Tier="4" Column="1"/>
         <TalentTreeArray Talent="AurielHeroicCrystalAegis" Tier="4" Column="2"/>
         <TalentTreeArray Talent="AurielBlindingFlashSacredSweepTalent" Tier="5" Column="1"/>
@@ -2832,9 +2560,13 @@
         </TalentTreeArray>
         <TalentTreeArray Talent="AurielAngelicFlightTalent" Tier="7" Column="3"/>
         <TalentTreeArray Talent="AurielShieldOfHopeTalent" Tier="7" Column="4"/>
+        <VariationIcon value="Assets\Textures\ui_glues_swatch_whiteeggshell.dds"/>
+        <Difficulty value="Medium"/>
+        <HeroTierAchievementId value="5216701565553078939"/>
+        <Gender value="Female"/>
         <Universe value="Diablo"/>
         <UniverseIcon value="Assets\Textures\ui_glues_store_gameicon_d3.dds"/>
-        <VariationIcon value="Assets\Textures\ui_glues_swatch_whiteeggshell.dds"/>
+        <ProductId value="22172"/>
         <LevelScalingArray Ability="AurielSacredSweep">
             <Modifications>
                 <Catalog value="Effect"/>
@@ -2949,11 +2681,20 @@
                 <AffectedByOverdrive value="1"/>
             </Modifications>
         </LevelScalingArray>
-        <Difficulty value="Medium"/>
-        <VOArray index="Cheer" value="AurielBase_VOX_Cheer"/>
-        <VOArray index="EndEnemyKillSpree" value="AurielBase_Kill"/>
-        <VOArray index="GetHit" value="AurielBase_VOX_GetHitSmall"/>
-        <VOArray index="UILockin" value="AurielBase_UI_Lockin"/>
+        <VariationArray value="AurielBaseVar1"/>
+        <VariationArray value="AurielBaseVar2"/>
+        <VariationArray value="AurielBaseVar3"/>
+        <ReleaseDate Month="8" Day="9" Year="2016"/>
+        <AllowedMountCategoryArray value="Ride"/>
+        <AllowedMountCategoryArray value="Ridebeast"/>
+        <AllowedMountCategoryArray value="Ridebike"/>
+        <AllowedMountCategoryArray value="Ridesurf"/>
+        <Ratings>
+            <Damage value="3"/>
+            <Utility value="8"/>
+            <Survivability value="4"/>
+            <Complexity value="8"/>
+        </Ratings>
         <TalentAIBuildsArray ChanceToPick="16">
             <TalentsArray value="AurielIncreasingClaritySacredSweepTalent"/>
             <TalentsArray value="AurielMajesticSpanSacredSweepTalent"/>
@@ -2966,7 +2707,7 @@
         <TalentAIBuildsArray ChanceToPick="16">
             <TalentsArray value="AurielSearingLightRayOfHeavenTalent"/>
             <TalentsArray value="AurielHeavyBurdenDetainmentStrikeTalent"/>
-            <TalentsArray value="AurielBurstingLightRayOfHeavenTalent"/>
+            <TalentsArray value="AurielEmpathicLinkBestowHopeTalent"/>
             <TalentsArray value="AurielHeroicResurrect"/>
             <TalentsArray value="AurielRepellingStrikeDetainmentStrikeTalent"/>
             <TalentsArray value="AurielReservoirofHopeRayOfHeavenTalent"/>
@@ -2993,7 +2734,7 @@
         <TalentAIBuildsArray AIOnly="1" ChanceToPick="16">
             <TalentsArray value="AurielSearingLightRayOfHeavenTalent"/>
             <TalentsArray value="AurielHeavyBurdenDetainmentStrikeTalent"/>
-            <TalentsArray value="AurielBurstingLightRayOfHeavenTalent"/>
+            <TalentsArray value="AurielEnergizedCordRayOfHeavenTalent"/>
             <TalentsArray value="AurielHeroicResurrect"/>
             <TalentsArray value="AurielRepellingStrikeDetainmentStrikeTalent"/>
             <TalentsArray value="AurielReservoirofHopeRayOfHeavenTalent"/>
@@ -3008,16 +2749,8 @@
             <TalentsArray value="AurielWillofHeavenBestowHopeTalent"/>
             <TalentsArray value="AurielAngelicFlightTalent"/>
         </TalentAIBuildsArray>
-        <HeroTierAchievementId value="5216701565553078939"/>
         <HeroSpecificUIArray Location="Status" DescName="Auriel/AurielBestowHopeFrame"/>
-        <ReleaseDate Month="8" Day="9" Year="2016"/>
-        <Ratings>
-            <Damage value="3"/>
-            <Utility value="8"/>
-            <Survivability value="4"/>
-            <Complexity value="8"/>
-        </Ratings>
-        <Flags index="GoodForModeA" value="1"/>
+        <Rarity value="Legendary"/>
     </CHero>
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
@@ -3075,7 +2808,7 @@
             <Speed value="50"/>
             <MinSpeed value="30"/>
             <MaxSpeed value="30"/>
-            <IgnoresTerrain value="1"/>
+            <IgnoresClearanceChecks value="1"/>
             <ThrowBandYaw value="-360,-360,-360,-360"/>
             <ThrowBandPitch value="-360,-360,-360,-360"/>
             <YawPitchRoll value="5759.6484"/>
@@ -3096,7 +2829,7 @@
             <Speed value="30"/>
             <MinSpeed value="27"/>
             <MaxSpeed value="27"/>
-            <IgnoresTerrain value="1"/>
+            <IgnoresClearanceChecks value="1"/>
             <ActorTracking value="Actual"/>
             <RotationLaunchActorType value="LaunchToTarget"/>
         </MotionPhases>
@@ -3114,7 +2847,6 @@
     <!-- MOVERS - Talents 			                    -->
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <CMoverMissile id="AurielAngelicFlightMissile">
-        <Flags index="RestoreHeight" value="1"/>
         <MotionPhases>
             <Driver value="AdaptableParabola"/>
             <Acceleration value="9000"/>
@@ -3127,7 +2859,6 @@
         </MotionPhases>
     </CMoverMissile>
     <CMoverMissile id="AurielAngelicFlightShortMissile">
-        <Flags index="RestoreHeight" value="1"/>
         <MotionPhases>
             <Driver value="AdaptableParabola"/>
             <Acceleration value="9000"/>
@@ -3179,7 +2910,9 @@
         <OperandArray value="CountBehaviorAurielRayOfHeavenHighHealingStoredCompleteOnlyAtUnit"/>
         <OperandArray value="CountBehaviorAurielRayOfHeavenMaxHealingStoredCompleteOnlyAtUnit"/>
     </CRequirementOr>
-    <CRewardIcon id="Auriel" parent="BattlePayRewardParent"/>
+    <CRewardIcon id="Auriel" parent="BattlePayRewardParent">
+        <License value="17005"/>
+    </CRewardIcon>
     <CRewardPortrait id="AurielBasic" parent="HeroPortraitParent">
         <IconFile value="$HeroPortraits7"/>
         <IconSlot value="1"/>
@@ -3190,7 +2923,6 @@
         <IconSlot value="1"/>
         <Hero value="Auriel"/>
     </CRewardPortrait>
-    <CRewardIcon id="AurielCanPurchaseUltimateSkin" parent="CanPurchaseUltimateSkinParent"/>
     <CRewardIcon id="AurielMountTint2" parent="MountTintsParent"/>
     <CRewardIcon id="AurielMountTint1" parent="MountTintsParent"/>
     <CRewardIcon id="AurielSkinVariation1" parent="SkinVariationParent"/>
@@ -3288,7 +3020,7 @@
                 <Value value="1.000000"/>
             </Modifications>
         </AbilityModificationArray>
-        <QuestData StackBehavior="TalentQuestPickedBehavior" TargetCount="1"/>
+        <QuestData StackBehavior="TalentQuestPickedBehavior"/>
     </CTalent>
     <CTalent id="AurielSearingLightRayOfHeavenTalent">
         <Face value="AurielSearingLightRayOfHeavenTalent"/>
@@ -3313,14 +3045,14 @@
                 <Catalog value="Effect"/>
                 <Entry value="AurielHeroWeaponHeroImpactDamage"/>
                 <Field value="LeechFraction[2]"/>
-                <Value value="0.600000"/>
+                <Value value="0.500000"/>
             </Modifications>
             <Modifications>
                 <Type value="FlatModification"/>
                 <Catalog value="Effect"/>
                 <Entry value="AurielHeroWeaponNonHeroImpactDamage"/>
                 <Field value="LeechFraction[2]"/>
-                <Value value="0.420000"/>
+                <Value value="0.450000"/>
             </Modifications>
         </AbilityModificationArray>
         <RankArray/>
@@ -3628,13 +3360,6 @@
                 <Type value="FlatModification"/>
                 <Catalog value="Behavior"/>
                 <Entry value="AurielBestowHopeProxyBehavior"/>
-                <Field value="Modification.HealDealtAdditiveMultiplier[Energy]"/>
-                <Value value="0.100000"/>
-            </Modifications>
-            <Modifications>
-                <Type value="FlatModification"/>
-                <Catalog value="Behavior"/>
-                <Entry value="AurielBestowHopeProxyBehavior"/>
                 <Field value="Modification.HealDealtAdditiveMultiplier[Shields]"/>
                 <Value value="0.100000"/>
             </Modifications>
@@ -3720,9 +3445,9 @@
         <WeaponArray Link="AurielHeroWeapon"/>
         <Radius value="0.75"/>
         <InnerRadius value="0.4375"/>
-        <EditorCategories value=""/>
         <LifeRegenRate value="3.8515"/>
         <CardLayouts index="0">
+            <LayoutButtons index="1" Face="PortBackToBaseNoMana" Type="AbilCmd" AbilCmd="PortBackToBase,Execute" Row="2" Column="3"/>
             <LayoutButtons Face="AurielResurrect" Type="AbilCmd" AbilCmd="AurielResurrect,Execute" Row="0" Column="3"/>
             <LayoutButtons Face="AurielCrystalAegis" Type="AbilCmd" AbilCmd="AurielCrystalAegis,Execute" Row="0" Column="3"/>
             <LayoutButtons Face="AurielSacredSweep" Type="AbilCmd" AbilCmd="AurielSacredSweep,Execute" Row="0" Column="0"/>
@@ -3748,9 +3473,9 @@
     </CUnit>
     <CUnit id="AurielDetainmentStrikeMissile" parent="MISSILE_INVULNERABLE">
         <Mover value="AurielDetainmentStrikeMover"/>
-        <EditorCategories value=""/>
     </CUnit>
     <CUnit id="AurielResurrectSpirit">
+        <FlagArray index="Movable" value="0"/>
         <FlagArray index="Uncommandable" value="1"/>
         <FlagArray index="Unselectable" value="1"/>
         <FlagArray index="Invulnerable" value="1"/>
@@ -3761,16 +3486,31 @@
         <Attributes index="ImmuneToFriendlyAbilities" value="1"/>
         <Attributes index="Heroic" value="1"/>
         <Response value="Nothing"/>
-        <EditorCategories value=""/>
         <BehaviorArray Link="BenignFlag"/>
         <BehaviorArray Link="HeroGenericMapMechanicPickupDisallowed"/>
     </CUnit>
-    <CUnit id="AurielShieldOfHope" parent="ITEM">
-        <EditorCategories value=""/>
-    </CUnit>
-    <CUnit id="AurielAngelicFlight" parent="ITEM">
-        <EditorCategories value=""/>
-    </CUnit>
+    <CUnit id="AurielShieldOfHope" parent="ITEM"/>
+    <CUnit id="AurielAngelicFlight" parent="ITEM"/>
+    <CValidatorUnitCompareBehaviorCount id="AurielResurrectTargetHasCasterChannelBehavior">
+        <Compare value="GT"/>
+        <Behavior value="AurielResurrectCasterChannel"/>
+    </CValidatorUnitCompareBehaviorCount>
+    <CValidatorCombine id="AurielResurrectTargetHasRezzableBehaviorOrCasterChannelBehavior">
+        <CombineArray value="AurielResurrectTargetHasRezzableBehavior"/>
+        <CombineArray value="AurielResurrectTargetHasCasterChannelBehavior"/>
+    </CValidatorCombine>
+    <CValidatorUnitCompareCooldown id="AurielResurrectNotOffCooldown">
+        <OtherUnit Value="Target"/>
+        <Compare value="GT"/>
+        <CooldownLink value="Abil/AurielResurrect"/>
+        <Location value="Unit"/>
+        <Ability value="AurielResurrect"/>
+        <Value value="0.0625"/>
+    </CValidatorUnitCompareCooldown>
+    <CValidatorUnitCompareBehaviorCount id="AurielResurrectTargetNotInSpecialDeathState">
+        <WhichUnit Effect="AurielResurrectLightSpeedApplyControllerBehavior"/>
+        <Categories index="User13" value="1"/>
+    </CValidatorUnitCompareBehaviorCount>
     <CValidatorUnitCompareTokenCount id="AurielSacredSweepIncreasingClarityIncomplete">
         <WhichUnit Value="Caster"/>
         <Compare value="LT"/>
@@ -3917,6 +3657,9 @@
         <Compare value="GT"/>
         <Vital value="Energy"/>
     </CValidatorUnitCompareVital>
+    <CValidatorUnitCompareBehaviorCount id="AurielSourceDoesNotHaveBestowHopeProxyBehavior">
+        <Behavior value="AurielBestowHopeProxyBehavior"/>
+    </CValidatorUnitCompareBehaviorCount>
     <CValidatorUnitCompareBehaviorCount id="AurielTargetHasDetainmentStrikeStun">
         <WhichUnit Effect="AurielDetainmentStrikeMissileImpactSwitch"/>
         <Value value="1"/>
@@ -4007,23 +3750,23 @@
         <Find value="1"/>
         <Value value="AurielWillofHeavenBestowHopeTalent"/>
     </CValidatorPlayerTalent>
+    <CValidatorPlayerTalent id="AurielResurrectLightSpeedHasTalent">
+        <Find value="1"/>
+        <Value value="AurielLightSpeedResurrectTalent"/>
+    </CValidatorPlayerTalent>
+    <CValidatorUnitCompareBehaviorCount id="AurielResurrectTargetHasRezzableBehavior">
+        <Behavior value="AurielResurrectRezzable"/>
+        <Compare value="GT"/>
+    </CValidatorUnitCompareBehaviorCount>
+    <CValidatorUnitCompareBehaviorCount id="AurielResurrectCasterHeroIsNotPendingResurrect">
+        <WhichUnit Value="Caster"/>
+        <Behavior value="AurielResurrectPendingResurrect"/>
+    </CValidatorUnitCompareBehaviorCount>
     <CValidatorPlayerTalent id="AurielHasWrathofHeavenBestowHope">
         <WhichPlayer Value="Caster"/>
         <Find value="1"/>
         <Value value="AurielWrathofHeavenBestowHopeTalent"/>
     </CValidatorPlayerTalent>
-    <CValidatorUnitCompareBehaviorCount id="AurielResurrectCasterHasCastingBehavior">
-        <WhichUnit Effect="AurielResurrectInitialSet" Value="Caster"/>
-        <Behavior value="AurielResurrectCasterCastingBehavior"/>
-    </CValidatorUnitCompareBehaviorCount>
-    <CValidatorPlayerTalent id="AurielHasLightSpeedResurrection">
-        <Find value="1"/>
-        <Value value="AurielLightSpeedResurrectTalent"/>
-    </CValidatorPlayerTalent>
-    <CValidatorUnitCompareBehaviorCount id="AurielResurrectTargetHasRezzableBehavior">
-        <Value value="1"/>
-        <Behavior value="AurielResurrectRezzable"/>
-    </CValidatorUnitCompareBehaviorCount>
     <CValidatorPlayerTalent id="AurielHasDiamondResolveCrystalAegis">
         <WhichPlayer Value="Caster"/>
         <Find value="1"/>
@@ -4072,6 +3815,10 @@
         <Compare value="LT"/>
         <Range value="12"/>
     </CValidatorLocationCompareRange>
+    <CValidatorUnitFilters id="AurielResurrectTargetNotDead">
+        <WhichUnit Effect="AurielResurrectLightSpeedApplyControllerBehavior"/>
+        <Filters value="-;Dead"/>
+    </CValidatorUnitFilters>
     <CValidatorUnitState id="AurielDetainmentStrikeTargetHasHitPathingBlocker" parent="UnitIsInContactWithPathingBlocker"/>
     <CValidatorUnitCompareTokenCount id="AurielDetainmentStrikeRepeatedOffenseComplete">
         <WhichUnit Value="Caster"/>
@@ -4079,6 +3826,9 @@
         <Value value="10"/>
         <TokenId value="AurielDetainmentStrikeRepeatedOffenseQuestToken"/>
     </CValidatorUnitCompareTokenCount>
+    <CValidatorCombine id="CasterIsNotResurrecting">
+        <CombineArray value="AurielResurrectCasterHeroIsNotPendingResurrect"/>
+    </CValidatorCombine>
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <!-- -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	-->
     <!-- WEAPONS 			                        	-->

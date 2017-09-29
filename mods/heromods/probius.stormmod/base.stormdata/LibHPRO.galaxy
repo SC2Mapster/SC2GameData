@@ -1,0 +1,519 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/AILib"
+
+include "LibHPRO_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Probius
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libHPRO_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+    libAIAI_InitVariables();
+}
+
+// Variable Initialization
+bool libHPRO_InitVariables_completed = false;
+
+void libHPRO_InitVariables () {
+    int init_i;
+
+    if (libHPRO_InitVariables_completed) {
+        return;
+    }
+
+    libHPRO_InitVariables_completed = true;
+
+    for (init_i = 0; init_i <= libCore_gv_bALMaxPlayers; init_i += 1) {
+        libHPRO_gv_heroProbiusWarpRifts[init_i] = UnitGroupEmpty();
+    }
+    for (init_i = 0; init_i <= libCore_gv_bALMaxPlayers; init_i += 1) {
+        libHPRO_gv_heroProbiusWarpInPylonPylonGroup[init_i] = UnitGroupEmpty();
+    }
+    libHPRO_gv_heroProbiusPhotonCannonGatherMineralsMaxStacks = CatalogFieldValueGetAsInt(c_gameCatalogBehavior, "ProbiusPhotonCannonGatherMineralsQuestToken", "Max", 0);
+}
+
+// Custom Script
+//--------------------------------------------------------------------------------------------------
+// Custom Script: #Include Probius Tactical AI
+//--------------------------------------------------------------------------------------------------
+include "StormTactical.galaxy"
+include "ProbiusTactical.galaxy"
+
+void libHPRO_InitCustomScript () {
+}
+
+// Functions
+void libHPRO_gf_HeroProbiusIncrementHeroCountFunction () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHPRO_gv_heroProbiusTriggerRegistrationVariable += 1;
+    if ((libHPRO_gv_heroProbiusTriggerRegistrationVariable == 1)) {
+        TriggerEnable(libHPRO_gt_HeroProbiusWarpInPylonMaintainMaxNumberOfPylons, true);
+        TriggerEnable(libHPRO_gt_HeroProbiusPylonOverchargeGivePylonsWeapons, true);
+        TriggerEnable(libHPRO_gt_HeroProbiusPhotonCannonTowerDefenseModifyCooldown, true);
+        TriggerEnable(libHPRO_gt_HeroProbiusAIWarpRifttracking, true);
+        TriggerEnable(libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsVehiclePickup, true);
+        TriggerEnable(libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsOccupyVehicle, true);
+        TriggerEnable(libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsParticipatedInTakedown, true);
+    }
+
+}
+
+void libHPRO_gf_HeroProbiusDecrementHeroCountFunction () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHPRO_gv_heroProbiusTriggerRegistrationVariable -= 1;
+    if ((libHPRO_gv_heroProbiusTriggerRegistrationVariable < 0)) {
+        libHPRO_gv_heroProbiusTriggerRegistrationVariable = 0;
+    }
+
+    if ((libHPRO_gv_heroProbiusTriggerRegistrationVariable == 0)) {
+        TriggerEnable(libHPRO_gt_HeroProbiusWarpInPylonMaintainMaxNumberOfPylons, false);
+        TriggerEnable(libHPRO_gt_HeroProbiusPylonOverchargeGivePylonsWeapons, false);
+        TriggerEnable(libHPRO_gt_HeroProbiusPhotonCannonTowerDefenseModifyCooldown, false);
+        TriggerEnable(libHPRO_gt_HeroProbiusAIWarpRifttracking, false);
+        TriggerEnable(libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsVehiclePickup, false);
+        TriggerEnable(libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsOccupyVehicle, false);
+        TriggerEnable(libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsParticipatedInTakedown, false);
+    }
+
+}
+
+void libHPRO_gf_HeroProbiusWarpInPylonUpdatePylonLineofSuccession (int lp_player) {
+    // Variable Declarations
+    unit lv_oldestPylon;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    if ((UnitGroupCount(libHPRO_gv_heroProbiusWarpInPylonPylonGroup[lp_player], c_unitCountAlive) > libHPRO_gv_heroProbiusWarpInPylonMaxNumberofPylons) && (PlayerHasTalent(lp_player, "ProbiusConstructAdditionalPylonsPylonOvercharge") == false)) {
+        lv_oldestPylon = UnitGroupUnit(libHPRO_gv_heroProbiusWarpInPylonPylonGroup[lp_player], 1);
+        UnitGroupRemove(libHPRO_gv_heroProbiusWarpInPylonPylonGroup[lp_player], lv_oldestPylon);
+        UnitBehaviorAdd(lv_oldestPylon, "ProbiusWarpInPylonWarpOutBehavior", lv_oldestPylon, 1);
+    }
+    else {
+        if ((UnitGroupCount(libHPRO_gv_heroProbiusWarpInPylonPylonGroup[lp_player], c_unitCountAlive) > libHPRO_gv_heroProbiusWarpInPylonConstructAdditionalPylonsMaxNumberofPylons) && (PlayerHasTalent(lp_player, "ProbiusConstructAdditionalPylonsPylonOvercharge") == true)) {
+            lv_oldestPylon = UnitGroupUnit(libHPRO_gv_heroProbiusWarpInPylonPylonGroup[lp_player], 1);
+            UnitGroupRemove(libHPRO_gv_heroProbiusWarpInPylonPylonGroup[lp_player], lv_oldestPylon);
+            UnitBehaviorAdd(lv_oldestPylon, "ProbiusWarpInPylonWarpOutBehavior", lv_oldestPylon, 1);
+        }
+
+    }
+}
+
+void libHPRO_gf_HeroProbiusPhotonCannonGatherMineralsProc (int lp_killingPlayer, unit lp_target) {
+    // Variable Declarations
+    string lv_targetUnitType;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_targetUnitType = UnitGetType(lp_target);
+
+    // Implementation
+    if ((UnitGetType(libGame_gv_players[lp_killingPlayer].lv_heroUnit) == "HeroProbius") && (UnitTypeTestAttribute(lv_targetUnitType, c_unitAttributeStructure) == false) && (UnitTypeTestAttribute(lv_targetUnitType, c_unitAttributeSummoned) == false) && (UnitTypeTestAttribute(lv_targetUnitType, c_unitAttributeCreep) == false) && ((UnitTypeTestAttribute(lv_targetUnitType, c_unitAttributeMerc) == true) || (UnitTypeTestAttribute(lv_targetUnitType, c_unitAttributeMinion) == true) || (UnitTypeTestAttribute(lv_targetUnitType, c_unitAttributeHeroic) == true))) {
+        libNtve_gf_CreateUnitsWithDefaultFacing(1, "ProbiusPhotonCannonGatherMineralsMineralPickup", 0, lp_killingPlayer, PointWithOffsetPolar(UnitGetPosition(lp_target), 1.0, libNtve_gf_RandomAngle()));
+    }
+
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Misc Mod Initialization
+//--------------------------------------------------------------------------------------------------
+bool libHPRO_gt_HeroAIMiscModInitialization_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_HeroAIInitializeHeroTierData, libHPRO_gt_HeroAIAddToTierDataProbius);
+    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_HeroAIInitAbilities, libHPRO_gt_HeroAIInitAbilitiesProbius);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHPRO_gt_HeroAIMiscModInitialization_Init () {
+    libHPRO_gt_HeroAIMiscModInitialization = TriggerCreate("libHPRO_gt_HeroAIMiscModInitialization_Func");
+    TriggerAddEventMapInit(libHPRO_gt_HeroAIMiscModInitialization);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Add To Tier Data - Probius
+//--------------------------------------------------------------------------------------------------
+bool libHPRO_gt_HeroAIAddToTierDataProbius_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libAIAI_gf_HeroAIAddHeroToTierData(libAIAI_ge_HeroAIHeroTiers_TierHigh, "Probius");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHPRO_gt_HeroAIAddToTierDataProbius_Init () {
+    libHPRO_gt_HeroAIAddToTierDataProbius = TriggerCreate("libHPRO_gt_HeroAIAddToTierDataProbius_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Init Abilities - Probius
+//--------------------------------------------------------------------------------------------------
+bool libHPRO_gt_HeroAIInitAbilitiesProbius_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitGetType(libCore_gv_segTriggerUnit) == "HeroProbius")) {
+        libAIAI_gv_heroAIInitAbilitesHeroFound = true;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_hasTactical = true;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_hasMount = false;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_buffGlobeType = "ProbiusPhotonCannonGatherMineralsMineralPickup";
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_buffGlobeMustBeOwned = true;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_buffGlobeStackEffectValidation = "ProbiusPhotonCannonGatherMineralsModifyQuestToken";
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_buffGlobeStackBehavior = "ProbiusPhotonCannonGatherMineralsQuestToken";
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_buffGlobeStackMax = CatalogFieldValueGetAsInt(c_gameCatalogBehavior, "ProbiusPhotonCannonGatherMineralsQuestToken", "Max", c_playerAny);
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[0] = AbilityCommand("ProbiusDisruptionPulse", 0);
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[0] = libAIAI_ge_HeroAISpellType_PointEnemy;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[0] = 10.0;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[1] = AbilityCommand("ProbiusWarpRift", 0);
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[1] = libAIAI_ge_HeroAISpellType_PointEnemy;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[1] = 6.0;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[2] = null;
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHPRO_gt_HeroAIInitAbilitiesProbius_Init () {
+    libHPRO_gt_HeroAIInitAbilitiesProbius = TriggerCreate("libHPRO_gt_HeroAIInitAbilitiesProbius_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Probius - AI Warp Rift tracking
+//--------------------------------------------------------------------------------------------------
+bool libHPRO_gt_HeroProbiusAIWarpRifttracking_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_createdWarpRiftUnit;
+    int lv_probiusPlayer;
+    fixed lv_warpRiftArmingTime;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_createdWarpRiftUnit = EventUnitCreatedUnit();
+    lv_probiusPlayer = UnitGetOwner(lv_createdWarpRiftUnit);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_warpRiftArmingTime = CatalogFieldValueGetAsFixed(c_gameCatalogBehavior, "ProbiusWarpRiftBuildInProgressBehavior", "Duration", lv_probiusPlayer);
+    Wait(lv_warpRiftArmingTime, c_timeGame);
+    UnitGroupAdd(libHPRO_gv_heroProbiusWarpRifts[lv_probiusPlayer], lv_createdWarpRiftUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHPRO_gt_HeroProbiusAIWarpRifttracking_Init () {
+    libHPRO_gt_HeroProbiusAIWarpRifttracking = TriggerCreate("libHPRO_gt_HeroProbiusAIWarpRifttracking_Func");
+    TriggerEnable(libHPRO_gt_HeroProbiusAIWarpRifttracking, false);
+    TriggerAddEventUnitCreated(libHPRO_gt_HeroProbiusAIWarpRifttracking, null, "ProbiusWarpRift", null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Probius - Pylon Overcharge - Give Pylons Weapons
+//--------------------------------------------------------------------------------------------------
+bool libHPRO_gt_HeroProbiusPylonOverchargeGivePylonsWeapons_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_probius;
+    int lv_probiusPlayer;
+
+    // Automatic Variable Declarations
+    unitgroup autoCBC54BD2_g;
+    int autoCBC54BD2_u;
+    unit autoCBC54BD2_var;
+
+    // Variable Initialization
+    lv_probius = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_probiusPlayer = UnitGetOwner(lv_probius);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    autoCBC54BD2_g = libHPRO_gv_heroProbiusWarpInPylonPylonGroup[lv_probiusPlayer];
+    autoCBC54BD2_u = UnitGroupCount(autoCBC54BD2_g, c_unitCountAll);
+    for (;; autoCBC54BD2_u -= 1) {
+        autoCBC54BD2_var = UnitGroupUnitFromEnd(autoCBC54BD2_g, autoCBC54BD2_u);
+        if (autoCBC54BD2_var == null) { break; }
+        UnitCreateEffectUnit(autoCBC54BD2_var, "ProbiusPylonOverchargeApplyWeaponSet", autoCBC54BD2_var);
+        UnitCreateEffectUnit(lv_probius, "ProbiusPylonOverchargeApplyPowerOverflowingSummonedUnitBuff", autoCBC54BD2_var);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHPRO_gt_HeroProbiusPylonOverchargeGivePylonsWeapons_Init () {
+    libHPRO_gt_HeroProbiusPylonOverchargeGivePylonsWeapons = TriggerCreate("libHPRO_gt_HeroProbiusPylonOverchargeGivePylonsWeapons_Func");
+    TriggerEnable(libHPRO_gt_HeroProbiusPylonOverchargeGivePylonsWeapons, false);
+    TriggerAddEventPlayerEffectUsed(libHPRO_gt_HeroProbiusPylonOverchargeGivePylonsWeapons, c_playerAny, "ProbiusPylonOverchargeInitialDummy");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Probius - Warp In Pylon - Maintain Max Number Of Pylons
+//--------------------------------------------------------------------------------------------------
+bool libHPRO_gt_HeroProbiusWarpInPylonMaintainMaxNumberOfPylons_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_probiusPlayer;
+    unit lv_probius;
+    unit lv_pylon;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_probiusPlayer = UnitGetOwner(EventUnitCreatedUnit());
+    lv_probius = libGame_gv_players[lv_probiusPlayer].lv_heroUnit;
+    lv_pylon = EventUnitCreatedUnit();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupAdd(libHPRO_gv_heroProbiusWarpInPylonPylonGroup[lv_probiusPlayer], lv_pylon);
+    libHPRO_gf_HeroProbiusWarpInPylonUpdatePylonLineofSuccession(lv_probiusPlayer);
+    if (((UnitHasBehavior2(EventUnit(), "UltimateEvolutionBuff") == true) || (UnitHasBehavior2(EventUnit(), "UltimateEvolutionBuild") == true))) {
+        UnitBehaviorAdd(lv_pylon, "AbathurUltimateEvolutionCleanupTarget", lv_probius, 1);
+    }
+
+    if ((UnitHasBehavior2(lv_probius, "ProbiusPylonOverchargeDummyUIBehavior") == true)) {
+        UnitBehaviorAdd(lv_pylon, "ProbiusPylonOverchargeWeaponInitialCoolup", lv_probius, 1);
+        UnitBehaviorAdd(lv_pylon, "ProbiusPylonOverchargeWeaponBehavior", lv_probius, 1);
+        UnitBehaviorSetDurationRemaining(lv_pylon, "ProbiusPylonOverchargeWeaponBehavior", UnitBehaviorDuration(lv_probius, "ProbiusPylonOverchargeDummyUIBehavior"));
+        UnitCreateEffectUnit(lv_probius, "ProbiusPylonOverchargeApplyPowerOverflowingSummonedUnitBuff", lv_pylon);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHPRO_gt_HeroProbiusWarpInPylonMaintainMaxNumberOfPylons_Init () {
+    libHPRO_gt_HeroProbiusWarpInPylonMaintainMaxNumberOfPylons = TriggerCreate("libHPRO_gt_HeroProbiusWarpInPylonMaintainMaxNumberOfPylons_Func");
+    TriggerEnable(libHPRO_gt_HeroProbiusWarpInPylonMaintainMaxNumberOfPylons, false);
+    TriggerAddEventUnitCreated(libHPRO_gt_HeroProbiusWarpInPylonMaintainMaxNumberOfPylons, null, "ProbiusWarpInPylon", null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Probius - Photon Cannon - Tower Defense - Modify Cooldown
+//--------------------------------------------------------------------------------------------------
+bool libHPRO_gt_HeroProbiusPhotonCannonTowerDefenseModifyCooldown_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_target;
+    unit lv_photonCannon;
+    int lv_probiusPlayer;
+    unit lv_probius;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_target = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitTypeTestAttribute(UnitGetType(lv_target), c_unitAttributeHeroic) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_probiusPlayer = UnitGetOwner(EventPlayerEffectUsedUnitLaunch());
+    lv_probius = libGame_gv_players[lv_probiusPlayer].lv_heroUnit;
+    UnitCreateEffectUnit(lv_probius, "ProbiusPhotonCannonTowerDefenseReduceCooldown", lv_probius);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHPRO_gt_HeroProbiusPhotonCannonTowerDefenseModifyCooldown_Init () {
+    libHPRO_gt_HeroProbiusPhotonCannonTowerDefenseModifyCooldown = TriggerCreate("libHPRO_gt_HeroProbiusPhotonCannonTowerDefenseModifyCooldown_Func");
+    TriggerEnable(libHPRO_gt_HeroProbiusPhotonCannonTowerDefenseModifyCooldown, false);
+    TriggerAddEventPlayerEffectUsed(libHPRO_gt_HeroProbiusPhotonCannonTowerDefenseModifyCooldown, c_playerAny, "ProbiusPhotonCannonWeaponDamage");
+    TriggerAddEventPlayerEffectUsed(libHPRO_gt_HeroProbiusPhotonCannonTowerDefenseModifyCooldown, c_playerAny, "ProbiusPhotonCannonGatherMineralsWeaponDamage");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Probius - Photon Cannon - Gather Minerals - Vehicle Pickup
+//--------------------------------------------------------------------------------------------------
+bool libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsVehiclePickup_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    string lv_effect;
+    int lv_player;
+    unit lv_probius;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_effect = EventPlayerEffectUsed();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitIsValid(EventPlayerEffectUsedUnit(c_effectUnitTarget)) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitGetType(libGame_gv_players[EventPlayerEffectUsedUnitOwner(c_effectPlayerTarget)].lv_heroUnit) == "HeroProbius") && (UnitIsValid(libGame_gv_players[EventPlayerEffectUsedUnitOwner(c_effectPlayerTarget)].lv_activeVehicle) == true)) {
+        lv_player = UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitTarget));
+        lv_probius = libGame_gv_players[lv_player].lv_heroUnit;
+        UnitCreateEffectUnit(EventPlayerEffectUsedUnit(c_effectUnitCaster), "ProbiusPhotonCannonGatherMineralsImpactSet", lv_probius);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsVehiclePickup_Init () {
+    libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsVehiclePickup = TriggerCreate("libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsVehiclePickup_Func");
+    TriggerEnable(libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsVehiclePickup, false);
+    TriggerAddEventPlayerEffectUsed(libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsVehiclePickup, c_playerAny, "ProbiusPhotonCannonGatherMineralsImpactSetDummy");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Probius - Photon Cannon - Gather Minerals - Occupy Vehicle
+//--------------------------------------------------------------------------------------------------
+bool libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsOccupyVehicle_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_probius;
+    int lv_probius_Player;
+    unit lv_vehicle;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_probius = EventUnit();
+    lv_probius_Player = UnitGetOwner(lv_probius);
+    lv_vehicle = libGame_gv_players[lv_probius_Player].lv_activeVehicle;
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(lv_probius) == "HeroProbius"))) {
+            return false;
+        }
+
+        if (!((PlayerHasTalent(lv_probius_Player, "ProbiusGatherMineralsPhotonCannonQuest") == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitBehaviorAdd(lv_vehicle, "ProbiusPhotonCannonGatherMineralsCarryBehavior", lv_probius, 1);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsOccupyVehicle_Init () {
+    libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsOccupyVehicle = TriggerCreate("libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsOccupyVehicle_Func");
+    TriggerEnable(libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsOccupyVehicle, false);
+    TriggerAddEventUnitBehaviorChange(libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsOccupyVehicle, null, "UsingVehicle", c_unitBehaviorChangeIncrease);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Probius - Photon Cannon - Gather Minerals - Participated In Takedown
+//--------------------------------------------------------------------------------------------------
+bool libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsParticipatedInTakedown_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_probiusPlayer;
+    unit lv_probius;
+    unit lv_deadUnit;
+    int lv_iterator;
+
+    // Automatic Variable Declarations
+    int auto65830B89_ae;
+    const int auto65830B89_ai = 1;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(libGame_gv_players[libGame_gf_HeroParticipatedInTakedownKillingPlayer()].lv_heroUnit) == "HeroProbius"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_probiusPlayer = libGame_gf_HeroParticipatedInTakedownKillingPlayer();
+    lv_probius = libGame_gv_players[lv_probiusPlayer].lv_heroUnit;
+    lv_deadUnit = libGame_gf_HeroParticipatedInTakedownKilledHero();
+    if ((PlayerHasTalent(lv_probiusPlayer, "ProbiusGatherMineralsPhotonCannonQuest") == true) && (UnitGetTokenCount(lv_probius, "ProbiusPhotonCannonGatherMineralsQuestToken") < libHPRO_gv_heroProbiusPhotonCannonGatherMineralsMaxStacks)) {
+        auto65830B89_ae = UnitBehaviorCount(lv_deadUnit, "ButcherFreshMeatHeroicDeathResponse");
+        lv_iterator = 0;
+        for ( ; ( (auto65830B89_ai >= 0 && lv_iterator <= auto65830B89_ae) || (auto65830B89_ai < 0 && lv_iterator >= auto65830B89_ae) ) ; lv_iterator += auto65830B89_ai ) {
+            libNtve_gf_CreateUnitsWithDefaultFacing(1, "ProbiusPhotonCannonGatherMineralsMineralPickup", 0, lv_probiusPlayer, PointWithOffsetPolar(libGame_gf_HeroParticipatedInTakedownKilledHeroPosition(), 1.0, libNtve_gf_RandomAngle()));
+        }
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsParticipatedInTakedown_Init () {
+    libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsParticipatedInTakedown = TriggerCreate("libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsParticipatedInTakedown_Func");
+    TriggerEnable(libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsParticipatedInTakedown, false);
+    libGame_gf_HeroParticipatedInTakedown(libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsParticipatedInTakedown);
+}
+
+void libHPRO_InitTriggers () {
+    libHPRO_gt_HeroAIMiscModInitialization_Init();
+    libHPRO_gt_HeroAIAddToTierDataProbius_Init();
+    libHPRO_gt_HeroAIInitAbilitiesProbius_Init();
+    libHPRO_gt_HeroProbiusAIWarpRifttracking_Init();
+    libHPRO_gt_HeroProbiusPylonOverchargeGivePylonsWeapons_Init();
+    libHPRO_gt_HeroProbiusWarpInPylonMaintainMaxNumberOfPylons_Init();
+    libHPRO_gt_HeroProbiusPhotonCannonTowerDefenseModifyCooldown_Init();
+    libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsVehiclePickup_Init();
+    libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsOccupyVehicle_Init();
+    libHPRO_gt_HeroProbiusPhotonCannonGatherMineralsParticipatedInTakedown_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libHPRO_InitLib_completed = false;
+
+void libHPRO_InitLib () {
+    if (libHPRO_InitLib_completed) {
+        return;
+    }
+
+    libHPRO_InitLib_completed = true;
+
+    libHPRO_InitLibraries();
+    libHPRO_InitVariables();
+    libHPRO_InitCustomScript();
+    libHPRO_InitTriggers();
+}
+

@@ -1,0 +1,357 @@
+//---------------------------------------------------------------------------------------------
+// Genji Tactical
+//---------------------------------------------------------------------------------------------
+
+// Q - Shuriken
+const string c_AB_GenjiShuriken                                = "GenjiShuriken";
+const fixed c_GenjiShurikenRangeHero                           = 5.9;
+const fixed c_GenjiShurikenPokeMaxRange                        = 11.0;
+const fixed c_GenjiShurikenPokeMinRange                        = 6.0;
+const fixed c_GenjiShurikenPokeMinHealth                       = 12.5;
+const fixed c_GenjiShurikenHeroesInRange                       = 16.0;
+
+// W - Deflect
+const string c_AB_GenjiDeflect                                  = "GenjiDeflectInstant";
+
+// E - Swift Strike
+const string c_AB_GenjiSwiftStrike                              = "GenjiSwiftStrike";
+const fixed c_GenjiSwiftStrikeRange                             = 14.0;
+const fixed c_GenjiSwiftStrikeAbilityDamageFudgeFactor          = 1.1;
+
+// R1 - Dragonblade
+const string c_AB_GenjiDragonblade                              = "GenjiDragonblade";
+const string c_AB_GenjiDragonbladeAttack                        = "GenjiDragonbladeAttack";
+const string c_GenjiDragonbladeActiveBehavior                   = "GenjiDragonbladeActive";
+const fixed c_GenjiDragonbladeAttackRange                       = 7.5;
+
+// R2 - X-Strike
+const string c_AB_GenjiXStrike                                   = "GenjiXStrike";
+const fixed c_GenjiXStrikeRange                                  = 8.0;
+const fixed c_GenjiXStrikeLeadScalar                             = 1.5;
+
+// D - Cyber Agility
+const string c_AB_GenjiCyberAgility                             = "GenjiCyberAgility";
+const fixed c_GenjiCyberAgilityRange                            = 6.0;
+
+// Items (CUnit IDs of the items)
+const string c_GenjiDragonClawItem                              = "GenjiDeflectDragonClaw";
+const fixed c_GenjiDragonClawRange                              = 4.0;
+
+//---------------------------------------------------------------------------------------------
+bool GenjiShruikens (int player, unit aiUnit, unitgroup scanGroup) {
+    // Cone damage spell in front of Genji
+    // More damage to closer targets
+    order spellOrd;
+    unit targetEnemy;
+    Storm_AI_TargetQueryOptions query;
+    point playerPos;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_GenjiShuriken, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Try to poke and kill weak, far heroes
+    query.lv_maxDistance = c_GenjiShurikenPokeMaxRange;
+    query.lv_minDistance = c_GenjiShurikenPokeMinRange;
+    query.lv_distanceFactor = c_Storm_AI_PreferDistantTargets;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    // find a hero
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+
+    // switch to targetting closer heroes if weak hero is too healthy or not valid
+    if (!UnitIsValid(targetEnemy) 
+     || UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) > c_GenjiShurikenPokeMinHealth) {
+        // Try to attack mid distance heroes with at least 2 Shuriken
+        query.lv_maxDistance = c_GenjiShurikenRangeHero;
+        query.lv_minDistance = 0.0;
+        query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+        // find another hero
+        targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+
+        if (!UnitIsValid(targetEnemy)) {
+            // if no hero found, find a minion
+            query.lv_maxDistance = c_GenjiShurikenPokeMaxRange;
+            targetEnemy = FindBestTacticalTarget(scanGroup, aiUnit, query);
+            playerPos = UnitGetPosition(aiUnit);
+
+            // Early out if the unit is not valid or hero nearby
+            // We would rather save charges for heroes, potentially
+            if (!UnitIsValid(targetEnemy)
+             || EnoughEnemiesInArea(scanGroup, playerPos, c_GenjiShurikenHeroesInRange, c_Storm_AI_AtLeast1Hero, 0, 0)) {
+                    // Can we cast on a tower?
+                    targetEnemy = FindBestUnit(UnitGroupFilterTowers(scanGroup), scanGroup, aiUnit, query);
+
+                    if (targetEnemy != null) {
+                        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+                    }
+
+                return false;
+            }
+        }
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+}
+
+//---------------------------------------------------------------------------------------------
+bool GenjiDeflect (int player, unit aiUnit, unitgroup scanGroup) {
+    // Become protected
+    // Each time damage is taken also damage nearest enemy hero
+    order spellOrd;
+    point playerPos;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_GenjiDeflect, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    playerPos = UnitGetPosition(aiUnit);
+
+    // Use it if we are being attacked and there's at least 1 hero near us'
+    if (HaveBeenAttackedRecently(aiUnit)
+     && EnoughEnemiesInArea(scanGroup, playerPos, c_GenjiShurikenPokeMaxRange, c_Storm_AI_AtLeast1Hero, 0, 0)) {
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+bool GenjiSwiftStrike (int player, unit aiUnit, unitgroup scanGroup) {
+    // Dashes to a point and damages units in a line
+    // Cooldown and cost refunded on takedowns with this ability
+    order spellOrd;
+    unit targetEnemy;
+    point retreatPos;
+    Storm_AI_TargetQueryOptions query;
+    fixed targetEnemyHealth;
+    fixed targetEnemyHealthExpected;
+    fixed abilityDamage;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_GenjiSwiftStrike, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Retreat if you have low health
+    if (HaveBeenAttackedRecently(aiUnit) 
+     && UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        retreatPos = libAIAI_gf_HeroAIGetRetreatPosition(player, c_GenjiSwiftStrikeRange, null);
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueReplace, null, retreatPos);
+    }
+
+    query.lv_healthFactor = c_Storm_AI_StronglyPreferUnhealthyTargets;
+    query.lv_maxDistance = c_GenjiSwiftStrikeRange;
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+
+    // Only use vs low health hero if high chance of being lethal
+    // Fudge ability damage a bit to provide us with a bigger kill window
+    abilityDamage = (CatalogFieldValueGetAsFixed(c_gameCatalogEffect, "GenjiSwiftStrikeDamage", "Amount", player)) * c_GenjiSwiftStrikeAbilityDamageFudgeFactor;
+    targetEnemyHealth = UnitGetPropertyFixed(targetEnemy, c_unitPropLife, c_unitPropCurrent);
+    targetEnemyHealthExpected = UnitGetPropertyFixed(targetEnemy, c_unitPropLifeExpected, c_unitPropCurrent); // returns negative value
+    // Compensate for DoT damage on target
+    targetEnemyHealth += targetEnemyHealthExpected;
+
+    // Compare ability damage with target health
+    if (UnitIsValid(targetEnemy) && abilityDamage >= targetEnemyHealth) {
+        // issue Swift Strike order, no target position fudging
+        OrderSetTargetUnit(spellOrd, targetEnemy);
+        UnitIssueOrder(aiUnit, spellOrd, c_orderQueueReplace);
+        return true;
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+bool GenjiDragonbladeAttack (int player, unit aiUnit, unitgroup scanGroup) {
+    // Mid ranged, cone shaped cleave attack with a small dash
+    // This is the attack ability of Dragonblade
+    order spellOrd;
+    Storm_AI_TargetQueryOptions query;
+    unit targetEnemy;
+    
+    spellOrd = StormHeroAICreateOrder(player, c_AB_GenjiDragonbladeAttack, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    query.lv_maxDistance = c_GenjiDragonbladeAttackRange;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+
+    // Find weak hero
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetEnemy)) {
+        // if no hero found, find a minion
+        targetEnemy = FindBestTacticalTarget(scanGroup, aiUnit, query);
+
+        // Early out if the unit is not valid
+        if (!UnitIsValid(targetEnemy)) {
+                // Can we cast on a tower?
+                targetEnemy = FindBestUnit(UnitGroupFilterTowers(scanGroup), scanGroup, aiUnit, query);
+
+                if (targetEnemy != null) {
+                    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+                }
+
+            return false;
+        }
+    }
+
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetEnemy));
+}
+
+//---------------------------------------------------------------------------------------------
+bool GenjiDragonblade (int player, unit aiUnit, unitgroup scanGroup) {
+    // Enables GenjiDragonbladeAttack to be used
+    order spellOrd;
+    point playerPoint;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_GenjiDragonblade, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    playerPoint = UnitGetPosition(aiUnit);
+    // use if teamfight nearby
+    if (TeamFightInArea(player, scanGroup, playerPoint, c_Storm_AI_DefaultTeamfightRange)){
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+bool GenjiXStrike (int player, unit aiUnit, unitgroup scanGroup) {
+    // Ability with a small teleport that damages enemies in an X
+    // More damage occurs after a short delay
+    order spellOrd;
+    Storm_AI_TargetQueryOptions query;
+    unit targetEnemy;
+    point leadPoint;
+    point enemyPoint;
+    point playerPoint;
+    bool castBetweenCasterAndTarget;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_GenjiXStrike, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    playerPoint = UnitGetPosition(aiUnit);
+    // if there isn't a team fight nearby, we get out early
+    if (!TeamFightInArea(player, scanGroup, playerPoint, c_Storm_AI_DefaultTeamfightRange)){
+        return false;
+    }
+
+    // lead since explosive X has delay
+    query.lv_maxDistance = c_GenjiXStrikeRange - c_GenjiXStrikeLeadScalar;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    castBetweenCasterAndTarget = false;
+
+    // Find a hero target
+    targetEnemy = FindBestHero(scanGroup, aiUnit, query);
+    // Validate our initial unit
+    if (!UnitIsValid(targetEnemy)) {
+         return false;
+    }
+
+    // lead the ability since we want to fear enemies towards our caster point
+    enemyPoint = UnitGetPosition(targetEnemy);
+    leadPoint = LeadPoint(playerPoint, enemyPoint, targetEnemy, c_GenjiXStrikeLeadScalar, false, castBetweenCasterAndTarget);
+    return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, leadPoint);
+}
+
+//---------------------------------------------------------------------------------------------
+bool GenjiCyberAgility (int player, unit aiUnit, unitgroup scanGroup) {
+    // Short ranged dash that can traverse pathing blockers
+    order spellOrd;
+    point retreatPos;
+    point retreatDirection;
+    Storm_AI_TargetQueryOptions query;
+
+    spellOrd = StormHeroAICreateOrder(player, c_AB_GenjiCyberAgility, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+
+    // Retreat if you have low health
+    if (HaveBeenAttackedRecently(aiUnit) && UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+        // Dash back to retreat to safety towards spawn
+        retreatDirection = AIGetDirection(UnitGetPosition(aiUnit), libGame_gv_players[player].lv_spawnPoint);
+        retreatPos = libCore_gf_AdvancePointinDirection(UnitGetPosition(aiUnit), retreatDirection, c_GenjiCyberAgilityRange);
+        return HeroIssueOrder(player, aiUnit, spellOrd, null, c_orderQueueReplace, null, retreatPos);
+    }
+
+    return false;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool GenjiOffensiveItemCallback (int player, unit aiUnit, unitgroup scanGroup, string itemType, order ord, order ordTarget, order ordTogOn, order ordTogOff) {
+    point playerPos;
+
+    if (itemType == c_GenjiDragonClawItem) {
+        // Circular damage dealing AoE centered on Genji
+        playerPos = UnitGetPosition(aiUnit);
+        // Don't use if not enough enemies around us
+        if (!EnoughEnemiesInArea(scanGroup, playerPos, c_GenjiDragonClawRange, c_Storm_AI_AtLeast1Hero, 0, 0)) {
+            return false;
+        }
+
+        return UnitIssueOrder(aiUnit, ord, c_orderQueueAddToFront);;
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+void AIThinkGenji (int player, unit aiUnit, unitgroup scanGroup) {
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (GenjiDeflect(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (GenjiCyberAgility(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (GenjiSwiftStrike(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (UnitHasBehavior2(aiUnit, c_GenjiDragonbladeActiveBehavior)) {
+        GenjiDragonbladeAttack(player, aiUnit, scanGroup);
+        return;
+    }
+
+    if (UseItem(player, aiUnit, scanGroup, GenjiOffensiveItemCallback)) {
+        return;
+    }
+
+    if (GenjiShruikens(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player)) {
+        if (GenjiDragonblade(player, aiUnit, scanGroup)) {
+            return;
+        }
+
+        if (GenjiXStrike(player, aiUnit, scanGroup)) {
+            return;
+        }
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+}

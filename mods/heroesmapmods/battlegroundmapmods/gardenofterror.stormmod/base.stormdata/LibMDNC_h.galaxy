@@ -1,0 +1,225 @@
+include "TriggerLibs/HeroesLib"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Garden of Terror
+//--------------------------------------------------------------------------------------------------
+// Preset Declarations
+const int libMDNC_ge_MMGardenTerrorCampHibernateState_None = 0;
+const int libMDNC_ge_MMGardenTerrorCampHibernateState_Full = 1;
+const int libMDNC_ge_MMGardenTerrorCampHibernateState_Partial = 2;
+const int libMDNC_ge_MMGardenTerrorState_Idle = 0;
+const int libMDNC_ge_MMGardenTerrorState_Preparing = 1;
+const int libMDNC_ge_MMGardenTerrorState_Night = 2;
+const int libMDNC_ge_MMGardenTerrorState_Day = 3;
+const int libMDNC_ge_MMGardenTerrorHeroAIStates_MMHWPickupSeed = 0;
+const int libMDNC_ge_MMGardenTerrorHeroAIStates_MMHWKillCamp = 1;
+const int libMDNC_ge_MMGardenTerrorHeroAIStates_MMHWEnterTerror = 2;
+
+// Constants
+const string libMDNC_gv_mMGardenTerrorMechanicName_C = "GardenOfTerror";
+const fixed libMDNC_gv_mMGardenTerrorStartTime_C = 60.0;
+const fixed libMDNC_gv_mMGardenTerrorDayDuration_C = 200.0;
+const fixed libMDNC_gv_mMGardenTerrorNightDuration_C = 120.0;
+const fixed libMDNC_gv_mMGardenTerrorNightStartsWarningDuration_C = 30.0;
+const fixed libMDNC_gv_mMGardenTerrorNightEndsWarningDuration_C = 30.0;
+const int libMDNC_gv_mMGardenTerrorSeedsRequested_C = 100;
+const int libMDNC_gv_mMGardenTerrorDropSeedsBossFinalDrop_C = 20;
+const int libMDNC_gv_mMGardenTerrorDropSeedsBossStartHPPercent_C = 80;
+const fixed libMDNC_gv_mMGardenTerrorDropSeedsBossPerHPPercent_C = 10.0;
+const int libMDNC_gv_mMGardenTerrorDropSeedsBossPerHPDrop_C = 5;
+const int libMDNC_gv_mMGardenTerrorDropSeedsMinionFinalDrop_C = 2;
+const int libMDNC_gv_mMGardenTerrorDropSeedsMinionStartHPPercent_C = 80;
+const fixed libMDNC_gv_mMGardenTerrorDropSeedsMinionPerHPPercent_C = 30.0;
+const int libMDNC_gv_mMGardenTerrorDropSeedsMinionPerHPDrop_C = 1;
+const int libMDNC_gv_mMGardenTerrorDropSeedsWalker_C = 1;
+const int libMDNC_gv_mMGardenTerrorGardenCooldown_C = 30;
+const int libMDNC_gv_mMGardenTerrorGardenGrowDuration_C = 15;
+const int libMDNC_gv_mMGardenTerrorGardenLifeDuration_C = 60;
+const fixed libMDNC_gv_aIHeroGardenTerrorVehicleConsiderFrequency = 2.0;
+const fixed libMDNC_gv_aIHeroGardenTerrorHumanNearVehicleDistance = 20.0;
+const fixed libMDNC_gv_aIHeroGardenSeedSearchRadius = 10.0;
+
+// Structures
+struct libMDNC_gs_MMGardenTerrorNightMinionGroup {
+    point[16] lv_positions;
+    string[16] lv_minionType;
+    int lv_minionCount;
+    unitgroup lv_units;
+    region lv_area;
+    int lv_camp;
+    unit lv_bannerSconce;
+};
+
+struct libMDNC_gs_MMGardenTerrorNightBoss {
+    point lv_positions;
+    unit lv_unit;
+    unit lv_unit2;
+    region lv_area;
+    unit lv_bannerSconce;
+};
+
+struct libMDNC_gs_MMGardenTerrorGarden {
+    point lv_positions;
+    fixed lv_facing;
+    region lv_region;
+    unit lv_units;
+    int[3] lv_ping;
+    unit lv_pingUnit;
+    int lv_summonPing;
+    int[libCore_gv_bALMaxPlayers + 1] lv_hintTextTag;
+    actor lv_gardenLight;
+    unit lv_fertileSoil;
+    bool lv_growing;
+    bool lv_readyToControl;
+};
+
+struct libMDNC_gs_MMGardenTerrorZombieWalkerSpawnInfo {
+    point lv_spawnPoint;
+    point lv_goalPoint;
+};
+
+// Variable Declarations
+libMDNC_gs_MMGardenTerrorNightMinionGroup[11] libMDNC_gv_mMGardenTerrorNightMinionGroups;
+unit[11] libMDNC_gv_mMGardenTerrorNightMinionGroupIcons;
+int[11] libMDNC_gv_mMGardenTerrorNightMinionGroupDefendIndex;
+int libMDNC_gv_mMGardenTerrorNightMinionGroupsCount;
+libMDNC_gs_MMGardenTerrorNightBoss[6] libMDNC_gv_mMGardenTerrorNightBosses;
+int libMDNC_gv_mMGardenTerrorNightBossesCount;
+unitgroup libMDNC_gv_mMGardenTerrorNightMonsters;
+int libMDNC_gv_mMGardenTerrorNightMonstersTotalCount;
+libMDNC_gs_MMGardenTerrorGarden[3] libMDNC_gv_mMGardenTerrorGarden;
+libMDNC_gs_MMGardenTerrorZombieWalkerSpawnInfo[5] libMDNC_gv_mMGardenTerrorSpawnInfo;
+unit[libCore_gv_bALMaxTeams + 1] libMDNC_gv_mMGardenTerrorSummonedBoss;
+fixed libMDNC_gv_mMGardenTerrorVehicleChannelTime_C;
+bool libMDNC_gv_mMGardenTerrorOpenFirstTime;
+timer libMDNC_gv_mMGardenTerrorPrepTimer;
+int libMDNC_gv_mMGardenTerrorNightTimes;
+timer libMDNC_gv_mMGardenTerrorNightTimer;
+int[3] libMDNC_gv_mMGardenTerrorSeedsCollected;
+int[3] libMDNC_gv_mMGardenTerrorSeedsCollectedTonight;
+bool libMDNC_gv_mMGardenTerrorNightFallen;
+bool[libCore_gv_bALMaxTeams + 1] libMDNC_gv_mMGardenTerrorBossSummoned;
+int libMDNC_gv_mMGardenTerrorNumberOfBossesSummoned;
+int libMDNC_gv_mMGardenTerrorCampsHibernateState;
+fixed[libCore_gv_bALMaxPlayers + 1] libMDNC_gv_mMGardenTerrorPlantDamageTotal;
+int libMDNC_gv_mMGardenTerrorDays;
+int[3] libMDNC_gv_mMGardenTerrorHintTextTag;
+timer[libCore_gv_bALMaxTeams + 1] libMDNC_gv_mMGardenTerrorGolemCooldownTimer;
+bool[libCore_gv_bALMaxPlayers + 1] libMDNC_gv_mMGardenTerrorPlayerSummoned;
+sound libMDNC_gv_mMGardenTerrorGolemAmbientSound;
+int libMDNC_gv_mMGardenTerrorDebugAlways;
+bool libMDNC_gv_mMGardenTerrorTransmissionNightStartsWarningFirstTime;
+fixed libMDNC_gv_mMGardenTerrorOvergrowthSelfHealthDecay_C;
+int libMDNC_gv_plantHorrorOvergrowthPlantScaling;
+int libMDNC_gv_vehiclePlantHorrorVineShieldBuffCount;
+fixed libMDNC_gv_vehiclePlantHorrorDamageReduction;
+unitgroup libMDNC_gv_nightMinionActiveGroup;
+
+// Function Declarations
+void libMDNC_gf_MMGardenTerrorAddNightMinionInfo (region lp_groupArea, unit lp_bannerSconceUnit);
+void libMDNC_gf_MMGardenTerrorAddNightBoss (region lp_groupArea, unit lp_bannerSconceUnit);
+void libMDNC_gf_MMGardenTerrorAddGarden (point lp_gardenOrder, region lp_gardenAreaOrder, point lp_gardenChaos, region lp_gardenAreaChaos, unit lp_gardenFertileSoilOrder, unit lp_gardenFertileSoilChaos);
+void libMDNC_gf_MMGardenTerrorAddZombieWalkerSpawnInfo (int lp_groupArea3, point lp_groupArea, point lp_groupArea2);
+void libMDNC_gf_MMGardenTerrorNightPrepare ();
+void libMDNC_gf_MMGardenTerrorNightStarts ();
+void libMDNC_gf_MMGardenTerrorNightEnds ();
+void libMDNC_gf_MMGardenTerrorNightEndsRemoveBoss (int lp_bossIndex);
+void libMDNC_gf_MMGardenTerrorCreateHauntedGardens ();
+void libMDNC_gf_MMGardenTerrorCreateHauntedGarden (int lp_team, bool lp_respawn);
+void libMDNC_gf_MMGardenTerrorUpdateHauntedGarden (int lp_team);
+void libMDNC_gf_MMGardenTerrorManageSummonBossPing (int lp_team);
+void libMDNC_gf_MMGardenTerrorRemoveSummonBossPing (int lp_team);
+void libMDNC_gf_MMGardenTerrorUpdateCampHibernating ();
+void libMDNC_gf_MMGardenTerrorHibernateCamps (int lp_hibernate);
+void libMDNC_gf_MMGardenTerrorSpawnNightMonsters ();
+void libMDNC_gf_MMGardenTerrorSpawnNightMinionSingleGroup (int lp_groupIndex);
+void libMDNC_gf_MMGardenTerrorNightMonstersDroppingSeeds ();
+void libMDNC_gf_MMGardenTerrorNightBossDropsSeeds (int lp_bossIndex);
+int libMDNC_gf_MMGardenTerrorNightPerBossTotalSeeds ();
+int libMDNC_gf_MMGardenTerrorNightMinionGroupIndex (unit lp_minion);
+void libMDNC_gf_MMGardenTerrorNightMinionDropsSeeds (unit lp_minion);
+int libMDNC_gf_MMGardenTerrorNightPerMinionTotalSeeds ();
+int libMDNC_gf_MMGardenTerrorNightSeedsTotal ();
+void libMDNC_gf_MMGardenTerrorDropSeeds (point lp_location, int lp_count, bool lp_forBoss);
+int libMDNC_gf_MMGardenTerrorNightSeedsLeft ();
+unit libMDNC_gf_MMGardenTerrorPlayerHeroUnit (int lp_player);
+fixed libMDNC_gf_MMGardenTerrorSummonedGolemDuration ();
+void libMDNC_gf_MMGardenTerrorGardenGrow (int lp_team);
+void libMDNC_gf_MMGardenTerrorGardenCooldown (int lp_team);
+void libMDNC_gf_MMGardenTerrorUIUpdateText ();
+void libMDNC_gf_MMGardenTerrorUIUpdateGolemPanel ();
+void libMDNC_gf_MMGardenTerrorUIGardenTerrorGrow (int lp_team);
+void libMDNC_gf_MMGardenTerrorGolemSummonedArt ();
+void libMDNC_gf_MMGardenTerrorGolemKilledExpiredArt ();
+void libMDNC_gf_MMGardenTerrorHeroAIChangeToState (int lp_trigPlayer, int lp_state, unit lp_target, int lp_priority);
+int libMDNC_gf_MMGardenTerrorHeroAIPickupSeed (int lp_trigPlayer);
+int libMDNC_gf_MMGardenTerrorHeroAIKillCamp (int lp_trigPlayer);
+int libMDNC_gf_MMGardenTerrorHeroAITerrorEnter (int lp_trigPlayer);
+void libMDNC_gf_MMGardenTerrorHeroAITerrorCampLogic (int lp_faction);
+void libMDNC_gf_MMGardenTerrorHeroAINightBossPinged (int lp_pingingPlayer, unit lp_targetNightBoss);
+bool libMDNC_gf_MMGardenTerrorHeroAIWantstoKillNightMinions (int lp_trigPlayer);
+unit libMDNC_gf_MMGardenTerrorHeroAINightChooseTargetTerror (int lp_trigPlayer);
+void libMDNC_gf_MMGardenTerrorHeroAIPickupSeedsLogic (int lp_faction);
+bool libMDNC_gf_MMGardenTerrorHeroAISearchForNearbySeed (int lp_trigPlayer, region lp_searchRegion, bool lp_ignoreAllies);
+bool libMDNC_gf_MMGardenTerrorHeroAIIsAllyPickingUpSeed (int lp_trigPlayer, unit lp_seed);
+void libMDNC_gf_MMGardenTerrorHeroAITerrorVehicleLogic (int lp_faction);
+bool libMDNC_gf_MMGardenTerrorHeroAIShouldTryToEnterVehicle (int lp_trigPlayer, unit lp_vehicleStatue);
+bool libMDNC_gf_MMGardenTerrorHeroAIIsAllyEnteringVehicle (int lp_faction, unit lp_vehicleStatue);
+bool libMDNC_gf_MMGardenTerrorHeroAIIsHumanAllyEnteringVehicle (int lp_faction, unit lp_vehicleStatue);
+void libMDNC_gf_MMDragonballsTransmissionDragonExpireQ2 ();
+void libMDNC_gf_MMDragonballsTransmissionDragonExpireQ3 ();
+void libMDNC_gf_MMDragonballsTransmissionDragonExpireQ5 ();
+void libMDNC_gf_MMDragonballsTransmissionDragonExpireQ4 ();
+void libMDNC_gf_MMGardenTerrorTransmissionNightEndsQ ();
+void libMDNC_gf_MMGardenTerrorTransmissionGolemStartGrowingQ (int lp_team);
+void libMDNC_gf_MMGardenTerrorTransmissionGolemWaitingQ (int lp_team, int lp_stage);
+void libMDNC_gf_MMGardenTerrorTransmissionGolemWastedQ (int lp_team);
+void libMDNC_gf_MMDragonballsTransmissionDragonActiveQ2 (int lp_activeTeam);
+void libMDNC_gf_MMDragonballsTransmissionDragonActiveQ3 (int lp_activeTeam);
+bool libMDNC_gf_IsNightTime ();
+
+// Trigger Declarations
+trigger libMDNC_gt_MMGardenTerrorInit;
+trigger libMDNC_gt_MMGardenTerrorPingDataInit;
+trigger libMDNC_gt_MMGardenTerrorAnnouncerInit;
+trigger libMDNC_gt_MMGardenTerrorGatesOpened;
+trigger libMDNC_gt_MMGardenTerrorNightStarts;
+trigger libMDNC_gt_MMGardenTerrorNightStartLightTransition;
+trigger libMDNC_gt_MMGardenTerrorNightEndLightTransition;
+trigger libMDNC_gt_MMGardenTerrorNightMonsterDies;
+trigger libMDNC_gt_MMGardenTerrorSeedDropped;
+trigger libMDNC_gt_MMGardenTerrorSeedPickup;
+trigger libMDNC_gt_MMGardenTerrorNightVignette;
+trigger libMDNC_gt_MMGardenTerrorPlantDamageCalculation;
+trigger libMDNC_gt_MMGardenTerrorPlantDamageReport;
+trigger libMDNC_gt_MMGardenTerrorChannelStarted;
+trigger libMDNC_gt_MMGardenTerrorChannelCompleted;
+trigger libMDNC_gt_MMGardenTerrorGolemSummonStarted;
+trigger libMDNC_gt_MMGardenTerrorGolemSummoned;
+trigger libMDNC_gt_MMGardenTerrorSummonedGolemKilled;
+trigger libMDNC_gt_MMGardenTerrorUIHandler;
+trigger libMDNC_gt_MMGardenTerrorUIUpdateSummonedBossBar;
+trigger libMDNC_gt_MMGardenTerrorHeroAITeamMapLogic;
+trigger libMDNC_gt_MMGardenTerrorHeroAIStateLogic;
+trigger libMDNC_gt_MMGardenTerrorPingCallbackPlayerPingsNightBoss;
+trigger libMDNC_gt_MMGardenTerrorDisableEvent;
+trigger libMDNC_gt_MMGardenTerrorDebugTemp;
+trigger libMDNC_gt_MMGardenTerrorDebugStart1;
+trigger libMDNC_gt_MMGardenTerrorDebugStart;
+trigger libMDNC_gt_MMGardenTerrorDebugNightEnds;
+trigger libMDNC_gt_MMGardenTerrorDebugAlwaysDay;
+trigger libMDNC_gt_MMGardenTerrorDebugAlwaysNight;
+trigger libMDNC_gt_PlantHorrorOvergrowthApplyXP;
+trigger libMDNC_gt_PlantHorrorOvergrowthPlantScaling;
+trigger libMDNC_gt_NightMinionBecomesIdleDuringDay;
+trigger libMDNC_gt_LignifyHero;
+trigger libMDNC_gt_LignifyHeroOff;
+trigger libMDNC_gt_VehiclePlantHorrorVineShieldDamageResponse;
+trigger libMDNC_gt_VehiclePlantHorrorVineShieldIncrement;
+trigger libMDNC_gt_VehiclePlantHorrorVineShieldDecrement;
+trigger libMDNC_gt_VehiclePlantHorrorVineGrabActivate;
+trigger libMDNC_gt_JunglePlantHorrorDefenderSpells;
+
+// Library Initialization
+void libMDNC_InitVariables ();
+

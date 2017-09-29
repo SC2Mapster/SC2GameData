@@ -38,7 +38,7 @@
         <Cost>
             <Cooldown Location="Unit" TimeUse="10"/>
         </Cost>
-        <TargetFilters value="Visible;Self,Ally,Mechanical,Structure,User1,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
+        <TargetFilters value="Visible;Self,Ally,ImmuneToAOE,Structure,User1,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
         <Range value="6.5"/>
         <RangeSlop value="3.5"/>
         <CmdButtonArray index="Execute" DefaultButtonFace="GuldanDrainLife">
@@ -84,7 +84,9 @@
         <UninterruptibleArray index="Finish" value="1"/>
         <CursorEffect value="GuldanCorruptionSearchArea"/>
         <CursorRangeMode value="Clamp"/>
-        <CmdButtonArray index="Execute" DefaultButtonFace="GuldanCorruption"/>
+        <CmdButtonArray index="Execute" DefaultButtonFace="GuldanCorruption">
+            <Flags index="AllowSelfCast" value="0"/>
+        </CmdButtonArray>
     </CAbilEffectTarget>
     <CAbilEffectInstant id="GuldanDrainLifeCancel">
         <Effect value="GuldanDrainLifeRemoveChannelBehaviorSet"/>
@@ -183,6 +185,17 @@
         <PrepEffect value="AbilityUseResponseSetDismountDecloak"/>
         <Effect value="GuldanDemonicCircleRemoveControllerBehavior"/>
     </CAbilEffectInstant>
+    <CAccumulatorToken id="GuldanRampantHellfireAccumulator" parent="BaseTokenAccumulator">
+        <TokenId value="GuldanRampantHellfireTokenCounter"/>
+        <Scale value="0.08"/>
+    </CAccumulatorToken>
+    <CActorScene id="SYSTEM_Scene">
+        <On Terms="SceneEffectSearchNotifyResults.GuldanFelFlameSearch" Send="SceneEffectSearchResponse DoodadImpactable"/>
+        <On Terms="SceneEffectSearchNotifyResults.GuldanHorrifySearchArea" Send="SceneEffectSearchResponse DoodadImpactable"/>
+        <On Terms="SceneEffectSearchNotifyResults.GuldanCorruptionSearchArea" Send="SceneEffectSearchResponse DoodadImpactable"/>
+        <On Terms="SceneEffectSearchNotifyResults.GuldanCorruptionThirdSearchArea" Send="SceneEffectSearchResponse DoodadImpactable"/>
+        <On Terms="SceneEffectSearchNotifyResults.GuldanRainOfDestructionSearch" Send="SceneEffectSearchResponse DoodadImpactable"/>
+    </CActorScene>
     <CActorUnit id="GuldanDemonicCircleTeleportItem" parent="StormItemBase" unitName="GuldanDemonicCircleTeleport">
         <HighlightTooltip value="Unit/Name/GuldanDemonicCircleTeleportItem"/>
     </CActorUnit>
@@ -312,8 +325,9 @@
         <On Terms="StatusOn.*.GlowingHands" Send="Create GuldanStandReadyGlowingHandRightFX"/>
         <On Terms="StatusOn.*.GlowingHands" Send="Create GuldanStandReadyGlowingHandLeftFX"/>
         <On Terms="StatusOff.*.GlowingHands" Target="GuldanStandReadyGlowingHandRightFX" Send="AnimBracketStop BSD"/>
+        <On Terms="UnitDeath" Target="GuldanStandReadyGlowingHandRightFX" Send="Destroy"/>
         <On Terms="StatusOff.*.GlowingHands" Target="GuldanStandReadyGlowingHandLeftFX" Send="AnimBracketStop BSD"/>
-        <On Terms="UnitDeath" Send="StatusSet GlowingHands 0"/>
+        <On Terms="UnitDeath" Target="GuldanStandReadyGlowingHandLeftFX" Send="Destroy"/>
         <!-- Attack Sequence -->
         <On Terms="UnitBirth" Send="StatusSet AttackSequence 0"/>
         <On Terms="WeaponStart.*.AttackStart; IsStatus AttackSequence 3" Send="AnimPlay Attack Attack,D"/>
@@ -430,36 +444,9 @@
     </CActorAction>
     <CActorSound id="GuldanLifeTapCastSound" parent="SoundOneShot">
         <On Terms="Abil.GuldanLifeTap.SourceCastStart" Send="Create"/>
-        <Layers>
-            <Sound value="GuldanBase_VOX_CastingD"/>
-            <PitchSource value="Sound"/>
-            <PlayDelaySource value="Actor"/>
-            <VolumeSource value="Sound"/>
-            <Chance value="100"/>
-            <Pitch value="0.000000,0.000000"/>
-            <PlayDelay value="0,250"/>
-            <Volume value="0.000000,0.000000"/>
-        </Layers>
-        <Layers>
-            <Sound value="GuldanLifeTapMidSound"/>
-            <PitchSource value="Sound"/>
-            <PlayDelaySource value="Actor"/>
-            <VolumeSource value="Sound"/>
-            <Chance value="100"/>
-            <Pitch value="0.000000,0.000000"/>
-            <PlayDelay value="200,300"/>
-            <Volume value="0.000000,0.000000"/>
-        </Layers>
-        <Layers>
-            <Sound value="GuldanLifeTapEndSound"/>
-            <PitchSource value="Sound"/>
-            <PlayDelaySource value="Actor"/>
-            <VolumeSource value="Sound"/>
-            <Chance value="100"/>
-            <Pitch value="0.000000,0.000000"/>
-            <PlayDelay value="0,350"/>
-            <Volume value="0.000000,0.000000"/>
-        </Layers>
+        <Layers Sound="GuldanBase_VOX_CastingD" PlayDelay="0,250" PlayDelaySource="Actor"/>
+        <Layers Sound="GuldanLifeTapMidSound" PlayDelay="200,300" PlayDelaySource="Actor"/>
+        <Layers Sound="GuldanLifeTapEndSound" PlayDelay="0,350" PlayDelaySource="Actor"/>
     </CActorSound>
     <CActorModel id="GuldanLifeTapFXImpact" parent="StormModelAnimationStyleOneShotUnit">
         <On Terms="Abil.GuldanLifeTap.SourceCastStart" Send="Create"/>
@@ -483,16 +470,7 @@
         <On Terms="Effect.GuldanFelFlameFelMasteryDamage4.Start" Send="Destroy"/>
         <On Terms="Effect.GuldanFelFlameFelMasteryDamage5.Start" Send="Destroy"/>
         <On Terms="Effect.GuldanFelFlameDecimationDamage.Start" Send="Destroy"/>
-        <Layers>
-            <Sound value="FelFlameGrowlSound"/>
-            <PitchSource value="Sound"/>
-            <PlayDelaySource value="Actor"/>
-            <VolumeSource value="Sound"/>
-            <Chance value="100"/>
-            <Pitch value="0.000000,0.000000"/>
-            <PlayDelay value="0,200"/>
-            <Volume value="0.000000,0.000000"/>
-        </Layers>
+        <Layers Sound="FelFlameGrowlSound" PlayDelay="0,200" PlayDelaySource="Actor"/>
     </CActorSound>
     <CActorSound id="GuldanFelFlameImpactSound" parent="SoundOneShot">
         <On Terms="Effect.GuldanFelFlameDamage.Start; At Target" Send="Create"/>
@@ -504,20 +482,11 @@
         <On Terms="Effect.GuldanFelFlameDecimationDamage.Start; At Target" Send="Create"/>
     </CActorSound>
     <CActorSiteOpLocalOffset id="GuldanDrainLifeOffset">
-        <LocalOffset value="0.000000,0.000000,1.500000"/>
+        <LocalOffset value="0.000000,0.000000,1.500000" Z="1.500000"/>
     </CActorSiteOpLocalOffset>
     <CActorSound id="GuldanDrainLifeCastSound" parent="SoundOneShot">
         <On Terms="Abil.GuldanDrainLife.SourceCastStart" Send="Create"/>
-        <Layers>
-            <Sound value="GuldanBase_VOX_CastingE"/>
-            <PitchSource value="Sound"/>
-            <PlayDelaySource value="Sound"/>
-            <VolumeSource value="Sound"/>
-            <Chance value="100"/>
-            <Pitch value="0.000000,0.000000"/>
-            <PlayDelay value="0,0"/>
-            <Volume value="0.000000,0.000000"/>
-        </Layers>
+        <Layers Sound="GuldanBase_VOX_CastingE"/>
     </CActorSound>
     <CActorSound id="GuldanDrainLifeImpactSound" parent="SoundOneShot"/>
     <CActorSound id="GuldanDrainLifeCasterImpactSound" parent="SoundOneShot"/>
@@ -588,7 +557,7 @@
     </CActorAction>
     <CActorAction id="GuldanFelFlameImpactAction" parent="RangedHeroAttack" effectAttack="GuldanFelFlameSearchImpactSet"/>
     <CActorModel id="GuldanDemonicCircleCastFX" parent="StormModelAnimationStyleOneShotUnit">
-        <HostSiteOps Ops="SOpAttachOrigin SOpShadow" HoldPosition="1" HoldRotation="1"/>
+        <HostSiteOps Ops="SOpAttachOrigin SOpShadow"/>
     </CActorModel>
     <CActorModel id="GuldanFelFlameCastFX" parent="StormModelAnimationStyleOneShotUnit">
         <On Terms="Abil.GuldanFelFlame.SourceCastStart" Send="Create"/>
@@ -683,16 +652,7 @@
     </CActorModel>
     <CActorSound id="GuldanCorruptionCastSound" parent="SoundOneShot">
         <On Terms="Abil.GuldanCorruption.SourceCastStart" Send="Create"/>
-        <Layers>
-            <Sound value="GuldanCorruptionCastSound"/>
-            <PitchSource value="Sound"/>
-            <PlayDelaySource value="Sound"/>
-            <VolumeSource value="Sound"/>
-            <Chance value="100"/>
-            <Pitch value="0.000000,0.000000"/>
-            <PlayDelay value="200,200"/>
-            <Volume value="0.000000,0.000000"/>
-        </Layers>
+        <Layers Sound="GuldanCorruptionCastSound" PlayDelay="200,200"/>
         <Sound value="GuldanBase_VOX_CastingW"/>
     </CActorSound>
     <CActorSound id="GuldanCorruptionImpactFirstSound" parent="SoundOneShot">
@@ -825,18 +785,18 @@
     </CActorUnit>
     <CActorModel id="GuldanDemonicCirclePrecastBirth" parent="StormModelAnimationStyleContinuousUnit">
         <Inherits index="Visibility" value="0"/>
-        <HostSiteOps Ops="SOpShadow SOpPointSouthWorld" HoldPosition="1" HoldRotation="1"/>
+        <HostSiteOps Ops="SOpShadow SOpPointSouthWorld"/>
     </CActorModel>
     <CActorModel id="GuldanDemonicCircleFXIn" parent="StormModelAnimationStyleOneShotUnit">
         <On Terms="Effect.GuldanDemonicCircleTeleport.Stop; At Source" Send="Create"/>
         <On Terms="ActorCreation" Send="AnimBracketStart BSD Spell IGNORE IGNORE ContentPlayOnce"/>
         <Remove Terms="ActorCreation" Send="AnimBracketStart BSD Birth Stand Death ContentPlayOnce"/>
-        <HostSiteOps Ops="SOpAttachOrigin SOpPointSouthWorld SOpShadow" HoldPosition="1" HoldRotation="1"/>
+        <HostSiteOps Ops="SOpAttachOrigin SOpPointSouthWorld SOpShadow"/>
     </CActorModel>
     <CActorModel id="GuldanDemonicCircleFXOut" parent="StormModelAnimationStyleOneShotUnit">
         <On Terms="ActorCreation" Send="Create Guldan_DemonicCircle_Teleport"/>
         <On Terms="Effect.GuldanDemonicCircleTeleport.Start; At Source" Send="Create"/>
-        <HostSiteOps Ops="SOpAttachOrigin SOpPointSouthWorld SOpShadow" HoldPosition="1" HoldRotation="1"/>
+        <HostSiteOps Ops="SOpAttachOrigin SOpPointSouthWorld SOpShadow"/>
     </CActorModel>
     <CActorModel id="GuldanDemonicCircleCastHandFXRight" parent="StormModelAnimationStyleOneShotUnit">
         <HostSiteOps Ops="SOpAttachHandRight"/>
@@ -851,73 +811,8 @@
         <On Terms="Effect.GuldanDemonicCircleTeleport.Start" Send="Destroy"/>
         <On Terms="Effect.GuldanDemonicCircleCreateUnit.Stop" Send="Destroy"/>
     </CActorSound>
-    <CActorRegionArc id="GuldanFelFlameDoodadRegion1">
-        <On Terms="ActorCreation" Send="QueryRegion ::Self DoodadImpactable AgainstCenter"/>
-        <On Terms="ActorCreation" Send="TimerSet 0.062500 Die"/>
-        <On Terms="Effect.GuldanFelFlameSearch.Start; At Caster" Send="Create"/>
-        <On Terms="TimerExpired; TimerName Die" Send="Destroy"/>
-        <Host Subject="_Unit"/>
-        <HostSiteOps Ops="SOpAttachCenterStationary SOpForwardTargetPoint SOp2DRotation"/>
-        <Angle value="23.939199"/>
-        <Radius value="2.000000"/>
-    </CActorRegionArc>
-    <CActorRegionArc id="GuldanFelFlameDoodadRegion2">
-        <On Terms="TimerExpired; TimerName Search" Send="QueryRegion ::Self DoodadImpactable AgainstCenter"/>
-        <On Terms="ActorCreation" Send="TimerSet 0.125000 Search"/>
-        <On Terms="ActorCreation" Send="TimerSet 0.187500 Die"/>
-        <On Terms="Effect.GuldanFelFlameSearch.Start; At Caster" Send="Create"/>
-        <On Terms="TimerExpired; TimerName Die" Send="Destroy"/>
-        <Host Subject="_Unit"/>
-        <HostSiteOps Ops="SOpAttachCenterStationary SOpForwardTargetPoint SOp2DRotation"/>
-        <Angle value="23.939199"/>
-        <Radius value="6.000000"/>
-    </CActorRegionArc>
-    <CActorRegionArc id="GuldanFelFlameDoodadRegion3">
-        <On Terms="TimerExpired; TimerName Search" Send="QueryRegion ::Self DoodadImpactable AgainstCenter"/>
-        <On Terms="ActorCreation" Send="TimerSet 0.312500 Search"/>
-        <On Terms="ActorCreation" Send="TimerSet 0.375000 Die"/>
-        <On Terms="Effect.GuldanFelFlameSearch.Start; At Caster" Send="Create"/>
-        <On Terms="TimerExpired; TimerName Die" Send="Destroy"/>
-        <Host Subject="_Unit"/>
-        <HostSiteOps Ops="SOpAttachCenterStationary SOpForwardTargetPoint SOp2DRotation"/>
-        <Angle value="23.939199"/>
-        <Radius value="10.000000"/>
-    </CActorRegionArc>
-    <CActorRegionArc id="GuldanFelFlameImprovedDoodadRegion1">
-        <On Terms="ActorCreation" Send="QueryRegion ::Self DoodadImpactable AgainstCenter"/>
-        <On Terms="ActorCreation" Send="TimerSet 0.062500 Die"/>
-        <On Terms="Effect.GuldanFelFlameImprovedFelFlameSearch.Start; At Caster" Send="Create"/>
-        <On Terms="TimerExpired; TimerName Die" Send="Destroy"/>
-        <Host Subject="_Unit"/>
-        <HostSiteOps Ops="SOpAttachCenterStationary SOpForwardTargetPoint SOp2DRotation"/>
-        <Angle value="27.597601"/>
-        <Radius value="2.000000"/>
-    </CActorRegionArc>
-    <CActorRegionArc id="GuldanFelFlameImprovedDoodadRegion2">
-        <On Terms="TimerExpired; TimerName Search" Send="QueryRegion ::Self DoodadImpactable AgainstCenter"/>
-        <On Terms="ActorCreation" Send="TimerSet 0.125000 Search"/>
-        <On Terms="ActorCreation" Send="TimerSet 0.187500 Die"/>
-        <On Terms="Effect.GuldanFelFlameImprovedFelFlameSearch.Start; At Caster" Send="Create"/>
-        <On Terms="TimerExpired; TimerName Die" Send="Destroy"/>
-        <Host Subject="_Unit"/>
-        <HostSiteOps Ops="SOpAttachCenterStationary SOpForwardTargetPoint SOp2DRotation"/>
-        <Angle value="27.597601"/>
-        <Radius value="7.000000"/>
-    </CActorRegionArc>
-    <CActorRegionArc id="GuldanFelFlameImprovedDoodadRegion3">
-        <On Terms="TimerExpired; TimerName Search" Send="QueryRegion ::Self DoodadImpactable AgainstCenter"/>
-        <On Terms="ActorCreation" Send="TimerSet 0.312500 Search"/>
-        <On Terms="ActorCreation" Send="TimerSet 0.375000 Die"/>
-        <On Terms="Effect.GuldanFelFlameImprovedFelFlameSearch.Start; At Caster" Send="Create"/>
-        <On Terms="TimerExpired; TimerName Die" Send="Destroy"/>
-        <Host Subject="_Unit"/>
-        <HostSiteOps Ops="SOpAttachCenterStationary SOpForwardTargetPoint SOp2DRotation"/>
-        <Angle value="27.597601"/>
-        <Radius value="11.000000"/>
-    </CActorRegionArc>
     <CActorForceConeRoundedEnd id="GuldanFelFlameForceCone">
         <On Terms="Effect.GuldanFelFlameSearch.Start" Send="Create"/>
-        <On Terms="Effect.GuldanFelFlameImprovedFelFlameSearch.Start" Send="Create"/>
         <Host Subject="_Unit"/>
         <HostSiteOps Ops="SOpAttachCenter" HoldPosition="1" HoldRotation="1"/>
         <Duration value="0.125500"/>
@@ -927,9 +822,6 @@
         <Angle value="40.000000"/>
         <Length value="5.500000"/>
     </CActorForceConeRoundedEnd>
-    <CActorRegionCircle id="DoodadImpactSearch3">
-        <On Terms="Effect.GuldanHorrifySearchArea.Start; At Effect" Send="Create"/>
-    </CActorRegionCircle>
     <CActorForceSphere id="GuldanHorrifyForceSphere">
         <On Terms="Effect.GuldanHorrifySearchArea.Start" Send="Create"/>
         <HostSiteOps Ops="SOpTargetPoint"/>
@@ -937,11 +829,6 @@
         <Magnitude value="35.000000"/>
         <Radius value="3.500000"/>
     </CActorForceSphere>
-    <CActorRegionCircle id="DoodadImpactSearch2">
-        <On Terms="Effect.GuldanCorruptionSearchArea.Start; At Effect" Send="Create"/>
-        <On Terms="Effect.GuldanCorruptionThirdSearchArea.Start; At Effect" Send="Create"/>
-        <On Terms="Effect.GuldanRainOfDestructionSearch.Start; At Effect" Send="Create"/>
-    </CActorRegionCircle>
     <CActorForceCylinder id="GuldanCorruptionForceCylinder">
         <On Terms="Effect.GuldanCorruptionSearchArea.Start" Send="Create"/>
         <On Terms="Effect.GuldanCorruptionThirdSearchArea.Start" Send="Create"/>
@@ -979,6 +866,12 @@
         <AtMaxEvents index="0" EventId="QuestComplete" Effect="GuldanFelFlamePursuitOfFlameQuestCompleteModifyPlayer"/>
         <Max value="40"/>
     </CBehaviorTokenCounter>
+    <CBehaviorBuff id="GuldanHasMaxLife">
+        <DisableValidatorArray value="CasterLifeFull"/>
+        <Modification>
+            <AbilLinkDisableArray value="GuldanHealthstone"/>
+        </Modification>
+    </CBehaviorBuff>
     <CBehaviorBuff id="GuldanLifeTapManaController">
         <Alignment value="Positive"/>
         <BehaviorFlags index="Permanent" value="1"/>
@@ -986,15 +879,6 @@
         <DisableValidatorArray value="EnergyFullCaster"/>
         <Modification>
             <StateFlags index="SuppressEnergyRegen" value="1"/>
-        </Modification>
-    </CBehaviorBuff>
-    <CBehaviorBuff id="GuldanDrainLifeIncomingHealingController">
-        <Alignment value="Positive"/>
-        <BehaviorFlags index="Permanent" value="1"/>
-        <BehaviorFlags index="EnabledWhileDead" value="1"/>
-        <Modification>
-            <HealDealtMultiplier index="Life" value="100"/>
-            <HealTakenMultiplier index="Life" value="0.01"/>
         </Modification>
     </CBehaviorBuff>
     <CBehaviorBuff id="GuldanDrainLifeChannel">
@@ -1018,6 +902,9 @@
         <Duration value="3"/>
         <InfoFlags index="AlwaysUseGameText" value="1"/>
     </CBehaviorBuff>
+    <CBehaviorTokenCounter id="GuldanRampantHellfireTokenCounter" parent="StormGenericToken">
+        <Max value="5"/>
+    </CBehaviorTokenCounter>
     <CBehaviorVeterancy id="GuldanVeterancyMana" parent="HeroXPCurve">
         <VeterancyLevelArray index="1">
             <Modification>
@@ -1173,8 +1060,6 @@
         <FinalEffect value="GuldanHorrifyFearIssueStopOrder"/>
     </CBehaviorBuff>
     <CBehaviorBuff id="GuldanCorruptionDoTBehavior" parent="StormDot">
-        <InfoIcon value="Assets\Textures\storm_ui_icon_guldan_handofguldan.dds"/>
-        <RemoveValidatorArray value="UserCategoryNoSpecialDeathStateTarget"/>
         <BuffFlags index="RefreshStack" value="1"/>
         <MaxStackCount value="3"/>
         <Duration value="6"/>
@@ -1183,7 +1068,7 @@
         <PeriodicEffect value="GuldanCorruptionDoTDamage"/>
         <PeriodicDisplayEffect value="GuldanCorruptionDoTDamage"/>
         <FinalEffect value="GuldanCorruptionCurseOfExhaustionApplySlowBehavior"/>
-        <InitialEffect value="GuldanCorruptionDummyInterruptDamage"/>
+        <InitialEffect value="HeroGenericDummyInterruptDamage"/>
     </CBehaviorBuff>
     <CBehaviorBuff id="GuldanRainOfDestructionChannel">
         <Alignment value="Positive"/>
@@ -1223,9 +1108,6 @@
         </DamageResponse>
     </CBehaviorBuff>
     <CBehaviorBuff id="GuldanCorruptionCurseOfExhaustionSlow" parent="StormSlowParent">
-        <Alignment value="Negative"/>
-        <InfoIcon value="Assets\Textures\storm_temp_war3_btnamuletofthewild.dds"/>
-        <BuffFlags index="RefreshStack" value="1"/>
         <Duration value="2.5"/>
         <Modification>
             <UnifiedMoveSpeedFactor value="-0.5"/>
@@ -1293,24 +1175,24 @@
         <DisableValidatorArray value="CasterNotDead"/>
     </CBehaviorBuff>
     <CBehaviorBuff id="GuldanRainOfDestructionDeepImpactSlow" parent="StormSlowParent">
-        <Alignment value="Negative"/>
-        <InfoIcon value="Assets\Textures\storm_temp_war3_btnamuletofthewild.dds"/>
         <Duration value="0.5"/>
         <Modification>
             <UnifiedMoveSpeedFactor value="-0.9"/>
         </Modification>
     </CBehaviorBuff>
     <CBehaviorBuff id="GuldanCorruptionDemonicSightReveal" parent="StormReveal">
-        <RemoveValidatorArray index="0" value="GuldanTargetHasCorruptionDoT"/>
-        <DisableValidatorArray value="DoesNotHaveSuppressRevealers"/>
+        <RemoveValidatorArray value="GuldanTargetHasCorruptionDoT"/>
     </CBehaviorBuff>
     <CBehaviorBuff id="GuldanFelFlameRampantHellfireStackDummyBehavior">
         <Alignment value="Positive"/>
         <InfoIcon value="Assets\Textures\storm_ui_icon_guldan_felflame.dds"/>
         <BuffFlags index="RefreshStack" value="1"/>
-        <MaxStackCount value="5"/>
         <Duration value="5"/>
         <Face value="GuldanRampantHellfireBehaviorFace"/>
+        <InitialEffect value="GuldanFelFlameRampantHellfireAddToken"/>
+        <FinalEffect value="GuldanFelFlameRampantHellfireClearTokens"/>
+        <MaxStackCount value="5"/>
+        <RefreshEffect value="GuldanFelFlameRampantHellfireAddToken"/>
     </CBehaviorBuff>
     <CBehaviorBuff id="GuldanConsumeSoulCarryBehavior" parent="CarryBehaviorParent"/>
     <CBehaviorBuff id="GuldanCorruptionRuinousAfflictionStackDummyBehavior">
@@ -1351,7 +1233,6 @@
         <BuffFlags index="RefreshStack" value="1"/>
         <Modification>
             <HealDealtAdditiveMultiplier index="Life" value="0.25"/>
-            <HealDealtAdditiveMultiplier index="Energy" value="0.25"/>
             <HealDealtAdditiveMultiplier index="Shields" value="0.25"/>
             <DamageDealtFraction index="Ability" value="0.25"/>
         </Modification>
@@ -1500,11 +1381,10 @@
         <Image value="Assets\Textures\ui_targetportrait_hero_guldan.dds"/>
         <Variations Model="GuldanPortrait" Actor="GuldanPortrait"/>
     </CCharacter>
-    <CEffectModifyTokenCount id="GuldanCorruptionEchoedCorruptionQuestIncrementToken">
+    <CEffectModifyTokenCount id="GuldanCorruptionEchoedCorruptionQuestIncrementToken" parent="BaseEffectModifyTokenCount">
         <ValidatorArray value="TargetIsHero"/>
         <Chance value="0"/>
         <TokenId value="GuldanCorruptionEchoedCorruptionQuestToken"/>
-        <Value value="1"/>
         <EffectCategory index="Quest" value="1"/>
     </CEffectModifyTokenCount>
     <CEffectModifyPlayer id="GuldanCorruptionEchoedCorruptionQuestCompleteModifyPlayer">
@@ -1513,16 +1393,16 @@
         <EffectArray Operation="Set" Reference="Effect,GuldanCorruptionEchoedCorruptionQuestIncrementToken,Chance" Value="0"/>
     </CEffectModifyPlayer>
     <CEffectSet id="GuldanCorruptionInitialSet">
-        <EditorCategories value=""/>
         <EffectArray value="GuldanCorruptionRuinousAfflictionNewCastRemovalSearch"/>
         <EffectArray value="GuldanLifeTapDarknessWithinRemoveBehavior"/>
         <EffectArray value="GuldanCorruptionSearchArea"/>
     </CEffectSet>
     <CEffectEnumArea id="GuldanCorruptionRuinousAfflictionNewCastRemovalSearch">
         <ValidatorArray value="GuldanHasCorruptionRuinousAfflictionTalent"/>
-        <EditorCategories value=""/>
         <SearchFilters value="-;Player,Ally,Dead"/>
-        <AreaArray Radius="8" Effect="GuldanCorruptionRuinousAfflictionRemoveBehavior"/>
+        <AreaArray Effect="GuldanCorruptionRuinousAfflictionRemoveBehavior">
+            <Radius value="8"/>
+        </AreaArray>
     </CEffectEnumArea>
     <CEffectCreatePersistent id="GuldanCorruptionVisionCreatePersistent">
         <ExpireDelay value="0.5"/>
@@ -1544,16 +1424,14 @@
         <EffectArray value="GuldanDemonicCircleTeleport"/>
         <EffectArray value="GuldanDemonicCircleRemoveActiveBehavior"/>
     </CEffectSet>
-    <CEffectModifyTokenCount id="GuldanFelFlamePursuitOfFlameQuestIncrementToken">
+    <CEffectModifyTokenCount id="GuldanFelFlamePursuitOfFlameQuestIncrementToken" parent="BaseEffectModifyTokenCount">
         <ValidatorArray value="TargetIsHero"/>
         <Chance value="0"/>
         <TokenId value="GuldanFelFlamePursuitOfFlameQuestToken"/>
-        <Value value="1"/>
         <EffectCategory index="Quest" value="1"/>
     </CEffectModifyTokenCount>
-    <CEffectModifyTokenCount id="GuldanChaoticEnergyQuestIncrementToken">
+    <CEffectModifyTokenCount id="GuldanChaoticEnergyQuestIncrementToken" parent="BaseEffectModifyTokenCount">
         <TokenId value="GuldanChaoticEnergyQuestToken"/>
-        <Value value="1"/>
         <EffectCategory index="Quest" value="1"/>
         <ValidatorArray value="GuldanChaoticEnergyHasLTMaxStacks"/>
     </CEffectModifyTokenCount>
@@ -1562,12 +1440,18 @@
         <InitialDelay value="0.0625"/>
         <InitialEffect value="GuldanDrainLifeHealthFunnelModifyCooldown"/>
     </CEffectCreatePersistent>
+    <CEffectModifyTokenCount id="GuldanFelFlameRampantHellfireAddToken" parent="BaseEffectModifyTokenCount">
+        <TokenId value="GuldanRampantHellfireTokenCounter"/>
+    </CEffectModifyTokenCount>
+    <CEffectModifyTokenCount id="GuldanFelFlameRampantHellfireClearTokens" parent="BaseEffectModifyTokenCount">
+        <TokenId value="GuldanRampantHellfireTokenCounter"/>
+        <Operation value="Set"/>
+        <Value value="0"/>
+    </CEffectModifyTokenCount>
     <CEffectApplyBehavior id="GuldanHungerForPowerApplyHealingReductionBehavior">
-        <EditorCategories value=""/>
         <Behavior value="GuldanLifeTapHungerforPowerHealingReductionBehavior"/>
     </CEffectApplyBehavior>
     <CEffectRemoveBehavior id="GuldanHungerForPowerRemoveHealingReductionBehavior">
-        <EditorCategories value=""/>
         <WhichUnit Value="Caster"/>
         <BehaviorLink value="GuldanLifeTapHungerforPowerHealingReductionBehavior"/>
     </CEffectRemoveBehavior>
@@ -1590,8 +1474,8 @@
     <CEffectLaunchMissile id="GuldanWeaponLaunchMissile">
         <ValidatorArray index="0" value="TargetNotDead"/>
         <ImpactEffect value="GuldanWeaponImpactSet"/>
-        <Flags index="TravelValidation" value="1"/>
-        <Flags index="ValidateWeapon" value="0"/>
+        <SharedFlags index="TravelValidation" value="1"/>
+        <SharedFlags index="ValidateWeapon" value="0"/>
         <AmmoUnit value="GuldanWeaponMissile"/>
     </CEffectLaunchMissile>
     <CEffectSet id="GuldanWeaponImpactSet">
@@ -1600,14 +1484,18 @@
     </CEffectSet>
     <CEffectModifyUnit id="GuldanLifeTapManaRestoreModifyUnit">
         <ImpactUnit Value="Caster"/>
-        <VitalArray index="Energy" ChangeFraction="0.25"/>
+        <VitalArray index="Energy">
+            <ChangeFraction value="0.25"/>
+        </VitalArray>
         <CasterHistory value="Damage"/>
     </CEffectModifyUnit>
     <CEffectEnumArea id="GuldanFelFlameDummyVisualGuide">
         <LaunchLocation Effect="GuldanFelFlamePersistent" Value="OriginPoint"/>
         <ImpactLocation Value="TargetPoint"/>
-        <SearchFilters value="-;Player,Ally,Neutral,Mechanical,Missile,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray Arc="23.9721" Radius="10.5" Effect="GuldanFelFlameMissileScanImpactSet"/>
+        <SearchFilters value="-;Player,Ally,Neutral,ImmuneToAOE,Missile,Stasis,Dead,Hidden,Invulnerable"/>
+        <AreaArray Arc="23.9721" Effect="GuldanFelFlameMissileScanImpactSet">
+            <Radius value="10.5"/>
+        </AreaArray>
         <SearchFlags index="CenterAtLaunch" value="1"/>
         <SearchFlags index="OffsetAreaByAngle" value="0"/>
     </CEffectEnumArea>
@@ -1638,8 +1526,6 @@
     <CEffectCreateHealer id="GuldanDrainLifeCreateHealer" parent="StormSelfOnlyHealingSpell">
         <ValidatorArray value="NoJunglePassiveTarget"/>
         <ImpactUnit Value="Caster"/>
-        <PeriodCount value="1"/>
-        <PeriodicPeriod value="1"/>
         <RechargeVitalRate value="47"/>
     </CEffectCreateHealer>
     <CEffectSet id="GuldanDrainLifeImpactSet">
@@ -1694,22 +1580,20 @@
     <CEffectEnumArea id="GuldanFelFlameSearch">
         <LaunchLocation Value="OriginPoint"/>
         <ImpactLocation Value="TargetPoint"/>
-        <SearchFilters value="-;Player,Ally,Neutral,Mechanical,Missile,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray>
-            <Arc value="23.9392"/>
+        <SearchFilters value="-;Player,Ally,Neutral,ImmuneToAOE,Missile,Stasis,Dead,Hidden,Invulnerable"/>
+        <AreaArray Arc="23.9392" RadiusBonus="1.04" Effect="GuldanFelFlameSearchImpactSet">
             <Radius value="1"/>
-            <RadiusBonus value="1.04"/>
-            <Effect value="GuldanFelFlameSearchImpactSet"/>
         </AreaArray>
         <RevealerParams Duration="0.75" ShapeExpansion="1">
             <RevealFlags index="Unfog" value="1"/>
         </RevealerParams>
         <SearchFlags index="CenterAtLaunch" value="1"/>
         <SearchFlags index="OffsetAreaByAngle" value="0"/>
+        <SearchFlags index="DoActorSearch" value="1"/>
     </CEffectEnumArea>
     <CEffectSet id="GuldanFelFlameSearchImpactSet">
         <ValidatorArray value="noMarkers"/>
-        <EffectArray value="GuldanFelFlameDamageSwitch"/>
+        <EffectArray value="GuldanFelFlameDamage"/>
         <EffectArray value="GuldanFelFlamePursuitOfFlameQuestIncrementToken"/>
         <EffectArray value="GuldanFelFlameRampantHellfireSet"/>
         <EffectArray value="GuldanLifeTapDarknessWithinImpactSet"/>
@@ -1719,13 +1603,14 @@
     </CEffectSet>
     <CEffectDamage id="GuldanFelFlameDamage" parent="StormSpell">
         <Amount value="200"/>
+        <AmountAccumulator value="GuldanRampantHellfireAccumulator"/>
     </CEffectDamage>
     <CEffectCreatePersistent id="GuldanFelFlameInitialPersistent">
         <WhichLocation Value="CasterPoint"/>
         <InitialEffect value="GuldanFelFlameInitialSet"/>
         <PeriodCount value="1"/>
         <PeriodicEffectArray value="GuldanFelFlameOffsetPersistent"/>
-        <PeriodicOffsetArray value="0,-10,0"/>
+        <PeriodicOffsetArray value="0,-10,0" Y="-10"/>
         <PeriodicPeriodArray value="0"/>
     </CEffectCreatePersistent>
     <CEffectCreatePersistent id="GuldanFelFlameOffsetPersistent">
@@ -1736,7 +1621,7 @@
     <CEffectLaunchMissile id="GuldanFelFlameLaunchMissile">
         <LaunchLocation Effect="GuldanFelFlameInitialPersistent" Value="CasterPoint"/>
         <ImpactLocation Effect="GuldanFelFlameOffsetPersistent" Value="TargetPoint"/>
-        <LaunchOffset value="0,-1,0"/>
+        <LaunchOffset value="0,-1,0" Y="-1"/>
         <LaunchEffect value="GuldanFelFlameLaunchSet"/>
         <AmmoUnit value="GuldanFelFlameMissile"/>
         <Marker Duration="1">
@@ -1745,8 +1630,10 @@
     </CEffectLaunchMissile>
     <CEffectEnumArea id="GuldanHorrifyDummySearchArea">
         <ImpactLocation Value="TargetPoint"/>
-        <SearchFilters value="Heroic;Player,Ally,Neutral,Mechanical,Missile,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray Radius="3.5"/>
+        <SearchFilters value="Heroic;Player,Ally,Neutral,ImmuneToAOE,Missile,Stasis,Dead,Hidden,Invulnerable"/>
+        <AreaArray>
+            <Radius value="3.5"/>
+        </AreaArray>
     </CEffectEnumArea>
     <!--CEffectSet id="GuldanHorrifyInitialSet">-->
     <!--        <EffectArray value="GuldanHorrifyCreatePersistent"/>-->
@@ -1766,8 +1653,11 @@
     <!--    </CEffectSet-->
     <CEffectEnumArea id="GuldanHorrifySearchArea">
         <ImpactLocation Value="TargetPoint"/>
-        <SearchFilters value="Heroic;Player,Ally,Neutral,Mechanical,Missile,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray Radius="3.5" Effect="GuldanHorrifyImpactSet"/>
+        <SearchFilters value="Heroic;Player,Ally,Neutral,ImmuneToAOE,Missile,Stasis,Dead,Hidden,Invulnerable"/>
+        <SearchFlags index="DoActorSearch" value="1"/>
+        <AreaArray Effect="GuldanHorrifyImpactSet">
+            <Radius value="3.5"/>
+        </AreaArray>
     </CEffectEnumArea>
     <CEffectSet id="GuldanHorrifyImpactSet">
         <EffectArray value="GuldanHorrifyHauntVulnerableApplyBehavior"/>
@@ -1788,7 +1678,7 @@
         <OffsetVectorEndLocation Value="TargetUnit"/>
         <PeriodCount value="1"/>
         <PeriodicEffectArray value="GuldanHorrifyFearCreatePersistent"/>
-        <PeriodicOffsetArray value="0,-50,0"/>
+        <PeriodicOffsetArray value="0,-50,0" Y="-50"/>
         <PeriodicPeriodArray value="0"/>
     </CEffectCreatePersistent>
     <CEffectCreatePersistent id="GuldanHorrifyFearCreatePersistent">
@@ -1814,11 +1704,11 @@
         <Target>
             <Value value="TargetUnit"/>
             <ProjectionMultiplier value="1"/>
-            <ProjectionOffset value="0,-2,0"/>
             <ProjectionSourceEffect value="GuldanHorrifySearchArea"/>
             <ProjectionSourceValue value="TargetPoint"/>
             <ProjectionTargetEffect value="GuldanHorrifyImpactSet"/>
             <ProjectionTargetValue value="TargetUnit"/>
+            <ProjectionOffset value="0,-2,0" Y="-2"/>
         </Target>
     </CEffectIssueOrder>
     <CEffectIssueOrder id="GuldanHorrifyFearIssueStopOrder">
@@ -1827,7 +1717,9 @@
     <CEffectEnumArea id="GuldanCorruptionDummySearchArea">
         <ImpactLocation Value="TargetPoint"/>
         <SearchFilters value="-;Player,Ally,Cloaked,Stasis"/>
-        <AreaArray Radius="1.5"/>
+        <AreaArray>
+            <Radius value="1.5"/>
+        </AreaArray>
     </CEffectEnumArea>
     <CEffectCreatePersistent id="GuldanCorruptionAbilityStartCreatePersistent">
         <OffsetVectorStartLocation Value="OriginUnit"/>
@@ -1837,8 +1729,8 @@
         <PeriodCount value="2"/>
         <PeriodicEffectArray value="GuldanCorruptionSecondDelayCreatePersistent"/>
         <PeriodicEffectArray value="GuldanCorruptionThirdDelayCreatePersistent"/>
-        <PeriodicOffsetArray value="0,-3,0"/>
-        <PeriodicOffsetArray value="0,-6,0"/>
+        <PeriodicOffsetArray value="0,-3,0" Y="-3"/>
+        <PeriodicOffsetArray value="0,-6,0" Y="-6"/>
         <PeriodicPeriodArray value="0"/>
         <RevealRadius value="2.5"/>
         <RevealFlags index="Unfog" value="1"/>
@@ -1854,8 +1746,11 @@
     </CEffectCreatePersistent>
     <CEffectEnumArea id="GuldanCorruptionSearchArea">
         <ImpactLocation Value="TargetPoint"/>
-        <SearchFilters value="-;Player,Ally,Neutral,Mechanical,Missile,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray Radius="1.5" Effect="GuldanCorruptionImpactSet"/>
+        <SearchFilters value="-;Player,Ally,Neutral,ImmuneToAOE,Missile,Stasis,Dead,Hidden,Invulnerable"/>
+        <SearchFlags index="DoActorSearch" value="1"/>
+        <AreaArray Effect="GuldanCorruptionImpactSet">
+            <Radius value="1.5"/>
+        </AreaArray>
         <RevealerParams Duration="0.75" ShapeExpansion="0.5">
             <RevealFlags index="Unfog" value="1"/>
         </RevealerParams>
@@ -1869,12 +1764,6 @@
         <EffectArray value="ApplyAbilityImpactReveal"/>
         <EffectArray value="AbilityUseDismountDecloakApplyBehaviorTargetExceptGhostWolf"/>
     </CEffectSet>
-    <CEffectDamage id="GuldanCorruptionDummyInterruptDamage">
-        <!-- Ideally, this would be No Proc, but that causes issues with Blinds -->
-        <FloaterCreation value="Suppress"/>
-        <Amount value="0.01"/>
-        <Kind value="Ability"/>
-    </CEffectDamage>
     <CEffectApplyBehavior id="GuldanCorruptionApplyDoTBehavior">
         <Behavior value="GuldanCorruptionDoTBehavior"/>
     </CEffectApplyBehavior>
@@ -1893,51 +1782,51 @@
         <!-- Center Point -->
         <PeriodicOffsetArray value="0,0,0"/>
         <!-- First Inner Ring -->
-        <PeriodicOffsetArray value="3,0,0"/>
-        <PeriodicOffsetArray value="2.1213,2.1213,0"/>
-        <PeriodicOffsetArray value="0,3,0"/>
-        <PeriodicOffsetArray value="-2.1213,2.1213,0"/>
-        <PeriodicOffsetArray value="-3,0,0"/>
-        <PeriodicOffsetArray value="-2.1213,-2.1213,0"/>
-        <PeriodicOffsetArray value="0,-3,0"/>
-        <PeriodicOffsetArray value="2.1213,-2.1213,0"/>
+        <PeriodicOffsetArray value="3,0,0" X="3"/>
+        <PeriodicOffsetArray value="2.1213,2.1213,0" X="2.1213" Y="2.1213"/>
+        <PeriodicOffsetArray value="0,3,0" Y="3"/>
+        <PeriodicOffsetArray value="-2.1213,2.1213,0" X="-2.1213" Y="2.1213"/>
+        <PeriodicOffsetArray value="-3,0,0" X="-3"/>
+        <PeriodicOffsetArray value="-2.1213,-2.1213,0" X="-2.1213" Y="-2.1213"/>
+        <PeriodicOffsetArray value="0,-3,0" Y="-3"/>
+        <PeriodicOffsetArray value="2.1213,-2.1213,0" X="2.1213" Y="-2.1213"/>
         <!-- Second Inner Ring -->
-        <PeriodicOffsetArray value="6,0,0"/>
-        <PeriodicOffsetArray value="5.4812,2.4404,0"/>
-        <PeriodicOffsetArray value="4.015,4.459,0"/>
-        <PeriodicOffsetArray value="1.854,5.7062,0"/>
-        <PeriodicOffsetArray value="-0.6271,5.967,0"/>
-        <PeriodicOffsetArray value="-3,5.196,0"/>
-        <PeriodicOffsetArray value="-4.854,3.5266,0"/>
-        <PeriodicOffsetArray value="-5.869,1.2475,0"/>
-        <PeriodicOffsetArray value="-5.869,-1.2475,0"/>
-        <PeriodicOffsetArray value="-4.854,-3.5266,0"/>
-        <PeriodicOffsetArray value="-3,-5.196,0"/>
-        <PeriodicOffsetArray value="-0.6271,-5.967,0"/>
-        <PeriodicOffsetArray value="1.854,-5.7062,0"/>
-        <PeriodicOffsetArray value="4.015,-4.459,0"/>
-        <PeriodicOffsetArray value="5.4812,-2.4404,0"/>
+        <PeriodicOffsetArray value="6,0,0" X="6"/>
+        <PeriodicOffsetArray value="5.4812,2.4404,0" X="5.4812" Y="2.4404"/>
+        <PeriodicOffsetArray value="4.015,4.459,0" X="4.015" Y="4.459"/>
+        <PeriodicOffsetArray value="1.854,5.7062,0" X="1.854" Y="5.7062"/>
+        <PeriodicOffsetArray value="-0.6271,5.967,0" X="-0.6271" Y="5.967"/>
+        <PeriodicOffsetArray value="-3,5.196,0" X="-3" Y="5.196"/>
+        <PeriodicOffsetArray value="-4.854,3.5266,0" X="-4.854" Y="3.5266"/>
+        <PeriodicOffsetArray value="-5.869,1.2475,0" X="-5.869" Y="1.2475"/>
+        <PeriodicOffsetArray value="-5.869,-1.2475,0" X="-5.869" Y="-1.2475"/>
+        <PeriodicOffsetArray value="-4.854,-3.5266,0" X="-4.854" Y="-3.5266"/>
+        <PeriodicOffsetArray value="-3,-5.196,0" X="-3" Y="-5.196"/>
+        <PeriodicOffsetArray value="-0.6271,-5.967,0" X="-0.6271" Y="-5.967"/>
+        <PeriodicOffsetArray value="1.854,-5.7062,0" X="1.854" Y="-5.7062"/>
+        <PeriodicOffsetArray value="4.015,-4.459,0" X="4.015" Y="-4.459"/>
+        <PeriodicOffsetArray value="5.4812,-2.4404,0" X="5.4812" Y="-2.4404"/>
         <!-- Outer Ring -->
-        <PeriodicOffsetArray value="9,0,0"/>
-        <PeriodicOffsetArray value="8.5595,2.7812,0"/>
-        <PeriodicOffsetArray value="7.2812,5.29,0"/>
-        <PeriodicOffsetArray value="5.29,7.2812,0"/>
-        <PeriodicOffsetArray value="2.7812,8.5595,0"/>
-        <PeriodicOffsetArray value="0,9,0"/>
-        <PeriodicOffsetArray value="-2.7812,8.5595,0"/>
-        <PeriodicOffsetArray value="-5.29,7.2812,0"/>
-        <PeriodicOffsetArray value="-7.2812,5.29,0"/>
-        <PeriodicOffsetArray value="-8.5595,2.7812,0"/>
-        <PeriodicOffsetArray value="-9,0,0"/>
-        <PeriodicOffsetArray value="-8.5595,-2.7812,0"/>
-        <PeriodicOffsetArray value="-7.2812,-5.29,0"/>
-        <PeriodicOffsetArray value="-5.29,-7.2812,0"/>
-        <PeriodicOffsetArray value="-2.7812,-8.5595,0"/>
-        <PeriodicOffsetArray value="0,-9,0"/>
-        <PeriodicOffsetArray value="2.7812,-8.5595,0"/>
-        <PeriodicOffsetArray value="5.29,-7.2812,0"/>
-        <PeriodicOffsetArray value="7.2812,-5.29,0"/>
-        <PeriodicOffsetArray value="8.5595,-2.7812,0"/>
+        <PeriodicOffsetArray value="9,0,0" X="9"/>
+        <PeriodicOffsetArray value="8.5595,2.7812,0" X="8.5595" Y="2.7812"/>
+        <PeriodicOffsetArray value="7.2812,5.29,0" X="7.2812" Y="5.29"/>
+        <PeriodicOffsetArray value="5.29,7.2812,0" X="5.29" Y="7.2812"/>
+        <PeriodicOffsetArray value="2.7812,8.5595,0" X="2.7812" Y="8.5595"/>
+        <PeriodicOffsetArray value="0,9,0" Y="9"/>
+        <PeriodicOffsetArray value="-2.7812,8.5595,0" X="-2.7812" Y="8.5595"/>
+        <PeriodicOffsetArray value="-5.29,7.2812,0" X="-5.29" Y="7.2812"/>
+        <PeriodicOffsetArray value="-7.2812,5.29,0" X="-7.2812" Y="5.29"/>
+        <PeriodicOffsetArray value="-8.5595,2.7812,0" X="-8.5595" Y="2.7812"/>
+        <PeriodicOffsetArray value="-9,0,0" X="-9"/>
+        <PeriodicOffsetArray value="-8.5595,-2.7812,0" X="-8.5595" Y="-2.7812"/>
+        <PeriodicOffsetArray value="-7.2812,-5.29,0" X="-7.2812" Y="-5.29"/>
+        <PeriodicOffsetArray value="-5.29,-7.2812,0" X="-5.29" Y="-7.2812"/>
+        <PeriodicOffsetArray value="-2.7812,-8.5595,0" X="-2.7812" Y="-8.5595"/>
+        <PeriodicOffsetArray value="0,-9,0" Y="-9"/>
+        <PeriodicOffsetArray value="2.7812,-8.5595,0" X="2.7812" Y="-8.5595"/>
+        <PeriodicOffsetArray value="5.29,-7.2812,0" X="5.29" Y="-7.2812"/>
+        <PeriodicOffsetArray value="7.2812,-5.29,0" X="7.2812" Y="-5.29"/>
+        <PeriodicOffsetArray value="8.5595,-2.7812,0" X="8.5595" Y="-2.7812"/>
         <PeriodicPeriodArray value="0.125"/>
         <TimeScaleSource Value="Caster"/>
     </CEffectCreatePersistent>
@@ -1950,8 +1839,11 @@
         <TimeScaleSource Value="Caster"/>
     </CEffectCreatePersistent>
     <CEffectEnumArea id="GuldanRainOfDestructionSearch">
-        <SearchFilters value="-;Player,Ally,Neutral,Mechanical,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray Radius="1.75" Effect="GuldanRainOfDestructionImpactSet"/>
+        <SearchFilters value="-;Player,Ally,Neutral,ImmuneToAOE,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
+        <SearchFlags index="DoActorSearch" value="1"/>
+        <AreaArray Effect="GuldanRainOfDestructionImpactSet">
+            <Radius value="1.75"/>
+        </AreaArray>
         <RevealerParams Duration="0.75" ShapeExpansion="0.5">
             <RevealFlags index="Unfog" value="1"/>
         </RevealerParams>
@@ -1964,8 +1856,10 @@
         <Amount value="165"/>
     </CEffectDamage>
     <CEffectEnumArea id="GuldanRainOfDestructionSearchDummy">
-        <SearchFilters value="-;Player,Ally,Neutral,Mechanical,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray Radius="11" Effect="GuldanRainOfDestructionImpactSet"/>
+        <SearchFilters value="-;Player,Ally,Neutral,ImmuneToAOE,Missile,Item,Stasis,Dead,Hidden,Invulnerable"/>
+        <AreaArray Effect="GuldanRainOfDestructionImpactSet">
+            <Radius value="11"/>
+        </AreaArray>
     </CEffectEnumArea>
     <CEffectApplyBehavior id="GuldanRainOfDestructionApplyChannelBehavior">
         <WhichUnit Value="Caster"/>
@@ -1977,7 +1871,9 @@
     </CEffectRemoveBehavior>
     <CEffectModifyUnit id="GuldanRainOfDestructionManaDrain">
         <ImpactUnit Value="Caster"/>
-        <VitalArray index="Energy" Change="-1.5"/>
+        <VitalArray index="Energy">
+            <Change value="-1.5"/>
+        </VitalArray>
     </CEffectModifyUnit>
     <CEffectDestroyPersistent id="GuldanRainOfDestructionDestroyPersistent">
         <Effect value="GuldanRainOfDestructionCreationPersistent"/>
@@ -2007,20 +1903,15 @@
     </CEffectCreatePersistent>
     <CEffectEnumArea id="GuldanCorruptionThirdSearchArea">
         <ImpactLocation Value="TargetPoint"/>
-        <SearchFilters value="-;Player,Ally,Neutral,Mechanical,Missile,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray Radius="1.5" Effect="GuldanCorruptionThirdImpactSet"/>
+        <SearchFilters value="-;Player,Ally,Neutral,ImmuneToAOE,Missile,Stasis,Dead,Hidden,Invulnerable"/>
+        <SearchFlags index="DoActorSearch" value="1"/>
+        <AreaArray Effect="GuldanCorruptionImpactSet">
+            <Radius value="1.5"/>
+        </AreaArray>
         <RevealerParams Duration="0.75" ShapeExpansion="0.5">
             <RevealFlags index="Unfog" value="1"/>
         </RevealerParams>
     </CEffectEnumArea>
-    <CEffectSet id="GuldanCorruptionThirdImpactSet">
-        <EffectArray value="GuldanCorruptionApplyDoTBehavior"/>
-        <EffectArray value="GuldanLifeTapDarknessWithinRemoveBehavior"/>
-        <EffectArray value="GuldanCorruptionRuinousAfflictionDamageSwitch"/>
-        <EffectArray value="GuldanCorruptionDemonicSightApplyReveal"/>
-        <EffectArray value="GuldanCorruptionEchoedCorruptionQuestIncrementToken"/>
-        <EffectArray value="ApplyAbilityImpactReveal"/>
-    </CEffectSet>
     <CEffectApplyBehavior id="GuldanCorruptionCurseOfExhaustionApplySlowBehavior" parent="StormSlowApply">
         <Chance value="0"/>
         <Behavior value="GuldanCorruptionCurseOfExhaustionSlow"/>
@@ -2056,18 +1947,14 @@
     </CEffectSet>
     <CEffectCreateHealer id="GuldanDrainLifeHarvestLifeCreateHealer" parent="StormSelfOnlyHealingSpell">
         <ImpactUnit Value="Caster"/>
-        <PeriodCount value="1"/>
-        <PeriodicPeriod value="1"/>
         <RechargeVitalRate value="70.5"/>
     </CEffectCreateHealer>
     <CEffectSwitch id="GuldanDrainLifeHealSwitch">
         <CaseArray Validator="GuldanDrainLifeHarvestLifeCombine" Effect="GuldanDrainLifeHarvestLifeCreateHealer"/>
         <CaseDefault value="GuldanDrainLifeCreateHealer"/>
     </CEffectSwitch>
-    <CEffectCreateHealer id="GuldanHealthstoneCreateHealer" parent="StormSelfOnlyHealingSpell">
+    <CEffectCreateHealer id="GuldanHealthstoneCreateHealer" parent="StormSelfOnlyHealingSpellPercent">
         <ImpactUnit Value="Caster"/>
-        <PeriodCount value="1"/>
-        <PeriodicPeriod value="1"/>
         <RechargeVitalFraction value="0.25"/>
         <FinalEffect value="GuldanLifeTapDarknessWithinRemoveBehavior"/>
     </CEffectCreateHealer>
@@ -2098,29 +1985,6 @@
         <WhichUnit Value="Caster"/>
         <Behavior value="GuldanFelFlameRampantHellfireStackDummyBehavior"/>
     </CEffectApplyBehavior>
-    <CEffectSwitch id="GuldanFelFlameDamageSwitch">
-        <CaseArray Validator="GuldanHas1FelFlameRampantHellfireStackDummyBehavior" Effect="GuldanFelFlameRampantHellfireDamage1"/>
-        <CaseArray Validator="GuldanHas2FelFlameRampantHellfireStackDummyBehavior" Effect="GuldanFelFlameRampantHellfireDamage2"/>
-        <CaseArray Validator="GuldanHas3FelFlameRampantHellfireStackDummyBehavior" Effect="GuldanFelFlameRampantHellfireDamage3"/>
-        <CaseArray Validator="GuldanHas4FelFlameRampantHellfireStackDummyBehavior" Effect="GuldanFelFlameRampantHellfireDamage4"/>
-        <CaseArray Validator="GuldanHas5FelFlameRampantHellfireStackDummyBehavior" Effect="GuldanFelFlameRampantHellfireDamage5"/>
-        <CaseDefault value="GuldanFelFlameDamage"/>
-    </CEffectSwitch>
-    <CEffectDamage id="GuldanFelFlameRampantHellfireDamage1" parent="StormSpell">
-        <Amount value="216"/>
-    </CEffectDamage>
-    <CEffectDamage id="GuldanFelFlameRampantHellfireDamage2" parent="StormSpell">
-        <Amount value="232"/>
-    </CEffectDamage>
-    <CEffectDamage id="GuldanFelFlameRampantHellfireDamage3" parent="StormSpell">
-        <Amount value="248"/>
-    </CEffectDamage>
-    <CEffectDamage id="GuldanFelFlameRampantHellfireDamage4" parent="StormSpell">
-        <Amount value="264"/>
-    </CEffectDamage>
-    <CEffectDamage id="GuldanFelFlameRampantHellfireDamage5" parent="StormSpell">
-        <Amount value="280"/>
-    </CEffectDamage>
     <CEffectSet id="GuldanFelFlameRampantHellfireSet">
         <ValidatorArray value="TargetIsHero"/>
         <EffectArray value="GuldanFelFlameRampantHellfireApplyStackDummyBehavior"/>
@@ -2140,8 +2004,6 @@
     </CEffectDamage>
     <CEffectCreateHealer id="GuldanConsumeSoulCreateHealer" parent="StormSelfOnlyHealingSpell">
         <ImpactUnit Value="Caster"/>
-        <PeriodCount value="1"/>
-        <PeriodicPeriod value="1"/>
         <RechargeVitalRate value="365"/>
     </CEffectCreateHealer>
     <CEffectApplyBehavior id="GuldanCorruptionRuinousAfflictionApplyBehavior">
@@ -2167,8 +2029,8 @@
         <PeriodicEffectArray value="GuldanCorruptionSearchArea"/>
         <PeriodicEffectArray value="GuldanCorruptionSecondDelayCreatePersistent"/>
         <PeriodicEffectArray value="GuldanCorruptionThirdDelayCreatePersistent"/>
-        <PeriodicOffsetArray value="0,-6,0"/>
-        <PeriodicOffsetArray value="0,-3,0"/>
+        <PeriodicOffsetArray value="0,-6,0" Y="-6"/>
+        <PeriodicOffsetArray value="0,-3,0" Y="-3"/>
         <PeriodicOffsetArray value="0,0,0"/>
         <PeriodicPeriodArray value="0"/>
         <RevealRadius value="2.5"/>
@@ -2183,8 +2045,10 @@
     </CEffectSet>
     <CEffectEnumArea id="GuldanCorruptionEchoedCorruptionSearchArea">
         <ImpactLocation Value="TargetPoint"/>
-        <SearchFilters value="-;Player,Ally,Neutral,Mechanical,Missile,Stasis,Dead,Hidden,Invulnerable"/>
-        <AreaArray Radius="1.5" Effect="GuldanCorruptionEchoedCorruptionImpactSet"/>
+        <SearchFilters value="-;Player,Ally,Neutral,ImmuneToAOE,Missile,Stasis,Dead,Hidden,Invulnerable"/>
+        <AreaArray Effect="GuldanCorruptionEchoedCorruptionImpactSet">
+            <Radius value="1.5"/>
+        </AreaArray>
         <RevealerParams Duration="0.75" ShapeExpansion="0.5">
             <RevealFlags index="Unfog" value="1"/>
         </RevealerParams>
@@ -2202,14 +2066,12 @@
         <SpawnEffect value="GuldanDemonicCircleApplyActiveBehavior"/>
         <SpawnUnit value="GuldanDemonicCircleUnit"/>
     </CEffectCreateUnit>
-    <CEffectTeleport id="GuldanDemonicCircleTeleport">
+    <CEffectTeleport id="GuldanDemonicCircleTeleport" parent="StormTeleportSelf">
         <ValidatorArray value="CasterNotDead"/>
-        <WhichUnit Value="Caster"/>
-        <TargetLocation Effect="GuldanDemonicCircleApplyControllerBehavior" Value="SourceUnit"/>
         <PlacementAround Effect="GuldanDemonicCircleApplyControllerBehavior" Value="SourceUnit"/>
-        <TeleportFlags index="TestFog" value="0"/>
-        <TeleportEffect value="GuldanDemonicCircleIssueStopOrder"/>
         <PlacementRange value="5"/>
+        <TargetLocation Effect="GuldanDemonicCircleApplyControllerBehavior" Value="SourceUnit"/>
+        <TeleportEffect value="GuldanDemonicCircleIssueStopOrder"/>
     </CEffectTeleport>
     <CEffectIssueOrder id="GuldanDemonicCircleIssueStopOrder">
         <WhichUnit Value="Caster"/>
@@ -2238,8 +2100,6 @@
     </CEffectSet>
     <CEffectCreateHealer id="GuldanChaoticEnergyManaRefund">
         <ImpactUnit Value="Caster"/>
-        <PeriodCount value="1"/>
-        <PeriodicPeriod value="1"/>
         <RechargeVital value="Energy"/>
         <RechargeVitalRate value="40"/>
     </CEffectCreateHealer>
@@ -2281,6 +2141,7 @@
         <SkinArray value="GuldanSpider"/>
         <Role value="Damage"/>
         <RolesMultiClass value="Damage"/>
+        <CollectionCategory value="Damage"/>
         <DefaultMount value="HorseCommon"/>
         <Difficulty value="Medium"/>
         <Universe value="Warcraft"/>
@@ -2401,46 +2262,6 @@
                 <AffectedByAbilityPower value="1"/>
                 <AffectedByOverdrive value="1"/>
             </Modifications>
-            <Modifications>
-                <Catalog value="Effect"/>
-                <Entry value="GuldanFelFlameRampantHellfireDamage1"/>
-                <Field value="Amount"/>
-                <Value value="0.045000"/>
-                <AffectedByAbilityPower value="1"/>
-                <AffectedByOverdrive value="1"/>
-            </Modifications>
-            <Modifications>
-                <Catalog value="Effect"/>
-                <Entry value="GuldanFelFlameRampantHellfireDamage2"/>
-                <Field value="Amount"/>
-                <Value value="0.045000"/>
-                <AffectedByAbilityPower value="1"/>
-                <AffectedByOverdrive value="1"/>
-            </Modifications>
-            <Modifications>
-                <Catalog value="Effect"/>
-                <Entry value="GuldanFelFlameRampantHellfireDamage3"/>
-                <Field value="Amount"/>
-                <Value value="0.045000"/>
-                <AffectedByAbilityPower value="1"/>
-                <AffectedByOverdrive value="1"/>
-            </Modifications>
-            <Modifications>
-                <Catalog value="Effect"/>
-                <Entry value="GuldanFelFlameRampantHellfireDamage4"/>
-                <Field value="Amount"/>
-                <Value value="0.045000"/>
-                <AffectedByAbilityPower value="1"/>
-                <AffectedByOverdrive value="1"/>
-            </Modifications>
-            <Modifications>
-                <Catalog value="Effect"/>
-                <Entry value="GuldanFelFlameRampantHellfireDamage5"/>
-                <Field value="Amount"/>
-                <Value value="0.045000"/>
-                <AffectedByAbilityPower value="1"/>
-                <AffectedByOverdrive value="1"/>
-            </Modifications>
         </LevelScalingArray>
         <LevelScalingArray Ability="GuldanDrainLife">
             <Modifications>
@@ -2532,9 +2353,6 @@
                 <AffectedByOverdrive value="1"/>
             </Modifications>
         </LevelScalingArray>
-        <VOArray index="Cheer" value="GuldanBase_VOX_Cheer"/>
-        <VOArray index="GetHit" value="GuldanBase_VOX_GetHitSmall"/>
-        <VOArray index="UILockin" value="GuldanBase_UI_Lockin"/>
         <VariationIcon value="Assets\Textures\ui_glues_swatch_purple.dds"/>
         <TalentAIBuildsArray ChanceToPick="16">
             <TalentsArray value="GuldanFelFlamePursuitOfFlame"/>
@@ -2595,6 +2413,18 @@
         <ReleaseDate Month="7" Day="12" Year="2016"/>
         <Flags index="GoodForModeA" value="1"/>
         <Flags index="GoodForModeB" value="1"/>
+        <VoiceLineArray value="GuldanBase_VoiceLine01"/>
+        <VoiceLineArray value="GuldanBase_VoiceLine02"/>
+        <VoiceLineArray value="GuldanBase_VoiceLine03"/>
+        <VoiceLineArray value="GuldanBase_VoiceLine04"/>
+        <VoiceLineArray value="GuldanBase_VoiceLine05"/>
+        <Ratings>
+            <Damage value="8"/>
+            <Utility value="3"/>
+            <Survivability value="5"/>
+            <Complexity value="6"/>
+        </Ratings>
+        <Rarity value="Legendary"/>
     </CHero>
     <CItemAbil id="GuldanHealthstone">
         <Class value="Item"/>
@@ -2610,11 +2440,8 @@
         <Class value="Item"/>
     </CItemAbil>
     <CLight id="Home_Guldan" parent="default">
-        <ToDInfoArray index="0">
-            <Id value="Home_Guldan"/>
-            <AmbientColor value="0.207843,0.435294,0.419608"/>
-            <OperatorHDR value="4"/>
-            <Colorize value="1"/>
+        <ToDInfoArray index="0" Id="Home_Guldan" OperatorHDR="4" Colorize="1">
+            <AmbientColor value="0.207843,0.435294,0.419608" X="0.207843" Y="0.435294" Z="0.419608"/>
             <Param index="HDRExposure" value="1.000000"/>
             <Param index="HDRBloomThreshold" value="0.850000"/>
             <Param index="HDRWhitePoint" value="1.850000"/>
@@ -2624,15 +2451,19 @@
             <Param index="CreepSpecularExp" value="30.000000"/>
             <Param index="CreepHDRSpecMultiplier" value="3.000000"/>
             <Param index="ColorizationBlend" value="0.000000"/>
-            <DirectionalLight index="Key">
-                <Color value="0.521569,0.658824,0.756863"/>
-                <ColorMultiplier value="1.500000"/>
-                <SpecularColor value="0.847059,0.886275,0.921569"/>
-                <SpecColorMultiplier value="1.500000"/>
-                <Direction value="0.566354,-0.605431,-0.559193"/>
+            <DirectionalLight index="Key" ColorMultiplier="1.500000" SpecColorMultiplier="1.500000">
+                <Color value="0.521569,0.658824,0.756863" X="0.521569" Y="0.658824" Z="0.756863"/>
+                <SpecularColor value="0.847059,0.886275,0.921569" X="0.847059" Y="0.886275" Z="0.921569"/>
+                <Direction value="0.566354,-0.605431,-0.559193" X="0.566354" Y="-0.605431" Z="-0.559193"/>
             </DirectionalLight>
-            <DirectionalLight index="Fill" Color="0.294118,0.580392,0.407843" ColorMultiplier="0.000000" Direction="-0.754762,0.600365,-0.264378"/>
-            <DirectionalLight index="Back" Color="0.588235,0.658824,0.772549" ColorMultiplier="0.000000" Direction="0.619574,0.540869,-0.568849"/>
+            <DirectionalLight index="Fill" ColorMultiplier="0.000000">
+                <Color value="0.294118,0.580392,0.407843" X="0.294118" Y="0.580392" Z="0.407843"/>
+                <Direction value="-0.754762,0.600365,-0.264378" X="-0.754762" Y="0.600365" Z="-0.264378"/>
+            </DirectionalLight>
+            <DirectionalLight index="Back" ColorMultiplier="0.000000">
+                <Color value="0.588235,0.658824,0.772549" X="0.588235" Y="0.658824" Z="0.772549"/>
+                <Direction value="0.619574,0.540869,-0.568849" X="0.619574" Y="0.540869" Z="-0.568849"/>
+            </DirectionalLight>
         </ToDInfoArray>
         <EditorCategories value="LightGroup:UI"/>
     </CLight>
@@ -2663,7 +2494,7 @@
             <Driver value="Guidance"/>
             <Speed value="12"/>
             <MaxSpeed value="12"/>
-            <IgnoresTerrain value="1"/>
+            <IgnoresClearanceChecks value="1"/>
             <ThrowBandYaw value="-360,-360,-360,-360"/>
             <ThrowBandPitch value="-360,-360,-360,-360"/>
             <YawPitchRoll value="5759.6484"/>
@@ -2714,7 +2545,6 @@
         <IconFile value="$HeroPortraits7"/>
         <Hero value="Guldan"/>
     </CRewardPortrait>
-    <CRewardIcon id="GuldanCanPurchaseUltimateSkin" parent="CanPurchaseUltimateSkinParent"/>
     <CRewardPortrait id="GuldanEpic" parent="HeroPortraitParentEpic">
         <IconFile value="$HeroPortraits8"/>
         <Hero value="Guldan"/>
@@ -2723,7 +2553,9 @@
     <CRewardIcon id="GuldanMountTint1" parent="MountTintsParent"/>
     <CRewardIcon id="GuldanSkinVariation1" parent="SkinVariationParent"/>
     <CRewardIcon id="GuldanSkinVariation2" parent="SkinVariationParent"/>
-    <CRewardIcon id="Guldan" parent="BattlePayRewardParent"/>
+    <CRewardIcon id="Guldan" parent="BattlePayRewardParent">
+        <License value="16755"/>
+    </CRewardIcon>
     <CShapeArc id="GuldanFelFlameVisibilityArc">
         <Arc value="24.994"/>
         <Radius value="11"/>
@@ -2802,7 +2634,9 @@
     <CTalent id="GuldanFelFlameRampantHellfire">
         <Face value="GuldanFelFlameRampantHellfire"/>
         <Abil value="GuldanFelFlame"/>
-        <RankArray/>
+        <RankArray>
+            <BehaviorArray value="GuldanRampantHellfireTokenCounter"/>
+        </RankArray>
         <AbilityModificationArray>
             <Modifications>
                 <Type value="FlatModification"/>
@@ -2925,7 +2759,7 @@
                 <Value value="1.000000"/>
             </Modifications>
         </AbilityModificationArray>
-        <QuestData StackBehavior="GuldanCorruptionEchoedCorruptionQuestToken" TargetCount="35"/>
+        <QuestData StackBehavior="GuldanCorruptionEchoedCorruptionQuestToken" TargetCount="40"/>
     </CTalent>
     <CTalent id="GuldanCorruptionCurseOfExhaustion">
         <Face value="GuldanCorruptionCurseOfExhaustion"/>
@@ -3046,9 +2880,10 @@
         <AbilArray Link="GuldanRainOfDestructionCancel"/>
         <BehaviorArray Link="GuldanLifeTapManaController"/>
         <BehaviorArray Link="GuldanVeterancyMana"/>
+        <BehaviorArray Link="GuldanHasMaxLife"/>
         <WeaponArray Link="HeroGuldan"/>
-        <Radius value="0.75"/>
-        <InnerRadius value="0.75"/>
+        <Radius value="0.875"/>
+        <InnerRadius value="0.875"/>
         <CardLayouts index="0">
             <LayoutButtons Face="GuldanHorrify" Type="AbilCmd" AbilCmd="GuldanHorrify,Execute" Row="0" Column="3"/>
             <LayoutButtons Face="GuldanRainOfDestructionCancel" Type="AbilCmd" AbilCmd="GuldanRainOfDestructionCancel,Execute" Row="0" Column="3"/>
@@ -3074,21 +2909,11 @@
     <CUnit id="GuldanHealthstone" parent="ITEM"/>
     <CUnit id="GuldanConsumeSoul" parent="ITEM"/>
     <CUnit id="GuldanDemonicCircleSummon" parent="ITEM"/>
-    <CUnit id="GuldanDemonicCircleUnit">
-        <FlagArray index="Turnable" value="0"/>
+    <CUnit id="GuldanDemonicCircleUnit" parent="StormSummonFigment">
         <FlagArray index="Unselectable" value="1"/>
         <FlagArray index="Untargetable" value="1"/>
-        <FlagArray index="UseLineOfSight" value="1"/>
-        <FlagArray index="KillCredit" value="0"/>
-        <FlagArray index="Invulnerable" value="1"/>
-        <FlagArray index="VisionTestCenterOnly" value="1"/>
-        <Attributes index="ImmuneToAOE" value="1"/>
-        <Attributes index="NoMinionAggro" value="1"/>
-        <Attributes index="ImmuneToSkillshots" value="1"/>
-        <Attributes index="ImmuneToFriendlyAbilities" value="1"/>
         <Sight value="5"/>
         <Radius value="0"/>
-        <MinimapRadius value="0"/>
         <TacticalAIFilters value="-;Player,Neutral,Enemy"/>
     </CUnit>
     <CValidatorUnitCompareBehaviorCount id="GuldanChaoticEnergyHasLTMaxStacks">
@@ -3227,7 +3052,6 @@
         <Type value="And"/>
         <CombineArray value="GuldanHasDrainLifeChannelBehavior"/>
         <CombineArray value="CasterNotDeadOrStunnedOrSilencedOrStasis"/>
-        <CombineArray value="CasterHasEnergy"/>
         <CombineArray value="TargetNotInvulnerable"/>
         <CombineArray value="TargetNotDead"/>
         <CombineArray value="TargetNotInStasis"/>

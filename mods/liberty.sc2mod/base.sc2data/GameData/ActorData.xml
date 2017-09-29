@@ -453,6 +453,8 @@
     </CActorAction>
     <!-- Spray itself has to be a doodad so when toggling hostile colors it swaps along with the units, when it gets created it gets its decal prop from the global decal model for the player-->
     <CActorDoodad default="1" id="SprayBase">
+        <ModelFlags index="UseSprayForDecal" value="1"/>
+        <On Terms="ActorCreation" Send="Create SprayFoliageFXSpawner"/>
         <On Terms="ActorCreation" Send="AnimBracketStart BSD Birth Stand Death"/>
         <On Terms="ActorCreation; PlayerId 0 0" Send="RefSet ::HostForProps ::global.Decal0"/>
         <On Terms="ActorCreation; PlayerId 1 1" Send="RefSet ::HostForProps ::global.Decal1"/>
@@ -495,6 +497,16 @@
         <Inherits index="Decal" value="1"/>
         <FogVisibility value="Hidden"/>
     </CActorDoodad>
+    <CActorModelMaterial default="1" id="BehaviorGlaze" parent="GlazeParent">
+        <?token id="buff" type="CBehaviorLink"?>
+        <On Terms="ActorCreation" Send="ModelMaterialApplyTo ::Main"/>
+        <On Terms="Behavior.##buff##.On" Send="Create"/>
+        <On Terms="Behavior.##buff##.Off" Send="AnimBracketStop BSD"/>
+        <ModelFlags index="AutomateGlobalLoops" value="1"/>
+    </CActorModelMaterial>
+    <CActorFoliageFXSpawner id="SprayFoliageFXSpawner" parent="FoliageFXSpawnerFire">
+        <Radius value="1.250000"/>
+    </CActorFoliageFXSpawner>
     <CActorEventMacro id="SprayHelperMacro">
         <On Terms="ActorCreation; GameTime LT 1" Send="Create SprayHelper"/>
     </CActorEventMacro>
@@ -502,6 +514,7 @@
     <!-- We need something on the map always that has the decal, so we create a model and set it as a global when the map starts, this never goes away and is never visible, can always be referenced later on -->
     <CActorModel id="SprayHelper">
         <ModelFlags index="AllowHitTest" value="0"/>
+        <ModelFlags index="UseSprayForDecal" value="1"/>
         <On Terms="ActorCreation" Send="SetVisibility"/>
         <On Terms="ActorCreation" Send="RefClear ::Host"/>
         <On Terms="ActorCreation" Send="RefClear ::HostForProps"/>
@@ -525,7 +538,6 @@
         <On Terms="Signal.*.NewDecal" Send="RefSetFromMsg ::actor.NewDecalToAdd ::Sender"/>
         <On Terms="Signal.*.NewDecal" Target="SprayHelperList" Send="RefSet ::actor.NewDecalToAdd ::actor.NewDecalToAdd"/>
         <On Terms="Signal.*.NewDecal" Target="SprayHelperList" Send="Signal NewDecal"/>
-        <Inherits index="Decal" value="1"/>
         <Model value="SprayZerg"/>
         <HostForProps Subject="::Creator"/>
     </CActorModel>
@@ -536,15 +548,18 @@
     <CActorDoodad id="SprayTerran" parent="SprayBase">
         <On Terms="Effect.SprayTerran.Start" Send="Create"/>
         <On Terms="Effect.SprayTerran.Start" Send="Create Spray_Terran_ActorSound"/>
-        <On Terms="TextureUpdate; TextureUpdateSlot decal" Send="TextureSelectByUpdateLink background Replace Decal Background"/>
+        <On Terms="ActorCreation; PlayerHasReward SprayUseDecal_Off" Send="ModelSwap SprayGlobal"/>
+        <On Terms="TextureUpdate; TextureUpdateSlot decal; !PlayerHasReward SprayUseDecal_Off" Send="TextureSelectByUpdateLink background Replace Decal Background"/>
     </CActorDoodad>
     <CActorDoodad id="SprayZerg" parent="SprayBase">
         <On Terms="Effect.SprayZerg.Start" Send="Create"/>
         <On Terms="Effect.SprayZerg.Start" Send="Create Spray_Zerg_ActorSound"/>
+        <On Terms="ActorCreation; PlayerHasReward SprayUseDecal_Off" Send="ModelSwap SprayGlobal"/>
     </CActorDoodad>
     <CActorDoodad id="SprayProtoss" parent="SprayBase">
         <On Terms="Effect.SprayProtoss.Start" Send="Create"/>
         <On Terms="Effect.SprayProtoss.Start" Send="Create Spray_Protoss_ActorSound"/>
+        <On Terms="ActorCreation; PlayerHasReward SprayUseDecal_Off" Send="ModelSwap SprayGlobal"/>
     </CActorDoodad>
     <CActorSound id="Spray_Protoss_ActorSound" parent="SoundOneShot">
         <Sound value="Spray_Protoss"/>
@@ -554,6 +569,112 @@
     </CActorSound>
     <CActorSound id="Spray_Terran_ActorSound" parent="SoundOneShot">
         <Sound value="Spray_Terran"/>
+    </CActorSound>
+    <CActorSound id="UI_WarChest_PlayerSlot_Hover_AS" parent="SoundOneShot">
+        <EditorCategories value=""/>
+        <Sound value="UI_WarChest_PlayerSlot_Hover2"/>
+        <Layers>
+            <Sound value="UI_HoverTick"/>
+            <PitchSource value="Sound"/>
+            <PlayDelaySource value="Sound"/>
+            <VolumeSource value="Actor"/>
+            <Chance value="100"/>
+            <Pitch value="0.000000,0.000000"/>
+            <PlayDelay value="0,0"/>
+            <Volume value="-23.000000,-23.000000"/>
+        </Layers>
+        <Layers>
+            <Sound value="UI_WarChest_PlayerSlot_Hover"/>
+            <PitchSource value="Sound"/>
+            <PlayDelaySource value="Sound"/>
+            <VolumeSource value="Sound"/>
+            <Chance value="100"/>
+            <Pitch value="-9.000000,-9.000000"/>
+            <PlayDelay value="0,0"/>
+            <Volume value="-28.000000,-28.000000"/>
+        </Layers>
+    </CActorSound>
+    <CActorSound id="UI_WarChest_ToastSlideIn_AS" parent="SoundOneShot">
+        <EditorCategories value=""/>
+        <Sound value="UI_WarChest_ToastWhooshIn"/>
+        <Layers>
+            <Sound value="UI_WarChest_ToastWhooshIn2"/>
+            <PitchSource value="Actor"/>
+            <PlayDelaySource value="Sound"/>
+            <VolumeSource value="Actor"/>
+            <Chance value="100"/>
+            <Pitch value="-4.000000,-4.000000"/>
+            <PlayDelay value="0,0"/>
+            <Volume value="-7.000000,-7.000000"/>
+        </Layers>
+        <Layers>
+            <Sound value="UI_TechConsole_Popup"/>
+            <PitchSource value="Actor"/>
+            <PlayDelaySource value="Sound"/>
+            <VolumeSource value="Sound"/>
+            <Chance value="100"/>
+            <Pitch value="-4.000000,-4.000000"/>
+            <PlayDelay value="0,0"/>
+            <Volume value="0.000000,0.000000"/>
+        </Layers>
+        <Layers>
+            <Sound value="UI_PortraitPopUp"/>
+            <PitchSource value="Sound"/>
+            <PlayDelaySource value="Sound"/>
+            <VolumeSource value="Actor"/>
+            <Chance value="100"/>
+            <Pitch value="0.000000,0.000000"/>
+            <PlayDelay value="0,0"/>
+            <Volume value="-30.000000,-30.000000"/>
+        </Layers>
+        <Layers Sound="UI_WarChest_SlideInSwtnr" PitchSource="Actor" VolumeSource="Actor">
+            <Chance value="100"/>
+            <Pitch value="0.000000,0.000000"/>
+            <PlayDelay value="0,0"/>
+            <Volume value="-14.000000,-14.000000"/>
+        </Layers>
+    </CActorSound>
+    <CActorSound id="UI_WarChest_HologramClick_AS" parent="SoundOneShot">
+        <EditorCategories value=""/>
+        <Sound value="UI_WarChest_HologramClick"/>
+        <Layers>
+            <Sound value="UI_WarChest_HologramClickBG"/>
+            <PitchSource value="Sound"/>
+            <PlayDelaySource value="Sound"/>
+            <VolumeSource value="Sound"/>
+            <Chance value="100"/>
+            <Pitch value="0.000000,0.000000"/>
+            <PlayDelay value="0,0"/>
+            <Volume value="0.000000,0.000000"/>
+        </Layers>
+    </CActorSound>
+    <CActorSound id="UI_WarChest_ToastSlideOut_AS" parent="SoundOneShot">
+        <EditorCategories value=""/>
+        <Sound value="UI_WarChest_ToastWhooshOut"/>
+        <Layers>
+            <Sound value="UI_WarChest_Exit"/>
+            <PitchSource value="Actor"/>
+            <PlayDelaySource value="Actor"/>
+            <VolumeSource value="Actor"/>
+            <Chance value="100"/>
+            <Pitch value="3.000000,3.000000"/>
+            <PlayDelay value="0,0"/>
+            <Volume value="-12.000000,-12.000000"/>
+        </Layers>
+    </CActorSound>
+    <CActorSound id="UI_WarChest_Purchased_AS" parent="SoundOneShot">
+        <EditorCategories value=""/>
+        <Sound value="UI_WarChest_Purchased"/>
+        <Layers>
+            <Sound value="UI_WarChest_Purchased2"/>
+            <PitchSource value="Sound"/>
+            <PlayDelaySource value="Sound"/>
+            <VolumeSource value="Sound"/>
+            <Chance value="100"/>
+            <Pitch value="0.000000,0.000000"/>
+            <PlayDelay value="0,0"/>
+            <Volume value="0.000000,0.000000"/>
+        </Layers>
     </CActorSound>
     <CActorSite id="WizChainImpactSite" parent="GenericAttackImpactSite"/>
     <CActorBeamSimple id="WizChainBeam">
@@ -718,19 +839,9 @@
     </CActorSound>
     <CActorSound id="UI_Rewind_Button_AS" parent="SoundOneShot">
         <EditorCategories value=""/>
-        <Sound value="UI_Rewind_ScrubFx"/>
+        <Sound value="UI_Rewind"/>
         <Layers>
-            <Sound value="UI_Rewind_OnClick"/>
-            <PitchSource value="Sound"/>
-            <PlayDelaySource value="Sound"/>
-            <VolumeSource value="Sound"/>
-            <Chance value="100"/>
-            <Pitch value="0.000000,0.000000"/>
-            <PlayDelay value="0,0"/>
-            <Volume value="0.000000,0.000000"/>
-        </Layers>
-        <Layers>
-            <Sound value="UI_Rewind_Button"/>
+            <Sound value="UI_Rewind_Button_Stinger"/>
             <PitchSource value="Sound"/>
             <PlayDelaySource value="Sound"/>
             <VolumeSource value="Sound"/>
@@ -1253,6 +1364,7 @@
     <!--                                                                                         -->
     <!--                                                                                         -->
     <CActorUnit id="CreepBlocker1x1" parent="PathingBlocker" unitName="CreepBlocker1x1"/>
+    <CActorUnit id="PermanentCreepBlocker1x1" parent="PathingBlocker" unitName="PermanentCreepBlocker1x1"/>
     <CActorUnit id="PathingBlocker1x1" parent="PathingBlocker" unitName="PathingBlocker1x1"/>
     <CActorUnit id="PathingBlocker2x2" parent="PathingBlocker" unitName="PathingBlocker2x2">
         <Scale value="2.000000"/>
@@ -5077,6 +5189,38 @@
     <!--                                                                                         -->
     <!-- Viking ................................................................................ -->
     <!--                                                                                         -->
+    <CActorUnit id="GenericSkinMorphPreview" parent="UnitModelFrameActor">
+        <Aliases value="_Selectable"/>
+        <On Terms="ActorCreation" Send="AnimBracketStart MorphEnd Morph,End {} {} ClosingFull,OpeningPlayForever,Instant,DontResetOnUnhide"/>
+        <On Terms="StatusOff.*.Status; IsStatus Locked 0" Send="AnimBracketStart MorphEnd Morph,End {} {} ClosingFull,OpeningPlayForever,DontResetOnUnhide"/>
+        <On Terms="StatusOn.*.Status; IsStatus Locked 0" Send="AnimBracketStart MorphStart Morph,Start {} {} ClosingFull,OpeningPlayForever,DontResetOnUnhide"/>
+        <On Terms="StatusOff.*.Status; IsStatus Locked 0" Send="AnimBracketStop MorphStart"/>
+        <On Terms="StatusOn.*.Status; IsStatus Locked 0" Send="AnimBracketStop MorphEnd"/>
+        <On Terms="ActorCreation" Send="StatusSet Status 0"/>
+        <On Terms="Signal.*.Interact; IsStatus Locked 0" Send="Signal Toggle"/>
+        <On Terms="Signal.*.Toggle; IsStatus Status 1" Send="StatusSet Status 0"/>
+        <On Terms="Signal.*.Toggle; IsStatus Status 0" Send="StatusSet Status 1"/>
+        <On Terms="AnimBracketState.*.AfterOpening" Send="StatusSet Locked 0"/>
+        <On Terms="AnimBracketState.*.BeforeOpening" Send="StatusSet Locked 1"/>
+        <!--On Terms="Signal.*.Interact" Send="Print Interact"/>
+        <On Terms="Signal.*.Interact" Send="Print Toggle"/-->
+    </CActorUnit>
+    <CActorUnit id="GenericSkinStandWorkPreview" parent="UnitModelFrameActor">
+        <Aliases value="_Selectable"/>
+        <!--On Terms="ActorCreation" Send="AnimBracketStart StandWorkEnd Stand,Work,End {} {} ClosingFull,OpeningPlayForever,Instant,DontResetOnUnhide"/-->
+        <On Terms="StatusOff.*.Status; IsStatus Locked 0" Send="AnimBracketStart StandWorkEnd Stand,Work,End {} {} ClosingFull,OpeningPlayForever,DontResetOnUnhide"/>
+        <On Terms="StatusOn.*.Status; IsStatus Locked 0" Send="AnimBracketStart StandWorkStart Stand,Work,Start {} {} ClosingFull,OpeningPlayForever,DontResetOnUnhide"/>
+        <On Terms="StatusOff.*.Status; IsStatus Locked 0" Send="AnimBracketStop StandWorkStart"/>
+        <On Terms="StatusOn.*.Status; IsStatus Locked 0" Send="AnimBracketStop StandWorkEnd"/>
+        <On Terms="ActorCreation" Send="StatusSet Status 0"/>
+        <On Terms="Signal.*.Interact; IsStatus Locked 0" Send="Signal Toggle"/>
+        <On Terms="Signal.*.Toggle; IsStatus Status 1" Send="StatusSet Status 0"/>
+        <On Terms="Signal.*.Toggle; IsStatus Status 0" Send="StatusSet Status 1"/>
+        <On Terms="AnimBracketState.*.AfterOpening" Send="StatusSet Locked 0"/>
+        <On Terms="AnimBracketState.*.BeforeOpening" Send="StatusSet Locked 1"/>
+        <!--On Terms="Signal.*.Interact" Send="Print Interact"/>
+        <On Terms="Signal.*.Interact" Send="Print Toggle"/-->
+    </CActorUnit>
     <CActorUnit id="VikingFighter" parent="GenericUnitMorph" unitName="VikingFighter">
         <Baselines index="Walk" BlendIn="1.500000" BlendOut="2.000000"/>
         <DeathArray index="Normal" ModelLink="VikingFighterDeath" SoundLink="Viking_Explode"/>
@@ -5821,6 +5965,18 @@
         <BarOffset value="50"/>
         <UnitIcon value="Assets\Textures\btn-unit-protoss-darktemplar.dds"/>
         <HeroIcon value="Assets\Textures\btn-unit-protoss-darktemplar.dds"/>
+        <!--Warning: We need these for his skins. Even if he does not use these default wireframe themselves. So don't delete them unless you know what you are doing-->
+        <WireframeShield>
+            <Image value="Assets\Textures\Wireframe-Protoss-DarkTemplar00-Shield01.dds"/>
+            <Image value="Assets\Textures\Wireframe-Protoss-DarkTemplar00-Shield02.dds"/>
+            <Image value="Assets\Textures\Wireframe-Protoss-DarkTemplar00-Shield03.dds"/>
+        </WireframeShield>
+        <GroupIcon>
+            <Image value="Assets\Textures\Wireframe-Protoss-DarkTemplar00.dds"/>
+        </GroupIcon>
+        <Wireframe>
+            <Image value="Assets\Textures\Wireframe-Protoss-DarkTemplar00.dds"/>
+        </Wireframe>
         <WireframeShieldVariations Number="0">
             <Image value="Assets\Textures\Wireframe-Protoss-DarkTemplar00-Shield01.dds"/>
             <Image value="Assets\Textures\Wireframe-Protoss-DarkTemplar00-Shield02.dds"/>
@@ -5845,6 +6001,7 @@
         </WireframeVariations>
         <LifeArmorIcon value="Assets\Textures\btn-upgrade-protoss-groundarmorlevel0.dds"/>
         <Aliases value="_UnitSmall"/>
+        <PortraitModel value="DarkTemplarPortrait"/>
     </CActorUnit>
     <CActorAction id="DarkTemplarAttack" parent="GenericAttack" effectAttack="WarpBlades">
         <ImpactMap index="None" Model="None" Sound="DarkTemplar_AttackImpact"/>
@@ -6294,7 +6451,7 @@
         <On Terms="UnitDeathCustomize; ValidateUnit IsHallucination" Send="DeathCustomize Hallucination"/>
         <!-- Terms for shadow effects -->
         <On Terms="ActorCreation" Send="TimerSet 0.200000 Shadow"/>
-        <On Terms="TimerExpired; TimerName Shadow; IsStatus ShadowCreate 1; !ModelIsLowQuality" Send="Create HighTemplarShadow"/>
+        <On Terms="TimerExpired; TimerName Shadow; IsStatus ShadowCreate 1; !Option Model Low" Send="Create HighTemplarShadow"/>
         <On Terms="TimerExpired; TimerName Shadow" Send="TimerSet 0.200000 Shadow"/>
         <On Terms="UnitMovementUpdate.*.Stand" Send="StatusSet ShadowCreate 0"/>
         <On Terms="UnitMovementUpdate.*.Walk" Send="StatusSet ShadowCreate 1"/>
@@ -6322,6 +6479,10 @@
         <LifeArmorIcon value="Assets\Textures\btn-upgrade-protoss-groundarmorlevel0.dds"/>
         <SelectAbilCmd value="PsiStorm,Execute"/>
         <Aliases value="_UnitSmall"/>
+    </CActorUnit>
+    <CActorUnit id="HighTemplarSkinPreview" parent="GenericUnitBase" unitName="HighTemplarSkinPreview">
+        <Model value="HighTemplar"/>
+        <UnitIcon value="Assets\Textures\btn-unit-protoss-hightemplar.dds"/>
     </CActorUnit>
     <CActorSound id="HighTemplar_Death" parent="SoundOneShot">
         <On Terms="UnitDeathCustomize.HighTemplar; ValidateUnit IsNotHallucination; PassChance 25.000000" Send="Create"/>
@@ -8115,7 +8276,64 @@
         <HostSiteOps Ops="SOpBankerBroodLord"/>
         <GlossaryAnim value="Walk"/>
         <Aliases value="_UnitHuge"/>
+        <UnitModelFrameActor value="BroodLordUnitModelFrameActor"/>
     </CActorUnit>
+    <CActorSiteOpLocalOffset id="BroodLordUnitModelFrameActorBroodlingLeft">
+        <EditorCategories value=""/>
+        <LocalOffset value="1.000000,1.000000,0.000000"/>
+    </CActorSiteOpLocalOffset>
+    <CActorSiteOpLocalOffset id="BroodLordUnitModelFrameActorBroodlingRight">
+        <EditorCategories value=""/>
+        <LocalOffset value="-1.000000,1.000000,0.000000"/>
+    </CActorSiteOpLocalOffset>
+    <CActorUnit id="BroodLordUnitModelFrameActor" parent="UnitModelFrameActor">
+        <Aliases value="_Selectable"/>
+        <On Terms="ActorCreation; ModelName BroodLord" Send="Create BroodLordBroodlingActorA"/>
+        <On Terms="ActorCreation; ModelName BroodLord" Send="Create BroodLordBroodlingActorB"/>
+        <On Terms="ActorCreation; ModelName BroodLord_PremiumSkin_Aquatic" Send="Create BroodLordAquaticBroodlingActorA"/>
+        <On Terms="ActorCreation; ModelName BroodLord_PremiumSkin_Aquatic" Send="Create BroodLordAquaticBroodlingActorB"/>
+        <On Terms="ActorCreation; ModelName Broodlord_CollectionSkin_Webby" Send="Create BroodLordWebbyBroodlingActorA"/>
+        <On Terms="ActorCreation; ModelName Broodlord_CollectionSkin_Webby" Send="Create BroodLordWebbyBroodlingActorB"/>
+        <On Terms="ActorDestruction" Target="_UnitModelFrameAddition" Send="Destroy"/>
+    </CActorUnit>
+    <CActorModel id="BroodLordBroodlingActorA" parent="ModelAddition">
+        <Macros value="GlobalLoopMacroMore"/>
+        <Model value="Broodling"/>
+        <HostSiteOps Ops="BroodLordUnitModelFrameActorBroodlingLeft"/>
+        <Aliases value="_UnitModelFrameAddition"/>
+    </CActorModel>
+    <CActorModel id="BroodLordBroodlingActorB" parent="ModelAddition">
+        <Macros value="GlobalLoopMacroMore"/>
+        <Model value="Broodling"/>
+        <HostSiteOps Ops="BroodLordUnitModelFrameActorBroodlingRight"/>
+        <Aliases value="_UnitModelFrameAddition"/>
+    </CActorModel>
+    <CActorModel id="BroodLordAquaticBroodlingActorA" parent="ModelAddition">
+        <Macros value="GlobalLoopMacroMore"/>
+        <Model value="Symbiote_PremiumSkin_Aquatic"/>
+        <HostSiteOps Ops="BroodLordUnitModelFrameActorBroodlingLeft"/>
+        <Aliases value="_UnitModelFrameAddition"/>
+    </CActorModel>
+    <CActorModel id="BroodLordAquaticBroodlingActorB" parent="ModelAddition">
+        <Macros value="GlobalLoopMacroMore"/>
+        <Model value="Symbiote_PremiumSkin_Aquatic"/>
+        <HostSiteOps Ops="BroodLordUnitModelFrameActorBroodlingRight"/>
+        <Aliases value="_UnitModelFrameAddition"/>
+        <HostForProps Subject="_Selectable"/>
+    </CActorModel>
+    <CActorModel id="BroodLordWebbyBroodlingActorA" parent="ModelAddition">
+        <Macros value="GlobalLoopMacroMore"/>
+        <Model value="Symbiote_CollectionSkin_Webby"/>
+        <HostSiteOps Ops="BroodLordUnitModelFrameActorBroodlingLeft"/>
+        <Aliases value="_UnitModelFrameAddition"/>
+    </CActorModel>
+    <CActorModel id="BroodLordWebbyBroodlingActorB" parent="ModelAddition">
+        <Macros value="GlobalLoopMacroMore"/>
+        <Model value="Symbiote_CollectionSkin_Webby"/>
+        <HostSiteOps Ops="BroodLordUnitModelFrameActorBroodlingRight"/>
+        <Aliases value="_UnitModelFrameAddition"/>
+        <HostForProps Subject="_Selectable"/>
+    </CActorModel>
     <CActorSiteOpBankerUnit id="SOpBankerBroodLord" parent="SOpBankerUnit">
         <RollMax value="45.000000"/>
     </CActorSiteOpBankerUnit>
@@ -8342,6 +8560,7 @@
     <!-- Brood Lord Cocoon ..................................................................... -->
     <!--                                                                                         -->
     <CActorUnit id="BroodLordCocoon" parent="GenericUnitMorph" unitName="BroodLordCocoon">
+        <ModelFlags index="OutlineEmitter" value="1"/>
         <On Terms="AbilMorph.*.Finish; MorphTo BroodLordCocoon; MorphFrom Corruptor" Send="AnimBaselineStop"/>
         <On Terms="AbilMorph.*.Finish; MorphTo BroodLordCocoon; MorphFrom Corruptor" Send="$Birth 0 0.000000 -1.000000 0.000000"/>
         <On Terms="AnimDone; AnimName Birth" Send="AnimBaselineStart"/>
@@ -9830,6 +10049,7 @@
     <!-- Overlord Cocoon ....................................................................... -->
     <!--                                                                                         -->
     <CActorUnit id="OverlordCocoon" parent="GenericUnitMorph" unitName="OverlordCocoon">
+        <ModelFlags index="OutlineEmitter" value="1"/>
         <On Terms="AbilMorph.*.Finish; MorphTo OverlordCocoon; MorphFrom Overlord" Send="AnimBaselineStop"/>
         <On Terms="AbilMorph.*.Finish; MorphTo OverlordCocoon; MorphFrom Overlord" Send="$Birth 0 0.000000 -1.000000 0.000000"/>
         <On Terms="AnimDone; AnimName Birth" Send="AnimBaselineStart"/>
@@ -12848,6 +13068,10 @@
         <TexSets value="BelShir"/>
     </CActorDoodad>
     <CActorDoodad id="BelShirCanopyTreeIsland">
+        <EditorCategories value="Climate:Jungle,DoodadType:Environment"/>
+        <TexSets value="BelShir"/>
+    </CActorDoodad>
+    <CActorDoodad id="BelShirCanopyTrees">
         <EditorCategories value="Climate:Jungle,DoodadType:Environment"/>
         <TexSets value="BelShir"/>
     </CActorDoodad>
@@ -17361,10 +17585,10 @@
     </CActorModel>
     <!-- Dummy Units for the AC Gluescreen Begin -->
     <CActorUnit id="ZealotACGluescreenDummy" parent="GenericUnitStandard" unitName="ZealotACGluescreenDummy">
-        <UnitIcon value="Assets\Textures\btn-unit-protoss-zealot.dds"/>
+        <UnitIcon value="Assets\Textures\btn-unit-protoss-zealotnocord.dds"/>
     </CActorUnit>
     <CActorUnit id="ZealotVorazunACGluescreenDummy" parent="GenericUnitStandard" unitName="ZealotVorazunACGluescreenDummy">
-        <UnitIcon value="Assets\Textures\btn-unit-protoss-zealot.dds"/>
+        <UnitIcon value="Assets\Textures\btn-unit-protoss-zealotnocord.dds"/>
     </CActorUnit>
     <CActorUnit id="ZealotAiurACGluescreenDummy" parent="GenericUnitStandard" unitName="ZealotAiurACGluescreenDummy">
         <UnitIcon value="Assets\Textures\btn-unit-protoss-zealot-aiur.dds"/>
@@ -17376,7 +17600,7 @@
         <UnitIcon value="Assets\Textures\btn-unit-protoss-dragoon-void.dds"/>
     </CActorUnit>
     <CActorUnit id="HighTemplarACGluescreenDummy" parent="GenericUnitStandard" unitName="HighTemplarACGluescreenDummy">
-        <UnitIcon value="Assets\Textures\btn-unit-protoss-hightemplar.dds"/>
+        <UnitIcon value="Assets\Textures\btn-unit-protoss-hightemplarnocord.dds"/>
     </CActorUnit>
     <CActorUnit id="ArchonACGluescreenDummy" parent="GenericUnitStandard" unitName="ArchonACGluescreenDummy">
         <UnitIcon value="Assets\Textures\btn-unit-protoss-archon.dds"/>
@@ -17458,6 +17682,11 @@
     </CActorUnit>
     <CActorUnit id="VikingACGluescreenDummy" parent="GenericUnitStandard" unitName="VikingACGluescreenDummy">
         <UnitIcon value="Assets\Textures\btn-unit-terran-vikingfighter.dds"/>
+    </CActorUnit>
+    <CActorUnit id="VikingSkinPreview" parent="GenericUnitBase" unitName="VikingSkinPreview">
+        <Model value="VikingAssault"/>
+        <UnitIcon value="Assets\Textures\btn-unit-terran-vikingfighter.dds"/>
+        <UnitModelFrameActor value="GenericSkinMorphPreview"/>
     </CActorUnit>
     <CActorUnit id="BansheeACGluescreenDummy" parent="GenericUnitStandard" unitName="BansheeACGluescreenDummy">
         <UnitIcon value="Assets\Textures\btn-unit-terran-banshee.dds"/>
@@ -17556,7 +17785,7 @@
         <UnitIcon value="Assets\Textures\btn-building-terran-bunker.dds"/>
     </CActorUnit>
     <CActorUnit id="BunkerUpgradedACGluescreenDummy" parent="GenericUnitStandard" unitName="BunkerUpgradedACGluescreenDummy">
-        <UnitIcon value="Assets\Textures\btn-building-terran-bunkerfortified.dds"/>
+        <UnitIcon value="Assets\Textures\btn-building-terran-bunkershriketurret.dds"/>
     </CActorUnit>
     <CActorUnit id="MissileTurretACGluescreenDummy" parent="GenericUnitStandard" unitName="MissileTurretACGluescreenDummy">
         <UnitIcon value="Assets\Textures\btn-building-terran-missileturret.dds"/>
@@ -17601,7 +17830,7 @@
         <UnitIcon value="Assets\Textures\btn-building-protoss-shieldbattery.dds"/>
     </CActorUnit>
     <CActorUnit id="SwarmQueenACGluescreenDummy" parent="GenericUnitStandard" unitName="SwarmQueenACGluescreenDummy">
-        <UnitIcon value="Assets\Textures\btn-unit-zerg-queen.dds"/>
+        <UnitIcon value="Assets\Textures\btn-unit-zerg-broodqueen.dds"/>
     </CActorUnit>
     <CActorUnit id="RoachACGluescreenDummy" parent="GenericUnitStandard" unitName="RoachACGluescreenDummy">
         <UnitIcon value="Assets\Textures\btn-unit-zerg-roach.dds"/>
@@ -17654,6 +17883,10 @@
     <CActorUnit id="WarpPrismTaldarimACGluescreenDummy" parent="GenericUnitStandard" unitName="WarpPrismTaldarimACGluescreenDummy">
         <UnitIcon value="Assets\Textures\btn-unit-protoss-alarak-taldarim-warpprism.dds"/>
     </CActorUnit>
+    <CActorUnit id="WarpPrismSkinPreview" parent="GenericUnitBase" unitName="WarpPrismSkinPreview">
+        <Model value="WarpPrism"/>
+        <UnitIcon value="Assets\Textures\btn-unit-protoss-warpprism.dds"/>
+    </CActorUnit>
     <CActorUnit id="PhotonCannonTaldarimACGluescreenDummy" parent="GenericUnitStandard" unitName="PhotonCannonTaldarimACGluescreenDummy">
         <UnitIcon value="Assets\Textures\btn-unit-protoss-alarak-taldarim-photoncannon.dds"/>
     </CActorUnit>
@@ -17675,8 +17908,18 @@
     <CActorUnit id="HeavySiegeTankACGluescreenDummy" parent="GenericUnitStandard" unitName="HeavySiegeTankACGluescreenDummy">
         <UnitIcon value="Assets\Textures\btn-unit-terran-siegetankblackops-tank.dds"/>
     </CActorUnit>
+    <CActorUnit id="SiegeTankSkinPreview" parent="GenericUnitBase" unitName="SiegeTankSkinPreview">
+        <Model value="SiegeTankSiegedMorph"/>
+        <UnitIcon value="Assets\Textures\btn-unit-terran-siegetank.dds"/>
+        <UnitModelFrameActor value="GenericSkinMorphPreview"/>
+    </CActorUnit>
     <CActorUnit id="RaidLiberatorACGluescreenDummy" parent="GenericUnitStandard" unitName="RaidLiberatorACGluescreenDummy">
         <UnitIcon value="Assets\Textures\btn-unit-terran-liberatorblackops.dds"/>
+    </CActorUnit>
+    <CActorUnit id="LiberatorSkinPreview" parent="GenericUnitBase" unitName="LiberatorSkinPreview">
+        <Model value="Liberator"/>
+        <UnitIcon value="Assets\Textures\btn-unit-terran-liberator.dds"/>
+        <UnitModelFrameActor value="GenericSkinStandWorkPreview"/>
     </CActorUnit>
     <CActorUnit id="RavenTypeIIACGluescreenDummy" parent="GenericUnitStandard" unitName="RavenTypeIIACGluescreenDummy">
         <UnitIcon value="Assets\Textures\btn-unit-terran-ravenblackops.dds"/>
@@ -17719,6 +17962,77 @@
     </CActorUnit>
     <CActorUnit id="StukovBroodQueenACGluescreenDummy" parent="GenericUnitStandard" unitName="StukovBroodQueenACGluescreenDummy">
         <UnitIcon value="Assets\Textures\btn-unit-zerg-classicqueen.dds"/>
+    </CActorUnit>
+    <!--Fenix ACGlueScreenDummy Units-->
+    <CActorUnit id="ZealotFenixACGluescreenDummy" parent="GenericUnitStandard" unitName="ZealotFenixACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-collection-purifier-zealot.dds"/>
+    </CActorUnit>
+    <CActorUnit id="SentryFenixACGluescreenDummy" parent="GenericUnitStandard" unitName="SentryFenixACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-collection-purifier-sentry.dds"/>
+    </CActorUnit>
+    <CActorUnit id="AdeptFenixACGluescreenDummy" parent="GenericUnitStandard" unitName="AdeptFenixACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-protoss-adeptfenix-purifier.dds"/>
+    </CActorUnit>
+    <CActorUnit id="ImmortalFenixACGluescreenDummy" parent="GenericUnitStandard" unitName="ImmortalFenixACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-collection-purifier-immortal.dds"/>
+    </CActorUnit>
+    <CActorUnit id="ColossusFenixACGluescreenDummy" parent="GenericUnitStandard" unitName="ColossusFenixACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-collection-purifier-colossus.dds"/>
+    </CActorUnit>
+    <CActorUnit id="ObserverFenixACGluescreenDummy" parent="GenericUnitStandard" unitName="ObserverFenixACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-collection-purifier-observer.dds"/>
+    </CActorUnit>
+    <CActorUnit id="DisruptorACGluescreenDummy" parent="GenericUnitStandard" unitName="DisruptorACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-protoss-disruptorfenix-purifier.dds"/>
+    </CActorUnit>
+    <CActorUnit id="ScoutACGluescreenDummy" parent="GenericUnitStandard" unitName="ScoutACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-protoss-scout-purifier.dds"/>
+    </CActorUnit>
+    <CActorUnit id="CarrierFenixACGluescreenDummy" parent="GenericUnitStandard" unitName="CarrierFenixACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-collection-purifier-carrier.dds"/>
+    </CActorUnit>
+    <CActorUnit id="PhotonCannonFenixACGluescreenDummy" parent="GenericUnitStandard" unitName="PhotonCannonFenixACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-protoss-fenix-purifier-PhotonCannon.dds"/>
+    </CActorUnit>
+    <!--Dehaka ACGlueScreenDummy Units-->
+    <CActorUnit id="PrimalZerglingACGluescreenDummy" parent="GenericUnitStandard" unitName="PrimalZerglingACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-collection-primal-Zergling.dds"/>
+    </CActorUnit>
+    <CActorUnit id="PrimalRoachACGluescreenDummy" parent="GenericUnitStandard" unitName="PrimalRoachACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-collection-primal-Roach.dds"/>
+    </CActorUnit>
+    <CActorUnit id="PrimalHydraliskACGluescreenDummy" parent="GenericUnitStandard" unitName="PrimalHydraliskACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-collection-primal-Hydralisk.dds"/>
+    </CActorUnit>
+    <CActorUnit id="PrimalSwarmHostACGluescreenDummy" parent="GenericUnitStandard" unitName="PrimalSwarmHostACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-collection-primal-creeperhost.dds"/>
+    </CActorUnit>
+    <CActorUnit id="PrimalUltraliskACGluescreenDummy" parent="GenericUnitStandard" unitName="PrimalUltraliskACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-collection-primal-Ultralisk.dds"/>
+    </CActorUnit>
+    <CActorUnit id="RavasaurACGluescreenDummy" parent="GenericUnitStandard" unitName="RavasaurACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-collection-primal-Ravasaur.dds"/>
+    </CActorUnit>
+    <CActorUnit id="FireRoachACGluescreenDummy" parent="GenericUnitStandard" unitName="FireRoachACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-collection-primal-RoachUpgrade.dds"/>
+    </CActorUnit>
+    <CActorUnit id="PrimalMutaliskACGluescreenDummy" parent="GenericUnitStandard" unitName="PrimalMutaliskACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-collection-primal-Mutalisk.dds"/>
+    </CActorUnit>
+    <CActorUnit id="PrimalGuardianACGluescreenDummy" parent="GenericUnitStandard" unitName="PrimalGuardianACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-collection-primal-Guardian.dds"/>
+    </CActorUnit>
+    <CActorUnit id="CreeperHostACGluescreenDummy" parent="GenericUnitStandard" unitName="CreeperHostACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-collection-primal-swarmhost.dds"/>
+    </CActorUnit>
+    <CActorUnit id="PrimalImpalerACGluescreenDummy" parent="GenericUnitStandard" unitName="PrimalImpalerACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-collection-primal-Lurker.dds"/>
+    </CActorUnit>
+    <CActorUnit id="TyrannozorACGluescreenDummy" parent="GenericUnitStandard" unitName="TyrannozorACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-unit-collection-primal-Tyrannozor.dds"/>
+    </CActorUnit>
+    <CActorUnit id="PrimalWurmACGluescreenDummy" parent="GenericUnitStandard" unitName="PrimalWurmACGluescreenDummy">
+        <UnitIcon value="Assets\Textures\btn-building-dehaka-primalwurm.dds"/>
     </CActorUnit>
     <!-- Dummy Units for the AC Gluescreen End -->
     <!-- Ping panel beacons, created via effects -->
@@ -18087,6 +18401,7 @@
         <Inherits index="CreepEngulfment" value="0"/>
         <Inherits index="Scale" value="0"/>
         <Remove Terms="ActorOrphan" Send="Destroy"/>
+        <On Terms="ActorCreation" Send="Create CommandPlayerDecalWFoliageFXSpawner"/>
         <On Terms="ActorOrphan" Send="AnimBracketStop BSD"/>
         <!-- Have all this Zerg validation to prevent Zerg decals from showing up Command Centers
              created by SCV's controlled by Neural Parasite.  We don't have the decal backgrounds
@@ -18101,6 +18416,10 @@
         <!-- Example of doing this on a per texture basis. -->
         <!--On Terms="TextureUpdate; TextureUpdateLink Decal_Terran_0002_01" Send="TextureSelectById Background_Terran_0002_01"/-->
     </CActorModel>
+    <CActorFoliageFXSpawner id="CommandPlayerDecalWFoliageFXSpawner" parent="FoliageFXSpawnerFire">
+        <Radius value="1.500000"/>
+        <HostSiteOps Ops="CommandPlayerDecalWForwardOffset TerranCommandPlayerDecalOffset SOpShadow"/>
+    </CActorFoliageFXSpawner>
     <CActorEventMacro id="TerranCommandCenterPlayerDecalMacro">
         <On Terms="UnitBirth.CommandCenter; ValidateUnit NotCloaked" Send="TimerSet 0.125000 DecalDelay"/>
         <On Terms="UnitBirth.CommandCenter.EditorPlaced" Send="Create CommandPlayerDecalW"/>
@@ -18140,7 +18459,12 @@
         <Inherits index="Scale" value="0"/>
         <Remove Terms="ActorOrphan" Send="Destroy"/>
         <On Terms="ActorOrphan" Send="AnimBracketStop BSD"/>
+        <On Terms="ActorCreation" Send="Create NexusPlayerDecalWFoliageFXSpawner"/>
     </CActorModel>
+    <CActorFoliageFXSpawner id="NexusPlayerDecalWFoliageFXSpawner" parent="FoliageFXSpawnerFire">
+        <Radius value="1.500000"/>
+        <HostSiteOps Ops="NexusPlayerDecalWForwardOffset ProtossCommandPlayerDecalOffset SOpShadow"/>
+    </CActorFoliageFXSpawner>
     <CActorEventMacro id="ProtossPlayerDecalMacro">
         <On Terms="UnitBirth.Nexus; ValidateUnit NotCloaked" Send="Create NexusPlayerDecalW"/>
         <On Terms="UnitBirth.Nexus.EditorPlaced" Send="Create NexusPlayerDecalW"/>
@@ -18163,7 +18487,12 @@
         <Inherits index="Scale" value="0"/>
         <Remove Terms="ActorOrphan" Send="Destroy"/>
         <On Terms="ActorOrphan" Send="AnimBracketStop BSD"/>
+        <On Terms="ActorCreation" Send="Create HatcheryPlayerDecal1FoliageFXSpawner"/>
     </CActorModel>
+    <CActorFoliageFXSpawner id="HatcheryPlayerDecal1FoliageFXSpawner" parent="FoliageFXSpawnerFire">
+        <Radius value="1.500000"/>
+        <HostSiteOps Ops="HatcheryPlayerDecal1ForwardOffset ZergCommandPlayerDecalOffset SOpShadow"/>
+    </CActorFoliageFXSpawner>
     <CActorEventMacro id="ZergHatcheryPlayerDecalMacro">
         <On Terms="UnitBirth.Hatchery; ValidateUnit NotCloaked" Send="Create HatcheryPlayerDecal1"/>
         <On Terms="UnitBirth.Hatchery.EditorPlaced" Send="Create HatcheryPlayerDecal1"/>

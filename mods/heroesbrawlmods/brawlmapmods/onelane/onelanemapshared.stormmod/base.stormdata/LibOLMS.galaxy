@@ -1,0 +1,478 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/AILib"
+include "TriggerLibs/UILib"
+
+include "LibOLMS_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: One Lane Map Shared
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libOLMS_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+    libAIAI_InitVariables();
+    libUIUI_InitVariables();
+}
+
+// Variable Initialization
+bool libOLMS_InitVariables_completed = false;
+
+void libOLMS_InitVariables () {
+    if (libOLMS_InitVariables_completed) {
+        return;
+    }
+
+    libOLMS_InitVariables_completed = true;
+
+    libOLMS_gv_mMOneLaneRegenGlobeGens = UnitGroupEmpty();
+}
+
+// Presets
+// Functions
+trigger auto_libOLMS_gf_MMOneLaneDisplayRegenGlobeGeneratorTimer_Trigger = null;
+unit auto_libOLMS_gf_MMOneLaneDisplayRegenGlobeGeneratorTimer_lp_unit;
+
+void libOLMS_gf_MMOneLaneDisplayRegenGlobeGeneratorTimer (unit lp_unit) {
+    auto_libOLMS_gf_MMOneLaneDisplayRegenGlobeGeneratorTimer_lp_unit = lp_unit;
+
+    if (auto_libOLMS_gf_MMOneLaneDisplayRegenGlobeGeneratorTimer_Trigger == null) {
+        auto_libOLMS_gf_MMOneLaneDisplayRegenGlobeGeneratorTimer_Trigger = TriggerCreate("auto_libOLMS_gf_MMOneLaneDisplayRegenGlobeGeneratorTimer_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libOLMS_gf_MMOneLaneDisplayRegenGlobeGeneratorTimer_Trigger, false, false);
+}
+
+bool auto_libOLMS_gf_MMOneLaneDisplayRegenGlobeGeneratorTimer_TriggerFunc (bool testConds, bool runActions) {
+    unit lp_unit = auto_libOLMS_gf_MMOneLaneDisplayRegenGlobeGeneratorTimer_lp_unit;
+
+    // Implementation
+    TextExpressionSetToken("Param/Expression/lib_OLMS_6E84E410", "A", TextTimeFormat(StringToText("<min2/>:<sec2/>"), FixedToInt(UnitBehaviorDuration(lp_unit, "GenerateRegenGlobe"))));
+    TextTagCreate(TextExpressionAssemble("Param/Expression/lib_OLMS_6E84E410"), 24, UnitGetPosition(lp_unit), 2.0, true, false, PlayerGroupAll());
+    while ((UnitHasBehavior2(lp_unit, "GenerateRegenGlobe") == true)) {
+        TextExpressionSetToken("Param/Expression/lib_OLMS_EA11C855", "A", TextTimeFormat(StringToText("<min2/>:<sec2/>"), FixedToInt(UnitBehaviorDuration(lp_unit, "GenerateRegenGlobe"))));
+        TextTagSetText(TextTagLastCreated(), TextExpressionAssemble("Param/Expression/lib_OLMS_EA11C855"));
+        Wait(1.0, c_timeGame);
+    }
+    TextTagDestroy(TextTagLastCreated());
+    return true;
+}
+
+void libOLMS_gf_MMOneLaneRegenGlobeCoolupTime () {
+    // Implementation
+    UnitGroupLoopBegin(libOLMS_gv_mMOneLaneRegenGlobeGens);
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        UnitBehaviorSetDuration(UnitGroupLoopCurrent(), "GenerateRegenGlobe", libOLMS_gv_mMHO_RegenGlobeCoolupTime_C);
+        libNtve_gf_SendActorMessageToUnit(UnitGroupLoopCurrent(), "Signal RegenGlobeDurationRefreshed");
+        libOLMS_gf_MMOneLaneDisplayRegenGlobeGeneratorTimer(UnitGroupLoopCurrent());
+    }
+    UnitGroupLoopEnd();
+}
+
+void libOLMS_gf_MMOneLaneHeroAIChangeToState (int lp_trigPlayer, int lp_state, unit lp_target, int lp_priority) {
+    // Implementation
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentState = (lp_state);
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateTrigger = libOLMS_gt_MMOneLaneHeroAIStateLogic;
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = lp_target;
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority = lp_priority;
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_wantsToDoCustomMapLogic = true;
+    libAIAI_gf_HeroAIChangeState(lp_trigPlayer, libAIAI_ge_HeroAIStates_HSCustomMapState);
+}
+
+int libOLMS_gf_MMOneLaneHeroAIGetRegen (int lp_trigPlayer) {
+    // Variable Declarations
+    point lv_soulTurnInPosition;
+    region lv_areaAroundBeacon;
+    unitgroup lv_enemies;
+    unitgroup lv_enemyHeroes;
+    unitgroup lv_enemySummons;
+    unit lv_enemy;
+    order lv_heroOrder;
+
+    // Variable Initialization
+    lv_enemies = UnitGroupEmpty();
+    lv_enemyHeroes = UnitGroupEmpty();
+    lv_enemySummons = UnitGroupEmpty();
+
+    // Implementation
+    if (((libGame_gv_players[lp_trigPlayer].lv_isDead == true) || (UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) > libOLMS_gv_aIHeroMMOneLaneHealthPercentToStopRegen) || (UnitBehaviorDurationTotal(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, "GenerateRegenGlobe") > libOLMS_gv_aIHeroMMOneLaneAlmostActiveGeneratorDuration))) {
+        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
+        return 8;
+    }
+
+    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
+        return 8;
+    }
+
+    lv_soulTurnInPosition = UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
+    if ((libAIAI_gf_HeroAIDangerRatioEval(libGame_gv_players[lp_trigPlayer].lv_faction, lv_soulTurnInPosition, libOLMS_gv_aIHeroMMOneLaneGeneratorCloseToEnemyDistance) < libAIAI_gv_aIHeroNoEnemyDangerRatio)) {
+        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
+        return 8;
+    }
+
+    if ((libAIAI_gf_HeroAIHarassInJungleLogic(lp_trigPlayer, true) == true)) {
+        return 8;
+    }
+
+    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, null, lv_soulTurnInPosition, 0.0, 0.0, false, true, false, true) == true)) {
+    }
+    else {
+        libAIAI_gf_HeroAIEnsureOrderMovePoint(lp_trigPlayer, lv_soulTurnInPosition);
+    }
+    return 8;
+}
+
+void libOLMS_gf_MMOneLaneHeroAIInitRegenGlobeGenerators () {
+    // Implementation
+    UnitGroupLoopBegin(libOLMS_gv_mMOneLaneRegenGlobeGens);
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        libOLMS_gv_aIHeroMMOneLaneGeneratorUnits[libOLMS_gv_aIHeroMMOneLaneNumGenerators] = UnitGroupLoopCurrent();
+        libOLMS_gv_aIHeroMMOneLaneNumGenerators += 1;
+    }
+    UnitGroupLoopEnd();
+}
+
+void libOLMS_gf_MMOneLaneHeroAIGeneratorLogic (int lp_faction) {
+    int auto8F475808_ae;
+    playergroup auto1DADA49A_g;
+    int auto1DADA49A_p;
+
+    // Variable Declarations
+    int lv_computerPlayer;
+    int lv_generatorIndex;
+    point lv_generatorPos;
+    playergroup lv_generatorGroup;
+    int lv_randomIndex;
+    int lv_playerIndex;
+
+    // Variable Initialization
+    lv_generatorGroup = PlayerGroupEmpty();
+
+    // Implementation
+    lv_computerPlayer = libGame_gf_ComputerPlayerInFaction(lp_faction);
+    auto8F475808_ae = (libOLMS_gv_aIHeroMMOneLaneNumGenerators - 1);
+    lv_generatorIndex = 0;
+    for ( ; lv_generatorIndex <= auto8F475808_ae ; lv_generatorIndex += 1 ) {
+        lv_generatorPos = UnitGetPosition(libOLMS_gv_aIHeroMMOneLaneGeneratorUnits[lv_generatorIndex]);
+        if ((UnitBehaviorDurationTotal(libOLMS_gv_aIHeroMMOneLaneGeneratorUnits[lv_generatorIndex], "GenerateRegenGlobe") < libOLMS_gv_aIHeroMMOneLaneAlmostActiveGeneratorDuration) && (libAIAI_gf_AIIsPointBehindContentionPoint(lp_faction, 1, lv_generatorPos) == true) && (libOLMS_gf_HeroAIDangerRatioEval(lp_faction, lv_generatorPos, libOLMS_gv_aIHeroMMOneLaneGeneratorEnemyDistance) == 0.0)) {
+            PlayerGroupAdd(lv_generatorGroup, lv_generatorIndex);
+        }
+
+    }
+    while ((PlayerGroupCount(lv_generatorGroup) > 0)) {
+        lv_randomIndex = RandomInt(1, PlayerGroupCount(lv_generatorGroup));
+        lv_generatorIndex = PlayerGroupPlayer(lv_generatorGroup, lv_randomIndex);
+        PlayerGroupRemove(lv_generatorGroup, lv_generatorIndex);
+        auto1DADA49A_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction)].lv_aIPlayers; 
+        auto1DADA49A_p = 1;
+        for ( ; auto1DADA49A_p <= PlayerGroupCount(auto1DADA49A_g) ; auto1DADA49A_p += (lv_playerIndex == PlayerGroupPlayer(auto1DADA49A_g, auto1DADA49A_p)) ) {
+            lv_playerIndex = PlayerGroupPlayer(auto1DADA49A_g, auto1DADA49A_p);
+            if ((libAIAI_gv_aIHeroPickUpHealthAndBuffGlobes[libAIAI_gv_aIHeroes[lv_playerIndex].lv_difficulty] == true) && (UnitGetPropertyFixed(libGame_gv_players[lv_playerIndex].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) <= libAIAI_gv_aIHeroes[lv_playerIndex].lv_endOffensiveHealth) && (libAIAI_gf_HeroAIIsHigherPriority(lv_playerIndex, libAIAI_ge_HeroAIPriority_CustomMapRegular) == true)) {
+                libOLMS_gf_MMOneLaneHeroAIChangeToState(lv_playerIndex, libOLMS_ge_MMOneLaneHeroAIStates_MMLostCavernHeroAIPickupFromGenerator, libOLMS_gv_aIHeroMMOneLaneGeneratorUnits[lv_generatorIndex], libAIAI_ge_HeroAIPriority_CustomMapRegular);
+            }
+
+        }
+    }
+}
+
+fixed libOLMS_gf_HeroAIDangerRatioEval (int lp_playerFaction, point lp_point, fixed lp_radius) {
+    playergroup autoBCAF3218_g;
+    int autoBCAF3218_p;
+
+    // Variable Declarations
+    region lv_evalRegion;
+    int lv_allyTeamIndex;
+    int lv_enemyTeamIndex;
+    int lv_playerIndex;
+    fixed lv_enemyEval;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_evalRegion = RegionCircle(lp_point, lp_radius);
+    lv_enemyTeamIndex = libAIAI_gf_HeroAITeamIndexOfEnemyFaction(lp_playerFaction);
+    lv_allyTeamIndex = libAIAI_gf_HeroAITeamIndexOfFaction(lp_playerFaction);
+    autoBCAF3218_g = libAIAI_gv_heroAITeamPlayerData[lv_enemyTeamIndex].lv_players; 
+    autoBCAF3218_p = 1;
+    for ( ; autoBCAF3218_p <= PlayerGroupCount(autoBCAF3218_g) ; autoBCAF3218_p += (lv_playerIndex == PlayerGroupPlayer(autoBCAF3218_g, autoBCAF3218_p)) ) {
+        lv_playerIndex = PlayerGroupPlayer(autoBCAF3218_g, autoBCAF3218_p);
+        if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (UnitIsValid(libGame_gv_players[lv_playerIndex].lv_heroUnit) == true) && ((TimerGetElapsed(libGame_gv_gameTimer) - libAIAI_gv_heroAITeamData[lv_allyTeamIndex].lv_heroTrackingData[lv_playerIndex].lv_lastSeenTime) <= libOLMS_gv_aIHeroMMOneLaneEnemyLastSeenTime) && (RegionContainsPoint(lv_evalRegion, libAIAI_gv_heroAITeamData[lv_allyTeamIndex].lv_heroTrackingData[lv_playerIndex].lv_lastSeenLocation) == true)) {
+            lv_enemyEval += libAIAI_gf_HeroAIHeroEval(libGame_gv_players[lv_playerIndex].lv_heroUnit);
+        }
+
+    }
+    return lv_enemyEval;
+}
+
+void libOLMS_gf_MMOneLaneHeroAIGeneratorPinged (int lp_pingingPlayer, unit lp_pingedUnit) {
+    playergroup auto4A29E0E0_g;
+    int auto4A29E0E0_p;
+
+    // Variable Declarations
+    int lv_playerIndex;
+
+    // Variable Initialization
+
+    // Implementation
+    if ((UnitBehaviorDurationTotal(lp_pingedUnit, "GenerateRegenGlobe") < libOLMS_gv_aIHeroMMOneLaneAlmostActiveGeneratorDuration)) {
+        auto4A29E0E0_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(libGame_gv_players[lp_pingingPlayer].lv_faction)].lv_aIPlayers; 
+        auto4A29E0E0_p = 1;
+        for ( ; auto4A29E0E0_p <= PlayerGroupCount(auto4A29E0E0_g) ; auto4A29E0E0_p += (lv_playerIndex == PlayerGroupPlayer(auto4A29E0E0_g, auto4A29E0E0_p)) ) {
+            lv_playerIndex = PlayerGroupPlayer(auto4A29E0E0_g, auto4A29E0E0_p);
+            if ((UnitGetPropertyFixed(libGame_gv_players[lv_playerIndex].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) <= libOLMS_gv_aIHeroMMOneLaneHealthPercentPingStartRegen) && (libAIAI_gf_HeroAIIsHigherPriority(lv_playerIndex, libAIAI_ge_HeroAIPriority_CustomMapRegular) == true)) {
+                libOLMS_gf_MMOneLaneHeroAIChangeToState(lv_playerIndex, libOLMS_ge_MMOneLaneHeroAIStates_MMLostCavernHeroAIPickupFromGenerator, lp_pingedUnit, libAIAI_ge_HeroAIPriority_CustomMapRegular);
+            }
+
+        }
+    }
+
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: #Include One Lane Map Shared
+//--------------------------------------------------------------------------------------------------
+bool libOLMS_gt_IncludeOneLaneMapShared_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerExecute(libOLMS_gt_MMOneLaneInit, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libOLMS_gt_IncludeOneLaneMapShared_Init () {
+    libOLMS_gt_IncludeOneLaneMapShared = TriggerCreate("libOLMS_gt_IncludeOneLaneMapShared_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMOneLane Init
+//--------------------------------------------------------------------------------------------------
+bool libOLMS_gt_MMOneLaneInit_Func (bool testConds, bool runActions) {
+    int auto036426EB_ae;
+    int auto036426EB_ai;
+    int auto3C365524_ae;
+
+    // Variable Declarations
+    int lv_itTeam;
+    int lv_itPlayer;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGame_gf_SetXPTrickleModifier((libOLMS_gv_mMOneLaneTrickleModifier_C + 1.0));
+    auto036426EB_ae = libCore_gv_bALMaxTeams;
+    auto036426EB_ai = 1;
+    lv_itTeam = 1;
+    for ( ; ( (auto036426EB_ai >= 0 && lv_itTeam <= auto036426EB_ae) || (auto036426EB_ai <= 0 && lv_itTeam >= auto036426EB_ae) ) ; lv_itTeam += auto036426EB_ai ) {
+        UnitBehaviorRemove(libGame_gv_teams[lv_itTeam].lv_core, "CoreShieldsLevel1", 1);
+        UnitBehaviorRemove(libGame_gv_teams[lv_itTeam].lv_core, "CoreShieldsLevel2", 1);
+        UnitBehaviorRemove(libGame_gv_teams[lv_itTeam].lv_core, "CoreShieldsLevel3", 1);
+    }
+    libOLMS_gv_mMOneLaneRegenGlobeGens = UnitGroup("RegenGlobeGenerator", c_playerAny, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), libOLMS_gv_aIHeroMMOneLaneMaxGenerators);
+    auto3C365524_ae = libCore_gv_bALMaxPlayers;
+    lv_itPlayer = 1;
+    for ( ; lv_itPlayer <= auto3C365524_ae ; lv_itPlayer += 1 ) {
+        libAIAI_gv_aIHeroes[lv_itPlayer].lv_canPortHome = false;
+    }
+    libAIAI_gv_heroAITeamMapLogicTrigger = libOLMS_gt_MMOneLaneHeroAITeamMapLogic;
+    libOLMS_gf_MMOneLaneHeroAIInitRegenGlobeGenerators();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libOLMS_gt_MMOneLaneInit_Init () {
+    libOLMS_gt_MMOneLaneInit = TriggerCreate("libOLMS_gt_MMOneLaneInit_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMOneLane Gate Timer Starts
+//--------------------------------------------------------------------------------------------------
+bool libOLMS_gt_MMOneLaneGateTimerStarts_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupLoopBegin(libOLMS_gv_mMOneLaneRegenGlobeGens);
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        UnitBehaviorSetDuration(UnitGroupLoopCurrent(), "GenerateRegenGlobe", libOLMS_gv_mMHO_RegenGlobeCoolupTime_C);
+        libNtve_gf_SendActorMessageToUnit(UnitGroupLoopCurrent(), "Signal RegenGlobeDurationRefreshed");
+    }
+    UnitGroupLoopEnd();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libOLMS_gt_MMOneLaneGateTimerStarts_Init () {
+    libOLMS_gt_MMOneLaneGateTimerStarts = TriggerCreate("libOLMS_gt_MMOneLaneGateTimerStarts_Func");
+    libGame_gf_GameOpenTimerStarted(libOLMS_gt_MMOneLaneGateTimerStarts);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMOneLane Gates Open
+//--------------------------------------------------------------------------------------------------
+bool libOLMS_gt_MMOneLaneGatesOpen_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libOLMS_gf_MMOneLaneRegenGlobeCoolupTime();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libOLMS_gt_MMOneLaneGatesOpen_Init () {
+    libOLMS_gt_MMOneLaneGatesOpen = TriggerCreate("libOLMS_gt_MMOneLaneGatesOpen_Func");
+    TriggerAddEventTimer(libOLMS_gt_MMOneLaneGatesOpen, libGame_gv_openTheGatesTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMOneLane Ping Data Init
+//--------------------------------------------------------------------------------------------------
+bool libOLMS_gt_MMOneLanePingDataInit_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libUIUI_gf_PingSetCustomResponseTriggerForPingbyUnitType("RegenGlobeGenerator", libOLMS_gt_MMOneLanePingCallbackPlayerPingsGenerator);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libOLMS_gt_MMOneLanePingDataInit_Init () {
+    libOLMS_gt_MMOneLanePingDataInit = TriggerCreate("libOLMS_gt_MMOneLanePingDataInit_Func");
+    libCore_gf_IncludeModInitialization(libOLMS_gt_MMOneLanePingDataInit);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMOneLane Regen Globe Start Timer
+//--------------------------------------------------------------------------------------------------
+bool libOLMS_gt_MMOneLaneRegenGlobeStartTimer_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((UnitGroupHasUnit(libOLMS_gv_mMOneLaneRegenGlobeGens, EventUnit()) == true))) {
+            return false;
+        }
+
+        if (!((libGame_gv_gameOver == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libOLMS_gf_MMOneLaneDisplayRegenGlobeGeneratorTimer(EventUnit());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libOLMS_gt_MMOneLaneRegenGlobeStartTimer_Init () {
+    libOLMS_gt_MMOneLaneRegenGlobeStartTimer = TriggerCreate("libOLMS_gt_MMOneLaneRegenGlobeStartTimer_Func");
+    TriggerAddEventUnitBehaviorChange(libOLMS_gt_MMOneLaneRegenGlobeStartTimer, null, "GenerateRegenGlobe", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMOneLane - HeroAI - Team Map Logic
+//--------------------------------------------------------------------------------------------------
+bool libOLMS_gt_MMOneLaneHeroAITeamMapLogic_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libOLMS_gf_MMOneLaneHeroAIGeneratorLogic(libAIAI_gv_heroAITeamMapLogicFaction);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libOLMS_gt_MMOneLaneHeroAITeamMapLogic_Init () {
+    libOLMS_gt_MMOneLaneHeroAITeamMapLogic = TriggerCreate("libOLMS_gt_MMOneLaneHeroAITeamMapLogic_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMOneLane - HeroAI - State Logic
+//--------------------------------------------------------------------------------------------------
+bool libOLMS_gt_MMOneLaneHeroAIStateLogic_Func (bool testConds, bool runActions) {
+    int autoAF2263C7_val;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    autoAF2263C7_val = libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSMapStateCurrentState;
+    if (autoAF2263C7_val == libOLMS_ge_MMOneLaneHeroAIStates_MMLostCavernHeroAIPickupFromGenerator) {
+        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libOLMS_gf_MMOneLaneHeroAIGetRegen(libAIAI_gv_heroAICustomStateCurrentPlayer);
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libOLMS_gt_MMOneLaneHeroAIStateLogic_Init () {
+    libOLMS_gt_MMOneLaneHeroAIStateLogic = TriggerCreate("libOLMS_gt_MMOneLaneHeroAIStateLogic_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMOneLane Ping Callback Player Pings Generator
+//--------------------------------------------------------------------------------------------------
+bool libOLMS_gt_MMOneLanePingCallbackPlayerPingsGenerator_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libOLMS_gf_MMOneLaneHeroAIGeneratorPinged(libUIUI_gv_ping_PingCallbackPingingPlayer, libUIUI_gv_ping_PingCallbackTargetUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libOLMS_gt_MMOneLanePingCallbackPlayerPingsGenerator_Init () {
+    libOLMS_gt_MMOneLanePingCallbackPlayerPingsGenerator = TriggerCreate("libOLMS_gt_MMOneLanePingCallbackPlayerPingsGenerator_Func");
+}
+
+void libOLMS_InitTriggers () {
+    libOLMS_gt_IncludeOneLaneMapShared_Init();
+    libOLMS_gt_MMOneLaneInit_Init();
+    libOLMS_gt_MMOneLaneGateTimerStarts_Init();
+    libOLMS_gt_MMOneLaneGatesOpen_Init();
+    libOLMS_gt_MMOneLanePingDataInit_Init();
+    libOLMS_gt_MMOneLaneRegenGlobeStartTimer_Init();
+    libOLMS_gt_MMOneLaneHeroAITeamMapLogic_Init();
+    libOLMS_gt_MMOneLaneHeroAIStateLogic_Init();
+    libOLMS_gt_MMOneLanePingCallbackPlayerPingsGenerator_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libOLMS_InitLib_completed = false;
+
+void libOLMS_InitLib () {
+    if (libOLMS_InitLib_completed) {
+        return;
+    }
+
+    libOLMS_InitLib_completed = true;
+
+    libOLMS_InitLibraries();
+    libOLMS_InitVariables();
+    libOLMS_InitTriggers();
+}
+

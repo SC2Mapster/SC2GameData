@@ -470,7 +470,7 @@ HALF3 DecodeNormalInternal( VertexTransport vertOut, SLayerConfig layerSettings,
         // is relative to the winding order, so we have to check for the frontface
         if (PIXEL_SHADER_VERSION == SHADER_VERSION_PS_30) {
 #ifdef COMPILING_SHADER_FOR_OPENGL
-            if (INTERPOLANT_FrontFace > 0.0f || p_fFaceRender < 0.0f)
+            if (p_fFaceRender < 0.0f)
 #else
             if (INTERPOLANT_FrontFace >= 0.0f)
 #endif
@@ -513,7 +513,7 @@ HALF3 DecodeNormalGradInternal( VertexTransport vertOut, SLayerConfig layerSetti
         // is relative to the winding order, so we have to check for the frontface
         if (PIXEL_SHADER_VERSION == SHADER_VERSION_PS_30) {
 #ifdef COMPILING_SHADER_FOR_OPENGL
-            if (INTERPOLANT_FrontFace > 0.0f || p_fFaceRender < 0.0f)
+            if (p_fFaceRender < 0.0f)
 #else
             if (INTERPOLANT_FrontFace >= 0.0f)
 #endif

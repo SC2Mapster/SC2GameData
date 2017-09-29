@@ -18,6 +18,7 @@
     <!--                                                                                         -->
     <!--                                                                                         -->
     <const id="$GenericAttackLaunchMethods" type="CAttachMethods" value="AMFilterWeapon00"/>
+    <const id="$GenericHardpointLaunchMethods" type="CAttachMethods" value="AMFilterHardpoint"/>
     <const id="$GenericBunkerAttackLaunchMethods" type="CAttachMethods" value="AMFilterWeapon AMProximityTargetAll AMPortAllocatorBunker"/>
     <const id="$GenericAttackTargetMethods" type="CAttachMethods" value="AMVolumesTargets AMArcTestWeapon AMVolumesWeightedPick"/>
     <const id="$GenericAttackImpactSiteOpsHeader" type="CActorSiteOps" value="SOpAttachHarness SOpForwardLaunchGuide SOpAttachVolumeStandard SOp2DRotation"/>
@@ -37,7 +38,6 @@
     <!-- Note: Flags should be listed in the order they appear in the enum. -->
     <CActor default="1">
         <FogVisibility value="Snapshot"/>
-        <EditorCategories value="DoodadType:NotDoodad"/>
         <InheritType value="Continuous"/>
         <!-- Make sure to set any properties turned off here back on in the CActorSite default.
              There are many actors like squibs and whatnot that do not want to inherit these
@@ -93,23 +93,12 @@
         <ImpactActor value="##id##Impact"/>
         <ImpactHeight value="2.000000"/>
     </CActorQuad>
-    <CActorFoliageFXSpawner default="1" id="FoliageFXSpawnerDefault">
-        <SpawnTarget value="FoliageFXDefault"/>
-        <HostSiteOps Ops="SOpTargetPointStationary"/>
-    </CActorFoliageFXSpawner>
-    <!-- Can't be a default or we can't use it in the CActorFoliageFXSpawner default. -->
-    <CActorModel id="FoliageFXDefault">
-        <On Terms="ActorCreation" Send="$Death"/>
-        <On Terms="AnimDone; AnimName Death" Send="Destroy"/>
-    </CActorModel>
     <CActorTerrainDeformer default="1">
         <BlendTime value="0.0"/>
         <InfluenceRange value="0.0"/>
         <HeightDelta value="0.0"/>
         <Footprint value=""/>
         <Host Subject="_Selectable"/>
-        <TerrainDeformerFlags index="DestroysFoliage" value="1"/>
-        <FoliageFXDeathSpawnTarget value="FoliageFXDefault"/>
     </CActorTerrainDeformer>
     <CActorProgress default="1">
         <Supporter Subject="_Unit" Actor="Find"/>
@@ -203,7 +192,7 @@
         <Inherits index="Visibility" value="1"/>
         <!-- We do not destroy the sound on SoundDone here, b/c it is is possible to have a sound
              set that we play through sequentially.  Each sound sends a SoundDone when done, which
-             would cause the set to terminate prematurely.  It's easier to add messages than 
+             would cause the set to terminate prematurely.  It's easier to add messages than
              remove them, so it's up to the subclasses to remember this message.  And remember
              they must or they will leak! -->
     </CActorSound>
@@ -246,7 +235,6 @@
         <DoodadFlags index="PauseAnimsWhileFogged" value="1"/>
         <DoodadFlags index="DefaultToModelAABBBounds" value="1"/>
         <FogVisibility value="Snapshot"/>
-        <EditorCategories value="DoodadType:Props"/>
         <EditorIcon value="Assets\Textures\btn-missing-kaeo.dds"/>
         <Radius value="0.500000"/>
         <RandomScaleRange value="0.800000,1.200000"/>
@@ -687,6 +675,7 @@
         </DeathCustoms>
         <DeathCustoms Name="RagdollUpgraded" PhysicsMatchKeysOrdered="Basic" InheritsFrom="RagdollBlood"/>
         <DeathCustoms Name="RagdollUpgradedMidair" PhysicsMatchKeysOrdered="BasicAir,Basic" InheritsFrom="RagdollBlood"/>
+        <ModelMaterialPriorityList value="GlazeNexusSilouette"/>
         <ModelMaterialPriorityList value="ReplacementArthas"/>
         <ModelMaterialPriorityList value="ReplacementArthas2"/>
         <ModelMaterialPriorityList value="ReplacementArthas3"/>
@@ -1389,7 +1378,6 @@
         <LocalOffset value="0.000000,2.000000,0.000000"/>
     </CActorSiteOpLocalOffset>
     <CActorSiteOpLocalOffset id="SOpMoveDownByDot01">
-        <EditorCategories value=""/>
         <LocalOffset value="0.000000,0.000000,-0.010000"/>
     </CActorSiteOpLocalOffset>
     <CActorSiteOpLocalOffset id="SOpMoveDownByDot1">
@@ -1787,6 +1775,9 @@
         <On Terms="SoundDone;SoundIsFinalSound" Send="Destroy"/>
     </CActorSound>
     <CActorSound default="1" id="SoundContinuous">
+        <Aliases value="_TimeStopAffectedActor"/>
+        <On Terms="StatusOn.*.TimeStopPaused" Send="SoundSetPaused 1"/>
+        <On Terms="StatusOff.*.TimeStopPaused" Send="SoundSetPaused"/>
         <!-- If we accidentally (or intentionally) have a non-looping sound, this ensures that
              the sound does not leak. -->
         <On Terms="SoundDone;SoundIsFinalSound" Send="Destroy"/>
@@ -2031,8 +2022,8 @@
     <CActorModel id="PlacementModel">
         <HostSiteOps Ops="SOpTipabilityFloorScope"/>
         <FogVisibility value="Visible"/>
-        <Filter index="Neutral" value="1"/>
-        <Filter index="Enemy" value="1"/>
+        <Filter index="All" value="1"/>
+        <VisibleTo index="Self" value="1"/>
         <Aliases value="_Main"/>
         <Aliases value="_Unit"/>
         <Aliases value="_Selectable"/>
@@ -2564,8 +2555,12 @@
         <AcceptedHostedPropTransfers index="Opacity" value="0"/>
     </CActorSnapshot>
     <CActorSnapshot id="SnapshotAnimating" parent="Snapshot">
+        <ModelFlags index="PlayAnimsEvenWhenSnapshot" value="1"/>
+        <!-- The new flag is an eaiser-to-discover version of the following that also works on
+             attachment models.
         <On Terms="ActorCopy" Send="AnimSetLockedAll 0"/>
         <On Terms="ActorCopy" Send="AnimSetPausedAll 0"/>
+        -->
     </CActorSnapshot>
     <!--                                                                                         -->
     <!--                                                                                         -->
@@ -2827,24 +2822,24 @@
         <Inherits index="Scale" value="1"/>
     </CActorSelection>
     <CActorSelection id="PrimaryGroundSyncSelectionObserver" parent="SyncSelectionPrimaryObserver">
-        <On Terms="SelectionSyncUpdate.*.Add; !ValidateUnit UseCliffSelection; IsLocalParticipantType Observer" Send="Create"/>
+        <!--On Terms="SelectionSyncUpdate.*.Add; !ValidateUnit UseCliffSelection; IsLocalParticipantType Observer" Send="Create"/-->
         <HalfHeight value="1.000000"/>
         <Attenuation value="0.500000"/>
     </CActorSelection>
     <CActorSelection id="SecondaryGroundSyncSelectionObserver" parent="SyncSelectionSecondaryObserver">
-        <On Terms="SelectionSyncUpdate.*.Add; !ValidateUnit UseCliffSelection; IsLocalParticipantType Observer" Send="Create"/>
+        <!--On Terms="SelectionSyncUpdate.*.Add; !ValidateUnit UseCliffSelection; IsLocalParticipantType Observer" Send="Create"/-->
         <HalfHeight value="1.000000"/>
         <Attenuation value="0.500000"/>
     </CActorSelection>
     <CActorSelection id="GroundLocalSelectionObserver" parent="LocalSelectionObserver">
-        <On Terms="SelectionLocalUpdate.*.Start; !ValidateUnit UseCliffSelection; IsLocalParticipantType Observer" Send="Create"/>
-        <On Terms="SelectionLocalUpdate.*.Stop" Send="Destroy"/>
+        <!--On Terms="SelectionLocalUpdate.*.Start; !ValidateUnit UseCliffSelection; IsLocalParticipantType Observer" Send="Create"/>
+        <On Terms="SelectionLocalUpdate.*.Stop" Send="Destroy"/-->
         <HalfHeight value="1.000000"/>
         <Attenuation value="0.500000"/>
     </CActorSelection>
     <CActorSelection id="GroundPreSelectionObserver" parent="PreSelectionObserver">
-        <On Terms="PreSelectionUpdate.*.Start; !ValidateUnit UseCliffSelection; IsLocalParticipantType Observer" Send="Create"/>
-        <On Terms="PreSelectionUpdate.*.Stop" Send="Destroy"/>
+        <!--On Terms="PreSelectionUpdate.*.Start; !ValidateUnit UseCliffSelection; IsLocalParticipantType Observer" Send="Create"/>
+        <On Terms="PreSelectionUpdate.*.Stop" Send="Destroy"/-->
         <HalfHeight value="1.000000"/>
         <Attenuation value="0.500000"/>
     </CActorSelection>
@@ -2926,13 +2921,11 @@
     </CActorTerrainDeformer>
     <CActorTerrainDeformer id="BuildingTerrainFlattenInstant" parent="BuildingTerrainFlatten">
         <BlendTime value="0.000000"/>
-        <FoliageFXDeathSpawnTarget value=""/>
     </CActorTerrainDeformer>
     <CActorTerrainDeformer id="BuildingTerrainFlattenEditor" parent="BuildingTerrainFlatten">
         <BlendTime value="0.000000"/>
         <TerrainDeformerFlags index="RestoreOnMovement" value="1"/>
         <TerrainDeformerFlags index="RestoreOnDestroy" value="1"/>
-        <FoliageFXDeathSpawnTarget value=""/>
     </CActorTerrainDeformer>
     <CActorEventMacro id="BuildingFlattenTerrainMacro">
         <On Terms="UnitConstruction.*.Start" Send="Create BuildingTerrainFlatten"/>
@@ -3151,6 +3144,7 @@
         <SnapshotActor value="Snapshot"/>
         <Aliases value="_Unit"/>
         <Aliases value="_Selectable"/>
+        <Aliases value="_TimeStopAffectedActor"/>
         <ModelFlags index="AutomateGlobalLoops" value="1"/>
         <On Terms="UnitBirth.##unitName##" Send="Create SoundEmitter ##unitName##_Ambience"/>
         <On Terms="UnitBirth.##unitName##" Send="Create"/>
@@ -3282,7 +3276,6 @@
         <LocalOffset value="0.000000,0.000000,0.010000"/>
     </CActorSiteOpLocalOffset>
     <CActorSiteOpRotationExplicit id="GrabbedUnitRotation">
-        <EditorCategories value=""/>
         <Forward value="-0.400000,-0.050000,-1.000000"/>
         <IsLocal value="1"/>
     </CActorSiteOpRotationExplicit>
@@ -4096,9 +4089,9 @@
     <CActorLightOmni default="1">
         <Model value="ActorLightOmni"/>
     </CActorLightOmni>
-      
+
     <CActorLightOmni id="LightOmni"/>
-  
+
     <CActorLightSpot default="1">
         <Model value="ActorLightSpot"/>
     </CActorLightSpot>
@@ -4325,7 +4318,6 @@
     </CActorCutscene>
     <!-- TriggerRegions -->
     <CActorRegionGame id="TriggerRegion"/>
-    <CActorUnit id="StereoscopicOptionsUnit" parent="GenericUnitMinimal" unitName="StereoscopicOptionsUnit"/>
     <CActorDoodad id="ActorLightOmni">
         <Aliases value="_EditorHelper"/>
         <RandomScaleRange value="1.000000,1.000000"/>
@@ -4351,7 +4343,7 @@
     <!--                                                                                         -->
     <!--
         UnitPortrait messages.  All of these are sent to the supporting unit's scope.
-        
+
         UnitPortrait.*.Customize    Sent whenever we switch the selected CActorUnit.  This can
                                     happen when the user selects a new unit, or when a selected
                                     unit switches actors, say if it morphs.  This is when the

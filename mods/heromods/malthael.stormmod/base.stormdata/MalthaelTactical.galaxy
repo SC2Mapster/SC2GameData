@@ -1,0 +1,453 @@
+//-------------------------------------------------------------------------------------------------
+// Malthael Tactical
+//-------------------------------------------------------------------------------------------------
+
+// [Trait] Reaper's Mark;
+const string c_MalthaelReapersMark = "MalthaelReapersMarkDebuff";
+
+// [Q] Soul Rip
+const string c_AB_MalthaelSoulRip = "MalthaelSoulRip";
+const fixed c_MalthaelSoulRipRange = 6.5;
+const string c_MalthaelSoulRipSoulCollectorTalent = "MalthaelSoulCollector";
+const fixed c_MalthaelSoulRipSoulCollectorRange = 9.75;
+
+// [W] Wraith Strike
+const string c_AB_MalthaelWraithStrike = "MalthaelWraithStrike";
+const fixed c_MalthaelWraithStrikeRangeMin = 2.0;
+const fixed c_MalthaelWraithStrikeRangeMax = 6.0;
+const string c_MalthaelWraithStrikeDeathsReachTalent = "MalthaelDeathsReach";
+const fixed c_MalthaelWraithStrikeDeathsReachRange = 8.1;
+const fixed c_MalthaelWraithStrikeProjectedTargetDistance = 2.0;
+const string c_MalthaelWraithStrikeMassacreTalent = "MalthaelMassacre";
+
+// [E] Death Shroud
+const string c_AB_MalthaelDeathShroud = "MalthaelDeathShroud";
+const fixed c_MalthaelDeathShroudRange = 12.0;
+const fixed c_MalthaelDeathShroudUnitNearbyRadius = 3.0;
+const string c_MalthaelDeathShroudThrowingShadeQuestCompleteBehavior = "MalthaelDeathShroudThrowingShadeQuestComplete";
+const fixed c_MalthaelDeathShroudThrowingShadeRange = 16.0;
+
+// [R1] Tormented Souls
+const string c_AB_MalthaelTormentedSouls = "MalthaelTormentedSouls";
+const fixed c_MalthaelTormentedSoulsRadius = 5.0;
+
+// [R2] Last Rites
+const string c_AB_MalthaelLastRites = "MalthaelLastRites";
+const fixed c_MalthaelLastRitesRange = 4.0;
+
+// Talent Items
+const string c_AB_MalthaelUseItem = "MalthaelStormInventory";
+const string c_MalthaelFearTheReaper = "MalthaelFearTheReaper";
+const string c_MalthaelTouchOfDeath = "MalthaelTouchOfDeath";
+const string c_MalthaelInevitableEnd = "MalthaelInevitableEnd";
+const string c_MalthaelShroudOfWisdom = "MalthaelShroudOfWisdom";
+const string c_MalthaelNoOneCanStopDeath = "MalthaelNoOneCanStopDeath";
+
+//---------------------------------------------------------------------------------------------
+bool MalthaelSoulRip (int player, unit aiUnit, unitgroup scanGroup) {
+    unit targetUnit;
+    order abilOrd;
+    fixed energy;
+    fixed range;
+    Storm_AI_TargetQueryOptions query;
+
+    // Simply check if Malthael can use the ability, since the ability is only available if there is a marked target nearby
+    // The ability is also low cooldown, so it should be spammed often
+    abilOrd = StormHeroAICreateOrder(player, c_AB_MalthaelSoulRip, 0);
+    if (!UnitOrderIsValid(aiUnit, abilOrd)) {
+        return false;
+    }
+    
+    range = c_MalthaelSoulRipRange;
+    if (PlayerHasTalent(player, c_MalthaelSoulRipSoulCollectorTalent)) {
+        range = c_MalthaelSoulRipSoulCollectorRange;
+    }
+    query.lv_maxDistance = range;
+
+    energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+    // Only use on Heroes if at low energy
+    if (energy < libAIAI_gv_aIHeroLowEnergyPercent) {
+        targetUnit = FindBestHero(scanGroup, aiUnit, query);
+        if (!UnitIsValid(targetUnit)) {
+            return false;
+        }
+        // Return false if the target does not have Reaper's Mark
+        if (!UnitHasBehavior2(targetUnit, c_MalthaelReapersMark)) {
+            return false;
+        }
+    }
+
+    // We do not want this ability to cause lower difficulty cooldown handicap
+    libAIAI_gv_aIHeroes[player].lv_nextOffensiveSpellCheckTime = 0.0;
+    return HeroIssueOrder(player, aiUnit, abilOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool MalthaelWraithStrike (int player, unit aiUnit, unitgroup scanGroup) {
+    unit targetUnit;
+    order abilOrd;
+    order attackOrd;
+    Storm_AI_TargetQueryOptions query;
+
+    abilOrd = StormHeroAICreateOrder(player, c_AB_MalthaelWraithStrike, 0);
+    if (!UnitOrderIsValid(aiUnit, abilOrd)) {
+        return false;
+    }
+
+    // Check for enough Health to engage
+    if(UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_startOffensiveHealth) {
+        return false;
+    }
+
+    // Follow-up with an attack order
+    attackOrd = StormHeroAICreateOrder(player, c_Storm_AB_Attack, 0);
+    if (!UnitOrderIsValid(aiUnit, attackOrd)) {
+        return false;
+    }
+
+    // Find a target Hero
+    query.lv_minDistance = c_MalthaelWraithStrikeRangeMin;
+    query.lv_maxDistance = c_MalthaelWraithStrikeRangeMax;
+    if (PlayerHasTalent(player, c_MalthaelWraithStrikeDeathsReachTalent)) {
+        query.lv_maxDistance = c_MalthaelWraithStrikeDeathsReachRange;
+    }
+    query.lv_maxHealthPercent = libAIAI_gv_aIHeroMediumHealthPercent;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_ignoreTargetsBehindGate = true;
+    // Test a point behind the target to determine where Malthael lands
+    query.lv_projectedTargetDistance = c_MalthaelWraithStrikeProjectedTargetDistance;
+    targetUnit = FindBestHero(scanGroup, aiUnit, query);
+
+    // No Hero found, attempt to find a non-Heroic target
+    // Only use on non-heroes if Malthael has the AoE talent, to avoid spamming too often
+    if (!UnitIsValid(targetUnit) && PlayerHasTalent(player, c_MalthaelWraithStrikeMassacreTalent)) {
+        query.lv_maxHealthPercent = 0.0; // Reset because this no longer applies
+        query.lv_healthFactor = 0.0;
+        query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets; // Prefer not to jump too far
+        targetUnit = FindBestTacticalTarget(scanGroup, aiUnit, query);
+    }
+
+    if (!UnitIsValid(targetUnit)) { 
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, abilOrd, attackOrd, c_orderQueueReplace, targetUnit, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool MalthaelDeathShroud (int player, unit aiUnit, unitgroup scanGroup) {
+    unit targetUnit;
+    point targetPos;
+    order abilOrd;
+    fixed energy;
+    Storm_AI_TargetQueryOptions query;
+
+    abilOrd = StormHeroAICreateOrder(player, c_AB_MalthaelDeathShroud, 0);
+    if (!UnitOrderIsValid(aiUnit, abilOrd)) {
+        return false;
+    }
+
+    query.lv_maxDistance = c_MalthaelDeathShroudRange;
+    if (UnitHasBehavior(aiUnit, c_MalthaelDeathShroudThrowingShadeQuestCompleteBehavior) == true) {
+        query.lv_maxDistance = c_MalthaelDeathShroudThrowingShadeRange;
+    }
+    
+    // Find a target Hero
+    targetUnit = FindBestHero(scanGroup, aiUnit, query);
+
+    energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+
+    // No Hero found, attempt to find a non-Heroic target
+    if (!UnitIsValid(targetUnit) && energy > libAIAI_gv_aIHeroLowEnergyPercent) {
+        targetUnit = FindBestTacticalTarget(scanGroup, aiUnit, query);
+    }
+
+    if (!UnitIsValid(targetUnit)) { 
+        return false;
+    }
+
+    // Do not waste Death Shroud if the target already has Reaper's Mark
+    if (UnitHasBehavior2(targetUnit, c_MalthaelReapersMark)) {
+        return false;
+    }
+    
+    targetPos = UnitGetPosition(targetUnit);
+
+    if (!EnoughEnemiesInArea(scanGroup, targetPos, c_MalthaelDeathShroudUnitNearbyRadius, c_Storm_AI_AtLeast1Hero, c_Storm_AI_AtLeast1Creep, c_Storm_AI_AtLeast3Minions)) {
+        return false;
+    }
+    
+    return HeroIssueOrder(player, aiUnit, abilOrd, null, c_orderQueueAddToFront, targetUnit, targetPos);
+}
+
+//---------------------------------------------------------------------------------------------
+bool MalthaelTormentedSouls (int player, unit aiUnit, unitgroup scanGroup) {
+    unit targetUnit;
+    order abilOrd;
+    Storm_AI_TargetQueryOptions query;
+
+    abilOrd = StormHeroAICreateOrder(player, c_AB_MalthaelTormentedSouls, 0);
+    if (!UnitOrderIsValid(aiUnit, abilOrd)) {
+        return false;
+    }
+
+    // Only activate if being attacked
+    if (!HaveBeenAttackedRecently(aiUnit)) {
+        return false;
+    }
+
+    query.lv_maxDistance = c_MalthaelTormentedSoulsRadius;
+    targetUnit = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetUnit)) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, abilOrd, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool MalthaelLastRites (int player, unit aiUnit, unitgroup scanGroup) {
+    unit targetUnit;
+    order abilOrd;
+    Storm_AI_TargetQueryOptions query;
+
+    abilOrd = StormHeroAICreateOrder(player, c_AB_MalthaelLastRites, 0);
+    if (!UnitOrderIsValid(aiUnit, abilOrd)) {
+        return false;
+    }
+
+    query.lv_maxDistance = c_MalthaelLastRitesRange;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_maxHealthPercent = libAIAI_gv_aIHeroLowHealthPercent;
+
+    targetUnit = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetUnit)) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, abilOrd, null, c_orderQueueAddToFront, targetUnit, null);
+}
+
+//---------------------------------------------------------------------------------------------
+// Copied from UseItem because Malthael has a custom MalthaelStormInventory to get the "No One Can Stop Death" talent to work
+bool MalthaelUseItem (int player, unit aiUnit, unitgroup scanGroup, funcref<Storm_AI_CheckUseItem> callback) {
+    order ord;
+    unit invItem;
+    string itemType;
+    int itemIdx = 1;
+
+    if (UnitTestState(aiUnit, c_unitStateHallucination)) {
+        return false;
+    }
+
+    ord = StormHeroAICreateOrder(player, c_AB_MalthaelUseItem, c_abilInventoryCmdItemInstant);
+    while (itemIdx <= libCore_gv_bALPlayerActiveInventorySlots) {
+        invItem = UnitInventoryItem(aiUnit, itemIdx);
+        itemIdx = itemIdx + 1;
+
+        if (!UnitIsValid(invItem)) {
+            continue;
+        }
+
+        OrderSetTargetItem(ord, invItem);
+        if (!UnitOrderIsValid(aiUnit, ord)) {
+            continue;
+        }
+
+        itemType = UnitGetType(invItem);
+        if (callback(player, aiUnit, scanGroup, itemType, ord, null, null, null)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+bool MalthaelDefensiveItemCallback (int player, unit aiUnit, unitgroup scanGroup, string itemType, order ord, order ordTarget, order ordTogOn, order ordTogOff) {
+    unit targetUnit;
+    Storm_AI_TargetQueryOptions query;
+
+    // Fear The Reaper (Gain Movement Speed and pass through units)
+    if (itemType == c_MalthaelFearTheReaper) {
+        if (UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) > libAIAI_gv_aIHeroes[player].lv_returnToSpawnHealth) {
+            return false;
+        }
+        return HeroIssueOrder(player, aiUnit, ord, null, c_orderQueueAddToFront, null, null);
+    }
+
+    // InevitableEnd (Become Unstoppable but remove all active Marks of Death)
+    if (itemType == c_MalthaelInevitableEnd) {
+        if (!UnitHasDebuffThatCanBeCleansed(aiUnit)) {
+            return false;
+        }
+        return HeroIssueOrder(player, aiUnit, ord, null, c_orderQueueAddToFront, null, null);
+    }
+
+    // Shroud Of Wisdom (After a short time, reduce Ability damage)
+    if (itemType == c_MalthaelShroudOfWisdom) {
+        if(HaveBeenAttackedRecently(aiUnit) && (UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroHighHealthPercent)) {
+            return false;
+        }
+
+        // Find nearby heroes
+        query.lv_maxDistance = c_Storm_AI_DefaultTeamfightRange;
+        targetUnit = FindBestHero(scanGroup, aiUnit, query);
+        if (!UnitIsValid(targetUnit)) {
+            return false;
+        }
+
+        return HeroIssueOrder(player, aiUnit, ord, null, c_orderQueueAddToFront, null, null);
+    }
+
+    // No One Can Stop Death (Respawn immediately at the Altar)
+    if (itemType == c_MalthaelNoOneCanStopDeath) {
+        // Only use while dead
+        if(UnitIsAlive(aiUnit)) {
+            return false;
+        }
+        return HeroIssueOrder(player, aiUnit, ord, null, c_orderQueueAddToFront, null, null);
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+bool MalthaelOffensiveItemCallback (int player, unit aiUnit, unitgroup scanGroup, string itemType, order ord, order ordTarget, order ordTogOn, order ordTogOff) {
+    unit targetUnit;
+    Storm_AI_TargetQueryOptions query;
+
+    // Touch Of Death (Reduce healing received for Marked Heroes)
+    if (itemType == c_MalthaelTouchOfDeath) {
+        // Find nearby heroes
+        query.lv_maxDistance = c_Storm_AI_DefaultTeamfightRange;
+        query.lv_maxHealthPercent = libAIAI_gv_aIHeroMediumHealthPercent;
+        targetUnit = FindBestHero(scanGroup, aiUnit, query);
+        if (!UnitIsValid(targetUnit)) {
+            return false;
+        }
+        if (!UnitHasBehavior2(targetUnit, c_MalthaelReapersMark)) {
+            return false;
+        }
+
+        return HeroIssueOrder(player, aiUnit, ord, null, c_orderQueueAddToFront, null, null);
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+// Copied from HeroSkipTactical with additional Malthael Special Case
+bool MalthaelHeroSkipTactical (int player, unit aiUnit) {
+    abilcmd currentAbility;
+
+    // Check if this is a valid AI controlled hero. Only allowing this for players 1-10 so that
+    // all tactical functions don't have to worry about checking for players 11 and 12.
+    if (player <= 0 || player > libCore_gv_bALMaxPlayers || libAIAI_gf_HeroAIIsAIEnabledForPlayer(player) == false) {
+        return true;
+    }
+
+    // Special Hero
+    if (UnitTestState(aiUnit, c_unitStateHallucination)) {
+        // Abathur coppied hero
+        if (UnitHasBehavior(aiUnit, c_AbathurUltimateEvolutionControlBehavior)) {
+            abathurUltimateEvolutionUnit[player - 1] = aiUnit;
+            return false;
+        }
+
+        return true;
+    }
+    // Regular hero
+    else {
+        // No tactical if the AI in the triggers doesn't want us to
+        if (player <= libCore_gv_bALMaxPlayers) {
+            if (libAIAI_gf_HeroAIShouldSkipTactical(player) == true) {
+                return true;
+            }
+
+            // Only ignore spell casting delay for Defensive spells when there is a human ally on the team
+            if (libAIAI_gf_HeroAITeamHasHumanPlayers(libGame_gv_players[player].lv_faction) == false && libAIAI_gv_aIHeroes[player].lv_nextOffensiveSpellCheckTime > TimerGetElapsed(libGame_gv_gameTimer)) {
+                return true;
+            }
+        }
+
+        if ((UnitOrder(aiUnit, 0) != null)) {
+            currentAbility = OrderGetAbilityCommand(UnitOrder(aiUnit, 0));
+
+            // No tactical while hearthing
+            if (currentAbility == AbilityCommand("PortBackToBase", 0)) {
+                return true;
+            }
+
+            // No tactical while capturing a map mechanic
+            if (currentAbility == AbilityCommand("CaptureMacGuffin", 0) || currentAbility == AbilityCommand("CaptureMacGuffinTwo", 0)) {
+                return true;
+            }
+
+            // No tactical while capturing a map vehicle (e.g. Sylvanas couldn't enter because of a 3-second cooldown ability).
+            if (currentAbility == AbilityCommand("UseVehicle", 0)) {
+                return true;
+            }
+        }
+
+        // No tactical driving vehicle
+        if (UnitHasBehavior(aiUnit, "UsingVehicle") == true) {
+            return true;
+        }
+
+        // Skip if we're dead
+        if(UnitIsAlive(aiUnit) == false) {
+            // Malthael - Special case, do not skip so that we can use the ability while dead)
+            if (PlayerHasTalent(player, c_MalthaelNoOneCanStopDeath)) {
+                return false;
+            }
+            return true;
+        }
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+void AIThinkMalthael (int player, unit aiUnit, unitgroup scanGroup) {
+    if (MalthaelHeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (MalthaelUseItem(player, aiUnit, scanGroup, MalthaelDefensiveItemCallback)) {
+        return;
+    }
+
+    if (MalthaelSoulRip(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (MalthaelWraithStrike(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (MalthaelDeathShroud(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player)) {
+        if (MalthaelTormentedSouls(player, aiUnit, scanGroup)) {
+            return;
+        }
+
+        if (MalthaelLastRites(player, aiUnit, scanGroup)) {
+            return;
+        }
+    }
+
+    if (MalthaelUseItem(player, aiUnit, scanGroup, MalthaelOffensiveItemCallback)) {
+        return;
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+}

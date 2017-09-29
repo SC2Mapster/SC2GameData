@@ -1,0 +1,397 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/MapMechanicsLib"
+
+include "LibWJDA_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Warhead Junction Data (Mod)
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libWJDA_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+    libMapM_InitVariables();
+}
+
+// Variable Initialization
+bool libWJDA_InitVariables_completed = false;
+
+void libWJDA_InitVariables () {
+    if (libWJDA_InitVariables_completed) {
+        return;
+    }
+
+    libWJDA_InitVariables_completed = true;
+
+}
+
+// Functions
+void libWJDA_gf_MMSC2SpawnPodsDefenderLogic (int lp_maxTargets, unit lp_castingUnit) {
+    unitgroup autoF9BE5EC9_g;
+    int autoF9BE5EC9_u;
+    int autoA4ACEF3A_ae;
+    int autoA4ACEF3A_ai;
+    fixed autoDD090D24_ae;
+    fixed autoDD090D24_ai;
+    int auto2514CEF8_ae;
+    int auto2514CEF8_ai;
+
+    // Variable Declarations
+    int lv_campId;
+    point[libWJDA_gv_mMSC2SpawnPodsTargetTrackingArraySize_C + 1] lv_confirmedLocations;
+    point lv_proposedPoint;
+    int lv_numberofFoundTargets;
+    unitgroup lv_enemyHeroes;
+    int lv_itLocation;
+    unit lv_itUnit;
+    int lv_counter;
+    fixed[73] lv_safeAngles;
+    fixed lv_itAngle;
+    int lv_angleIndex;
+    int lv_numberOfAngles;
+
+    // Variable Initialization
+    lv_enemyHeroes = UnitGroupEmpty();
+
+    // Implementation
+    lv_campId = libMapM_gf_JungleGetJungleCampForUnit(lp_castingUnit);
+    if ((lv_campId <= 0)) {
+        return ;
+    }
+
+    lv_enemyHeroes = UnitGroupAlliance(UnitGetOwner(lp_castingUnit), c_unitAllianceEnemy, libMapM_gv_jungleCreepCamps[lv_campId].lv_mapDataDefenderLeashRegion, UnitFilter((1 << c_targetFilterHeroic) | (1 << c_targetFilterVisible), 0, (1 << c_targetFilterPlayer) | (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterImmuneToAOE) | (1 << c_targetFilterUser1) | (1 << c_targetFilterMissile) | (1 << c_targetFilterCloaked), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterInvulnerable - 32))), 0);
+    autoF9BE5EC9_g = lv_enemyHeroes;
+    autoF9BE5EC9_u = 1;
+    for ( ; autoF9BE5EC9_u <= UnitGroupCount(autoF9BE5EC9_g, c_unitCountAll) ; autoF9BE5EC9_u += (lv_itUnit == UnitGroupUnit(autoF9BE5EC9_g, autoF9BE5EC9_u)) ) {
+        lv_itUnit = UnitGroupUnit(autoF9BE5EC9_g, autoF9BE5EC9_u);
+        if ((lv_numberofFoundTargets >= lp_maxTargets)) {
+            break;
+        }
+
+        lv_proposedPoint = PointWithOffsetPolar(UnitGetPosition(lv_itUnit), 2.0, libNtve_gf_RandomAngle());
+        while ((DistanceBetweenPoints(UnitGetPosition(lp_castingUnit), lv_proposedPoint) <= libWJDA_gv_mMSC2SpawnPodsDefenderMinRange_C)) {
+            lv_proposedPoint = PointWithOffsetPolar(lv_proposedPoint, 0.1, AngleBetweenPoints(UnitGetPosition(lp_castingUnit), lv_proposedPoint));
+        }
+        while ((DistanceBetweenPoints(UnitGetPosition(lp_castingUnit), lv_proposedPoint) >= libWJDA_gv_mMSC2SpawnPodsDefenderMaxRange_C)) {
+            lv_proposedPoint = PointWithOffsetPolar(lv_proposedPoint, -0.1, AngleBetweenPoints(UnitGetPosition(lp_castingUnit), lv_proposedPoint));
+        }
+        autoA4ACEF3A_ae = lp_maxTargets;
+        autoA4ACEF3A_ai = 1;
+        lv_itLocation = 1;
+        for ( ; ( (autoA4ACEF3A_ai >= 0 && lv_itLocation <= autoA4ACEF3A_ae) || (autoA4ACEF3A_ai <= 0 && lv_itLocation >= autoA4ACEF3A_ae) ) ; lv_itLocation += autoA4ACEF3A_ai ) {
+            lv_counter += 1;
+            if ((lv_confirmedLocations[lv_itLocation] == null)) {
+                if ((PointPathingPassable(lv_proposedPoint) == true) && (RegionContainsPoint(libMapM_gv_jungleCreepCamps[lv_campId].lv_mapDataDefenderLeashRegion, lv_proposedPoint) == true)) {
+                    lv_confirmedLocations[lv_itLocation] = lv_proposedPoint;
+                    lv_numberofFoundTargets += 1;
+                }
+
+                break;
+            }
+
+            if ((DistanceBetweenPoints(lv_proposedPoint, lv_confirmedLocations[lv_itLocation]) < libWJDA_gv_mMSC2SpawnPodsDefenderMinDistanceApart_C)) {
+                break;
+            }
+
+        }
+    }
+    if ((lv_numberofFoundTargets < lp_maxTargets)) {
+        autoDD090D24_ae = 360.0;
+        autoDD090D24_ai = 5.0;
+        lv_itAngle = 0.0;
+        for ( ; ( (autoDD090D24_ai >= 0 && lv_itAngle <= autoDD090D24_ae) || (autoDD090D24_ai <= 0 && lv_itAngle >= autoDD090D24_ae) ) ; lv_itAngle += autoDD090D24_ai ) {
+            lv_proposedPoint = PointWithOffsetPolar(UnitGetPosition(lp_castingUnit), libWJDA_gv_mMSC2SpawnPodsDefenderMinRange_C, lv_itAngle);
+            if ((PointPathingPassable(lv_proposedPoint) == true) && (RegionContainsPoint(libMapM_gv_jungleCreepCamps[lv_campId].lv_mapDataDefenderLeashRegion, lv_proposedPoint) == true) && (lv_numberOfAngles < 72)) {
+                lv_numberOfAngles += 1;
+                lv_safeAngles[lv_numberOfAngles] = lv_itAngle;
+            }
+
+        }
+    }
+
+    while ((lv_numberofFoundTargets < lp_maxTargets)) {
+        lv_angleIndex = RandomInt(1, lv_numberOfAngles);
+        lv_itAngle = lv_safeAngles[lv_angleIndex];
+        lv_proposedPoint = PointWithOffsetPolar(UnitGetPosition(lp_castingUnit), RandomFixed(libWJDA_gv_mMSC2SpawnPodsDefenderMinRange_C, libWJDA_gv_mMSC2SpawnPodsDefenderMaxRange_C), lv_itAngle);
+        auto2514CEF8_ae = lp_maxTargets;
+        auto2514CEF8_ai = 1;
+        lv_itLocation = 1;
+        for ( ; ( (auto2514CEF8_ai >= 0 && lv_itLocation <= auto2514CEF8_ae) || (auto2514CEF8_ai <= 0 && lv_itLocation >= auto2514CEF8_ae) ) ; lv_itLocation += auto2514CEF8_ai ) {
+            lv_counter += 1;
+            if ((lv_confirmedLocations[lv_itLocation] == null)) {
+                if ((PointPathingPassable(lv_proposedPoint) == true) && (RegionContainsPoint(libMapM_gv_jungleCreepCamps[lv_campId].lv_mapDataDefenderLeashRegion, lv_proposedPoint) == true)) {
+                    lv_confirmedLocations[lv_itLocation] = lv_proposedPoint;
+                    lv_numberofFoundTargets += 1;
+                    lv_safeAngles[lv_angleIndex] = lv_safeAngles[lv_numberOfAngles];
+                    lv_numberOfAngles -= 1;
+                }
+
+                break;
+            }
+
+            if ((DistanceBetweenPoints(lv_proposedPoint, lv_confirmedLocations[lv_itLocation]) < libWJDA_gv_mMSC2SpawnPodsDefenderMinDistanceApart_C)) {
+                break;
+            }
+
+        }
+    }
+    if ((UnitIsAlive(lp_castingUnit) == true)) {
+        UnitCreateEffectPoint(lp_castingUnit, "SlimeBossSpawnPodsLaunch1CreatePersistent", lv_confirmedLocations[1]);
+        UnitCreateEffectPoint(lp_castingUnit, "SlimeBossSpawnPodsLaunch2CreatePersistent", lv_confirmedLocations[2]);
+        UnitCreateEffectPoint(lp_castingUnit, "SlimeBossSpawnPodsLaunch3CreatePersistent", lv_confirmedLocations[3]);
+        UnitCreateEffectPoint(lp_castingUnit, "SlimeBossSpawnPodsLaunch4CreatePersistent", lv_confirmedLocations[4]);
+        UnitCreateEffectPoint(lp_castingUnit, "SlimeBossSpawnPodsLaunch5CreatePersistent", lv_confirmedLocations[5]);
+        UnitCreateEffectPoint(lp_castingUnit, "SlimeBossSpawnPodsLaunch6CreatePersistent", lv_confirmedLocations[6]);
+    }
+
+}
+
+void libWJDA_gf_MMSC2SpawnPodsLanerLogic (int lp_maxTargets, unit lp_castingUnit) {
+    unitgroup auto8C4CF58C_g;
+    int auto8C4CF58C_u;
+    int autoB2725CDA_ae;
+    int autoB2725CDA_ai;
+    int autoFD79B575_ae;
+    int autoFD79B575_ai;
+
+    // Variable Declarations
+    point[libWJDA_gv_mMSC2SpawnPodsTargetTrackingArraySize_C + 1] lv_confirmedLocations;
+    point lv_proposedPoint;
+    int lv_numberofFoundTargets;
+    unitgroup lv_enemyHeroes;
+    int lv_itLocation;
+    unit lv_itUnit;
+
+    // Variable Initialization
+    lv_enemyHeroes = UnitGroupEmpty();
+
+    // Implementation
+    lv_enemyHeroes = UnitGroupAlliance(UnitGetOwner(lp_castingUnit), c_unitAllianceEnemy, RegionCircle(UnitGetPosition(lp_castingUnit), libWJDA_gv_mMSC2SpawnPodsLanerMaxSearchRange_C), UnitFilter((1 << c_targetFilterHeroic) | (1 << c_targetFilterVisible), 0, (1 << c_targetFilterPlayer) | (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterImmuneToAOE) | (1 << c_targetFilterUser1) | (1 << c_targetFilterMissile) | (1 << c_targetFilterCloaked), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterInvulnerable - 32))), 0);
+    auto8C4CF58C_g = lv_enemyHeroes;
+    auto8C4CF58C_u = 1;
+    for ( ; auto8C4CF58C_u <= UnitGroupCount(auto8C4CF58C_g, c_unitCountAll) ; auto8C4CF58C_u += (lv_itUnit == UnitGroupUnit(auto8C4CF58C_g, auto8C4CF58C_u)) ) {
+        lv_itUnit = UnitGroupUnit(auto8C4CF58C_g, auto8C4CF58C_u);
+        if ((lv_numberofFoundTargets >= lp_maxTargets)) {
+            break;
+        }
+
+        lv_proposedPoint = PointWithOffsetPolar(UnitGetPosition(lv_itUnit), 2.0, libNtve_gf_RandomAngle());
+        while ((DistanceBetweenPoints(UnitGetPosition(lp_castingUnit), lv_proposedPoint) <= libWJDA_gv_mMSC2SpawnPodsLanerMinRange_C)) {
+            lv_proposedPoint = PointWithOffsetPolar(lv_proposedPoint, 0.1, AngleBetweenPoints(UnitGetPosition(lp_castingUnit), lv_proposedPoint));
+        }
+        while ((DistanceBetweenPoints(UnitGetPosition(lp_castingUnit), lv_proposedPoint) >= libWJDA_gv_mMSC2SpawnPodsLanerMaxRange_C)) {
+            lv_proposedPoint = PointWithOffsetPolar(lv_proposedPoint, -0.1, AngleBetweenPoints(UnitGetPosition(lp_castingUnit), lv_proposedPoint));
+        }
+        autoB2725CDA_ae = lp_maxTargets;
+        autoB2725CDA_ai = 1;
+        lv_itLocation = 1;
+        for ( ; ( (autoB2725CDA_ai >= 0 && lv_itLocation <= autoB2725CDA_ae) || (autoB2725CDA_ai <= 0 && lv_itLocation >= autoB2725CDA_ae) ) ; lv_itLocation += autoB2725CDA_ai ) {
+            if ((lv_confirmedLocations[lv_itLocation] == null)) {
+                if ((PointPathingPassable(lv_proposedPoint) == true)) {
+                    lv_confirmedLocations[lv_itLocation] = lv_proposedPoint;
+                    lv_numberofFoundTargets += 1;
+                }
+
+                break;
+            }
+
+            if ((DistanceBetweenPoints(lv_proposedPoint, lv_confirmedLocations[lv_itLocation]) < libWJDA_gv_mMSC2SpawnPodsLanerMinDistanceApart_C)) {
+                break;
+            }
+
+        }
+    }
+    while ((lv_numberofFoundTargets < lp_maxTargets)) {
+        lv_proposedPoint = PointWithOffsetPolar(UnitGetPosition(lp_castingUnit), RandomFixed(libWJDA_gv_mMSC2SpawnPodsLanerMinRange_C, libWJDA_gv_mMSC2SpawnPodsLanerMaxRange_C), libNtve_gf_RandomAngle());
+        autoFD79B575_ae = lp_maxTargets;
+        autoFD79B575_ai = 1;
+        lv_itLocation = 1;
+        for ( ; ( (autoFD79B575_ai >= 0 && lv_itLocation <= autoFD79B575_ae) || (autoFD79B575_ai <= 0 && lv_itLocation >= autoFD79B575_ae) ) ; lv_itLocation += autoFD79B575_ai ) {
+            if ((lv_confirmedLocations[lv_itLocation] == null)) {
+                if ((PointPathingPassable(lv_proposedPoint) == true)) {
+                    lv_confirmedLocations[lv_itLocation] = lv_proposedPoint;
+                    lv_numberofFoundTargets += 1;
+                }
+
+                break;
+            }
+
+            if ((DistanceBetweenPoints(lv_proposedPoint, lv_confirmedLocations[lv_itLocation]) < libWJDA_gv_mMSC2SpawnPodsLanerMinDistanceApart_C)) {
+                break;
+            }
+
+        }
+    }
+    if ((UnitIsAlive(lp_castingUnit) == true)) {
+        UnitCreateEffectPoint(lp_castingUnit, "SlimeBossSpawnPodsLaunch1CreatePersistent", lv_confirmedLocations[1]);
+        UnitCreateEffectPoint(lp_castingUnit, "SlimeBossSpawnPodsLaunch2CreatePersistent", lv_confirmedLocations[2]);
+        UnitCreateEffectPoint(lp_castingUnit, "SlimeBossSpawnPodsLaunch3CreatePersistent", lv_confirmedLocations[3]);
+        UnitCreateEffectPoint(lp_castingUnit, "SlimeBossSpawnPodsLaunch4CreatePersistent", lv_confirmedLocations[4]);
+    }
+
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: #Include Warhead Junction Data
+//--------------------------------------------------------------------------------------------------
+bool libWJDA_gt_IncludeWarheadJunctionData_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerExecute(libWJDA_gt_MMSC2InitSlimeBossMercCampData, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libWJDA_gt_IncludeWarheadJunctionData_Init () {
+    libWJDA_gt_IncludeWarheadJunctionData = TriggerCreate("libWJDA_gt_IncludeWarheadJunctionData_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMSC2 Init Slime Boss Merc Camp Data
+//--------------------------------------------------------------------------------------------------
+bool libWJDA_gt_MMSC2InitSlimeBossMercCampData_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itUnit;
+    int lv_campType;
+
+    // Variable Initialization
+    lv_itUnit = 1;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_campType = (libMapM_ge_JungleCampDefenderTypes_BossCamp1);
+    libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_campIsSoloable = true;
+    libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_defendersCoweronDeath = false;
+    libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_initialSpawnDelay = 180.0;
+    libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_respawnTime = 300.0;
+    libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_numberOfCreeps = 1;
+    libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_creepUnitTypes[1] = "SlimeBossDefender";
+    libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_xPAwardForCapture = libWJDA_gv_data_XP_SlimeBossCapture_C;
+    libMapM_gv_dataJungleCampMercData[lv_campType].lv_numberOfMinionsSpawned = 1;
+    libMapM_gv_dataJungleCampMercData[lv_campType].lv_spawnedMinionUnitTypes[1] = "SlimeBossLaner";
+    libMapM_gf_DataInitializeScalingDataForDefender(libMapM_ge_JungleCampDefenderTypes_BossCamp1, "SlimeBossDefenderScaling");
+    libMapM_gf_DataInitializeScalingDataForMerc(libMapM_ge_JungleCampMercTypes_BossCamp1, "SlimeBossLanerScaling");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libWJDA_gt_MMSC2InitSlimeBossMercCampData_Init () {
+    libWJDA_gt_MMSC2InitSlimeBossMercCampData = TriggerCreate("libWJDA_gt_MMSC2InitSlimeBossMercCampData_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMSC2 Spawn Pods Spawned
+//--------------------------------------------------------------------------------------------------
+bool libWJDA_gt_MMSC2SpawnPodsSpawned_Func (bool testConds, bool runActions) {
+    int autoB00ED7DC_ae;
+    int autoB00ED7DC_ai;
+
+    // Variable Declarations
+    int lv_itCamp;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!(((UnitGetType(EventUnitCreatedUnit()) == "SlimeBossPodlingDefender") || (UnitGetType(EventUnitCreatedUnit()) == "SlimeBossPodlingLaner")))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGame_gf_UpdateScalingForUnit(EventUnitCreatedUnit(), libGame_gv_scalingTicks, 0);
+    if ((UnitGetType(EventUnitCreatedUnit()) == "SlimeBossPodlingDefender")) {
+        autoB00ED7DC_ae = libMapM_gv_jungleNumberOfCreepCamps;
+        autoB00ED7DC_ai = 1;
+        lv_itCamp = 1;
+        for ( ; ( (autoB00ED7DC_ai >= 0 && lv_itCamp <= autoB00ED7DC_ae) || (autoB00ED7DC_ai <= 0 && lv_itCamp >= autoB00ED7DC_ae) ) ; lv_itCamp += autoB00ED7DC_ai ) {
+            if ((libNtve_gf_UnitInRegion(EventUnitCreatedUnit(), libMapM_gv_jungleCreepCamps[lv_itCamp].lv_mapDataDefenderLeashRegion) == true)) {
+                break;
+            }
+
+        }
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libWJDA_gt_MMSC2SpawnPodsSpawned_Init () {
+    libWJDA_gt_MMSC2SpawnPodsSpawned = TriggerCreate("libWJDA_gt_MMSC2SpawnPodsSpawned_Func");
+    TriggerAddEventUnitCreated(libWJDA_gt_MMSC2SpawnPodsSpawned, null, null, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMSC2 Spawn Pods Used
+//--------------------------------------------------------------------------------------------------
+bool libWJDA_gt_MMSC2SpawnPodsUsed_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    point lv_randomPoint;
+    int lv_bossFacing;
+
+    // Variable Initialization
+    lv_bossFacing = libCore_ge_TransmissionCueSoundOptions_DefaultCueSoundBehavior;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitIsAlive(EventPlayerEffectUsedUnit(c_effectUnitCaster)) == true)) {
+        if ((UnitGetType(EventPlayerEffectUsedUnit(c_effectUnitCaster)) == "SlimeBossLaner")) {
+            libWJDA_gf_MMSC2SpawnPodsLanerLogic(libWJDA_gv_mMSC2SpawnPodsLanerTargetMax_C, EventPlayerEffectUsedUnit(c_effectUnitCaster));
+        }
+
+        if ((UnitGetType(EventPlayerEffectUsedUnit(c_effectUnitCaster)) == "SlimeBossDefender")) {
+            libWJDA_gf_MMSC2SpawnPodsDefenderLogic(libWJDA_gv_mMSC2SpawnPodsDefenderTargetMax_C, EventPlayerEffectUsedUnit(c_effectUnitCaster));
+        }
+
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libWJDA_gt_MMSC2SpawnPodsUsed_Init () {
+    libWJDA_gt_MMSC2SpawnPodsUsed = TriggerCreate("libWJDA_gt_MMSC2SpawnPodsUsed_Func");
+    TriggerAddEventPlayerEffectUsed(libWJDA_gt_MMSC2SpawnPodsUsed, c_playerAny, "SlimeBossSpawnPodsTriggerDummySet");
+}
+
+void libWJDA_InitTriggers () {
+    libWJDA_gt_IncludeWarheadJunctionData_Init();
+    libWJDA_gt_MMSC2InitSlimeBossMercCampData_Init();
+    libWJDA_gt_MMSC2SpawnPodsSpawned_Init();
+    libWJDA_gt_MMSC2SpawnPodsUsed_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libWJDA_InitLib_completed = false;
+
+void libWJDA_InitLib () {
+    if (libWJDA_InitLib_completed) {
+        return;
+    }
+
+    libWJDA_InitLib_completed = true;
+
+    libWJDA_InitLibraries();
+    libWJDA_InitVariables();
+    libWJDA_InitTriggers();
+}
+

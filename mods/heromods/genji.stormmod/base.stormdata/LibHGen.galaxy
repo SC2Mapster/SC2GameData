@@ -1,0 +1,808 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/AILib"
+
+include "LibHGen_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Genji
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libHGen_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+    libAIAI_InitVariables();
+}
+
+// Variable Initialization
+bool libHGen_InitVariables_completed = false;
+
+void libHGen_InitVariables () {
+    if (libHGen_InitVariables_completed) {
+        return;
+    }
+
+    libHGen_InitVariables_completed = true;
+
+    libHGen_gv_heroGenjiDeflectDamageTakenLifetimeScore = "GenericHeroRealScoreValue1";
+    libHGen_gv_heroGenjiDeflectDragonClawDamageAbsorbedScore = "GenericHeroRealScoreValue2";
+}
+
+// Custom Script
+//--------------------------------------------------------------------------------------------------
+// Custom Script: #Include Genji Tactical AI
+//--------------------------------------------------------------------------------------------------
+include "StormTactical.galaxy"
+include "GenjiTactical.galaxy"
+
+void libHGen_InitCustomScript () {
+}
+
+// Functions
+void libHGen_gf_HeroGenjiIncrementHeroCountFunction () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHGen_gv_heroGenjiTriggerRegistrationVariable += 1;
+    if ((libHGen_gv_heroGenjiTriggerRegistrationVariable == 1)) {
+        TriggerEnable(libHGen_gt_HeroGenjiCyberAgilityAgileDismountInitial, true);
+        TriggerEnable(libHGen_gt_HeroGenjiCyberAgilityAgileDismountRespec, true);
+        TriggerEnable(libHGen_gt_HeroGenjiCyberAgilityAgileDismountOff, true);
+        TriggerEnable(libHGen_gt_HeroGenjiCyberAgilityAgileDismountOn, true);
+        TriggerEnable(libHGen_gt_HeroGenjiDeflectDragonClawUsed, true);
+        TriggerEnable(libHGen_gt_HeroGenjiDeflectAbsorbDamage, true);
+        TriggerEnable(libHGen_gt_HeroGenjiDeflectActivated, true);
+        TriggerEnable(libHGen_gt_HeroGenjiDeflectEnd, true);
+        TriggerEnable(libHGen_gt_HeroGenjiDeflectMissileImpact, true);
+        TriggerEnable(libHGen_gt_HeroGenjiDeflectMissileLauncher, true);
+        TriggerEnable(libHGen_gt_HeroGenjiDragonbladeExtendDuration, true);
+        TriggerEnable(libHGen_gt_HeroGenjiSwiftStrike, true);
+        TriggerEnable(libHGen_gt_HeroGenjiDeflectZanshinInitial, true);
+        TriggerEnable(libHGen_gt_Hero, true);
+        TriggerEnable(libHGen_gt_DEBUGHeroGenjiDeflectDragonClawActivateCheat, true);
+    }
+
+}
+
+void libHGen_gf_HeroGenjiDecrementHeroCountFunction () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHGen_gv_heroGenjiTriggerRegistrationVariable -= 1;
+    if ((libHGen_gv_heroGenjiTriggerRegistrationVariable < 0)) {
+        libHGen_gv_heroGenjiTriggerRegistrationVariable = 0;
+    }
+
+    if ((libHGen_gv_heroGenjiTriggerRegistrationVariable == 0)) {
+        TriggerEnable(libHGen_gt_HeroGenjiCyberAgilityAgileDismountInitial, false);
+        TriggerEnable(libHGen_gt_HeroGenjiCyberAgilityAgileDismountRespec, false);
+        TriggerEnable(libHGen_gt_HeroGenjiCyberAgilityAgileDismountOff, false);
+        TriggerEnable(libHGen_gt_HeroGenjiCyberAgilityAgileDismountOn, false);
+        TriggerEnable(libHGen_gt_HeroGenjiDeflectDragonClawUsed, false);
+        TriggerEnable(libHGen_gt_HeroGenjiDeflectAbsorbDamage, false);
+        TriggerEnable(libHGen_gt_HeroGenjiDeflectActivated, false);
+        TriggerEnable(libHGen_gt_HeroGenjiDeflectEnd, false);
+        TriggerEnable(libHGen_gt_HeroGenjiDeflectMissileImpact, false);
+        TriggerEnable(libHGen_gt_HeroGenjiDeflectMissileLauncher, false);
+        TriggerEnable(libHGen_gt_HeroGenjiDragonbladeExtendDuration, false);
+        TriggerEnable(libHGen_gt_HeroGenjiSwiftStrike, false);
+        TriggerEnable(libHGen_gt_HeroGenjiDeflectZanshinInitial, false);
+        TriggerEnable(libHGen_gt_Hero, false);
+        TriggerEnable(libHGen_gt_DEBUGHeroGenjiDeflectDragonClawActivateCheat, false);
+    }
+
+}
+
+void libHGen_gf_HeroGenjiDeflectDamageTaken (unit lp_genjiUnit, int lp_genjiPlayer, fixed lp_incomingDamage) {
+    // Automatic Variable Declarations
+    // Implementation
+    libHGen_gv_heroGenjiDeflectDamageTaken[lp_genjiPlayer] = (libHGen_gv_heroGenjiDeflectDamageTaken[lp_genjiPlayer] + lp_incomingDamage);
+    libHGen_gf_HeroGenjiDeflectDragonClawDamageTracker(lp_genjiUnit, lp_genjiPlayer, lp_incomingDamage);
+    libHGen_gf_HeroGenjiDeflectZanshinDamageTracker(lp_genjiUnit, lp_genjiPlayer, lp_incomingDamage);
+}
+
+void libHGen_gf_HeroGenjiDeflectDragonClawDamageTracker (unit lp_genjiUnit, int lp_genjiPlayer, fixed lp_incomingDamage) {
+    // Variable Declarations
+    fixed lv_damageThreshold;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_damageThreshold = CatalogFieldValueGetAsFixed(c_gameCatalogBehavior, "GenjiDeflectDragonClawDamageValue", "DamageResponse.ModifyLimit", lp_genjiPlayer);
+
+    // Implementation
+    if ((PlayerHasTalent(lp_genjiPlayer, "GenjiDeflectDragonClaw") == true) && (UnitHasBehavior2(lp_genjiUnit, "GenjiDeflectDragonClawActive") == false)) {
+        PlayerScoreValueSetFromFixed(lp_genjiPlayer, libHGen_gv_heroGenjiDeflectDragonClawDamageAbsorbedScore, MinF((PlayerScoreValueGetAsFixed(lp_genjiPlayer, libHGen_gv_heroGenjiDeflectDragonClawDamageAbsorbedScore) + lp_incomingDamage), lv_damageThreshold));
+        if ((PlayerScoreValueGetAsFixed(lp_genjiPlayer, libHGen_gv_heroGenjiDeflectDragonClawDamageAbsorbedScore) >= lv_damageThreshold)) {
+            UnitCreateEffectUnit(lp_genjiUnit, "GenjiDeflectDragonClawActiveApplyBehavior", lp_genjiUnit);
+        }
+
+    }
+
+}
+
+void libHGen_gf_HeroGenjiDeflectZanshinDamageTracker (unit lp_genjiUnit, int lp_genjiPlayer, fixed lp_incomingDamage) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((PlayerHasTalent(lp_genjiPlayer, "GenjiDeflectZanshin") == true) && (libHGen_gv_heroGenjiDeflectZanshinActivated[lp_genjiPlayer] == false)) {
+        CatalogFieldValueSetFixed(c_gameCatalogEffect, "GenjiDeflectZanshinIncrementToken", "Value", lp_genjiPlayer, lp_incomingDamage);
+        UnitCreateEffectUnit(lp_genjiUnit, "GenjiDeflectZanshinIncrementToken", lp_genjiUnit);
+    }
+
+    PlayerScoreValueSetFromFixed(lp_genjiPlayer, libHGen_gv_heroGenjiDeflectDamageTakenLifetimeScore, (PlayerScoreValueGetAsFixed(lp_genjiPlayer, libHGen_gv_heroGenjiDeflectDamageTakenLifetimeScore) + lp_incomingDamage));
+    if ((PlayerHasTalent(lp_genjiPlayer, "GenjiDeflectZanshin") == true) && (PlayerScoreValueGetAsFixed(lp_genjiPlayer, libHGen_gv_heroGenjiDeflectDamageTakenLifetimeScore) >= libHGen_gv_heroGenjiDeflectZanshinDamageRequirement) && (libHGen_gv_heroGenjiDeflectZanshinActivated[lp_genjiPlayer] == false)) {
+        UnitCreateEffectUnit(lp_genjiUnit, "GenjiDeflectZanshinModifySearch", lp_genjiUnit);
+        libHGen_gv_heroGenjiDeflectZanshinActivated[lp_genjiPlayer] = true;
+    }
+
+}
+
+void libHGen_gf_HeroGenjiDeflectAugmentedGuard (unit lp_genjiUnit, int lp_genjiPlayer) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((PlayerHasTalent(lp_genjiPlayer, "GenjiDeflectAugmentedGuard") == true) && (libHGen_gv_heroGenjiDeflectDamageTaken[lp_genjiPlayer] > 0.0)) {
+        CatalogFieldValueSetFixed(c_gameCatalogBehavior, "GenjiDeflectAugmentedGuard", "DamageResponse.ModifyLimit", lp_genjiPlayer, (libHGen_gv_heroGenjiDeflectDamageTaken[lp_genjiPlayer] * libHGen_gv_heroGenjiDeflectAugmentedGuardShieldPercent));
+        UnitCreateEffectUnit(lp_genjiUnit, "GenjiDeflectAugmentedGuardApplyBehavior", lp_genjiUnit);
+    }
+
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Misc Mod Initialization
+//--------------------------------------------------------------------------------------------------
+bool libHGen_gt_HeroAIMiscModInitialization_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_HeroAIInitializeHeroTierData, libHGen_gt_HeroAIAddToTierDataGenji);
+    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_HeroAIInitAbilities, libHGen_gt_HeroAIInitAbilitiesGenji);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHGen_gt_HeroAIMiscModInitialization_Init () {
+    libHGen_gt_HeroAIMiscModInitialization = TriggerCreate("libHGen_gt_HeroAIMiscModInitialization_Func");
+    TriggerAddEventMapInit(libHGen_gt_HeroAIMiscModInitialization);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Add To Tier Data - Genji
+//--------------------------------------------------------------------------------------------------
+bool libHGen_gt_HeroAIAddToTierDataGenji_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libAIAI_gf_HeroAIAddHeroToTierData(libAIAI_ge_HeroAIHeroTiers_TierHigh, "Genji");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHGen_gt_HeroAIAddToTierDataGenji_Init () {
+    libHGen_gt_HeroAIAddToTierDataGenji = TriggerCreate("libHGen_gt_HeroAIAddToTierDataGenji_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Init Abilities - Genji
+//--------------------------------------------------------------------------------------------------
+bool libHGen_gt_HeroAIInitAbilitiesGenji_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitGetType(libCore_gv_segTriggerUnit) == "HeroGenji")) {
+        libAIAI_gv_heroAIInitAbilitesHeroFound = true;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_hasTactical = true;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_hasMount = true;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_teleportAbility = AbilityCommand("GenjiCyberAgility", 0);
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[0] = AbilityCommand("GenjiShuriken", 0);
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[0] = libAIAI_ge_HeroAISpellType_PointEnemy;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[0] = 11.0;
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[1] = AbilityCommand("GenjiDeflectInstant", 0);
+        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[1] = libAIAI_ge_HeroAISpellType_SelfBuff;
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHGen_gt_HeroAIInitAbilitiesGenji_Init () {
+    libHGen_gt_HeroAIInitAbilitiesGenji = TriggerCreate("libHGen_gt_HeroAIInitAbilitiesGenji_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Genji - Cyber Agility - Agile Dismount Initial
+//--------------------------------------------------------------------------------------------------
+bool libHGen_gt_HeroGenjiCyberAgilityAgileDismountInitial_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_genjiPlayer;
+    unit lv_genjiUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_genjiPlayer = libGame_gf_HeroGainTalentPlayer();
+    lv_genjiUnit = libGame_gv_players[lv_genjiPlayer].lv_heroUnit;
+
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gf_HeroGainTalentGainedTalent() == "GenjiCyberAgilityAgileDismount"))) {
+            return false;
+        }
+
+        if (!((UnitHasBehavior2(lv_genjiUnit, "Mounted") == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(lv_genjiUnit, "GenjiCyberAgilityAgileDismountIncreaseRange", lv_genjiUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHGen_gt_HeroGenjiCyberAgilityAgileDismountInitial_Init () {
+    libHGen_gt_HeroGenjiCyberAgilityAgileDismountInitial = TriggerCreate("libHGen_gt_HeroGenjiCyberAgilityAgileDismountInitial_Func");
+    TriggerEnable(libHGen_gt_HeroGenjiCyberAgilityAgileDismountInitial, false);
+    libGame_gf_HeroGainTalent(libHGen_gt_HeroGenjiCyberAgilityAgileDismountInitial);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Genji - Cyber Agility - Agile Dismount Respec
+//--------------------------------------------------------------------------------------------------
+bool libHGen_gt_HeroGenjiCyberAgilityAgileDismountRespec_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_genjiPlayer;
+    unit lv_genjiUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_genjiPlayer = libGame_gf_HeroRespecsTalentsPlayer();
+    lv_genjiUnit = libGame_gv_players[lv_genjiPlayer].lv_heroUnit;
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(lv_genjiUnit) == "HeroGenji"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(lv_genjiUnit, "GenjiCyberAgilityAgileDismountDecreaseRange", lv_genjiUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHGen_gt_HeroGenjiCyberAgilityAgileDismountRespec_Init () {
+    libHGen_gt_HeroGenjiCyberAgilityAgileDismountRespec = TriggerCreate("libHGen_gt_HeroGenjiCyberAgilityAgileDismountRespec_Func");
+    TriggerEnable(libHGen_gt_HeroGenjiCyberAgilityAgileDismountRespec, false);
+    libGame_gf_HeroRespecsTalents(libHGen_gt_HeroGenjiCyberAgilityAgileDismountRespec);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Genji - Cyber Agility - Agile Dismount On
+//--------------------------------------------------------------------------------------------------
+bool libHGen_gt_HeroGenjiCyberAgilityAgileDismountOn_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_genjiUnit;
+    int lv_genjiPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_genjiUnit = EventUnit();
+    lv_genjiPlayer = UnitGetOwner(lv_genjiUnit);
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(lv_genjiUnit) == "HeroGenji"))) {
+            return false;
+        }
+
+        if (!((PlayerHasTalent(lv_genjiPlayer, "GenjiCyberAgilityAgileDismount") == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(lv_genjiUnit, "GenjiCyberAgilityAgileDismountIncreaseRange", lv_genjiUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHGen_gt_HeroGenjiCyberAgilityAgileDismountOn_Init () {
+    libHGen_gt_HeroGenjiCyberAgilityAgileDismountOn = TriggerCreate("libHGen_gt_HeroGenjiCyberAgilityAgileDismountOn_Func");
+    TriggerEnable(libHGen_gt_HeroGenjiCyberAgilityAgileDismountOn, false);
+    TriggerAddEventUnitBehaviorChange(libHGen_gt_HeroGenjiCyberAgilityAgileDismountOn, null, "Mounted", c_unitBehaviorChangeCreate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Genji - Cyber Agility - Agile Dismount Off
+//--------------------------------------------------------------------------------------------------
+bool libHGen_gt_HeroGenjiCyberAgilityAgileDismountOff_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_genjiUnit;
+    int lv_genjiPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_genjiUnit = EventUnit();
+    lv_genjiPlayer = UnitGetOwner(lv_genjiUnit);
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(lv_genjiUnit) == "HeroGenji"))) {
+            return false;
+        }
+
+        if (!((PlayerHasTalent(lv_genjiPlayer, "GenjiCyberAgilityAgileDismount") == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(lv_genjiUnit, "GenjiCyberAgilityAgileDismountDecreaseRange", lv_genjiUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHGen_gt_HeroGenjiCyberAgilityAgileDismountOff_Init () {
+    libHGen_gt_HeroGenjiCyberAgilityAgileDismountOff = TriggerCreate("libHGen_gt_HeroGenjiCyberAgilityAgileDismountOff_Func");
+    TriggerEnable(libHGen_gt_HeroGenjiCyberAgilityAgileDismountOff, false);
+    TriggerAddEventUnitBehaviorChange(libHGen_gt_HeroGenjiCyberAgilityAgileDismountOff, null, "Mounted", c_unitBehaviorChangeDestroy);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Genji - Deflect Activated
+//--------------------------------------------------------------------------------------------------
+bool libHGen_gt_HeroGenjiDeflectActivated_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_genjiUnit;
+    int lv_genjiPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_genjiUnit = EventUnit();
+    lv_genjiPlayer = UnitGetOwner(lv_genjiUnit);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libHGen_gv_heroGenjiDeflectDamageTaken[lv_genjiPlayer] = 0.0;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHGen_gt_HeroGenjiDeflectActivated_Init () {
+    libHGen_gt_HeroGenjiDeflectActivated = TriggerCreate("libHGen_gt_HeroGenjiDeflectActivated_Func");
+    TriggerEnable(libHGen_gt_HeroGenjiDeflectActivated, false);
+    TriggerAddEventUnitBehaviorChange(libHGen_gt_HeroGenjiDeflectActivated, null, "GenjiDeflect", c_unitBehaviorChangeIncrease);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Genji - Deflect Missile Launcher
+//--------------------------------------------------------------------------------------------------
+bool libHGen_gt_HeroGenjiDeflectMissileLauncher_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_genjiUnit;
+    int lv_genjiPlayer;
+    fixed lv_incomingDamage;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_genjiUnit = EventUnit();
+    lv_genjiPlayer = UnitGetOwner(lv_genjiUnit);
+    lv_incomingDamage = EventUnitDamageAbsorbed();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libHGen_gf_HeroGenjiDeflectDamageTaken(lv_genjiUnit, lv_genjiPlayer, lv_incomingDamage);
+    CatalogFieldValueSetFixed(c_gameCatalogEffect, "GenjiDeflectReflectApplyTokenCount", "Value", EventPlayer(), lv_incomingDamage);
+    UnitCreateEffectPointWithSource(lv_genjiUnit, "GenjiDeflectSearchSwitch", UnitGetPosition(lv_genjiUnit), c_gameCatalogAbil, "GenjiDeflectInstant");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHGen_gt_HeroGenjiDeflectMissileLauncher_Init () {
+    libHGen_gt_HeroGenjiDeflectMissileLauncher = TriggerCreate("libHGen_gt_HeroGenjiDeflectMissileLauncher_Func");
+    TriggerEnable(libHGen_gt_HeroGenjiDeflectMissileLauncher, false);
+    TriggerAddEventUnitDamageAbsorbed(libHGen_gt_HeroGenjiDeflectMissileLauncher, null, "GenjiDeflectMissileLauncher");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Genji - Deflect Missile Impact
+//--------------------------------------------------------------------------------------------------
+bool libHGen_gt_HeroGenjiDeflectMissileImpact_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_genjiUnit;
+    int lv_genjiPlayer;
+    unit lv_targetUnit;
+    unit lv_missileUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_genjiUnit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_genjiPlayer = UnitGetOwner(lv_genjiUnit);
+    lv_targetUnit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_missileUnit = EventPlayerEffectUsedUnit(c_effectUnitSource);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((PlayerHasTalent(lv_genjiPlayer, "GenjiDeflectReflect") == true)) {
+        CatalogFieldValueSetFixed(c_gameCatalogEffect, "GenjiDeflectDamageTrigger", "Amount", lv_genjiPlayer, (CatalogFieldValueGetAsFixed(c_gameCatalogEffect, "GenjiDeflectDamage", "Amount", lv_genjiPlayer) + UnitGetTokenCount(lv_missileUnit, "GenjiDeflectReflectTriggerTokenCounter")));
+        UnitCreateEffectUnitWithSource(lv_genjiUnit, "GenjiDeflectDamageTrigger", lv_targetUnit, c_gameCatalogAbil, "GenjiDeflectInstant");
+    }
+    else {
+        UnitCreateEffectUnitWithSource(lv_genjiUnit, "GenjiDeflectDamage", lv_targetUnit, c_gameCatalogAbil, "GenjiDeflectInstant");
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHGen_gt_HeroGenjiDeflectMissileImpact_Init () {
+    libHGen_gt_HeroGenjiDeflectMissileImpact = TriggerCreate("libHGen_gt_HeroGenjiDeflectMissileImpact_Func");
+    TriggerEnable(libHGen_gt_HeroGenjiDeflectMissileImpact, false);
+    TriggerAddEventPlayerEffectUsed(libHGen_gt_HeroGenjiDeflectMissileImpact, c_playerAny, "GenjiDeflectImpactSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Genji - Deflect Absorb Damage
+//--------------------------------------------------------------------------------------------------
+bool libHGen_gt_HeroGenjiDeflectAbsorbDamage_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_genjiUnit;
+    int lv_genjiPlayer;
+    fixed lv_incomingDamage;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_genjiUnit = EventUnit();
+    lv_genjiPlayer = UnitGetOwner(lv_genjiUnit);
+    lv_incomingDamage = EventUnitDamageAbsorbed();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libHGen_gf_HeroGenjiDeflectDamageTaken(lv_genjiUnit, lv_genjiPlayer, lv_incomingDamage);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHGen_gt_HeroGenjiDeflectAbsorbDamage_Init () {
+    libHGen_gt_HeroGenjiDeflectAbsorbDamage = TriggerCreate("libHGen_gt_HeroGenjiDeflectAbsorbDamage_Func");
+    TriggerEnable(libHGen_gt_HeroGenjiDeflectAbsorbDamage, false);
+    TriggerAddEventUnitDamageAbsorbed(libHGen_gt_HeroGenjiDeflectAbsorbDamage, null, "GenjiDeflectProtected");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Genji - Deflect End
+//--------------------------------------------------------------------------------------------------
+bool libHGen_gt_HeroGenjiDeflectEnd_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_genjiUnit;
+    int lv_genjiPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_genjiUnit = EventUnit();
+    lv_genjiPlayer = UnitGetOwner(lv_genjiUnit);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    FloatingCombatElementCreateNumberTextAtUnit(PlayerGroupSingle(lv_genjiPlayer), "FloatingCombatElements/FloatingCombatAmountReadable", "", lv_genjiUnit, FixedToInt(libHGen_gv_heroGenjiDeflectDamageTaken[lv_genjiPlayer]), StringExternal("Param/Value/lib_HGen_2849C3B6"), libNtve_gv_FloatingCombatTextAutoRandomSeed);
+    libHGen_gf_HeroGenjiDeflectAugmentedGuard(lv_genjiUnit, lv_genjiPlayer);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHGen_gt_HeroGenjiDeflectEnd_Init () {
+    libHGen_gt_HeroGenjiDeflectEnd = TriggerCreate("libHGen_gt_HeroGenjiDeflectEnd_Func");
+    TriggerEnable(libHGen_gt_HeroGenjiDeflectEnd, false);
+    TriggerAddEventUnitBehaviorChange(libHGen_gt_HeroGenjiDeflectEnd, null, "GenjiDeflect", c_unitBehaviorChangeDecrease);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Genji - Deflect - Dragon Claw Used
+//--------------------------------------------------------------------------------------------------
+bool libHGen_gt_HeroGenjiDeflectDragonClawUsed_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_genjiUnit;
+    int lv_genjiPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_genjiUnit = EventUnit();
+    lv_genjiPlayer = UnitGetOwner(lv_genjiUnit);
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetOwner(lv_genjiUnit) <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+
+        if (!((UnitGetType(lv_genjiUnit) == "HeroGenji"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    PlayerScoreValueSetFromFixed(lv_genjiPlayer, libHGen_gv_heroGenjiDeflectDragonClawDamageAbsorbedScore, 0.0);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHGen_gt_HeroGenjiDeflectDragonClawUsed_Init () {
+    libHGen_gt_HeroGenjiDeflectDragonClawUsed = TriggerCreate("libHGen_gt_HeroGenjiDeflectDragonClawUsed_Func");
+    TriggerEnable(libHGen_gt_HeroGenjiDeflectDragonClawUsed, false);
+    TriggerAddEventUnitBehaviorChange(libHGen_gt_HeroGenjiDeflectDragonClawUsed, null, "GenjiDeflectDragonClawActive", c_unitBehaviorChangeDecrease);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Genji - Deflect - Zanshin Initial
+//--------------------------------------------------------------------------------------------------
+bool libHGen_gt_HeroGenjiDeflectZanshinInitial_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_genjiPlayer;
+    unit lv_genjiUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_genjiPlayer = libGame_gf_HeroGainTalentPlayer();
+    lv_genjiUnit = libGame_gv_players[lv_genjiPlayer].lv_heroUnit;
+
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gf_HeroGainTalentGainedTalent() == "GenjiDeflectZanshin"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    CatalogFieldValueSetFixed(c_gameCatalogEffect, "GenjiDeflectZanshinIncrementToken", "Value", lv_genjiPlayer, PlayerScoreValueGetAsFixed(lv_genjiPlayer, libHGen_gv_heroGenjiDeflectDamageTakenLifetimeScore));
+    UnitCreateEffectUnit(lv_genjiUnit, "GenjiDeflectZanshinIncrementToken", lv_genjiUnit);
+    if ((PlayerHasTalent(lv_genjiPlayer, "GenjiDeflectZanshin") == true) && (PlayerScoreValueGetAsFixed(lv_genjiPlayer, libHGen_gv_heroGenjiDeflectDamageTakenLifetimeScore) >= libHGen_gv_heroGenjiDeflectZanshinDamageRequirement)) {
+        UnitCreateEffectUnit(lv_genjiUnit, "GenjiDeflectZanshinModifySearch", lv_genjiUnit);
+        libHGen_gv_heroGenjiDeflectZanshinActivated[lv_genjiPlayer] = true;
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHGen_gt_HeroGenjiDeflectZanshinInitial_Init () {
+    libHGen_gt_HeroGenjiDeflectZanshinInitial = TriggerCreate("libHGen_gt_HeroGenjiDeflectZanshinInitial_Func");
+    TriggerEnable(libHGen_gt_HeroGenjiDeflectZanshinInitial, false);
+    libGame_gf_HeroGainTalent(libHGen_gt_HeroGenjiDeflectZanshinInitial);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Genji - Dragonblade Extend Duration
+//--------------------------------------------------------------------------------------------------
+bool libHGen_gt_HeroGenjiDragonbladeExtendDuration_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_genjiUnit;
+    fixed lv_duration;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_genjiUnit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_duration = (UnitBehaviorDuration(lv_genjiUnit, "GenjiDragonbladeActive") + libHGen_gv_heroGenjiDragonbladeTheDragonBecomesMeDurationIncreaseIncrement);
+    lv_duration = MinF(lv_duration, 8.0);
+    UnitBehaviorSetDurationRemaining(lv_genjiUnit, "GenjiDragonbladeActive", lv_duration);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHGen_gt_HeroGenjiDragonbladeExtendDuration_Init () {
+    libHGen_gt_HeroGenjiDragonbladeExtendDuration = TriggerCreate("libHGen_gt_HeroGenjiDragonbladeExtendDuration_Func");
+    TriggerEnable(libHGen_gt_HeroGenjiDragonbladeExtendDuration, false);
+    TriggerAddEventPlayerEffectUsed(libHGen_gt_HeroGenjiDragonbladeExtendDuration, c_playerAny, "GenjiDragonbladeExtendDurationDummy");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Genji - Swift Strike Self Reveal
+//--------------------------------------------------------------------------------------------------
+bool libHGen_gt_Hero_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_genjiUnit;
+    unit lv_targetUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_genjiUnit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_targetUnit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitBehaviorAdd(lv_genjiUnit, "GenjiSwiftStrikeSelfReveal", lv_targetUnit, 1);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHGen_gt_Hero_Init () {
+    libHGen_gt_Hero = TriggerCreate("libHGen_gt_Hero_Func");
+    TriggerEnable(libHGen_gt_Hero, false);
+    TriggerAddEventPlayerEffectUsed(libHGen_gt_Hero, c_playerAny, "GenjiSwiftStrikeImpactSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Genji - Swift Strike
+//--------------------------------------------------------------------------------------------------
+bool libHGen_gt_HeroGenjiSwiftStrike_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_genjiUnit;
+    point lv_genjiPosition;
+    int lv_genjiPlayer;
+    point lv_initialTargetPoint;
+    fixed lv_interpolationFraction;
+    point lv_interpolationPoint;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_genjiUnit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_genjiPosition = UnitGetPosition(lv_genjiUnit);
+    lv_genjiPlayer = UnitGetOwner(lv_genjiUnit);
+    lv_initialTargetPoint = EventPlayerEffectUsedPoint(c_effectLocationTargetPoint);
+    lv_interpolationFraction = 1.0;
+    lv_interpolationPoint = lv_initialTargetPoint;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    while ((lv_interpolationFraction > 0.0)) {
+        if ((PointPathingPassable(lv_interpolationPoint) == true)) {
+            UnitCreateEffectUnitWithSource(lv_genjiUnit, "GenjiSwiftStrikeApplyBehavior", lv_genjiUnit, c_gameCatalogAbil, "GenjiSwiftStrike");
+            UnitCreateEffectPointWithSource(lv_genjiUnit, "GenjiSwiftStrikeLaunchMissile", lv_interpolationPoint, c_gameCatalogAbil, "GenjiSwiftStrike");
+            break;
+        }
+        else {
+            lv_interpolationFraction = (lv_interpolationFraction - 0.05);
+            lv_interpolationPoint = PointInterpolate(lv_genjiPosition, lv_initialTargetPoint, lv_interpolationFraction);
+        }
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHGen_gt_HeroGenjiSwiftStrike_Init () {
+    libHGen_gt_HeroGenjiSwiftStrike = TriggerCreate("libHGen_gt_HeroGenjiSwiftStrike_Func");
+    TriggerEnable(libHGen_gt_HeroGenjiSwiftStrike, false);
+    TriggerAddEventPlayerEffectUsed(libHGen_gt_HeroGenjiSwiftStrike, c_playerAny, "GenjiSwiftStrikeTrigger");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: DEBUG - Hero - Genji - Deflect - Dragon Claw Activate Cheat
+//--------------------------------------------------------------------------------------------------
+bool libHGen_gt_DEBUGHeroGenjiDeflectDragonClawActivateCheat_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_genjiPlayer;
+    unit lv_genjiUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_genjiPlayer = EventPlayer();
+    lv_genjiUnit = libGame_gv_players[lv_genjiPlayer].lv_heroUnit;
+
+    // Conditions
+    if (testConds) {
+        if (!((libCore_gv_dEBUGDebuggingEnabled == true))) {
+            return false;
+        }
+
+        if (!((UnitGetOwner(lv_genjiUnit) <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+
+        if (!((UnitGetType(lv_genjiUnit) == "HeroGenji"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(lv_genjiUnit, "GenjiDeflectDragonClawActiveApplyBehavior", lv_genjiUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHGen_gt_DEBUGHeroGenjiDeflectDragonClawActivateCheat_Init () {
+    libHGen_gt_DEBUGHeroGenjiDeflectDragonClawActivateCheat = TriggerCreate("libHGen_gt_DEBUGHeroGenjiDeflectDragonClawActivateCheat_Func");
+    TriggerEnable(libHGen_gt_DEBUGHeroGenjiDeflectDragonClawActivateCheat, false);
+    TriggerAddEventChatMessage(libHGen_gt_DEBUGHeroGenjiDeflectDragonClawActivateCheat, c_playerAny, "activateDragonClaw", true);
+}
+
+void libHGen_InitTriggers () {
+    libHGen_gt_HeroAIMiscModInitialization_Init();
+    libHGen_gt_HeroAIAddToTierDataGenji_Init();
+    libHGen_gt_HeroAIInitAbilitiesGenji_Init();
+    libHGen_gt_HeroGenjiCyberAgilityAgileDismountInitial_Init();
+    libHGen_gt_HeroGenjiCyberAgilityAgileDismountRespec_Init();
+    libHGen_gt_HeroGenjiCyberAgilityAgileDismountOn_Init();
+    libHGen_gt_HeroGenjiCyberAgilityAgileDismountOff_Init();
+    libHGen_gt_HeroGenjiDeflectActivated_Init();
+    libHGen_gt_HeroGenjiDeflectMissileLauncher_Init();
+    libHGen_gt_HeroGenjiDeflectMissileImpact_Init();
+    libHGen_gt_HeroGenjiDeflectAbsorbDamage_Init();
+    libHGen_gt_HeroGenjiDeflectEnd_Init();
+    libHGen_gt_HeroGenjiDeflectDragonClawUsed_Init();
+    libHGen_gt_HeroGenjiDeflectZanshinInitial_Init();
+    libHGen_gt_HeroGenjiDragonbladeExtendDuration_Init();
+    libHGen_gt_Hero_Init();
+    libHGen_gt_HeroGenjiSwiftStrike_Init();
+    libHGen_gt_DEBUGHeroGenjiDeflectDragonClawActivateCheat_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libHGen_InitLib_completed = false;
+
+void libHGen_InitLib () {
+    if (libHGen_InitLib_completed) {
+        return;
+    }
+
+    libHGen_InitLib_completed = true;
+
+    libHGen_InitLibraries();
+    libHGen_InitVariables();
+    libHGen_InitCustomScript();
+    libHGen_InitTriggers();
+}
+

@@ -1,0 +1,3977 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/MapMechanicsLib"
+include "TriggerLibs/AILib"
+include "TriggerLibs/UILib"
+include "TriggerLibs/SoundLib"
+include "TriggerLibs/GameDataHelperLib"
+
+include "LibMDNC_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Garden of Terror
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libMDNC_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+    libMapM_InitVariables();
+    libAIAI_InitVariables();
+    libUIUI_InitVariables();
+    libSond_InitVariables();
+    libGDHL_InitVariables();
+}
+
+// Variable Initialization
+bool libMDNC_InitVariables_completed = false;
+
+void libMDNC_InitVariables () {
+    int init_i;
+    int init_i1;
+
+    if (libMDNC_InitVariables_completed) {
+        return;
+    }
+
+    libMDNC_InitVariables_completed = true;
+
+    for (init_i = 0; init_i <= 10; init_i += 1) {
+        libMDNC_gv_mMGardenTerrorNightMinionGroups[init_i].lv_units = UnitGroupEmpty();
+    }
+    libMDNC_gv_mMGardenTerrorNightMonsters = UnitGroupEmpty();
+    for (init_i = 0; init_i <= 2; init_i += 1) {
+        for (init_i1 = 0; init_i1 <= 2; init_i1 += 1) {
+            libMDNC_gv_mMGardenTerrorGarden[init_i].lv_ping[init_i1] = c_invalidPingId;
+        }
+        libMDNC_gv_mMGardenTerrorGarden[init_i].lv_summonPing = c_invalidPingId;
+        for (init_i1 = 0; init_i1 <= libCore_gv_bALMaxPlayers; init_i1 += 1) {
+            libMDNC_gv_mMGardenTerrorGarden[init_i].lv_hintTextTag[init_i1] = c_textTagNone;
+        }
+    }
+    libMDNC_gv_mMGardenTerrorVehicleChannelTime_C = 2.0;
+    libMDNC_gv_mMGardenTerrorOpenFirstTime = true;
+    libMDNC_gv_mMGardenTerrorPrepTimer = TimerCreate();
+    libMDNC_gv_mMGardenTerrorNightTimer = TimerCreate();
+    libMDNC_gv_mMGardenTerrorCampsHibernateState = libMDNC_ge_MMGardenTerrorCampHibernateState_None;
+    for (init_i = 0; init_i <= 2; init_i += 1) {
+        libMDNC_gv_mMGardenTerrorHintTextTag[init_i] = c_textTagNone;
+    }
+    for (init_i = 0; init_i <= libCore_gv_bALMaxTeams; init_i += 1) {
+        libMDNC_gv_mMGardenTerrorGolemCooldownTimer[init_i] = TimerCreate();
+    }
+    libMDNC_gv_mMGardenTerrorTransmissionNightStartsWarningFirstTime = true;
+    libMDNC_gv_mMGardenTerrorOvergrowthSelfHealthDecay_C = 7.0;
+    libMDNC_gv_vehiclePlantHorrorDamageReduction = 0.25;
+    libMDNC_gv_nightMinionActiveGroup = UnitGroupEmpty();
+}
+
+// Custom Script
+//--------------------------------------------------------------------------------------------------
+// Custom Script: #Include GardenTerror Tactical AI
+//--------------------------------------------------------------------------------------------------
+include "StormTactical.galaxy"
+//---------------------------------------------------------------------------------------------
+// Terror Vehicle Tactical
+//---------------------------------------------------------------------------------------------
+const string c_AB_TerrorVehiclePolymorph   = "PlantHorrorLignify";
+const string c_AB_TerrorVehicleOvergrowth  = "PlantHorrorOvergrowthPlant";
+const string c_AB_TerrorVehicleSprint      = "PlantHorrorSprint";
+//---------------------------------------------------------------------------------------------
+bool TerrorVehiclePolymorph (int player, unit aiUnit, unitgroup scanGroup) {
+    // Polymorphs units in the target area
+    order spellOrd;
+    unit targetHero;
+    spellOrd = StormHeroAICreateOrder(player, c_AB_TerrorVehiclePolymorph, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    // filter out units with targetFilterUser1 (map object) because the enemy garden terror has this flag and this power is useless against it.
+    targetHero = FindClosestWeakHero(UnitGroupFilter(null, c_playerAny, scanGroup, UnitFilter(0, 0, (1 << c_targetFilterUser1), 0), 0), aiUnit, 0.0, 9.0, 100.0, -1, -1, false);
+    if (!UnitIsValid(targetHero)) { 
+        return false;
+    } 
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetHero));
+}
+//---------------------------------------------------------------------------------------------
+bool TerrorVehicleOvergrowth (int player, unit aiUnit, unitgroup scanGroup) {
+    // Damages nearby towers
+    order spellOrd;
+    unit targetTower;
+    spellOrd = StormHeroAICreateOrder(player, c_AB_TerrorVehicleOvergrowth, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    targetTower = FindClosestWeakTowerOrCore(scanGroup, player, aiUnit, 0.0, 10.0, 100.0, -1, -1, false);
+    if (!UnitIsValid(targetTower)) { 
+        return false;
+    } 
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, UnitGetPosition(targetTower));
+}
+//---------------------------------------------------------------------------------------------
+bool TerrorVehicleSprint(int player, unit aiUnit, unitgroup scanGroup) {
+    // Speed boost for 3 seconds on a 15 second timer
+    order spellOrd;
+    unit targetTower;
+    spellOrd = StormHeroAICreateOrder(player, c_AB_TerrorVehicleSprint, 0);
+    if (!UnitOrderIsValid(aiUnit, spellOrd)) {
+        return false;
+    }
+    // Don't need to sprint if there is a nearby tower to attack
+    targetTower = FindClosestWeakTowerOrCore(scanGroup, player, aiUnit, 0.0, 10.0, 100.0, -1, -1, false);
+    if (UnitIsValid(targetTower)) { 
+        return false;
+    } 
+    return HeroIssueOrder (player, aiUnit, spellOrd, null, c_orderQueueAddToFront, null, null);
+}
+//---------------------------------------------------------------------------------------------
+void AIThinkVehiclePlantHorror (int player, unit aiUnit, unitgroup scanGroup) {
+    
+    int teamIndex = libGame_gf_TeamNumberOfPlayer(player);
+    if (UnitIsAlive(libMDNC_gv_mMGardenTerrorSummonedBoss[teamIndex])) {
+        // Make sure it is a computer hero driving the vehicle
+        if (libAIAI_gf_HeroAIIsAIEnabledForPlayer(player) == false) {
+            return;
+        }
+        if (TerrorVehicleSprint(player, aiUnit, scanGroup)) {
+            return;
+        }   
+        if (TerrorVehiclePolymorph(player, aiUnit, scanGroup)) {
+            return;
+        }    
+    
+        if (TerrorVehicleOvergrowth(player, aiUnit, scanGroup)) {
+            return;
+        }
+    }
+}
+
+void libMDNC_InitCustomScript () {
+}
+
+// Presets
+// Functions
+void libMDNC_gf_MMGardenTerrorAddNightMinionInfo (region lp_groupArea, unit lp_bannerSconceUnit) {
+    // Variable Declarations
+    int lv_groupIndex;
+    unit lv_itMinion;
+    int lv_minionIndex;
+    int lv_itCamp;
+
+    // Automatic Variable Declarations
+    unitgroup autoE6E433FA_g;
+    int autoE6E433FA_u;
+    int autoBD959E00_ae;
+    const int autoBD959E00_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    libMDNC_gv_mMGardenTerrorNightMinionGroupsCount += 1;
+    lv_groupIndex = libMDNC_gv_mMGardenTerrorNightMinionGroupsCount;
+    libMDNC_gv_mMGardenTerrorNightMinionGroups[lv_groupIndex].lv_area = lp_groupArea;
+    libMDNC_gv_mMGardenTerrorNightMinionGroups[lv_groupIndex].lv_bannerSconce = lp_bannerSconceUnit;
+    autoE6E433FA_g = UnitGroup(null, libCore_gv_cOMPUTER_Hostile, lp_groupArea, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    autoE6E433FA_u = UnitGroupCount(autoE6E433FA_g, c_unitCountAll);
+    for (;; autoE6E433FA_u -= 1) {
+        lv_itMinion = UnitGroupUnitFromEnd(autoE6E433FA_g, autoE6E433FA_u);
+        if (lv_itMinion == null) { break; }
+        libMDNC_gv_mMGardenTerrorNightMinionGroups[lv_groupIndex].lv_minionCount += 1;
+        lv_minionIndex = libMDNC_gv_mMGardenTerrorNightMinionGroups[lv_groupIndex].lv_minionCount;
+        libMDNC_gv_mMGardenTerrorNightMinionGroups[lv_groupIndex].lv_minionType[lv_minionIndex] = UnitGetType(lv_itMinion);
+        libMDNC_gv_mMGardenTerrorNightMinionGroups[lv_groupIndex].lv_positions[lv_minionIndex] = UnitGetPosition(lv_itMinion);
+        PointSetFacing(libMDNC_gv_mMGardenTerrorNightMinionGroups[lv_groupIndex].lv_positions[lv_minionIndex], UnitGetFacing(lv_itMinion));
+        UnitRemove(lv_itMinion);
+    }
+    libMDNC_gv_mMGardenTerrorNightMinionGroups[lv_groupIndex].lv_units = UnitGroupEmpty();
+    autoBD959E00_ae = libMapM_gv_jungleNumberOfCreepCamps;
+    lv_itCamp = 1;
+    for ( ; ( (autoBD959E00_ai >= 0 && lv_itCamp <= autoBD959E00_ae) || (autoBD959E00_ai < 0 && lv_itCamp >= autoBD959E00_ae) ) ; lv_itCamp += autoBD959E00_ai ) {
+        if ((DistanceBetweenPoints(libMapM_gv_jungleCreepCamps[lv_itCamp].lv_mapDataCampCaptainSpawnPoint, RegionGetCenter(libMDNC_gv_mMGardenTerrorNightMinionGroups[lv_groupIndex].lv_area)) <= 6.0)) {
+            libMDNC_gv_mMGardenTerrorNightMinionGroups[lv_groupIndex].lv_camp = lv_itCamp;
+            break;
+        }
+
+    }
+}
+
+void libMDNC_gf_MMGardenTerrorAddNightBoss (region lp_groupArea, unit lp_bannerSconceUnit) {
+    // Variable Declarations
+    int lv_index;
+    unit lv_boss;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_boss = UnitGroupUnit(UnitGroup("JunglePlantHorror", libCore_gv_cOMPUTER_Hostile, lp_groupArea, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), 1);
+    if ((lv_boss != null)) {
+        libMDNC_gv_mMGardenTerrorNightBossesCount += 1;
+        lv_index = libMDNC_gv_mMGardenTerrorNightBossesCount;
+        libMDNC_gv_mMGardenTerrorNightBosses[lv_index].lv_area = lp_groupArea;
+        libMDNC_gv_mMGardenTerrorNightBosses[lv_index].lv_bannerSconce = lp_bannerSconceUnit;
+        libMDNC_gv_mMGardenTerrorNightBosses[lv_index].lv_positions = UnitGetPosition(lv_boss);
+        PointSetFacing(libMDNC_gv_mMGardenTerrorNightBosses[lv_index].lv_positions, UnitGetFacing(lv_boss));
+        UnitRemove(lv_boss);
+        libMDNC_gv_mMGardenTerrorNightBosses[lv_index].lv_unit = null;
+    }
+
+}
+
+void libMDNC_gf_MMGardenTerrorAddGarden (point lp_gardenOrder, region lp_gardenAreaOrder, point lp_gardenChaos, region lp_gardenAreaChaos, unit lp_gardenFertileSoilOrder, unit lp_gardenFertileSoilChaos) {
+    // Automatic Variable Declarations
+    // Implementation
+    libMDNC_gv_mMGardenTerrorGarden[libGame_gv_teamOrderIndex_C].lv_positions = lp_gardenOrder;
+    libMDNC_gv_mMGardenTerrorGarden[libGame_gv_teamOrderIndex_C].lv_facing = PointGetFacing(lp_gardenOrder);
+    libMDNC_gv_mMGardenTerrorGarden[libGame_gv_teamOrderIndex_C].lv_region = lp_gardenAreaOrder;
+    libMDNC_gv_mMGardenTerrorGarden[libGame_gv_teamOrderIndex_C].lv_fertileSoil = lp_gardenFertileSoilOrder;
+    libMDNC_gv_mMGardenTerrorGarden[libGame_gv_teamChaosIndex_C].lv_positions = lp_gardenChaos;
+    libMDNC_gv_mMGardenTerrorGarden[libGame_gv_teamChaosIndex_C].lv_facing = PointGetFacing(lp_gardenChaos);
+    libMDNC_gv_mMGardenTerrorGarden[libGame_gv_teamChaosIndex_C].lv_region = lp_gardenAreaChaos;
+    libMDNC_gv_mMGardenTerrorGarden[libGame_gv_teamChaosIndex_C].lv_fertileSoil = lp_gardenFertileSoilChaos;
+}
+
+void libMDNC_gf_MMGardenTerrorAddZombieWalkerSpawnInfo (int lp_groupArea3, point lp_groupArea, point lp_groupArea2) {
+    // Automatic Variable Declarations
+    // Implementation
+    libMDNC_gv_mMGardenTerrorSpawnInfo[lp_groupArea3].lv_spawnPoint = lp_groupArea;
+    libMDNC_gv_mMGardenTerrorSpawnInfo[lp_groupArea3].lv_goalPoint = lp_groupArea2;
+}
+
+void libMDNC_gf_MMGardenTerrorNightPrepare () {
+    // Automatic Variable Declarations
+    // Implementation
+    TriggerEnable(libMDNC_gt_MMGardenTerrorGatesOpened, false);
+    TriggerExecute(libMDNC_gt_MMGardenTerrorUIHandler, true, false);
+    if ((libMDNC_gv_mMGardenTerrorTransmissionNightStartsWarningFirstTime == true)) {
+        libMDNC_gv_mMGardenTerrorTransmissionNightStartsWarningFirstTime = false;
+        libMDNC_gf_MMDragonballsTransmissionDragonExpireQ2();
+    }
+    else {
+        libMDNC_gf_MMDragonballsTransmissionDragonExpireQ3();
+    }
+    libMDNC_gv_mMGardenTerrorNightTimes += 1;
+    TimerStart(libMDNC_gv_mMGardenTerrorPrepTimer, libMDNC_gv_mMGardenTerrorNightStartsWarningDuration_C, false, c_timeGame);
+    SoundPlayForPlayer(SoundLink("Event_GardenOfTerror_Night_Countdown", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+}
+
+trigger auto_libMDNC_gf_MMGardenTerrorNightStarts_Trigger = null;
+
+void libMDNC_gf_MMGardenTerrorNightStarts () {
+    if (auto_libMDNC_gf_MMGardenTerrorNightStarts_Trigger == null) {
+        auto_libMDNC_gf_MMGardenTerrorNightStarts_Trigger = TriggerCreate("auto_libMDNC_gf_MMGardenTerrorNightStarts_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMDNC_gf_MMGardenTerrorNightStarts_Trigger, false, false);
+}
+
+bool auto_libMDNC_gf_MMGardenTerrorNightStarts_TriggerFunc (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itPlayer;
+    int lv_itGarden;
+    int lv_itTeam;
+
+    // Automatic Variable Declarations
+    const int autoFFD3E13F_ae = 2;
+    const int autoFFD3E13F_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    libMDNC_gv_mMGardenTerrorNightFallen = true;
+    if ((libMDNC_gv_mMGardenTerrorOpenFirstTime == true)) {
+        libMDNC_gv_mMGardenTerrorOpenFirstTime = false;
+        libMDNC_gf_MMDragonballsTransmissionDragonExpireQ5();
+    }
+    else {
+        libMDNC_gf_MMDragonballsTransmissionDragonExpireQ4();
+    }
+    libMDNC_gv_mMGardenTerrorSeedsCollectedTonight[1] = 0;
+    libMDNC_gv_mMGardenTerrorSeedsCollectedTonight[2] = 0;
+    libGame_gf_SendEventMapGardenOfTerrorNightStarts();
+    ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal MM1On");
+    libMDNC_gf_MMGardenTerrorUpdateCampHibernating();
+    libCore_gf_DataAnnouncerVOSetDefaultAnnouncerForPlayerGroup(PlayerGroupAll(), "GardensNightAnnouncer");
+    TriggerExecute(libMDNC_gt_MMGardenTerrorNightStartLightTransition, true, false);
+    libCore_gv_mAPMapSoundtrack[1] = "MX_GardenOfTerror_Night_LVL_1";
+    libCore_gv_mAPMapSoundtrack[2] = "MX_GardenOfTerror_Night_LVL_10";
+    libCore_gv_mAPMapSoundtrack[3] = "MX_GardenOfTerror_Night_LVL_20";
+    SoundtrackStop(PlayerGroupAll(), c_soundtrackCategoryMusic, true);
+    libSond_gf_SoundtrackPlayMapSoundtrackAsDefaultSoundtrackForAllPlayers();
+    SoundtrackPlay(PlayerGroupAll(), c_soundtrackCategoryAmbience, "Amb_2D_GardenOfTerror_Night", c_soundtrackCueAny, c_soundtrackIndexAny, true);
+    ActorCreate(ActorScopeFromActor(libMapM_gv_mapMechanicControllerActor), "Amb_Group_GardenOfTerror_Day2Night", null, null, null);
+    SoundChannelMute(PlayerGroupAll(), c_soundCategoryUser14, false);
+    SoundChannelMute(PlayerGroupAll(), c_soundCategorySPieces, true);
+    SoundChannelMute(PlayerGroupAll(), c_soundCategoryMessage, true);
+    TriggerExecute(libMDNC_gt_MMGardenTerrorNightVignette, true, false);
+    TriggerEnable(libMDNC_gt_MMGardenTerrorPlantDamageCalculation, true);
+    libMDNC_gf_MMGardenTerrorSpawnNightMonsters();
+    Wait(1.5, c_timeGame);
+    lv_itTeam = 1;
+    for ( ; ( (autoFFD3E13F_ai >= 0 && lv_itTeam <= autoFFD3E13F_ae) || (autoFFD3E13F_ai < 0 && lv_itTeam >= autoFFD3E13F_ae) ) ; lv_itTeam += autoFFD3E13F_ai ) {
+        libNtve_gf_SendActorMessageToUnit(libMDNC_gv_mMGardenTerrorGarden[lv_itTeam].lv_units, "Signal NightStarts");
+        libMDNC_gf_MMGardenTerrorUpdateHauntedGarden(lv_itTeam);
+        if ((libMDNC_gv_mMGardenTerrorGarden[lv_itTeam].lv_gardenLight == null)) {
+            libNtve_gf_CreateModelAtPoint("UnderworldHeroLightOther", libMDNC_gv_mMGardenTerrorGarden[lv_itTeam].lv_positions);
+            libMDNC_gv_mMGardenTerrorGarden[lv_itTeam].lv_gardenLight = libNtve_gf_ActorLastCreated();
+        }
+
+    }
+    return true;
+}
+
+void libMDNC_gf_MMGardenTerrorNightEnds () {
+    // Variable Declarations
+    int lv_itPlayer;
+    int lv_itGroupIndex;
+    unit lv_itMinion;
+    int lv_itTeam;
+
+    // Automatic Variable Declarations
+    const int autoBA47F749_ae = 2;
+    const int autoBA47F749_ai = 1;
+    int autoA23FFAC2_ae;
+    const int autoA23FFAC2_ai = 1;
+    unitgroup autoA705CF6F_g;
+    int autoA705CF6F_u;
+    int autoD4F10144_ae;
+    const int autoD4F10144_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    if ((libMDNC_gv_mMGardenTerrorNightFallen == false)) {
+        return ;
+    }
+
+    libMDNC_gf_MMGardenTerrorTransmissionNightEndsQ();
+    TriggerEnable(libMDNC_gt_MMGardenTerrorPlantDamageCalculation, false);
+    libGame_gf_SpecialLightingEventEnd("Storm_RavenCourt_Curse", PlayerGroupAll(), 1.0);
+    libMDNC_gv_mMGardenTerrorNightFallen = false;
+    ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal MM1Off");
+    libCore_gf_DataAnnouncerVOSetDefaultAnnouncerForPlayerGroup(PlayerGroupAll(), "GardensDayAnnouncer");
+    TriggerExecute(libMDNC_gt_MMGardenTerrorNightEndLightTransition, true, false);
+    libUIUI_gf_VignetteOverlayStopForAllPlayersExcludingSpecifiedPlayerGroup(PlayerGroupEmpty());
+    SoundChannelMute(PlayerGroupAll(), c_soundCategoryUser14, true);
+    SoundChannelMute(PlayerGroupAll(), c_soundCategorySPieces, false);
+    SoundChannelMute(PlayerGroupAll(), c_soundCategoryMessage, false);
+    lv_itTeam = 1;
+    for ( ; ( (autoBA47F749_ai >= 0 && lv_itTeam <= autoBA47F749_ae) || (autoBA47F749_ai < 0 && lv_itTeam >= autoBA47F749_ae) ) ; lv_itTeam += autoBA47F749_ai ) {
+        libNtve_gf_SendActorMessageToUnit(libMDNC_gv_mMGardenTerrorSummonedBoss[lv_itTeam], "Signal NightEnds");
+        if ((libMDNC_gv_mMGardenTerrorGarden[lv_itTeam].lv_gardenLight != null)) {
+            ActorSend(libMDNC_gv_mMGardenTerrorGarden[lv_itTeam].lv_gardenLight, "Destroy Immediate");
+            libMDNC_gv_mMGardenTerrorGarden[lv_itTeam].lv_gardenLight = null;
+        }
+
+    }
+    libCore_gv_mAPMapSoundtrack[1] = "MX_GardenOfTerror_Day_LVL_1";
+    libCore_gv_mAPMapSoundtrack[2] = "MX_GardenOfTerror_Day_LVL_10";
+    libCore_gv_mAPMapSoundtrack[3] = "MX_GardenOfTerror_Day_LVL_20";
+    libSond_gf_SoundtrackPlayMapSoundtrackAsDefaultSoundtrackForAllPlayers();
+    SoundPlayForPlayer(SoundLink("Event_GardenOfTerror_Transition_Night2Day", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    SoundtrackPlay(PlayerGroupAll(), c_soundtrackCategoryAmbience, "Amb_2D_GardenOfTerror_Day", c_soundtrackCueAny, c_soundtrackIndexAny, false);
+    ActorCreate(ActorScopeFromActor(libMapM_gv_mapMechanicControllerActor), "Amb_Group_GardenOfTerror_Night2Day", null, null, null);
+    libMDNC_gf_MMGardenTerrorUpdateCampHibernating();
+    libMDNC_gv_mMGardenTerrorDays += 1;
+    autoA23FFAC2_ae = libMDNC_gv_mMGardenTerrorNightMinionGroupsCount;
+    lv_itGroupIndex = 1;
+    for ( ; ( (autoA23FFAC2_ai >= 0 && lv_itGroupIndex <= autoA23FFAC2_ae) || (autoA23FFAC2_ai < 0 && lv_itGroupIndex >= autoA23FFAC2_ae) ) ; lv_itGroupIndex += autoA23FFAC2_ai ) {
+        autoA705CF6F_g = libMDNC_gv_mMGardenTerrorNightMinionGroups[lv_itGroupIndex].lv_units;
+        autoA705CF6F_u = UnitGroupCount(autoA705CF6F_g, c_unitCountAll);
+        for (;; autoA705CF6F_u -= 1) {
+            lv_itMinion = UnitGroupUnitFromEnd(autoA705CF6F_g, autoA705CF6F_u);
+            if (lv_itMinion == null) { break; }
+            if ((UnitTestState(lv_itMinion, c_unitStateIdle) == true) && (UnitIsAlive(lv_itMinion) == true)) {
+                UnitRemove(lv_itMinion);
+            }
+            else {
+                UnitGroupAdd(libMDNC_gv_nightMinionActiveGroup, lv_itMinion);
+            }
+        }
+    }
+    autoD4F10144_ae = libMDNC_gv_mMGardenTerrorNightBossesCount;
+    lv_itGroupIndex = 1;
+    for ( ; ( (autoD4F10144_ai >= 0 && lv_itGroupIndex <= autoD4F10144_ae) || (autoD4F10144_ai < 0 && lv_itGroupIndex >= autoD4F10144_ae) ) ; lv_itGroupIndex += autoD4F10144_ai ) {
+        libMDNC_gf_MMGardenTerrorNightEndsRemoveBoss(lv_itGroupIndex);
+    }
+    Wait((libMDNC_gv_mMGardenTerrorDayDuration_C - libMDNC_gv_mMGardenTerrorNightStartsWarningDuration_C), c_timeGame);
+    libMDNC_gf_MMGardenTerrorNightPrepare();
+}
+
+trigger auto_libMDNC_gf_MMGardenTerrorNightEndsRemoveBoss_Trigger = null;
+int auto_libMDNC_gf_MMGardenTerrorNightEndsRemoveBoss_lp_bossIndex;
+
+void libMDNC_gf_MMGardenTerrorNightEndsRemoveBoss (int lp_bossIndex) {
+    auto_libMDNC_gf_MMGardenTerrorNightEndsRemoveBoss_lp_bossIndex = lp_bossIndex;
+
+    if (auto_libMDNC_gf_MMGardenTerrorNightEndsRemoveBoss_Trigger == null) {
+        auto_libMDNC_gf_MMGardenTerrorNightEndsRemoveBoss_Trigger = TriggerCreate("auto_libMDNC_gf_MMGardenTerrorNightEndsRemoveBoss_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMDNC_gf_MMGardenTerrorNightEndsRemoveBoss_Trigger, false, false);
+}
+
+bool auto_libMDNC_gf_MMGardenTerrorNightEndsRemoveBoss_TriggerFunc (bool testConds, bool runActions) {
+    int lp_bossIndex = auto_libMDNC_gf_MMGardenTerrorNightEndsRemoveBoss_lp_bossIndex;
+
+    // Variable Declarations
+    unit lv_boss;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_boss = libMDNC_gv_mMGardenTerrorNightBosses[lp_bossIndex].lv_unit;
+    while (true) {
+        if ((UnitIsAlive(lv_boss) == false)) {
+            break;
+        }
+
+        if (((libAIAI_gf_DefendersAreFighting(libAIAI_gf_DefenderAIIndexOfUnit(lv_boss)) == false) || (libAIAI_gf_DefendersAreLeashing(libAIAI_gf_DefenderAIIndexOfUnit(lv_boss)) == false))) {
+            break;
+        }
+
+        Wait(0.5, c_timeGame);
+    }
+    if ((UnitIsAlive(libMDNC_gv_mMGardenTerrorNightBosses[lp_bossIndex].lv_unit) == true)) {
+        UnitRemove(libMDNC_gv_mMGardenTerrorNightBosses[lp_bossIndex].lv_unit);
+        libMDNC_gv_mMGardenTerrorNightBosses[lp_bossIndex].lv_unit = null;
+    }
+
+    return true;
+}
+
+void libMDNC_gf_MMGardenTerrorCreateHauntedGardens () {
+    // Variable Declarations
+    int lv_itTeam;
+
+    // Automatic Variable Declarations
+    const int auto2087C410_ae = 2;
+    const int auto2087C410_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_itTeam = 1;
+    for ( ; ( (auto2087C410_ai >= 0 && lv_itTeam <= auto2087C410_ae) || (auto2087C410_ai < 0 && lv_itTeam >= auto2087C410_ae) ) ; lv_itTeam += auto2087C410_ai ) {
+        libMDNC_gf_MMGardenTerrorCreateHauntedGarden(lv_itTeam, false);
+    }
+}
+
+void libMDNC_gf_MMGardenTerrorCreateHauntedGarden (int lp_team, bool lp_respawn) {
+    // Variable Declarations
+    int lv_player;
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    playergroup autoD248749D_g;
+
+    // Variable Initialization
+
+    // Implementation
+    if ((libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units != null)) {
+
+    }
+
+    if ((lp_respawn == true)) {
+        ActorSend(libNtve_gf_MainActorofUnit(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_fertileSoil), "Signal Respawn");
+        Wait(1.0, c_timeGame);
+    }
+
+    lv_player = libGame_gf_ComputerPlayerInTeam(lp_team);
+    UnitCreate(1, "VehiclePlantHorror", c_unitCreateIgnorePlacement, lv_player, libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_positions, libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_facing);
+    libMapM_gf_AddVehicle(UnitLastCreated());
+    libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units = UnitLastCreated();
+    if ((libMDNC_gv_mMGardenTerrorNightFallen == true)) {
+        libNtve_gf_SendActorMessageToUnit(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units, "StatusSet Night 1");
+    }
+    else {
+        libNtve_gf_SendActorMessageToUnit(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units, "StatusSet Night 0");
+    }
+    libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "SetMinimapVisibility");
+    libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "Signal AddSeedGrowth3");
+    libNtve_gf_MakeUnitInvulnerable(UnitLastCreated(), true);
+    UnitCreate(1, "JungleCampIconUnitTeamColor", c_unitCreateIgnorePlacement, UnitGetOwner(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units), UnitGetPosition(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units), UnitGetFacing(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units));
+    libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_pingUnit = UnitLastCreated();
+    libNtve_gf_MakeUnitInvulnerable(UnitLastCreated(), true);
+    libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "MinimapIcon Assets\\Textures\\storm_ui_minimapicon_gardenfertilesoil.dds");
+    libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "MinimapTooltip Unit/Name/FertileSoil");
+    libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "MinimapIconScale 0.650000");
+    libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "SetMinimapVisibilityAlways 1");
+    UnitSetInfoText(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units, StringToText(""), StringExternal("Param/Value/lib_MDNC_A8F69647"), StringToText(""));
+    UnitSetState(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units, c_unitStateTooltipable, true);
+    autoD248749D_g = libGame_gf_PlayersOnTeamHeroes(lp_team, false);
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(autoD248749D_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	if ((libMDNC_gv_mMGardenTerrorPlayerSummoned[lv_itPlayer] == false) && (libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_hintTextTag[lv_itPlayer] == c_textTagNone)) {
+            TextTagCreate(StringExternal("Param/Value/lib_MDNC_EF39C23E"), 24, UnitGetPosition(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units), 1.0, true, false, PlayerGroupAll());
+            libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_hintTextTag[lv_itPlayer] = TextTagLastCreated();
+            TextTagShow(TextTagLastCreated(), PlayerGroupAll(), false);
+            TextTagShow(TextTagLastCreated(), libCore_gv_playerGroupFromPlayer[lv_itPlayer], true);
+        }
+
+    }
+    libMDNC_gf_MMGardenTerrorUpdateHauntedGarden(lp_team);
+}
+
+trigger auto_libMDNC_gf_MMGardenTerrorUpdateHauntedGarden_Trigger = null;
+int auto_libMDNC_gf_MMGardenTerrorUpdateHauntedGarden_lp_team;
+
+void libMDNC_gf_MMGardenTerrorUpdateHauntedGarden (int lp_team) {
+    auto_libMDNC_gf_MMGardenTerrorUpdateHauntedGarden_lp_team = lp_team;
+
+    if (auto_libMDNC_gf_MMGardenTerrorUpdateHauntedGarden_Trigger == null) {
+        auto_libMDNC_gf_MMGardenTerrorUpdateHauntedGarden_Trigger = TriggerCreate("auto_libMDNC_gf_MMGardenTerrorUpdateHauntedGarden_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMDNC_gf_MMGardenTerrorUpdateHauntedGarden_Trigger, false, false);
+}
+
+bool auto_libMDNC_gf_MMGardenTerrorUpdateHauntedGarden_TriggerFunc (bool testConds, bool runActions) {
+    int lp_team = auto_libMDNC_gf_MMGardenTerrorUpdateHauntedGarden_lp_team;
+
+    // Variable Declarations
+    int lv_itTeam;
+    int lv_itPlayer;
+    int lv_enemyTeam;
+
+    // Automatic Variable Declarations
+    playergroup auto6BC223F2_g;
+    playergroup auto5A4CFB6E_g;
+    const int autoB56FBA82_ae = 2;
+    const int autoB56FBA82_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    if ((UnitIsAlive(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units) == true)) {
+        if ((libMDNC_gv_mMGardenTerrorSeedsCollected[lp_team] >= libMDNC_gv_mMGardenTerrorSeedsRequested_C) && (libMDNC_gv_mMGardenTerrorBossSummoned[lp_team] == false) && (libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_growing == false) && (libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_readyToControl == false)) {
+            libMDNC_gf_MMGardenTerrorGardenGrow(lp_team);
+        }
+        else {
+            if ((libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_growing == false) && (libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_readyToControl == false)) {
+                UnitBehaviorAddPlayer(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units, "PlantHorrorDeactivated", UnitGetOwner(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units), 1);
+            }
+
+        }
+        if ((libMDNC_gv_mMGardenTerrorOpenFirstTime == true) && (libMDNC_gv_mMGardenTerrorNightFallen == false)) {
+            UnitSetInfoTip(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units, StringExternal("Param/Value/lib_MDNC_9FF96757"));
+            UnitSetInfoTip(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_fertileSoil, StringExternal("Param/Value/lib_MDNC_8DCC42A8"));
+        }
+        else {
+            if ((libMDNC_gv_mMGardenTerrorSeedsCollected[lp_team] < libMDNC_gv_mMGardenTerrorSeedsRequested_C) && (libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_growing == false) && (libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_readyToControl == false) && (libMDNC_gv_mMGardenTerrorBossSummoned[lp_team] == false)) {
+                UnitSetInfoTip(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units, StringExternal("Param/Value/lib_MDNC_E0DA88C3"));
+                UnitSetInfoTip(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_fertileSoil, StringExternal("Param/Value/lib_MDNC_44800A61"));
+                UnitSetState(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units, c_unitStateTooltipable, true);
+                UnitSetState(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_fertileSoil, c_unitStateHighlightable, true);
+                UnitSetState(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_fertileSoil, c_unitStateTooltipable, true);
+            }
+            else {
+                UnitSetState(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units, c_unitStateTooltipable, false);
+                UnitSetState(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_fertileSoil, c_unitStateHighlightable, false);
+                UnitSetState(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_fertileSoil, c_unitStateTooltipable, false);
+            }
+        }
+        auto5A4CFB6E_g = libGame_gf_PlayersOnTeamHeroes(lp_team, false);
+        lv_itPlayer = -1;
+        while (true) {
+            	lv_itPlayer = PlayerGroupNextPlayer(auto5A4CFB6E_g, lv_itPlayer);
+            	if (lv_itPlayer<0) { break; }
+            	if ((libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_hintTextTag[lv_itPlayer] != c_textTagNone)) {
+                if ((libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_growing == true)) {
+                    TextTagSetText(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_hintTextTag[lv_itPlayer], StringToText(""));
+                    TextTagSetPosition(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_hintTextTag[lv_itPlayer], PointWithOffset(UnitGetPosition(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units), 0.0, 2.0), 1.0);
+                }
+                else {
+                    if ((libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_readyToControl == true)) {
+                        TextTagSetText(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_hintTextTag[lv_itPlayer], StringToText(""));
+                    }
+                    else {
+                        TextTagSetText(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_hintTextTag[lv_itPlayer], StringExternal("Param/Value/lib_MDNC_40B72E99"));
+                        TextTagSetPosition(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_hintTextTag[lv_itPlayer], PointWithOffset(UnitGetPosition(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units), 0.0, 2.0), 1.0);
+                    }
+                }
+            }
+
+        }
+    }
+    else {
+        auto6BC223F2_g = libGame_gf_PlayersOnTeamHeroes(lp_team, false);
+        lv_itPlayer = -1;
+        while (true) {
+            	lv_itPlayer = PlayerGroupNextPlayer(auto6BC223F2_g, lv_itPlayer);
+            	if (lv_itPlayer<0) { break; }
+            	if ((libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_hintTextTag[lv_itPlayer] != c_textTagNone)) {
+                TextTagDestroy(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_hintTextTag[lv_itPlayer]);
+                libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_hintTextTag[lv_itPlayer] = c_textTagNone;
+            }
+
+        }
+    }
+    lv_itTeam = 1;
+    for ( ; ( (autoB56FBA82_ai >= 0 && lv_itTeam <= autoB56FBA82_ae) || (autoB56FBA82_ai < 0 && lv_itTeam >= autoB56FBA82_ae) ) ; lv_itTeam += autoB56FBA82_ai ) {
+        lv_enemyTeam = libGame_gf_EnemyTeam(lv_itTeam);
+        if ((libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_ping[lv_itTeam] == c_invalidPingId)) {
+            libNtve_gf_CreatePingFacingAngleWithType(libGame_gf_PlayersOnTeamHeroes(lv_itTeam, false), "PingObjective", libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_positions, ColorWithAlpha(100.00, 100.00, 0.00, 0.00), 0.0, 270.0, -1, -1);
+            libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_ping[lv_itTeam] = PingLastCreated();
+            PingSetScale(PingLastCreated(), 0.75);
+        }
+
+        if ((UnitIsAlive(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units) == false)) {
+            PingSetVisible(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_ping[lv_itTeam], false);
+            if ((libNtve_gf_UnitIsVisibleToPlayer(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_pingUnit, UnitGetOwner(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_pingUnit)) == true)) {
+                libNtve_gf_ShowHideUnit(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_pingUnit, false);
+            }
+
+            continue;
+        }
+
+        if ((libNtve_gf_UnitIsVisibleToPlayer(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_pingUnit, UnitGetOwner(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_pingUnit)) == false)) {
+            libNtve_gf_ShowHideUnit(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_pingUnit, true);
+        }
+
+        if (((libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_readyToControl == true) || (libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_growing == true)) && (libMDNC_gv_mMGardenTerrorBossSummoned[lp_team] == false)) {
+            PingSetVisible(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_ping[lv_itTeam], true);
+        }
+        else {
+            PingSetVisible(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_ping[lv_itTeam], false);
+        }
+        if ((lv_itTeam == lp_team)) {
+            PingSetColor(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_ping[lv_itTeam], Color(0.00, 100.00, 0.00));
+        }
+        else {
+            PingSetColor(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_ping[lv_itTeam], Color(100.00, 0.00, 0.00));
+        }
+    }
+    return true;
+}
+
+trigger auto_libMDNC_gf_MMGardenTerrorManageSummonBossPing_Trigger = null;
+int auto_libMDNC_gf_MMGardenTerrorManageSummonBossPing_lp_team;
+
+void libMDNC_gf_MMGardenTerrorManageSummonBossPing (int lp_team) {
+    auto_libMDNC_gf_MMGardenTerrorManageSummonBossPing_lp_team = lp_team;
+
+    if (auto_libMDNC_gf_MMGardenTerrorManageSummonBossPing_Trigger == null) {
+        auto_libMDNC_gf_MMGardenTerrorManageSummonBossPing_Trigger = TriggerCreate("auto_libMDNC_gf_MMGardenTerrorManageSummonBossPing_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMDNC_gf_MMGardenTerrorManageSummonBossPing_Trigger, false, false);
+}
+
+bool auto_libMDNC_gf_MMGardenTerrorManageSummonBossPing_TriggerFunc (bool testConds, bool runActions) {
+    int lp_team = auto_libMDNC_gf_MMGardenTerrorManageSummonBossPing_lp_team;
+
+    // Variable Declarations
+    int lv_timeIndex;
+
+    // Automatic Variable Declarations
+    int autoA992207E_val;
+
+    // Variable Initialization
+
+    // Implementation
+    while (true) {
+        if (((libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_readyToControl == false) || (libMDNC_gv_mMGardenTerrorBossSummoned[lp_team] == true) || (UnitIsAlive(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units) == false))) {
+            lv_timeIndex = 0;
+            libMDNC_gf_MMGardenTerrorRemoveSummonBossPing(lp_team);
+            libUIUI_gf_MapMechanicsGardenOfTerrorFlashSeedFrameStatusText(lp_team, false, 0);
+            Wait(1.0, c_timeGame);
+            continue;
+        }
+
+        if (((lv_timeIndex == 0) || (lv_timeIndex == 36) || (lv_timeIndex == 76))) {
+            libMDNC_gf_MMGardenTerrorRemoveSummonBossPing(lp_team);
+            autoA992207E_val = lv_timeIndex;
+            if (autoA992207E_val == 0) {
+                libCore_gf_CreateMinimapPingStorm(libGame_gf_PlayersOnTeamHeroes(lp_team, false), "StormAlert", libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_positions, Color(0.00, 100.00, 0.00), -1);
+                libMDNC_gf_MMGardenTerrorTransmissionGolemWaitingQ(lp_team, 1);
+                libUIUI_gf_MapMechanicsGardenOfTerrorFlashSeedFrameStatusText(lp_team, false, 0);
+            }
+            else if (autoA992207E_val == 36) {
+                libCore_gf_CreateMinimapPingStorm(libGame_gf_PlayersOnTeamHeroes(lp_team, false), "StormAlert2", libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_positions, Color(0.00, 100.00, 0.00), -1);
+                libMDNC_gf_MMGardenTerrorTransmissionGolemWaitingQ(lp_team, 2);
+                libUIUI_gf_MapMechanicsGardenOfTerrorFlashSeedFrameStatusText(lp_team, true, 1);
+            }
+            else if (autoA992207E_val == 76) {
+                libCore_gf_CreateMinimapPingStorm(libGame_gf_PlayersOnTeamHeroes(lp_team, false), "StormAlert2", libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_positions, Color(0.00, 100.00, 0.00), -1);
+                libMDNC_gf_MMGardenTerrorTransmissionGolemWaitingQ(lp_team, 3);
+                libUIUI_gf_MapMechanicsGardenOfTerrorFlashSeedFrameStatusText(lp_team, true, 2);
+            }
+            else {
+            }
+            libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_summonPing = PingLastCreated();
+            PingSetScale(PingLastCreated(), 0.75);
+            PingSetTooltip(PingLastCreated(), StringExternal("Param/Value/lib_MDNC_9C06954B"));
+        }
+
+        Wait(0.5, c_timeGame);
+        lv_timeIndex += 1;
+        if ((lv_timeIndex >= 120)) {
+            lv_timeIndex = 0;
+        }
+
+    }
+    return true;
+}
+
+void libMDNC_gf_MMGardenTerrorRemoveSummonBossPing (int lp_team) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_summonPing != c_invalidPingId)) {
+        PingDestroy(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_summonPing);
+        libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_summonPing = c_invalidPingId;
+    }
+
+}
+
+void libMDNC_gf_MMGardenTerrorUpdateCampHibernating () {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libMDNC_gv_mMGardenTerrorNightFallen == false) && (UnitIsAlive(libMDNC_gv_mMGardenTerrorSummonedBoss[libGame_gv_teamOrderIndex_C]) == false) && (UnitIsAlive(libMDNC_gv_mMGardenTerrorSummonedBoss[libGame_gv_teamChaosIndex_C]) == false)) {
+        libMDNC_gf_MMGardenTerrorHibernateCamps(libMDNC_ge_MMGardenTerrorCampHibernateState_None);
+    }
+    else if (((UnitIsAlive(libMDNC_gv_mMGardenTerrorSummonedBoss[libGame_gv_teamOrderIndex_C]) == true) || (UnitIsAlive(libMDNC_gv_mMGardenTerrorSummonedBoss[libGame_gv_teamChaosIndex_C]) == true))) {
+        libMDNC_gf_MMGardenTerrorHibernateCamps(libMDNC_ge_MMGardenTerrorCampHibernateState_Full);
+    }
+    else if (true) {
+        libMDNC_gf_MMGardenTerrorHibernateCamps(libMDNC_ge_MMGardenTerrorCampHibernateState_None);
+    }
+}
+
+void libMDNC_gf_MMGardenTerrorHibernateCamps (int lp_hibernate) {
+    // Variable Declarations
+    int lv_itCamp;
+
+    // Automatic Variable Declarations
+    int auto69BE22D0_val;
+
+    // Variable Initialization
+
+    // Implementation
+    if ((libMDNC_gv_mMGardenTerrorCampsHibernateState == lp_hibernate)) {
+        return ;
+    }
+
+    libMDNC_gv_mMGardenTerrorCampsHibernateState = lp_hibernate;
+    auto69BE22D0_val = lp_hibernate;
+    if (auto69BE22D0_val == libMDNC_ge_MMGardenTerrorCampHibernateState_Full) {
+        libMapM_gf_JungleStartHibernateCamps();
+    }
+    else if (auto69BE22D0_val == libMDNC_ge_MMGardenTerrorCampHibernateState_None) {
+        libMapM_gf_JungleStopHibernateCamps();
+    }
+    else if (auto69BE22D0_val == libMDNC_ge_MMGardenTerrorCampHibernateState_Partial) {
+        libMapM_gf_JungleStartHibernateCamps();
+    }
+    else {
+    }
+}
+
+trigger auto_libMDNC_gf_MMGardenTerrorSpawnNightMonsters_Trigger = null;
+
+void libMDNC_gf_MMGardenTerrorSpawnNightMonsters () {
+    if (auto_libMDNC_gf_MMGardenTerrorSpawnNightMonsters_Trigger == null) {
+        auto_libMDNC_gf_MMGardenTerrorSpawnNightMonsters_Trigger = TriggerCreate("auto_libMDNC_gf_MMGardenTerrorSpawnNightMonsters_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMDNC_gf_MMGardenTerrorSpawnNightMonsters_Trigger, false, false);
+}
+
+bool auto_libMDNC_gf_MMGardenTerrorSpawnNightMonsters_TriggerFunc (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itGroupIndex;
+    unit lv_itMinion;
+    int lv_itMinionIndex;
+
+    // Automatic Variable Declarations
+    int autoC31059BD_ae;
+    const int autoC31059BD_ai = 1;
+    int auto48FCF6FA_ae;
+    const int auto48FCF6FA_ai = 1;
+    int autoB067D9F6_ae;
+    const int autoB067D9F6_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    TriggerEnable(libMDNC_gt_MMGardenTerrorNightMonsterDies, true);
+    autoC31059BD_ae = libMDNC_gv_mMGardenTerrorNightMinionGroupsCount;
+    lv_itGroupIndex = 1;
+    for ( ; ( (autoC31059BD_ai >= 0 && lv_itGroupIndex <= autoC31059BD_ae) || (autoC31059BD_ai < 0 && lv_itGroupIndex >= autoC31059BD_ae) ) ; lv_itGroupIndex += autoC31059BD_ai ) {
+        libMDNC_gf_MMGardenTerrorSpawnNightMinionSingleGroup(lv_itGroupIndex);
+        if ((ModI(lv_itGroupIndex, 2) == 0)) {
+            Wait(0.0625, c_timeGame);
+        }
+
+    }
+    auto48FCF6FA_ae = libMDNC_gv_mMGardenTerrorNightBossesCount;
+    lv_itGroupIndex = 1;
+    for ( ; ( (auto48FCF6FA_ai >= 0 && lv_itGroupIndex <= auto48FCF6FA_ae) || (auto48FCF6FA_ai < 0 && lv_itGroupIndex >= auto48FCF6FA_ae) ) ; lv_itGroupIndex += auto48FCF6FA_ai ) {
+        if ((UnitIsAlive(libMDNC_gv_mMGardenTerrorNightBosses[lv_itGroupIndex].lv_unit) == false)) {
+            libNtve_gf_CreateUnitsAtPoint2(1, "JunglePlantHorror", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Hostile, libMDNC_gv_mMGardenTerrorNightBosses[lv_itGroupIndex].lv_positions);
+            libMDNC_gv_mMGardenTerrorNightBosses[lv_itGroupIndex].lv_unit = UnitLastCreated();
+            UnitGroupAdd(libMDNC_gv_mMGardenTerrorNightMonsters, UnitLastCreated());
+            libMDNC_gv_mMGardenTerrorNightMonstersTotalCount += 1;
+            libGame_gf_UpdateScalingForUnit(UnitLastCreated(), libGame_gv_scalingTicks, 0);
+            libAIAI_gf_StartDefenderAI(libNtve_gf_ConvertUnitToUnitGroup(UnitLastCreated()), libMDNC_gv_mMGardenTerrorNightBosses[lv_itGroupIndex].lv_area, null, false);
+            libNtve_gf_CreateUnitsAtPoint2(1, "JungleCampIconUnit", 0, libCore_gv_cOMPUTER_Hostile, UnitGetPosition(libMDNC_gv_mMGardenTerrorNightBosses[lv_itGroupIndex].lv_unit));
+            libMDNC_gv_mMGardenTerrorNightBosses[lv_itGroupIndex].lv_unit2 = UnitLastCreated();
+            libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "MinimapIcon Assets\\Textures\\storm_ui_minimapicon_gardengolem.dds");
+            libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "MinimapIconScale 0.800000");
+            libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "SetMinimapVisibility 1");
+            libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "SetMinimapVisibilityAlways 1");
+            libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "MinimapIconTintColor 255,180,90,218");
+        }
+
+    }
+    autoB067D9F6_ae = libMDNC_gv_mMGardenTerrorNightBossesCount;
+    lv_itGroupIndex = 1;
+    for ( ; ( (autoB067D9F6_ai >= 0 && lv_itGroupIndex <= autoB067D9F6_ae) || (autoB067D9F6_ai < 0 && lv_itGroupIndex >= autoB067D9F6_ae) ) ; lv_itGroupIndex += autoB067D9F6_ai ) {
+        if ((UnitIsAlive(libMDNC_gv_mMGardenTerrorNightBosses[lv_itGroupIndex].lv_unit) == true)) {
+        }
+
+    }
+    return true;
+}
+
+trigger auto_libMDNC_gf_MMGardenTerrorSpawnNightMinionSingleGroup_Trigger = null;
+int auto_libMDNC_gf_MMGardenTerrorSpawnNightMinionSingleGroup_lp_groupIndex;
+
+void libMDNC_gf_MMGardenTerrorSpawnNightMinionSingleGroup (int lp_groupIndex) {
+    auto_libMDNC_gf_MMGardenTerrorSpawnNightMinionSingleGroup_lp_groupIndex = lp_groupIndex;
+
+    if (auto_libMDNC_gf_MMGardenTerrorSpawnNightMinionSingleGroup_Trigger == null) {
+        auto_libMDNC_gf_MMGardenTerrorSpawnNightMinionSingleGroup_Trigger = TriggerCreate("auto_libMDNC_gf_MMGardenTerrorSpawnNightMinionSingleGroup_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMDNC_gf_MMGardenTerrorSpawnNightMinionSingleGroup_Trigger, false, false);
+}
+
+bool auto_libMDNC_gf_MMGardenTerrorSpawnNightMinionSingleGroup_TriggerFunc (bool testConds, bool runActions) {
+    int lp_groupIndex = auto_libMDNC_gf_MMGardenTerrorSpawnNightMinionSingleGroup_lp_groupIndex;
+
+    // Variable Declarations
+    unit lv_itMinion;
+    int lv_itMinionIndex;
+
+    // Automatic Variable Declarations
+    fixed autoA19B4EA6_at;
+    int auto0F5F696F_ae;
+    const int auto0F5F696F_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    UnitGroupClear(libMDNC_gv_mMGardenTerrorNightMinionGroups[lp_groupIndex].lv_units);
+    if ((libMDNC_gv_mMGardenTerrorNightMinionGroups[lp_groupIndex].lv_camp > 0)) {
+        autoA19B4EA6_at = 0;
+        while (!(((libMDNC_gv_mMGardenTerrorNightFallen == false) || (libMapM_gv_jungleCreepCamps[libMDNC_gv_mMGardenTerrorNightMinionGroups[lp_groupIndex].lv_camp].lv_aIState == libMapM_ge_JungleCampStates_Hibernating) || (libMapM_gv_jungleCreepCamps[libMDNC_gv_mMGardenTerrorNightMinionGroups[lp_groupIndex].lv_camp].lv_aIState == libMapM_ge_JungleCampStates_HibernatingReadyToRespawn))) && autoA19B4EA6_at <= libMDNC_gv_mMGardenTerrorNightDuration_C) {
+            Wait(1.0, c_timeGame);
+            autoA19B4EA6_at = autoA19B4EA6_at + 1.0;
+        }
+    }
+
+    Wait(RandomFixed(0.0, 1.0), c_timeGame);
+    if ((libMDNC_gv_mMGardenTerrorNightFallen == false)) {
+        return true;
+    }
+
+    auto0F5F696F_ae = libMDNC_gv_mMGardenTerrorNightMinionGroups[lp_groupIndex].lv_minionCount;
+    lv_itMinionIndex = 1;
+    for ( ; ( (auto0F5F696F_ai >= 0 && lv_itMinionIndex <= auto0F5F696F_ae) || (auto0F5F696F_ai < 0 && lv_itMinionIndex >= auto0F5F696F_ae) ) ; lv_itMinionIndex += auto0F5F696F_ai ) {
+        libNtve_gf_CreateUnitsAtPoint2(1, libMDNC_gv_mMGardenTerrorNightMinionGroups[lp_groupIndex].lv_minionType[lv_itMinionIndex], c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Hostile, libMDNC_gv_mMGardenTerrorNightMinionGroups[lp_groupIndex].lv_positions[lv_itMinionIndex]);
+        lv_itMinion = UnitLastCreated();
+        UnitGroupAdd(libMDNC_gv_mMGardenTerrorNightMonsters, UnitLastCreated());
+        UnitGroupAdd(libMDNC_gv_mMGardenTerrorNightMinionGroups[lp_groupIndex].lv_units, lv_itMinion);
+        libMDNC_gv_mMGardenTerrorNightMonstersTotalCount += 1;
+        libCore_gf_StoreIntegerForUnit(lv_itMinion, 1, lp_groupIndex);
+        libGame_gf_UpdateScalingForUnit(UnitLastCreated(), libGame_gv_scalingTicks, 0);
+        libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "SetMinimapVisibilityAlways");
+        libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "SetMinimapVisibility");
+    }
+    libAIAI_gf_StartDefenderAI(libMDNC_gv_mMGardenTerrorNightMinionGroups[lp_groupIndex].lv_units, RegionCircle(RegionGetCenter(libMDNC_gv_mMGardenTerrorNightMinionGroups[lp_groupIndex].lv_area), 14.0), null, false);
+    libMDNC_gv_mMGardenTerrorNightMinionGroupDefendIndex[lp_groupIndex] = libAIAI_gf_LastCreatedDefenderAI();
+    libNtve_gf_CreateUnitsAtPoint2(1, "JungleCampIconUnit", 0, libCore_gv_cOMPUTER_Hostile, RegionGetCenter(libMDNC_gv_mMGardenTerrorNightMinionGroups[lp_groupIndex].lv_area));
+    libMDNC_gv_mMGardenTerrorNightMinionGroupIcons[lp_groupIndex] = UnitLastCreated();
+    libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "MinimapIcon Assets\\Textures\\storm_ui_minimapicon_gardenhorror.dds");
+    libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "SetMinimapVisibility 1");
+    libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "SetMinimapVisibilityAlways 1");
+    libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "MinimapIconScale 0.500000");
+    libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "MinimapIconTintColor 255,180,90,218");
+    return true;
+}
+
+trigger auto_libMDNC_gf_MMGardenTerrorNightMonstersDroppingSeeds_Trigger = null;
+
+void libMDNC_gf_MMGardenTerrorNightMonstersDroppingSeeds () {
+    if (auto_libMDNC_gf_MMGardenTerrorNightMonstersDroppingSeeds_Trigger == null) {
+        auto_libMDNC_gf_MMGardenTerrorNightMonstersDroppingSeeds_Trigger = TriggerCreate("auto_libMDNC_gf_MMGardenTerrorNightMonstersDroppingSeeds_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMDNC_gf_MMGardenTerrorNightMonstersDroppingSeeds_Trigger, false, false);
+}
+
+bool auto_libMDNC_gf_MMGardenTerrorNightMonstersDroppingSeeds_TriggerFunc (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_i;
+    unit lv_unit;
+
+    // Automatic Variable Declarations
+    int auto316F8BF9_ae;
+    const int auto316F8BF9_ai = 1;
+    int auto277C4FFA_ae;
+    const int auto277C4FFA_ai = 1;
+    unitgroup auto0C6EFB24_g;
+    int auto0C6EFB24_u;
+
+    // Variable Initialization
+
+    // Implementation
+    while ((libGame_gv_gameOver == false)) {
+        auto316F8BF9_ae = libMDNC_gv_mMGardenTerrorNightBossesCount;
+        lv_i = 1;
+        for ( ; ( (auto316F8BF9_ai >= 0 && lv_i <= auto316F8BF9_ae) || (auto316F8BF9_ai < 0 && lv_i >= auto316F8BF9_ae) ) ; lv_i += auto316F8BF9_ai ) {
+            if ((UnitIsAlive(libMDNC_gv_mMGardenTerrorNightBosses[lv_i].lv_unit) == true)) {
+                libMDNC_gf_MMGardenTerrorNightBossDropsSeeds(lv_i);
+            }
+
+        }
+        auto277C4FFA_ae = libMDNC_gv_mMGardenTerrorNightMinionGroupsCount;
+        lv_i = 1;
+        for ( ; ( (auto277C4FFA_ai >= 0 && lv_i <= auto277C4FFA_ae) || (auto277C4FFA_ai < 0 && lv_i >= auto277C4FFA_ae) ) ; lv_i += auto277C4FFA_ai ) {
+            auto0C6EFB24_g = libMDNC_gv_mMGardenTerrorNightMinionGroups[lv_i].lv_units;
+            auto0C6EFB24_u = UnitGroupCount(auto0C6EFB24_g, c_unitCountAll);
+            for (;; auto0C6EFB24_u -= 1) {
+                lv_unit = UnitGroupUnitFromEnd(auto0C6EFB24_g, auto0C6EFB24_u);
+                if (lv_unit == null) { break; }
+                if ((UnitIsAlive(lv_unit) == true)) {
+                    libMDNC_gf_MMGardenTerrorNightMinionDropsSeeds(lv_unit);
+                }
+
+            }
+        }
+        Wait(0.25, c_timeGame);
+    }
+    return true;
+}
+
+void libMDNC_gf_MMGardenTerrorNightBossDropsSeeds (int lp_bossIndex) {
+    // Variable Declarations
+    fixed lv_percent;
+    int lv_droppedIndex;
+    int lv_dropIndexMax;
+    int lv_dropIndex;
+    int lv_itDrop;
+    int lv_itSeed;
+    point lv_dropLoc;
+    point lv_dropLocTemp;
+
+    // Automatic Variable Declarations
+    int autoEE0CAE54_ae;
+    const int autoEE0CAE54_ai = 1;
+    const int auto6F91A734_ae = libMDNC_gv_mMGardenTerrorDropSeedsBossPerHPDrop_C;
+    const int auto6F91A734_ai = 1;
+    int autoF17B48A5_ae;
+    const int autoF17B48A5_ai = 1;
+    const int auto8659008C_n = 20;
+    int auto8659008C_i;
+
+    // Variable Initialization
+    lv_percent = UnitGetPropertyFixed(libMDNC_gv_mMGardenTerrorNightBosses[lp_bossIndex].lv_unit, c_unitPropLifePercent, c_unitPropCurrent);
+    lv_droppedIndex = libCore_gf_IntegerStoredForUnit(libMDNC_gv_mMGardenTerrorNightBosses[lp_bossIndex].lv_unit, 2);
+    lv_dropIndexMax = ((libMDNC_gv_mMGardenTerrorDropSeedsBossStartHPPercent_C+FixedToInt(libMDNC_gv_mMGardenTerrorDropSeedsBossPerHPPercent_C)-1)/FixedToInt(libMDNC_gv_mMGardenTerrorDropSeedsBossPerHPPercent_C));
+
+    // Implementation
+    if ((UnitIsAlive(libMDNC_gv_mMGardenTerrorNightBosses[lp_bossIndex].lv_unit) == true)) {
+        lv_dropIndex = ((libMDNC_gv_mMGardenTerrorDropSeedsBossStartHPPercent_C+FixedToInt(libMDNC_gv_mMGardenTerrorDropSeedsBossPerHPPercent_C)-1-FixedToInt(lv_percent))/FixedToInt(libMDNC_gv_mMGardenTerrorDropSeedsBossPerHPPercent_C));
+        lv_dropIndex = MinI(lv_dropIndex, lv_dropIndexMax);
+    }
+    else {
+        lv_dropIndex = lv_dropIndexMax;
+    }
+    if ((lv_dropIndex > lv_droppedIndex)) {
+        libCore_gf_StoreIntegerForUnit(libMDNC_gv_mMGardenTerrorNightBosses[lp_bossIndex].lv_unit, 2, lv_dropIndex);
+        autoEE0CAE54_ae = lv_dropIndex;
+        lv_itDrop = (lv_droppedIndex + 1);
+        for ( ; ( (autoEE0CAE54_ai >= 0 && lv_itDrop <= autoEE0CAE54_ae) || (autoEE0CAE54_ai < 0 && lv_itDrop >= autoEE0CAE54_ae) ) ; lv_itDrop += autoEE0CAE54_ai ) {
+            lv_itSeed = 1;
+            for ( ; ( (auto6F91A734_ai >= 0 && lv_itSeed <= auto6F91A734_ae) || (auto6F91A734_ai < 0 && lv_itSeed >= auto6F91A734_ae) ) ; lv_itSeed += auto6F91A734_ai ) {
+                libMDNC_gf_MMGardenTerrorDropSeeds(UnitGetPosition(libMDNC_gv_mMGardenTerrorNightBosses[lp_bossIndex].lv_unit), 1, true);
+            }
+        }
+    }
+
+    lv_droppedIndex = libCore_gf_IntegerStoredForUnit(libMDNC_gv_mMGardenTerrorNightBosses[lp_bossIndex].lv_unit, 3);
+    lv_dropIndexMax = 2;
+    if ((UnitIsAlive(libMDNC_gv_mMGardenTerrorNightBosses[lp_bossIndex].lv_unit) == true)) {
+        if ((lv_percent <= 30.0)) {
+            lv_dropIndex = 2;
+        }
+        else if ((lv_percent <= 70.0)) {
+            lv_dropIndex = 1;
+        }
+        else if (true) {
+            lv_dropIndex = 0;
+        }
+    }
+    else {
+        lv_dropIndex = lv_dropIndexMax;
+    }
+    if ((lv_dropIndex > lv_droppedIndex)) {
+        libCore_gf_StoreIntegerForUnit(libMDNC_gv_mMGardenTerrorNightBosses[lp_bossIndex].lv_unit, 3, lv_dropIndex);
+        autoF17B48A5_ae = lv_dropIndex;
+        lv_itDrop = (lv_droppedIndex + 1);
+        for ( ; ( (autoF17B48A5_ai >= 0 && lv_itDrop <= autoF17B48A5_ae) || (autoF17B48A5_ai < 0 && lv_itDrop >= autoF17B48A5_ae) ) ; lv_itDrop += autoF17B48A5_ai ) {
+            lv_dropLoc = null;
+            for (auto8659008C_i = 1; auto8659008C_i <= auto8659008C_n; auto8659008C_i += 1) {
+                lv_dropLocTemp = PointWithOffsetPolar(UnitGetPosition(libMDNC_gv_mMGardenTerrorNightBosses[lp_bossIndex].lv_unit), RandomFixed(5.0, 6.5), libNtve_gf_RandomAngle());
+                if ((RegionContainsPoint(libMDNC_gv_mMGardenTerrorNightBosses[lp_bossIndex].lv_area, lv_dropLocTemp) == true)) {
+                    lv_dropLoc = lv_dropLocTemp;
+                    break;
+                }
+
+            }
+            if ((lv_dropLoc == null)) {
+                lv_dropLoc = PointWithOffsetPolar(UnitGetPosition(libMDNC_gv_mMGardenTerrorNightBosses[lp_bossIndex].lv_unit), RandomFixed(2.0, 3.0), libNtve_gf_RandomAngle());
+            }
+
+            UnitCreateEffectPoint(libMDNC_gv_mMGardenTerrorNightBosses[lp_bossIndex].lv_unit, "RegenGlobeNeutralCreatePrecursorUnit", lv_dropLoc);
+        }
+    }
+
+}
+
+int libMDNC_gf_MMGardenTerrorNightPerBossTotalSeeds () {
+    // Variable Declarations
+    int lv_dropIndexMax;
+    int lv_itDrop;
+    int lv_count;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_dropIndexMax = ((libMDNC_gv_mMGardenTerrorDropSeedsBossStartHPPercent_C+FixedToInt(libMDNC_gv_mMGardenTerrorDropSeedsBossPerHPPercent_C)-1)/FixedToInt(libMDNC_gv_mMGardenTerrorDropSeedsBossPerHPPercent_C));
+    lv_count = (lv_dropIndexMax * libMDNC_gv_mMGardenTerrorDropSeedsBossPerHPDrop_C);
+    lv_count += libMDNC_gv_mMGardenTerrorDropSeedsBossFinalDrop_C;
+    return lv_count;
+}
+
+int libMDNC_gf_MMGardenTerrorNightMinionGroupIndex (unit lp_minion) {
+    // Automatic Variable Declarations
+    // Implementation
+    return libCore_gf_IntegerStoredForUnit(lp_minion, 1);
+}
+
+void libMDNC_gf_MMGardenTerrorNightMinionDropsSeeds (unit lp_minion) {
+    // Variable Declarations
+    int lv_droppedIndex;
+    int lv_dropIndex;
+    int lv_dropIndexMax;
+    int lv_itDrop;
+    int lv_itSeed;
+    fixed lv_percent;
+
+    // Automatic Variable Declarations
+    int auto7E9A674F_ae;
+    const int auto7E9A674F_ai = 1;
+    const int auto8411C4CD_ae = libMDNC_gv_mMGardenTerrorDropSeedsMinionPerHPDrop_C;
+    const int auto8411C4CD_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_droppedIndex = libCore_gf_IntegerStoredForUnit(lp_minion, 2);
+    lv_dropIndexMax = ((libMDNC_gv_mMGardenTerrorDropSeedsMinionStartHPPercent_C+FixedToInt(libMDNC_gv_mMGardenTerrorDropSeedsMinionPerHPPercent_C)-1)/FixedToInt(libMDNC_gv_mMGardenTerrorDropSeedsMinionPerHPPercent_C));
+    if ((UnitIsAlive(lp_minion) == true)) {
+        lv_percent = UnitGetPropertyFixed(lp_minion, c_unitPropLifePercent, c_unitPropCurrent);
+        lv_dropIndex = ((libMDNC_gv_mMGardenTerrorDropSeedsMinionStartHPPercent_C+FixedToInt(libMDNC_gv_mMGardenTerrorDropSeedsMinionPerHPPercent_C)-1-FixedToInt(lv_percent))/FixedToInt(libMDNC_gv_mMGardenTerrorDropSeedsMinionPerHPPercent_C));
+        lv_dropIndex = MinI(lv_dropIndex, lv_dropIndexMax);
+    }
+    else {
+        lv_dropIndex = lv_dropIndexMax;
+    }
+    if ((lv_dropIndex <= lv_droppedIndex)) {
+        return ;
+    }
+
+    libCore_gf_StoreIntegerForUnit(lp_minion, 2, lv_dropIndex);
+    auto7E9A674F_ae = lv_dropIndex;
+    lv_itDrop = (lv_droppedIndex + 1);
+    for ( ; ( (auto7E9A674F_ai >= 0 && lv_itDrop <= auto7E9A674F_ae) || (auto7E9A674F_ai < 0 && lv_itDrop >= auto7E9A674F_ae) ) ; lv_itDrop += auto7E9A674F_ai ) {
+        lv_itSeed = 1;
+        for ( ; ( (auto8411C4CD_ai >= 0 && lv_itSeed <= auto8411C4CD_ae) || (auto8411C4CD_ai < 0 && lv_itSeed >= auto8411C4CD_ae) ) ; lv_itSeed += auto8411C4CD_ai ) {
+            libMDNC_gf_MMGardenTerrorDropSeeds(UnitGetPosition(lp_minion), 1, false);
+        }
+    }
+}
+
+int libMDNC_gf_MMGardenTerrorNightPerMinionTotalSeeds () {
+    // Variable Declarations
+    int lv_dropIndexMax;
+    int lv_itDrop;
+    int lv_count;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_dropIndexMax = ((libMDNC_gv_mMGardenTerrorDropSeedsMinionStartHPPercent_C+FixedToInt(libMDNC_gv_mMGardenTerrorDropSeedsMinionPerHPPercent_C)-1)/FixedToInt(libMDNC_gv_mMGardenTerrorDropSeedsMinionPerHPPercent_C));
+    lv_count = (lv_dropIndexMax * libMDNC_gv_mMGardenTerrorDropSeedsMinionPerHPDrop_C);
+    lv_count += libMDNC_gv_mMGardenTerrorDropSeedsMinionFinalDrop_C;
+    return lv_count;
+}
+
+int libMDNC_gf_MMGardenTerrorNightSeedsTotal () {
+    // Variable Declarations
+    int lv_itGroup;
+    int lv_count;
+
+    // Automatic Variable Declarations
+    int auto478FAAC4_ae;
+    const int auto478FAAC4_ai = 1;
+    int autoC3DC8E53_ae;
+    const int autoC3DC8E53_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    auto478FAAC4_ae = libMDNC_gv_mMGardenTerrorNightMinionGroupsCount;
+    lv_itGroup = 1;
+    for ( ; ( (auto478FAAC4_ai >= 0 && lv_itGroup <= auto478FAAC4_ae) || (auto478FAAC4_ai < 0 && lv_itGroup >= auto478FAAC4_ae) ) ; lv_itGroup += auto478FAAC4_ai ) {
+        lv_count += (libMDNC_gf_MMGardenTerrorNightPerMinionTotalSeeds() * libMDNC_gv_mMGardenTerrorNightMinionGroups[lv_itGroup].lv_minionCount);
+    }
+    autoC3DC8E53_ae = libMDNC_gv_mMGardenTerrorNightBossesCount;
+    lv_itGroup = 1;
+    for ( ; ( (autoC3DC8E53_ai >= 0 && lv_itGroup <= autoC3DC8E53_ae) || (autoC3DC8E53_ai < 0 && lv_itGroup >= autoC3DC8E53_ae) ) ; lv_itGroup += autoC3DC8E53_ai ) {
+        lv_count += libMDNC_gf_MMGardenTerrorNightPerBossTotalSeeds();
+    }
+    return lv_count;
+}
+
+void libMDNC_gf_MMGardenTerrorDropSeeds (point lp_location, int lp_count, bool lp_forBoss) {
+    // Automatic Variable Declarations
+    int autoA4BF4907_n;
+    int autoA4BF4907_i;
+
+    // Implementation
+    if ((lp_count <= 0)) {
+        return ;
+    }
+
+    if ((lp_forBoss == true)) {
+        if ((lp_count > 1)) {
+            CatalogFieldValueSet(c_gameCatalogEffect, "PlantHorrorSpawnSeeds", "PeriodCount", libCore_gv_cOMPUTER_Neutral, IntToString(lp_count));
+            PlayerCreateEffectPoint(libCore_gv_cOMPUTER_Neutral, "PlantHorrorSpawnSeeds", lp_location);
+        }
+        else {
+            PlayerCreateEffectPoint(libCore_gv_cOMPUTER_Neutral, "PlantHorrorSpawnSeedsSingleFar", lp_location);
+        }
+    }
+    else {
+        autoA4BF4907_n = lp_count;
+        for (autoA4BF4907_i = 1; autoA4BF4907_i <= autoA4BF4907_n; autoA4BF4907_i += 1) {
+            PlayerCreateEffectPoint(libCore_gv_cOMPUTER_Neutral, "PlantHorrorSpawnSeedsSingleClose", lp_location);
+        }
+    }
+}
+
+int libMDNC_gf_MMGardenTerrorNightSeedsLeft () {
+    // Variable Declarations
+    int lv_count;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_count = libMDNC_gf_MMGardenTerrorNightSeedsTotal();
+    return (libMDNC_gf_MMGardenTerrorNightSeedsTotal()-libMDNC_gv_mMGardenTerrorSeedsCollectedTonight[1]-libMDNC_gv_mMGardenTerrorSeedsCollectedTonight[2]);
+}
+
+unit libMDNC_gf_MMGardenTerrorPlayerHeroUnit (int lp_player) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libGame_gv_players[lp_player].lv_activeVehicle != null) && (UnitIsAlive(libGame_gv_players[lp_player].lv_activeVehicle) == true)) {
+        return libGame_gv_players[lp_player].lv_activeVehicle;
+    }
+
+    return libGame_gv_players[lp_player].lv_heroUnit;
+}
+
+fixed libMDNC_gf_MMGardenTerrorSummonedGolemDuration () {
+    // Automatic Variable Declarations
+    // Implementation
+    return MinF((80.0+2*libGame_gv_scalingTicks), 120.0);
+}
+
+trigger auto_libMDNC_gf_MMGardenTerrorGardenGrow_Trigger = null;
+int auto_libMDNC_gf_MMGardenTerrorGardenGrow_lp_team;
+
+void libMDNC_gf_MMGardenTerrorGardenGrow (int lp_team) {
+    auto_libMDNC_gf_MMGardenTerrorGardenGrow_lp_team = lp_team;
+
+    if (auto_libMDNC_gf_MMGardenTerrorGardenGrow_Trigger == null) {
+        auto_libMDNC_gf_MMGardenTerrorGardenGrow_Trigger = TriggerCreate("auto_libMDNC_gf_MMGardenTerrorGardenGrow_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMDNC_gf_MMGardenTerrorGardenGrow_Trigger, false, false);
+}
+
+bool auto_libMDNC_gf_MMGardenTerrorGardenGrow_TriggerFunc (bool testConds, bool runActions) {
+    int lp_team = auto_libMDNC_gf_MMGardenTerrorGardenGrow_lp_team;
+
+    // Variable Declarations
+    fixed lv_duration;
+    int lv_growTextTag;
+    timer lv_growTimer;
+    fixed lv_remainingDuration;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_growTextTag = c_textTagNone;
+    lv_growTimer = TimerCreate();
+
+    // Implementation
+    if ((libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_growing == true)) {
+        return true;
+    }
+
+    libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_growing = true;
+    libNtve_gf_SendActorMessageToUnit(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units, "Signal Channel");
+    ActorSend(libNtve_gf_MainActorofUnit(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_fertileSoil), "AnimGroupApply Ready Stand,Ready,Start {} 0 1.000000 AsTimeScale");
+    libNtve_gf_SendActorMessageToUnit(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_fertileSoil, "Signal Ready");
+    Wait(0.5, c_timeGame);
+    libMDNC_gv_mMGardenTerrorSeedsCollected[lp_team] = (libMDNC_gv_mMGardenTerrorSeedsCollected[lp_team] - libMDNC_gv_mMGardenTerrorSeedsRequested_C);
+    libMDNC_gf_MMGardenTerrorTransmissionGolemStartGrowingQ(lp_team);
+    libMDNC_gf_MMGardenTerrorUIGardenTerrorGrow(lp_team);
+    TimerStart(lv_growTimer, libMDNC_gv_mMGardenTerrorGardenGrowDuration_C, false, c_timeGame);
+    TextTagCreate(StringToText(""), 32, PointWithOffset(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_positions, 0.0, 2.0), 0.5, true, false, libGame_gf_PlayersOnTeamHeroes(lp_team, false));
+    lv_growTextTag = TextTagLastCreated();
+    while (true) {
+        if ((TimerGetRemaining(lv_growTimer) == 0.0)) {
+            TextTagDestroy(lv_growTextTag);
+            break;
+        }
+
+        TextExpressionSetToken("Param/Expression/lib_MDNC_F1F2E20C", "A", TextTimeFormat(StringToText("<min2/>:<sec2/>"), FixedToInt(TimerGetRemaining(lv_growTimer))));
+        TextTagSetText(lv_growTextTag, TextExpressionAssemble("Param/Expression/lib_MDNC_F1F2E20C"));
+        Wait(0.25, c_timeGame);
+    }
+    libMDNC_gf_MMGardenTerrorUpdateHauntedGarden(lp_team);
+    UnitStatusBarOverride(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units, -1);
+    libNtve_gf_SendActorMessageToUnit(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units, "Signal ChannelCancel");
+    UnitBehaviorRemovePlayer(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units, "PlantHorrorDeactivated", UnitGetOwner(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units), 1);
+    UnitSetPosition(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units, PointWithOffsetPolar(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_positions, 2.0, libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_facing), false);
+    libNtve_gf_SendActorMessageToUnit(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units, "Signal Finished");
+    UnitBehaviorAddPlayer(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units, "PlantHorrorTimedLife", libCore_gv_cOMPUTER_Neutral, 1);
+    lv_duration = libMDNC_gv_mMGardenTerrorGardenLifeDuration_C;
+    UnitBehaviorSetDuration(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units, "PlantHorrorTimedLife", lv_duration);
+    UnitBehaviorSetDurationRemaining(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units, "PlantHorrorTimedLife", lv_duration);
+    libMDNC_gf_MMGardenTerrorUpdateHauntedGarden(lp_team);
+    Wait(2.0, c_timeGame);
+    libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_growing = false;
+    libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_readyToControl = true;
+    TextTagCreate(StringToText(""), 32, PointWithOffset(UnitGetPosition(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units), 1.0, 2.0), 0.5, true, false, libGame_gf_PlayersOnTeamHeroes(lp_team, false));
+    lv_growTextTag = TextTagLastCreated();
+    while (true) {
+        if (((UnitIsAlive(libMDNC_gv_mMGardenTerrorSummonedBoss[lp_team]) == true) || (UnitIsAlive(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units) == false))) {
+            TextTagDestroy(lv_growTextTag);
+            break;
+        }
+
+        lv_remainingDuration = UnitBehaviorDuration(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_units, "PlantHorrorTimedLife");
+        TextExpressionSetToken("Param/Expression/lib_MDNC_2FA3D8E3", "A", TextTimeFormat(StringToText("<min2/>:<sec2/>"), FixedToInt(lv_remainingDuration)));
+        TextTagSetText(lv_growTextTag, TextExpressionAssemble("Param/Expression/lib_MDNC_2FA3D8E3"));
+        libUIUI_gf_MapMechanicsGardenOfTerrorSetGolemGrowTimeForTeam(lp_team, FixedToInt(lv_remainingDuration));
+        Wait(0.25, c_timeGame);
+    }
+    libUIUI_gf_MapMechanicsGardenOfTerrorSetGolemGrowTimeForTeam(lp_team, 0);
+    libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_readyToControl = false;
+    libMDNC_gf_MMGardenTerrorUpdateHauntedGarden(lp_team);
+    if ((UnitIsAlive(libMDNC_gv_mMGardenTerrorSummonedBoss[lp_team]) == false)) {
+        libMDNC_gf_MMGardenTerrorGardenCooldown(lp_team);
+        libMDNC_gf_MMGardenTerrorTransmissionGolemWastedQ(lp_team);
+    }
+
+    return true;
+}
+
+trigger auto_libMDNC_gf_MMGardenTerrorGardenCooldown_Trigger = null;
+int auto_libMDNC_gf_MMGardenTerrorGardenCooldown_lp_team;
+
+void libMDNC_gf_MMGardenTerrorGardenCooldown (int lp_team) {
+    auto_libMDNC_gf_MMGardenTerrorGardenCooldown_lp_team = lp_team;
+
+    if (auto_libMDNC_gf_MMGardenTerrorGardenCooldown_Trigger == null) {
+        auto_libMDNC_gf_MMGardenTerrorGardenCooldown_Trigger = TriggerCreate("auto_libMDNC_gf_MMGardenTerrorGardenCooldown_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMDNC_gf_MMGardenTerrorGardenCooldown_Trigger, false, false);
+}
+
+bool auto_libMDNC_gf_MMGardenTerrorGardenCooldown_TriggerFunc (bool testConds, bool runActions) {
+    int lp_team = auto_libMDNC_gf_MMGardenTerrorGardenCooldown_lp_team;
+
+    // Variable Declarations
+    int lv_cooldownTextTag;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_cooldownTextTag = c_textTagNone;
+
+    // Implementation
+    if ((TimerGetRemaining(libMDNC_gv_mMGardenTerrorGolemCooldownTimer[lp_team]) > 0.0)) {
+        return true;
+    }
+
+    TimerStart(libMDNC_gv_mMGardenTerrorGolemCooldownTimer[lp_team], libMDNC_gv_mMGardenTerrorGardenCooldown_C, false, c_timeGame);
+    TextTagCreate(StringToText(""), 32, libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_positions, 0.5, true, false, libGame_gf_PlayersOnTeamHeroes(lp_team, false));
+    lv_cooldownTextTag = TextTagLastCreated();
+    while (true) {
+        if ((TimerGetRemaining(libMDNC_gv_mMGardenTerrorGolemCooldownTimer[lp_team]) == 0.0)) {
+            TextTagDestroy(lv_cooldownTextTag);
+            libNtve_gf_SendActorMessageToUnit(libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_fertileSoil, "StatusSet ReadyPing 0");
+            break;
+        }
+
+        TextExpressionSetToken("Param/Expression/lib_MDNC_564704B7", "A", TextTimeFormat(StringToText("<min2/>:<sec2/>"), FixedToInt(TimerGetRemaining(libMDNC_gv_mMGardenTerrorGolemCooldownTimer[lp_team]))));
+        TextTagSetText(lv_cooldownTextTag, TextExpressionAssemble("Param/Expression/lib_MDNC_564704B7"));
+        Wait(0.25, c_timeGame);
+    }
+    libMDNC_gf_MMGardenTerrorCreateHauntedGarden(lp_team, true);
+    return true;
+}
+
+void libMDNC_gf_MMGardenTerrorUIUpdateText () {
+    // Variable Declarations
+    int lv_itTeam;
+    bool lv_golemSummonPossible;
+
+    // Automatic Variable Declarations
+    const int autoD770408A_ae = libCore_gv_bALMaxTeams;
+    const int autoD770408A_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_itTeam = 1;
+    for ( ; ( (autoD770408A_ai >= 0 && lv_itTeam <= autoD770408A_ae) || (autoD770408A_ai < 0 && lv_itTeam >= autoD770408A_ae) ) ; lv_itTeam += autoD770408A_ai ) {
+        if (((libMDNC_gv_mMGardenTerrorSeedsCollected[lv_itTeam] + libMDNC_gf_MMGardenTerrorNightSeedsLeft()) < libMDNC_gv_mMGardenTerrorSeedsRequested_C) && (libMDNC_gv_mMGardenTerrorNightFallen == true)) {
+            lv_golemSummonPossible = false;
+        }
+        else {
+            lv_golemSummonPossible = true;
+        }
+        libUIUI_gf_MapMechanicsGardenOfTerrorSetGolemSummonPossibleForTeam(lv_itTeam, lv_golemSummonPossible);
+        libUIUI_gf_MapMechanicsGardenOfTerrorSetSeedCountForTeam(IntToText(libMDNC_gv_mMGardenTerrorSeedsCollected[lv_itTeam]), lv_itTeam, lv_golemSummonPossible);
+    }
+}
+
+void libMDNC_gf_MMGardenTerrorUIUpdateGolemPanel () {
+    // Variable Declarations
+    int lv_itTeam;
+    bool lv_showOrHidePanel;
+
+    // Automatic Variable Declarations
+    const int auto417D9182_ae = libCore_gv_bALMaxTeams;
+    const int auto417D9182_ai = 1;
+
+    // Variable Initialization
+    lv_showOrHidePanel = true;
+
+    // Implementation
+    lv_showOrHidePanel = false;
+    lv_itTeam = 1;
+    for ( ; ( (auto417D9182_ai >= 0 && lv_itTeam <= auto417D9182_ae) || (auto417D9182_ai < 0 && lv_itTeam >= auto417D9182_ae) ) ; lv_itTeam += auto417D9182_ai ) {
+        if ((UnitIsAlive(libMDNC_gv_mMGardenTerrorSummonedBoss[lv_itTeam]) == true)) {
+            libUIUI_gf_MapMechanicsGardenOfTerrorSetGolemStatusTextForTeam(lv_itTeam, libUIUI_ge_MapMechanicsGardenOfTerrorGolemStatusText_Active);
+            libUIUI_gf_MapMechanicsGardenOfTerrorSetSeedFrameStatusTextForTeam(lv_itTeam, libUIUI_ge_MapMechanicsGardenOfTerrorGolemStatusText_Active);
+            lv_showOrHidePanel = true;
+        }
+        else {
+            if ((libMDNC_gv_mMGardenTerrorGarden[lv_itTeam].lv_growing == true)) {
+                libUIUI_gf_MapMechanicsGardenOfTerrorSetGolemStatusTextForTeam(lv_itTeam, libUIUI_ge_MapMechanicsGardenOfTerrorGolemStatusText_Growing);
+                libUIUI_gf_MapMechanicsGardenOfTerrorSetSeedFrameStatusTextForTeam(lv_itTeam, libUIUI_ge_MapMechanicsGardenOfTerrorGolemStatusText_Growing);
+            }
+            else {
+                if ((libMDNC_gv_mMGardenTerrorGarden[lv_itTeam].lv_readyToControl == true)) {
+                    libUIUI_gf_MapMechanicsGardenOfTerrorSetGolemStatusTextForTeam(lv_itTeam, libUIUI_ge_MapMechanicsGardenOfTerrorGolemStatusText_ReadyToSummon);
+                    libUIUI_gf_MapMechanicsGardenOfTerrorSetSeedFrameStatusTextForTeam(lv_itTeam, libUIUI_ge_MapMechanicsGardenOfTerrorGolemStatusText_ReadyToSummon);
+                }
+                else if ((libMDNC_gv_mMGardenTerrorSeedsCollected[lv_itTeam] >= libMDNC_gv_mMGardenTerrorSeedsRequested_C) && (TimerGetRemaining(libMDNC_gv_mMGardenTerrorGolemCooldownTimer[lv_itTeam]) > 0.0)) {
+                    libUIUI_gf_MapMechanicsGardenOfTerrorSetGolemStatusTextForTeam(lv_itTeam, libUIUI_ge_MapMechanicsGardenOfTerrorGolemStatusText_WaitToSummon);
+                    libUIUI_gf_MapMechanicsGardenOfTerrorSetSeedFrameStatusTextForTeam(lv_itTeam, libUIUI_ge_MapMechanicsGardenOfTerrorGolemStatusText_WaitToSummon);
+                    lv_showOrHidePanel = true;
+                }
+                else if (true) {
+                    libUIUI_gf_MapMechanicsGardenOfTerrorSetGolemStatusTextForTeam(lv_itTeam, libUIUI_ge_MapMechanicsGardenOfTerrorGolemStatusText_Null);
+                    libUIUI_gf_MapMechanicsGardenOfTerrorSetSeedFrameStatusTextForTeam(lv_itTeam, libUIUI_ge_MapMechanicsGardenOfTerrorGolemStatusText_Null);
+                }
+            }
+        }
+    }
+    libUIUI_gf_MapMechanicsGardenOfTerrorShowHideGolemFrame(lv_showOrHidePanel);
+}
+
+trigger auto_libMDNC_gf_MMGardenTerrorUIGardenTerrorGrow_Trigger = null;
+int auto_libMDNC_gf_MMGardenTerrorUIGardenTerrorGrow_lp_team;
+
+void libMDNC_gf_MMGardenTerrorUIGardenTerrorGrow (int lp_team) {
+    auto_libMDNC_gf_MMGardenTerrorUIGardenTerrorGrow_lp_team = lp_team;
+
+    if (auto_libMDNC_gf_MMGardenTerrorUIGardenTerrorGrow_Trigger == null) {
+        auto_libMDNC_gf_MMGardenTerrorUIGardenTerrorGrow_Trigger = TriggerCreate("auto_libMDNC_gf_MMGardenTerrorUIGardenTerrorGrow_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMDNC_gf_MMGardenTerrorUIGardenTerrorGrow_Trigger, false, false);
+}
+
+bool auto_libMDNC_gf_MMGardenTerrorUIGardenTerrorGrow_TriggerFunc (bool testConds, bool runActions) {
+    int lp_team = auto_libMDNC_gf_MMGardenTerrorUIGardenTerrorGrow_lp_team;
+
+    // Variable Declarations
+    fixed lv_current;
+    timer lv_growTimer;
+    unit lv_tempGolem;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_growTimer = TimerCreate();
+
+    // Implementation
+    TimerStart(lv_growTimer, libMDNC_gv_mMGardenTerrorGardenGrowDuration_C, false, c_timeGame);
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, "JunglePlantHorror", c_unitCreateIgnorePlacement, libGame_gf_ComputerPlayerInTeam(lp_team), libMDNC_gv_mMGardenTerrorGarden[lp_team].lv_positions);
+    lv_tempGolem = UnitLastCreated();
+    libNtve_gf_ShowHideUnit(UnitLastCreated(), false);
+    libNtve_gf_MakeUnitInvulnerable(UnitLastCreated(), true);
+    libNtve_gf_PauseUnit(UnitLastCreated(), true);
+    UnitSetState(UnitLastCreated(), c_unitStateTargetable, false);
+    UnitSetState(UnitLastCreated(), c_unitStateRadarable, false);
+    UnitSetState(UnitLastCreated(), c_unitStateStatusBar, false);
+    UnitSetState(UnitLastCreated(), c_unitStateSelectable, false);
+    UnitSetState(UnitLastCreated(), c_unitStateHighlightable, false);
+    UnitSetState(UnitLastCreated(), c_unitStateDetectable, false);
+    UnitSetState(UnitLastCreated(), c_unitStateCursorable, false);
+    UnitSetPropertyFixed(UnitLastCreated(), c_unitPropLifeMax, 2000.0);
+    UnitSetPropertyFixed(lv_tempGolem, c_unitPropLifePercent, 0.1);
+    while (true) {
+        libUIUI_gf_MapMechanicsGardenOfTerrorSetGolemGrowTimeForTeam(lp_team, FixedToInt(TimerGetRemaining(lv_growTimer)));
+        lv_current = (TimerGetElapsed(lv_growTimer)*100/TimerGetDuration(lv_growTimer));
+        if ((lv_current > 0.1)) {
+            UnitSetPropertyFixed(lv_tempGolem, c_unitPropLifePercent, lv_current);
+        }
+
+        Wait(0.125, c_timeGame);
+        if ((TimerGetRemaining(lv_growTimer) == 0.0)) {
+            break;
+        }
+
+    }
+    UnitRemove(lv_tempGolem);
+    return true;
+}
+
+void libMDNC_gf_MMGardenTerrorGolemSummonedArt () {
+    // Automatic Variable Declarations
+    // Implementation
+    ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal MM1On");
+}
+
+void libMDNC_gf_MMGardenTerrorGolemKilledExpiredArt () {
+    // Automatic Variable Declarations
+    // Implementation
+    ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal MM1Off");
+    ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal MM2On");
+}
+
+void libMDNC_gf_MMGardenTerrorHeroAIChangeToState (int lp_trigPlayer, int lp_state, unit lp_target, int lp_priority) {
+    // Automatic Variable Declarations
+    // Implementation
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentState = (lp_state);
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateTrigger = libMDNC_gt_MMGardenTerrorHeroAIStateLogic;
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = lp_target;
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority = lp_priority;
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_wantsToDoCustomMapLogic = true;
+    libAIAI_gf_HeroAIChangeState(lp_trigPlayer, libAIAI_ge_HeroAIStates_HSCustomMapState);
+}
+
+int libMDNC_gf_MMGardenTerrorHeroAIPickupSeed (int lp_trigPlayer) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libAIAI_gf_HeroAIShouldRetreatJungle(lp_trigPlayer) == true)) {
+        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
+        return 8;
+    }
+
+    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
+        return 8;
+    }
+
+    if ((UnitIsValid(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == false)) {
+        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = null;
+        if ((libMDNC_gf_MMGardenTerrorHeroAISearchForNearbySeed(lp_trigPlayer, RegionCircle(UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit), libMDNC_gv_aIHeroGardenSeedSearchRadius), false) == true)) {
+            return 8;
+        }
+        else {
+            if ((libMDNC_gf_MMGardenTerrorHeroAIWantstoKillNightMinions(lp_trigPlayer) == true)) {
+                return 8;
+            }
+
+            libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
+            return 8;
+        }
+    }
+
+    libAIAI_gf_HeroAIEnsureOrderMoveUnit(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
+    return 8;
+}
+
+int libMDNC_gf_MMGardenTerrorHeroAIKillCamp (int lp_trigPlayer) {
+    // Variable Declarations
+    unit lv_enemyHero;
+    order lv_heroOrder;
+    point lv_headToLocation;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    if ((libMDNC_gv_mMGardenTerrorNightFallen == false)) {
+        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
+        return 8;
+    }
+
+    if ((libAIAI_gf_HeroAIShouldRetreatJungle(lp_trigPlayer) == true)) {
+        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
+        return 8;
+    }
+
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = libMDNC_gf_MMGardenTerrorHeroAINightChooseTargetTerror(lp_trigPlayer);
+    if ((UnitIsValid(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePingedTargetUnit) == true) && (libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit != libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePingedTargetUnit)) {
+        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePingedTargetUnit;
+    }
+
+    if (((UnitIsValid(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == false) || (libNtve_gf_UnitIsInvulnerable(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == true))) {
+        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = libMDNC_gf_MMGardenTerrorHeroAINightChooseTargetTerror(lp_trigPlayer);
+        if ((UnitIsValid(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == false)) {
+            if ((libMDNC_gf_MMGardenTerrorHeroAISearchForNearbySeed(lp_trigPlayer, RegionPlayableMap(), false) == true)) {
+                return 8;
+            }
+
+            libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
+            return 8;
+        }
+
+    }
+
+    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, null, libAIAI_gv_aIHeroRangedCombatRange, libAIAI_gv_aIHeroVisionRange, false, false, false, true) == true)) {
+        return 8;
+    }
+
+    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
+        return 8;
+    }
+
+    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libAIAI_gv_aIHeroVisionRange) == true)) {
+        return 8;
+    }
+
+    if ((UnitGetType(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == "JunglePlantHorror")) {
+        if ((libAIAI_gv_aIHeroes[lp_trigPlayer].lv_nextOffensiveSpellCheckTime <= TimerGetElapsed(libGame_gv_gameTimer)) && (libNtve_gf_UnitIsVisibleToPlayer(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, lp_trigPlayer) == true) && (libAIAI_gf_HeroAIRandomlyCastAbilityOnTarget(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == true)) {
+            libAIAI_gv_aIHeroes[lp_trigPlayer].lv_focusHeroTimeout = (TimerGetElapsed(libGame_gv_gameTimer) + libAIAI_gv_aIHeroFocusHeroMaxChaseTime);
+            return 8;
+        }
+
+    }
+
+    libAIAI_gf_HeroAIEnsureOrderAttackUnit(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
+    return 8;
+}
+
+int libMDNC_gf_MMGardenTerrorHeroAITerrorEnter (int lp_trigPlayer) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libMDNC_gv_mMGardenTerrorGarden[libGame_gf_TeamNumberOfPlayer(lp_trigPlayer)].lv_readyToControl == false)) {
+        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
+        if ((UnitIsAlive(libGame_gv_players[lp_trigPlayer].lv_activeVehicle) == true)) {
+            libAIAI_gf_HeroAIStartReturnToLane(lp_trigPlayer, libAIAI_gf_HeroAIGetBestLaneToPush(lp_trigPlayer));
+        }
+
+        return 8;
+    }
+
+    if ((libMDNC_gf_MMGardenTerrorHeroAIIsHumanAllyEnteringVehicle(libGame_gv_players[lp_trigPlayer].lv_faction, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == true)) {
+        UnitIssueOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, Order(AbilityCommand("stop", 0)), c_orderQueueReplace);
+        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
+        return 8;
+    }
+
+    if ((libMDNC_gf_MMGardenTerrorHeroAIShouldTryToEnterVehicle(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == false)) {
+        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
+        return 8;
+    }
+
+    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
+        return 8;
+    }
+
+    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, null, libAIAI_gv_aIHeroJungleStepDistance, libAIAI_gv_aIHeroGlobalMountMinDistance, false, false, false, true) == true)) {
+        return 8;
+    }
+
+    if (((UnitOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, 0) == null) || (OrderGetAbilityCommand(UnitOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, 0)) != AbilityCommand("UseVehicle", 0)))) {
+        UnitIssueOrder(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_currentHeroUnit, OrderTargetingUnit(AbilityCommand("UseVehicle", 0), libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), c_orderQueueReplace);
+    }
+
+    return 8;
+}
+
+void libMDNC_gf_MMGardenTerrorHeroAITerrorCampLogic (int lp_faction) {
+    // Variable Declarations
+    int lv_playerIndex;
+    bool lv_plansToAttackTerrorCamps;
+
+    // Automatic Variable Declarations
+    playergroup autoD2A21E97_g;
+
+    // Variable Initialization
+
+    // Implementation
+    autoD2A21E97_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction)].lv_aIPlayers;
+    lv_playerIndex = -1;
+    while (true) {
+        	lv_playerIndex = PlayerGroupNextPlayer(autoD2A21E97_g, lv_playerIndex);
+        	if (lv_playerIndex<0) { break; }
+        	if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (libMDNC_gv_mMGardenTerrorNightFallen == true) && (libAIAI_gv_aIHeroes[lv_playerIndex].lv_heroState != libAIAI_ge_HeroAIStates_HSCustomMapState) && (libAIAI_gf_HeroAIIsHigherPriority(lv_playerIndex, libAIAI_ge_HeroAIPriority_CustomMapRegular) == true)) {
+            if ((libAIAI_gf_HeroAIIsSafeJungle(lv_playerIndex) == true) && (libAIAI_gf_HeroAIShouldRetreatJungle(lv_playerIndex) == false)) {
+                lv_plansToAttackTerrorCamps = libMDNC_gf_MMGardenTerrorHeroAIWantstoKillNightMinions(lv_playerIndex);
+            }
+
+        }
+
+    }
+}
+
+void libMDNC_gf_MMGardenTerrorHeroAINightBossPinged (int lp_pingingPlayer, unit lp_targetNightBoss) {
+    // Variable Declarations
+    int lv_playerIndex;
+
+    // Automatic Variable Declarations
+    playergroup autoF72D5F53_g;
+
+    // Variable Initialization
+
+    // Implementation
+    if (((UnitIsValid(lp_targetNightBoss) == false) || (UnitGetType(lp_targetNightBoss) != "JunglePlantHorror"))) {
+        return ;
+    }
+
+    autoF72D5F53_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAIGetAllyTeamIndex(lp_pingingPlayer)].lv_aIPlayers;
+    lv_playerIndex = -1;
+    while (true) {
+        	lv_playerIndex = PlayerGroupNextPlayer(autoF72D5F53_g, lv_playerIndex);
+        	if (lv_playerIndex<0) { break; }
+        	libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStatePingedTargetUnit = lp_targetNightBoss;
+        if ((libAIAI_gv_aIHeroes[lv_playerIndex].lv_heroState == libAIAI_ge_HeroAIStates_HSCustomMapState) && (libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateCurrentState == (libMDNC_ge_MMGardenTerrorHeroAIStates_MMHWKillCamp))) {
+            libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateCurrentTargetUnit = lp_targetNightBoss;
+        }
+
+    }
+}
+
+bool libMDNC_gf_MMGardenTerrorHeroAIWantstoKillNightMinions (int lp_trigPlayer) {
+    // Variable Declarations
+    unit lv_terrorMinion;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_terrorMinion = libMDNC_gf_MMGardenTerrorHeroAINightChooseTargetTerror(lp_trigPlayer);
+    if ((lv_terrorMinion != null)) {
+        libMDNC_gf_MMGardenTerrorHeroAIChangeToState(lp_trigPlayer, libMDNC_ge_MMGardenTerrorHeroAIStates_MMHWKillCamp, lv_terrorMinion, libAIAI_ge_HeroAIPriority_CustomMapRegular);
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+unit libMDNC_gf_MMGardenTerrorHeroAINightChooseTargetTerror (int lp_trigPlayer) {
+    // Variable Declarations
+    unit lv_enemy;
+    fixed lv_targetEval;
+    unit lv_bestTarget;
+    fixed lv_bestTargetEval;
+
+    // Automatic Variable Declarations
+    unitgroup auto566BCEB7_g;
+    int auto566BCEB7_u;
+
+    // Variable Initialization
+    lv_bestTargetEval = 524287.0;
+
+    // Implementation
+    auto566BCEB7_g = libMDNC_gv_mMGardenTerrorNightMonsters;
+    auto566BCEB7_u = UnitGroupCount(auto566BCEB7_g, c_unitCountAll);
+    for (;; auto566BCEB7_u -= 1) {
+        lv_enemy = UnitGroupUnitFromEnd(auto566BCEB7_g, auto566BCEB7_u);
+        if (lv_enemy == null) { break; }
+        if ((UnitIsAlive(lv_enemy) == true)) {
+            lv_targetEval = libAIAI_gf_HeroAIEvaluateTarget(lp_trigPlayer, lv_enemy, libAIAI_gv_aIHeroChangeTargetDistanceWeight);
+            if ((UnitGetType(lv_enemy) == "JunglePlantHorror")) {
+                lv_targetEval *= 20.0;
+            }
+
+            if ((lv_targetEval < lv_bestTargetEval)) {
+                lv_bestTarget = lv_enemy;
+                lv_bestTargetEval = lv_targetEval;
+            }
+
+        }
+
+    }
+    return lv_bestTarget;
+}
+
+void libMDNC_gf_MMGardenTerrorHeroAIPickupSeedsLogic (int lp_faction) {
+    // Variable Declarations
+    int lv_playerIndex;
+    bool lv_seedFound;
+
+    // Automatic Variable Declarations
+    playergroup auto1DD6DAAD_g;
+
+    // Variable Initialization
+
+    // Implementation
+    auto1DD6DAAD_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction)].lv_aIPlayers;
+    lv_playerIndex = -1;
+    while (true) {
+        	lv_playerIndex = PlayerGroupNextPlayer(auto1DD6DAAD_g, lv_playerIndex);
+        	if (lv_playerIndex<0) { break; }
+        	if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (((libAIAI_gv_aIHeroes[lv_playerIndex].lv_heroState != libAIAI_ge_HeroAIStates_HSCustomMapState) && (libAIAI_gf_HeroAIIsHigherPriority(lv_playerIndex, libAIAI_ge_HeroAIPriority_CustomMapHigh) == true)) || ((libAIAI_gv_aIHeroes[lv_playerIndex].lv_heroState == libAIAI_ge_HeroAIStates_HSCustomMapState) && (libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateCurrentState != (libMDNC_ge_MMGardenTerrorHeroAIStates_MMHWPickupSeed))))) {
+            if ((libAIAI_gf_HeroAIShouldRetreatJungle(lv_playerIndex) == false)) {
+                lv_seedFound = libMDNC_gf_MMGardenTerrorHeroAISearchForNearbySeed(lv_playerIndex, RegionCircle(UnitGetPosition(libGame_gv_players[lv_playerIndex].lv_heroUnit), libMDNC_gv_aIHeroGardenSeedSearchRadius), false);
+            }
+
+        }
+
+    }
+}
+
+bool libMDNC_gf_MMGardenTerrorHeroAISearchForNearbySeed (int lp_trigPlayer, region lp_searchRegion, bool lp_ignoreAllies) {
+    // Variable Declarations
+    unitgroup lv_nearbySeeds;
+    unitgroup lv_nearbyGlobes;
+    unit lv_seed;
+    fixed lv_seedDistance;
+    unit lv_bestSeed;
+    fixed lv_bestSeedDistance;
+
+    // Automatic Variable Declarations
+    unitgroup auto0FEAB472_g;
+    int auto0FEAB472_u;
+
+    // Variable Initialization
+    lv_nearbySeeds = UnitGroupEmpty();
+    lv_nearbyGlobes = UnitGroupEmpty();
+    lv_bestSeedDistance = 524287.0;
+
+    // Implementation
+    lv_nearbySeeds = UnitGroup("ItemSeedPickup", c_playerAny, lp_searchRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    lv_nearbyGlobes = UnitGroup("RegenGlobeNeutral", c_playerAny, lp_searchRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    UnitGroupAddUnitGroup(lv_nearbySeeds, lv_nearbyGlobes);
+    auto0FEAB472_g = lv_nearbySeeds;
+    auto0FEAB472_u = UnitGroupCount(auto0FEAB472_g, c_unitCountAll);
+    for (;; auto0FEAB472_u -= 1) {
+        lv_seed = UnitGroupUnitFromEnd(auto0FEAB472_g, auto0FEAB472_u);
+        if (lv_seed == null) { break; }
+        if ((lp_ignoreAllies == false) && (libMDNC_gf_MMGardenTerrorHeroAIIsAllyPickingUpSeed(lp_trigPlayer, lv_seed) == true)) {
+            continue;
+        }
+
+        lv_seedDistance = DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit), UnitGetPosition(lv_seed));
+        if ((lv_seedDistance < lv_bestSeedDistance)) {
+            lv_bestSeed = lv_seed;
+            lv_bestSeedDistance = lv_seedDistance;
+        }
+
+    }
+    if ((UnitIsValid(lv_bestSeed) == true)) {
+        libMDNC_gf_MMGardenTerrorHeroAIChangeToState(lp_trigPlayer, libMDNC_ge_MMGardenTerrorHeroAIStates_MMHWPickupSeed, lv_bestSeed, libAIAI_ge_HeroAIPriority_CustomMapHigh);
+        UnitIssueOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, OrderTargetingPoint(AbilityCommand("move", 0), UnitGetPosition(lv_bestSeed)), c_orderQueueReplace);
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+bool libMDNC_gf_MMGardenTerrorHeroAIIsAllyPickingUpSeed (int lp_trigPlayer, unit lp_seed) {
+    // Variable Declarations
+    int lv_playerIndex;
+
+    // Automatic Variable Declarations
+    int auto3781DC85_ae;
+
+    // Variable Initialization
+
+    // Implementation
+    auto3781DC85_ae = libCore_gv_bALMaxPlayers;
+    lv_playerIndex = 1;
+    for ( ; lv_playerIndex <= auto3781DC85_ae ; lv_playerIndex += 1 ) {
+        if ((libAIAI_gf_HeroAIIsPlayerActive(lp_trigPlayer, 2) == true) && (lp_trigPlayer != lv_playerIndex) && (libGame_gv_players[lp_trigPlayer].lv_faction == libGame_gv_players[lv_playerIndex].lv_faction) && (libAIAI_gv_aIHeroes[lv_playerIndex].lv_heroState == libAIAI_ge_HeroAIStates_HSCustomMapState) && (libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateCurrentTargetUnit == lp_seed) && (UnitIsAlive(libGame_gv_players[lv_playerIndex].lv_heroUnit) == true)) {
+            return true;
+        }
+
+    }
+    return false;
+}
+
+void libMDNC_gf_MMGardenTerrorHeroAITerrorVehicleLogic (int lp_faction) {
+    // Variable Declarations
+    int lv_playerIndex;
+    unitgroup lv_vehicles;
+    unit lv_testVehicle;
+    int lv_teamComputerPlayer;
+    int lv_aITeamIndex;
+    int lv_mapMechanicTeamIndex;
+    fixed lv_remainingDuration;
+    playergroup lv_alliedPlayers;
+
+    // Automatic Variable Declarations
+    unitgroup auto6F762860_g;
+    int auto6F762860_u;
+
+    // Variable Initialization
+    lv_vehicles = UnitGroupEmpty();
+    lv_alliedPlayers = PlayerGroupEmpty();
+
+    // Implementation
+    if ((lp_faction == libGame_ge_Faction_Order)) {
+        lv_teamComputerPlayer = libCore_gv_cOMPUTER_TeamOrder;
+        lv_aITeamIndex = (0);
+    }
+    else {
+        lv_teamComputerPlayer = libCore_gv_cOMPUTER_TeamChaos;
+        lv_aITeamIndex = (1);
+    }
+    lv_mapMechanicTeamIndex = (lv_aITeamIndex + 1);
+    if ((libMDNC_gv_mMGardenTerrorGarden[lv_mapMechanicTeamIndex].lv_readyToControl == false)) {
+        return ;
+    }
+
+    lv_remainingDuration = UnitBehaviorDuration(libMDNC_gv_mMGardenTerrorGarden[lv_mapMechanicTeamIndex].lv_units, "PlantHorrorTimedLife");
+    if ((lv_remainingDuration > 40.0) && ((libMDNC_gv_mMGardenTerrorNightFallen == true) || (PlayerGroupCount(libAIAI_gv_heroAITeamPlayerData[lv_aITeamIndex].lv_humanPlayers) >= 1))) {
+        return ;
+    }
+
+    if ((lv_remainingDuration > 30.0) && (PlayerGroupCount(libAIAI_gv_heroAITeamPlayerData[lv_aITeamIndex].lv_humanPlayers) >= 4)) {
+        return ;
+    }
+
+    if ((libAIAI_gv_heroAITeamData[lv_aITeamIndex].lv_nextMapMechanicConsiderTime > TimerGetElapsed(libGame_gv_gameTimer))) {
+        return ;
+    }
+    else {
+        libAIAI_gv_heroAITeamData[lv_aITeamIndex].lv_nextMapMechanicConsiderTime = (TimerGetElapsed(libGame_gv_gameTimer) + libMDNC_gv_aIHeroGardenTerrorVehicleConsiderFrequency);
+    }
+    lv_vehicles = UnitGroup("VehiclePlantHorror", lv_teamComputerPlayer, null, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    auto6F762860_g = lv_vehicles;
+    auto6F762860_u = UnitGroupCount(auto6F762860_g, c_unitCountAll);
+    for (;; auto6F762860_u -= 1) {
+        lv_testVehicle = UnitGroupUnitFromEnd(auto6F762860_g, auto6F762860_u);
+        if (lv_testVehicle == null) { break; }
+        if ((libMDNC_gf_MMGardenTerrorHeroAIIsAllyEnteringVehicle(lp_faction, lv_testVehicle) == false)) {
+            PlayerGroupClear(lv_alliedPlayers);
+            libNtve_gf_AddPlayerGroupToPlayerGroup(libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction)].lv_aIPlayers, lv_alliedPlayers);
+            while ((PlayerGroupCount(lv_alliedPlayers) > 0)) {
+                lv_playerIndex = libAIAI_gf_HeroAIClosestPlayerToPoint(lv_alliedPlayers, UnitGetPosition(lv_testVehicle));
+                PlayerGroupRemove(lv_alliedPlayers, lv_playerIndex);
+                if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (libAIAI_gf_HeroAIIsHigherPriority(lv_playerIndex, libAIAI_ge_HeroAIPriority_CustomMapHigh) == true) && (libMDNC_gf_MMGardenTerrorHeroAIShouldTryToEnterVehicle(lv_playerIndex, lv_testVehicle) == true)) {
+                    libMDNC_gf_MMGardenTerrorHeroAIChangeToState(lv_playerIndex, libMDNC_ge_MMGardenTerrorHeroAIStates_MMHWEnterTerror, lv_testVehicle, libAIAI_ge_HeroAIPriority_CustomMapHigh);
+                    break;
+                }
+
+            }
+        }
+
+    }
+}
+
+bool libMDNC_gf_MMGardenTerrorHeroAIShouldTryToEnterVehicle (int lp_trigPlayer, unit lp_vehicleStatue) {
+    // Variable Declarations
+    int lv_allyTeamComputerPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    if ((libGame_gv_players[lp_trigPlayer].lv_faction == libGame_ge_Faction_Order)) {
+        lv_allyTeamComputerPlayer = libCore_gv_cOMPUTER_TeamOrder;
+    }
+    else {
+        lv_allyTeamComputerPlayer = libCore_gv_cOMPUTER_TeamChaos;
+    }
+    if ((UnitIsValid(libGame_gv_players[lp_trigPlayer].lv_activeVehicle) == false) && (UnitIsAlive(lp_vehicleStatue) == true) && (UnitGetOwner(lp_vehicleStatue) == lv_allyTeamComputerPlayer)) {
+        return true;
+    }
+
+    return false;
+}
+
+bool libMDNC_gf_MMGardenTerrorHeroAIIsAllyEnteringVehicle (int lp_faction, unit lp_vehicleStatue) {
+    // Variable Declarations
+    int lv_playerIndex;
+    order lv_heroOrder;
+
+    // Automatic Variable Declarations
+    int auto511055C8_ae;
+
+    // Variable Initialization
+
+    // Implementation
+    auto511055C8_ae = libCore_gv_bALMaxPlayers;
+    lv_playerIndex = 1;
+    for ( ; lv_playerIndex <= auto511055C8_ae ; lv_playerIndex += 1 ) {
+        if ((libMDNC_gf_MMGardenTerrorHeroAIIsHumanAllyEnteringVehicle(lp_faction, lp_vehicleStatue) == true)) {
+            return true;
+        }
+
+        if ((libAIAI_gf_HeroAIIsPlayerActive(lv_playerIndex, 2) == true) && (libGame_gv_players[lv_playerIndex].lv_faction == lp_faction) && (libAIAI_gv_aIHeroes[lv_playerIndex].lv_heroState == libAIAI_ge_HeroAIStates_HSCustomMapState) && (libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateCurrentState == libMDNC_ge_MMGardenTerrorHeroAIStates_MMHWEnterTerror)) {
+            return true;
+        }
+
+    }
+    return false;
+}
+
+bool libMDNC_gf_MMGardenTerrorHeroAIIsHumanAllyEnteringVehicle (int lp_faction, unit lp_vehicleStatue) {
+    // Variable Declarations
+    int lv_playerIndex;
+    order lv_heroOrder;
+
+    // Automatic Variable Declarations
+    int auto86069FA3_ae;
+
+    // Variable Initialization
+
+    // Implementation
+    auto86069FA3_ae = libCore_gv_bALMaxPlayers;
+    lv_playerIndex = 1;
+    for ( ; lv_playerIndex <= auto86069FA3_ae ; lv_playerIndex += 1 ) {
+        if ((libGame_gv_players[lv_playerIndex].lv_faction == lp_faction) && (libAIAI_gf_HeroAIIsPlayerActive(lv_playerIndex, 1) == true)) {
+            lv_heroOrder = UnitOrder(libGame_gv_players[lv_playerIndex].lv_heroUnit, 0);
+            if ((lv_heroOrder != null) && (OrderGetTargetType(lv_heroOrder) == c_orderTargetUnit) && (OrderGetAbilityCommand(lv_heroOrder) == AbilityCommand("UseVehicle", 0)) && (OrderGetTargetUnit(lv_heroOrder) == lp_vehicleStatue) && (DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lv_playerIndex].lv_heroUnit), UnitGetPosition(lp_vehicleStatue)) < libMDNC_gv_aIHeroGardenTerrorHumanNearVehicleDistance)) {
+                return true;
+            }
+
+        }
+
+    }
+    return false;
+}
+
+trigger auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ2_Trigger = null;
+
+void libMDNC_gf_MMDragonballsTransmissionDragonExpireQ2 () {
+    if (auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ2_Trigger == null) {
+        auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ2_Trigger = TriggerCreate("auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ2_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ2_Trigger, false, false);
+}
+
+bool auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ2_TriggerFunc (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libGame_gv_gameOver == true)) {
+        return true;
+    }
+
+    TriggerQueueEnter();
+    UserDataResetType("MapVOEvent");
+    UserDataSetInt("MapVOEvent", "Gardens - Night Soon First", "Value", 1, 1);
+    ConversationDataRun("GardensofTerror", PlayerGroupAll(), c_conversationSkipNone, false);
+    libCore_gf_WaitForConversationToFinish();
+    TriggerQueueExit();
+    return true;
+}
+
+trigger auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ3_Trigger = null;
+
+void libMDNC_gf_MMDragonballsTransmissionDragonExpireQ3 () {
+    if (auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ3_Trigger == null) {
+        auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ3_Trigger = TriggerCreate("auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ3_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ3_Trigger, false, false);
+}
+
+bool auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ3_TriggerFunc (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libGame_gv_gameOver == true)) {
+        return true;
+    }
+
+    TriggerQueueEnter();
+    UserDataResetType("MapVOEvent");
+    UserDataSetInt("MapVOEvent", "Gardens - Night Soon Repeat", "Value", 1, 1);
+    ConversationDataRun("GardensofTerror", PlayerGroupAll(), c_conversationSkipNone, false);
+    libCore_gf_WaitForConversationToFinish();
+    TriggerQueueExit();
+    return true;
+}
+
+trigger auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ5_Trigger = null;
+
+void libMDNC_gf_MMDragonballsTransmissionDragonExpireQ5 () {
+    if (auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ5_Trigger == null) {
+        auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ5_Trigger = TriggerCreate("auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ5_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ5_Trigger, false, false);
+}
+
+bool auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ5_TriggerFunc (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libGame_gv_gameOver == true)) {
+        return true;
+    }
+
+    TriggerQueueEnter();
+    UserDataResetType("MapVOEvent");
+    UserDataSetInt("MapVOEvent", "Gardens - Night Begins First", "Value", 1, 1);
+    ConversationDataRun("GardensofTerror", PlayerGroupAll(), c_conversationSkipNone, false);
+    libCore_gf_WaitForConversationToFinish();
+    TriggerQueueExit();
+    return true;
+}
+
+trigger auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ4_Trigger = null;
+
+void libMDNC_gf_MMDragonballsTransmissionDragonExpireQ4 () {
+    if (auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ4_Trigger == null) {
+        auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ4_Trigger = TriggerCreate("auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ4_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ4_Trigger, false, false);
+}
+
+bool auto_libMDNC_gf_MMDragonballsTransmissionDragonExpireQ4_TriggerFunc (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libGame_gv_gameOver == true)) {
+        return true;
+    }
+
+    TriggerQueueEnter();
+    UserDataResetType("MapVOEvent");
+    UserDataSetInt("MapVOEvent", "Gardens - Night Begins Repeat", "Value", 1, 1);
+    ConversationDataRun("GardensofTerror", PlayerGroupAll(), c_conversationSkipNone, false);
+    libCore_gf_WaitForConversationToFinish();
+    TriggerQueueExit();
+    return true;
+}
+
+trigger auto_libMDNC_gf_MMGardenTerrorTransmissionNightEndsQ_Trigger = null;
+
+void libMDNC_gf_MMGardenTerrorTransmissionNightEndsQ () {
+    if (auto_libMDNC_gf_MMGardenTerrorTransmissionNightEndsQ_Trigger == null) {
+        auto_libMDNC_gf_MMGardenTerrorTransmissionNightEndsQ_Trigger = TriggerCreate("auto_libMDNC_gf_MMGardenTerrorTransmissionNightEndsQ_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMDNC_gf_MMGardenTerrorTransmissionNightEndsQ_Trigger, false, false);
+}
+
+bool auto_libMDNC_gf_MMGardenTerrorTransmissionNightEndsQ_TriggerFunc (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libGame_gv_gameOver == true)) {
+        return true;
+    }
+
+    TriggerQueueEnter();
+    UserDataResetType("MapVOEvent");
+    UserDataSetInt("MapVOEvent", "Gardens - Night Ends", "Value", 1, 1);
+    ConversationDataRun("GardensofTerror", PlayerGroupAll(), c_conversationSkipNone, false);
+    libCore_gf_WaitForConversationToFinish();
+    TriggerQueueExit();
+    return true;
+}
+
+trigger auto_libMDNC_gf_MMGardenTerrorTransmissionGolemStartGrowingQ_Trigger = null;
+int auto_libMDNC_gf_MMGardenTerrorTransmissionGolemStartGrowingQ_lp_team;
+
+void libMDNC_gf_MMGardenTerrorTransmissionGolemStartGrowingQ (int lp_team) {
+    auto_libMDNC_gf_MMGardenTerrorTransmissionGolemStartGrowingQ_lp_team = lp_team;
+
+    if (auto_libMDNC_gf_MMGardenTerrorTransmissionGolemStartGrowingQ_Trigger == null) {
+        auto_libMDNC_gf_MMGardenTerrorTransmissionGolemStartGrowingQ_Trigger = TriggerCreate("auto_libMDNC_gf_MMGardenTerrorTransmissionGolemStartGrowingQ_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMDNC_gf_MMGardenTerrorTransmissionGolemStartGrowingQ_Trigger, false, false);
+}
+
+bool auto_libMDNC_gf_MMGardenTerrorTransmissionGolemStartGrowingQ_TriggerFunc (bool testConds, bool runActions) {
+    int lp_team = auto_libMDNC_gf_MMGardenTerrorTransmissionGolemStartGrowingQ_lp_team;
+
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libGame_gv_gameOver == true)) {
+        return true;
+    }
+
+    TriggerQueueEnter();
+    UserDataResetType("MapVOEvent");
+    if ((libMDNC_gv_mMGardenTerrorNightFallen == false)) {
+        UserDataSetInt("MapVOEvent", "Gardens - 100 Seeds - Day", "Value", 1, 1);
+    }
+    else {
+        UserDataSetInt("MapVOEvent", "Gardens - 100 Seeds - Night", "Value", 1, 1);
+    }
+    ConversationDataRun("GardensofTerror", libGame_gf_PlayersOnTeamHeroes(lp_team, false), c_conversationSkipNone, false);
+    libCore_gf_WaitForConversationToFinish();
+    TriggerQueueExit();
+    return true;
+}
+
+trigger auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWaitingQ_Trigger = null;
+int auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWaitingQ_lp_team;
+int auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWaitingQ_lp_stage;
+
+void libMDNC_gf_MMGardenTerrorTransmissionGolemWaitingQ (int lp_team, int lp_stage) {
+    auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWaitingQ_lp_team = lp_team;
+    auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWaitingQ_lp_stage = lp_stage;
+
+    if (auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWaitingQ_Trigger == null) {
+        auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWaitingQ_Trigger = TriggerCreate("auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWaitingQ_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWaitingQ_Trigger, false, false);
+}
+
+bool auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWaitingQ_TriggerFunc (bool testConds, bool runActions) {
+    int lp_team = auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWaitingQ_lp_team;
+    int lp_stage = auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWaitingQ_lp_stage;
+
+    // Automatic Variable Declarations
+    int auto9D1BC594_val;
+
+    // Implementation
+    if ((libGame_gv_gameOver == true)) {
+        return true;
+    }
+
+    TriggerQueueEnter();
+    UserDataResetType("MapVOEvent");
+    auto9D1BC594_val = lp_stage;
+    if (auto9D1BC594_val == 1) {
+        if ((libMDNC_gv_mMGardenTerrorNightFallen == false)) {
+            UserDataSetInt("MapVOEvent", "Gardens - Plant Waiting - Day", "Value", 1, 1);
+        }
+        else {
+            UserDataSetInt("MapVOEvent", "Gardens - Plant Waiting - Night", "Value", 1, 1);
+        }
+    }
+    else if (auto9D1BC594_val == 2) {
+        if ((libMDNC_gv_mMGardenTerrorNightFallen == false)) {
+            UserDataSetInt("MapVOEvent", "Gardens - Plant Waiting 2 - Day", "Value", 1, 1);
+        }
+        else {
+            UserDataSetInt("MapVOEvent", "Gardens - Plant Waiting 2 - Night", "Value", 1, 1);
+        }
+    }
+    else if (auto9D1BC594_val == 3) {
+        if ((libMDNC_gv_mMGardenTerrorNightFallen == false)) {
+            UserDataSetInt("MapVOEvent", "Gardens - Plant Waiting 3 - Day", "Value", 1, 1);
+        }
+        else {
+            UserDataSetInt("MapVOEvent", "Gardens - Plant Waiting 3 - Night", "Value", 1, 1);
+        }
+    }
+    else {
+    }
+    ConversationDataRun("GardensofTerror", libGame_gf_PlayersOnTeamHeroes(lp_team, false), c_conversationSkipNone, false);
+    libCore_gf_WaitForConversationToFinish();
+    TriggerQueueExit();
+    return true;
+}
+
+trigger auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWastedQ_Trigger = null;
+int auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWastedQ_lp_team;
+
+void libMDNC_gf_MMGardenTerrorTransmissionGolemWastedQ (int lp_team) {
+    auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWastedQ_lp_team = lp_team;
+
+    if (auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWastedQ_Trigger == null) {
+        auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWastedQ_Trigger = TriggerCreate("auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWastedQ_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWastedQ_Trigger, false, false);
+}
+
+bool auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWastedQ_TriggerFunc (bool testConds, bool runActions) {
+    int lp_team = auto_libMDNC_gf_MMGardenTerrorTransmissionGolemWastedQ_lp_team;
+
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libGame_gv_gameOver == true)) {
+        return true;
+    }
+
+    TriggerQueueEnter();
+    UserDataResetType("MapVOEvent");
+    if ((libMDNC_gv_mMGardenTerrorNightFallen == false)) {
+        UserDataSetInt("MapVOEvent", "Gardens - Plant Lost - Day", "Value", 1, 1);
+    }
+    else {
+        UserDataSetInt("MapVOEvent", "Gardens - Plant Lost - Night", "Value", 1, 1);
+    }
+    ConversationDataRun("GardensofTerror", libGame_gf_PlayersOnTeamHeroes(lp_team, false), c_conversationSkipNone, false);
+    libCore_gf_WaitForConversationToFinish();
+    TriggerQueueExit();
+    return true;
+}
+
+trigger auto_libMDNC_gf_MMDragonballsTransmissionDragonActiveQ2_Trigger = null;
+int auto_libMDNC_gf_MMDragonballsTransmissionDragonActiveQ2_lp_activeTeam;
+
+void libMDNC_gf_MMDragonballsTransmissionDragonActiveQ2 (int lp_activeTeam) {
+    auto_libMDNC_gf_MMDragonballsTransmissionDragonActiveQ2_lp_activeTeam = lp_activeTeam;
+
+    if (auto_libMDNC_gf_MMDragonballsTransmissionDragonActiveQ2_Trigger == null) {
+        auto_libMDNC_gf_MMDragonballsTransmissionDragonActiveQ2_Trigger = TriggerCreate("auto_libMDNC_gf_MMDragonballsTransmissionDragonActiveQ2_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMDNC_gf_MMDragonballsTransmissionDragonActiveQ2_Trigger, false, false);
+}
+
+bool auto_libMDNC_gf_MMDragonballsTransmissionDragonActiveQ2_TriggerFunc (bool testConds, bool runActions) {
+    int lp_activeTeam = auto_libMDNC_gf_MMDragonballsTransmissionDragonActiveQ2_lp_activeTeam;
+
+    // Variable Declarations
+    playergroup lv_orderPlayerGroup;
+    playergroup lv_chaosPlayerGroup;
+    playergroup lv_observerPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_orderPlayerGroup = PlayerGroupEmpty();
+    lv_chaosPlayerGroup = PlayerGroupEmpty();
+    lv_observerPlayer = PlayerGroupEmpty();
+
+    // Implementation
+    if ((libGame_gv_gameOver == true)) {
+        return true;
+    }
+
+    TriggerQueueEnter();
+    UserDataResetType("MapVOEvent");
+    ConversationDataLineResetPlayers("GardensofTerror", ("Left"));
+    ConversationDataLineResetPlayers("GardensofTerror", ("Right"));
+    ConversationDataLineResetPlayers("GardensofTerror", ("Observer"));
+    if ((libMDNC_gv_mMGardenTerrorNightFallen == false)) {
+        if ((lp_activeTeam == libGame_gv_teamOrderIndex_C)) {
+            UserDataSetInt("MapVOEvent", "Gardens - Plant Spawned Left - Day", "Value", 1, 1);
+        }
+        else {
+            UserDataSetInt("MapVOEvent", "Gardens - Plant Spawned Right - Day", "Value", 1, 1);
+        }
+    }
+    else {
+        if ((lp_activeTeam == libGame_gv_teamOrderIndex_C)) {
+            UserDataSetInt("MapVOEvent", "Gardens - Plant Spawned Left - Night", "Value", 1, 1);
+        }
+        else {
+            UserDataSetInt("MapVOEvent", "Gardens - Plant Spawned Right - Night", "Value", 1, 1);
+        }
+    }
+    lv_orderPlayerGroup = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamOrderIndex_C, false);
+    lv_chaosPlayerGroup = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamChaosIndex_C, false);
+    lv_observerPlayer = libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer];
+    ConversationDataLineSetPlayers("GardensofTerror", ("Left"), lv_orderPlayerGroup);
+    ConversationDataLineSetPlayers("GardensofTerror", ("Right"), lv_chaosPlayerGroup);
+    ConversationDataLineSetPlayers("GardensofTerror", ("Observer"), lv_observerPlayer);
+    ConversationDataRun("GardensofTerror", PlayerGroupAll(), c_conversationSkipNone, false);
+    libCore_gf_WaitForConversationToFinish();
+    TriggerQueueExit();
+    return true;
+}
+
+trigger auto_libMDNC_gf_MMDragonballsTransmissionDragonActiveQ3_Trigger = null;
+int auto_libMDNC_gf_MMDragonballsTransmissionDragonActiveQ3_lp_activeTeam;
+
+void libMDNC_gf_MMDragonballsTransmissionDragonActiveQ3 (int lp_activeTeam) {
+    auto_libMDNC_gf_MMDragonballsTransmissionDragonActiveQ3_lp_activeTeam = lp_activeTeam;
+
+    if (auto_libMDNC_gf_MMDragonballsTransmissionDragonActiveQ3_Trigger == null) {
+        auto_libMDNC_gf_MMDragonballsTransmissionDragonActiveQ3_Trigger = TriggerCreate("auto_libMDNC_gf_MMDragonballsTransmissionDragonActiveQ3_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMDNC_gf_MMDragonballsTransmissionDragonActiveQ3_Trigger, false, false);
+}
+
+bool auto_libMDNC_gf_MMDragonballsTransmissionDragonActiveQ3_TriggerFunc (bool testConds, bool runActions) {
+    int lp_activeTeam = auto_libMDNC_gf_MMDragonballsTransmissionDragonActiveQ3_lp_activeTeam;
+
+    // Variable Declarations
+    playergroup lv_orderPlayerGroup;
+    playergroup lv_chaosPlayerGroup;
+    playergroup lv_observerPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_orderPlayerGroup = PlayerGroupEmpty();
+    lv_chaosPlayerGroup = PlayerGroupEmpty();
+    lv_observerPlayer = PlayerGroupEmpty();
+
+    // Implementation
+    if ((libGame_gv_gameOver == true)) {
+        return true;
+    }
+
+    TriggerQueueEnter();
+    UserDataResetType("MapVOEvent");
+    ConversationDataLineResetPlayers("GardensofTerror", ("Left"));
+    ConversationDataLineResetPlayers("GardensofTerror", ("Right"));
+    if ((libMDNC_gv_mMGardenTerrorNightFallen == false)) {
+        if ((lp_activeTeam == libGame_gv_teamOrderIndex_C)) {
+            UserDataSetInt("MapVOEvent", "Gardens - Plant Killed Left - Day", "Value", 1, 1);
+        }
+        else {
+            UserDataSetInt("MapVOEvent", "Gardens - Plant Killed Right - Day", "Value", 1, 1);
+        }
+    }
+    else {
+        if ((lp_activeTeam == libGame_gv_teamOrderIndex_C)) {
+            UserDataSetInt("MapVOEvent", "Gardens - Plant Killed Left - Night", "Value", 1, 1);
+        }
+        else {
+            UserDataSetInt("MapVOEvent", "Gardens - Plant Killed Right - Night", "Value", 1, 1);
+        }
+    }
+    lv_orderPlayerGroup = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamOrderIndex_C, false);
+    lv_chaosPlayerGroup = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamChaosIndex_C, false);
+    ConversationDataLineSetPlayers("GardensofTerror", ("Left"), lv_orderPlayerGroup);
+    ConversationDataLineSetPlayers("GardensofTerror", ("Right"), lv_chaosPlayerGroup);
+    ConversationDataRun("GardensofTerror", PlayerGroupAll(), c_conversationSkipNone, false);
+    libCore_gf_WaitForConversationToFinish();
+    TriggerQueueExit();
+    return true;
+}
+
+bool libMDNC_gf_IsNightTime () {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libMDNC_gv_mMGardenTerrorNightFallen == true)) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Init
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorInit_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_index;
+    int lv_itPlayer;
+    int lv_p;
+
+    // Automatic Variable Declarations
+    playergroup autoE8E10BEF_g;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gf_MapMechanicInitializationMechanicType() == libMDNC_gv_mMGardenTerrorMechanicName_C))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(libMDNC_gt_MMGardenTerrorGatesOpened, true);
+    TriggerEnable(libMDNC_gt_MMGardenTerrorNightMonsterDies, true);
+    TriggerEnable(libMDNC_gt_MMGardenTerrorSeedDropped, true);
+    TriggerEnable(libMDNC_gt_MMGardenTerrorSeedPickup, true);
+    TriggerEnable(libMDNC_gt_MMGardenTerrorGolemSummonStarted, true);
+    TriggerEnable(libMDNC_gt_MMGardenTerrorGolemSummoned, true);
+    TriggerEnable(libMDNC_gt_MMGardenTerrorChannelStarted, true);
+    TriggerEnable(libMDNC_gt_MMGardenTerrorDebugTemp, true);
+    TriggerEnable(libMDNC_gt_MMGardenTerrorDebugStart, true);
+    TriggerEnable(libMDNC_gt_MMGardenTerrorDebugStart1, true);
+    TriggerEnable(libMDNC_gt_MMGardenTerrorDebugNightEnds, true);
+    TriggerEnable(libMDNC_gt_MMGardenTerrorDebugAlwaysDay, true);
+    TriggerEnable(libMDNC_gt_MMGardenTerrorDebugAlwaysNight, true);
+    TriggerEnable(libMDNC_gt_MMGardenTerrorChannelCompleted, true);
+    ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal MM1Off");
+    libMDNC_gv_mMGardenTerrorDays = 1;
+    libMDNC_gf_MMGardenTerrorNightMonstersDroppingSeeds();
+    SoundtrackPlay(PlayerGroupAll(), c_soundtrackCategoryAmbience, "Amb_2D_GardenOfTerror_Day", c_soundtrackCueAny, c_soundtrackIndexAny, false);
+    SoundChannelMute(PlayerGroupAll(), c_soundCategoryUser14, true);
+    SoundChannelMute(PlayerGroupAll(), c_soundCategorySPieces, false);
+    SoundChannelMute(PlayerGroupAll(), c_soundCategoryMessage, false);
+    libCore_gv_mAPMapLight = "StormGardenofTerrorDay";
+    GameSetLighting(libCore_gv_mAPMapLight, 0.0);
+    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_DefenderAIIssueOrdersToCreep, libMDNC_gt_JunglePlantHorrorDefenderSpells);
+    libAIAI_gf_HeroAIRegisterAOEwithWatchTrigger("LignifyInitialLaunchSet", 3.0, 4.0, 0.0, false, false);
+    libAIAI_gv_heroAITeamMapLogicTrigger = libMDNC_gt_MMGardenTerrorHeroAITeamMapLogic;
+    libGame_gf_SendMapSpecificAwardInitializeEventwithUserData(null, "Generic Instance");
+    libMDNC_gf_MMGardenTerrorCreateHauntedGardens();
+    UnitSetFacing(libMDNC_gv_mMGardenTerrorGarden[libGame_gv_teamOrderIndex_C].lv_fertileSoil, libMDNC_gv_mMGardenTerrorGarden[libGame_gv_teamOrderIndex_C].lv_facing, 0.0);
+    UnitSetFacing(libMDNC_gv_mMGardenTerrorGarden[libGame_gv_teamChaosIndex_C].lv_fertileSoil, libMDNC_gv_mMGardenTerrorGarden[libGame_gv_teamChaosIndex_C].lv_facing, 0.0);
+    autoE8E10BEF_g = PlayerGroupAll();
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(autoE8E10BEF_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	CatalogFieldValueSet(c_gameCatalogEffect, "UseVehiclePersistent", "PeriodCount", lv_itPlayer, FixedToString((libMDNC_gv_mMGardenTerrorVehicleChannelTime_C / 0.125), c_fixedPrecisionAny));
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorInit_Init () {
+    libMDNC_gt_MMGardenTerrorInit = TriggerCreate("libMDNC_gt_MMGardenTerrorInit_Func");
+    libGame_gf_MapMechanicInitialization(libMDNC_gt_MMGardenTerrorInit);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Ping Data Init
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorPingDataInit_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libUIUI_gf_PingCreateNewPingTarget("VehiclePlantHorror", false, null, StringExternal("Param/Value/lib_MDNC_060B543B"), StringExternal("Param/Value/lib_MDNC_8508E035"), SoundLink("UI_Game_Ping_General", -1), SoundLink("UI_Game_Ping_General", -1));
+    libUIUI_gf_PingCreateNewPingTarget("VehiclePlantHorror", true, null, StringExternal("Param/Value/lib_MDNC_46913147"), StringExternal("Param/Value/lib_MDNC_66662862"), SoundLink("UI_Game_Ping_Help", -1), SoundLink("UI_Game_Ping_Attack", -1));
+    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libUIUI_gt_PingCallbackPlayerPingsLanerBossControlled);
+    libUIUI_gf_PingCreateNewPingTarget("JunglePlantHorror", false, null, StringExternal("Param/Value/lib_MDNC_DF327029"), StringExternal("Param/Value/lib_MDNC_A8FCEB4D"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
+    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libMDNC_gt_MMGardenTerrorPingCallbackPlayerPingsNightBoss);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorPingDataInit_Init () {
+    libMDNC_gt_MMGardenTerrorPingDataInit = TriggerCreate("libMDNC_gt_MMGardenTerrorPingDataInit_Func");
+    libCore_gf_IncludeModInitialization(libMDNC_gt_MMGardenTerrorPingDataInit);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Announcer Init
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorAnnouncerInit_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCore_gf_DataAnnouncerVOSetDefaultAnnouncerForPlayerGroup(PlayerGroupAll(), "GardensDayAnnouncer");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorAnnouncerInit_Init () {
+    libMDNC_gt_MMGardenTerrorAnnouncerInit = TriggerCreate("libMDNC_gt_MMGardenTerrorAnnouncerInit_Func");
+    libCore_gf_IncludeModInitialization(libMDNC_gt_MMGardenTerrorAnnouncerInit);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Gates Opened
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorGatesOpened_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((EventTimer() == libGame_gv_openTheGatesTimer))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libMDNC_gf_MMGardenTerrorManageSummonBossPing(libGame_gv_teamOrderIndex_C);
+    libMDNC_gf_MMGardenTerrorManageSummonBossPing(libGame_gv_teamChaosIndex_C);
+    Wait(libMDNC_gv_mMGardenTerrorStartTime_C, c_timeGame);
+    if (((TriggerIsEnabled(TriggerGetCurrent()) == false) || (libMDNC_gv_mMGardenTerrorDebugAlways > 0))) {
+        return true;
+    }
+
+    libMDNC_gf_MMGardenTerrorNightPrepare();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorGatesOpened_Init () {
+    libMDNC_gt_MMGardenTerrorGatesOpened = TriggerCreate("libMDNC_gt_MMGardenTerrorGatesOpened_Func");
+    TriggerEnable(libMDNC_gt_MMGardenTerrorGatesOpened, false);
+    TriggerAddEventTimer(libMDNC_gt_MMGardenTerrorGatesOpened, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Night Starts
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorNightStarts_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((libMDNC_gv_mMGardenTerrorDebugAlways == 0))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libMDNC_gf_MMGardenTerrorNightStarts();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorNightStarts_Init () {
+    libMDNC_gt_MMGardenTerrorNightStarts = TriggerCreate("libMDNC_gt_MMGardenTerrorNightStarts_Func");
+    TriggerAddEventTimer(libMDNC_gt_MMGardenTerrorNightStarts, libMDNC_gv_mMGardenTerrorPrepTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Night Start Light Transition
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorNightStartLightTransition_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGame_gf_SpecialLightingEventStart("StormGardenofTerrorTransition", PlayerGroupAll(), 1.0);
+    libNtve_gf_WaitForTimer(libMDNC_gv_mMGardenTerrorPrepTimer, 2.0, false);
+    libGame_gf_SpecialLightingEventEnd("StormGardenofTerrorTransition", PlayerGroupAll(), 0.0);
+    libGame_gf_SpecialLightingEventStart("StormGardenofTerrorNight", PlayerGroupAll(), 2.0);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorNightStartLightTransition_Init () {
+    libMDNC_gt_MMGardenTerrorNightStartLightTransition = TriggerCreate("libMDNC_gt_MMGardenTerrorNightStartLightTransition_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Night End Light Transition
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorNightEndLightTransition_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGame_gf_SpecialLightingEventEnd("StormGardenofTerrorNight", PlayerGroupAll(), 2.0);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorNightEndLightTransition_Init () {
+    libMDNC_gt_MMGardenTerrorNightEndLightTransition = TriggerCreate("libMDNC_gt_MMGardenTerrorNightEndLightTransition_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Night Monster Dies
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorNightMonsterDies_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_groupIndex;
+    int lv_regenGlobeOwner;
+    int lv_itGroupIndex;
+    int lv_itBoss;
+    int lv_bossIndex;
+
+    // Automatic Variable Declarations
+    int auto3FA66312_ae;
+    const int auto3FA66312_ai = 1;
+    int auto9C414A2B_ae;
+    const int auto9C414A2B_ai = 1;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!(((UnitGetType(EventUnit()) == "JunglePlantHorror") || (UnitGetType(EventUnit()) == "Shambler") || (UnitGetType(EventUnit()) == "ShamblerRanged")))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitGetType(EventUnit()) == "JunglePlantHorror")) {
+        auto3FA66312_ae = libMDNC_gv_mMGardenTerrorNightBossesCount;
+        lv_itBoss = 1;
+        for ( ; ( (auto3FA66312_ai >= 0 && lv_itBoss <= auto3FA66312_ae) || (auto3FA66312_ai < 0 && lv_itBoss >= auto3FA66312_ae) ) ; lv_itBoss += auto3FA66312_ai ) {
+            if ((libMDNC_gv_mMGardenTerrorNightBosses[lv_itBoss].lv_unit == EventUnit())) {
+                UnitRemove(libMDNC_gv_mMGardenTerrorNightBosses[lv_itBoss].lv_unit2);
+                libGame_gf_DropLootBannerinSconce(libMDNC_gv_mMGardenTerrorNightBosses[lv_itBoss].lv_bannerSconce, libGame_gv_players[libNtve_gf_KillingPlayer()].lv_lootContent.lv_loot_Banner.lv_bannerID, libNtve_gf_KillingPlayer(), true);
+                lv_bossIndex = lv_itBoss;
+                break;
+            }
+
+        }
+        if ((lv_bossIndex == 0)) {
+            return true;
+        }
+
+        libMDNC_gf_MMGardenTerrorNightBossDropsSeeds(lv_bossIndex);
+        libMDNC_gf_MMGardenTerrorDropSeeds(UnitGetPosition(EventUnit()), libMDNC_gv_mMGardenTerrorDropSeedsBossFinalDrop_C, true);
+        UnitCreateEffectPoint(EventUnit(), "RegenGlobeNeutralCreatePrecursorUnit", RegionRandomPoint(RegionCircle(UnitGetPosition(EventUnit()), 4.5)));
+        auto9C414A2B_ae = libMDNC_gv_mMGardenTerrorNightBossesCount;
+        lv_itGroupIndex = 1;
+        for ( ; ( (auto9C414A2B_ai >= 0 && lv_itGroupIndex <= auto9C414A2B_ae) || (auto9C414A2B_ai < 0 && lv_itGroupIndex >= auto9C414A2B_ae) ) ; lv_itGroupIndex += auto9C414A2B_ai ) {
+            if ((UnitIsAlive(libMDNC_gv_mMGardenTerrorNightBosses[lv_itGroupIndex].lv_unit) == true)) {
+            }
+
+        }
+    }
+    else {
+        libMDNC_gf_MMGardenTerrorNightMinionDropsSeeds(EventUnit());
+        libMDNC_gf_MMGardenTerrorDropSeeds(UnitGetPosition(EventUnit()), libMDNC_gv_mMGardenTerrorDropSeedsMinionFinalDrop_C, false);
+        lv_itGroupIndex = libMDNC_gf_MMGardenTerrorNightMinionGroupIndex(EventUnit());
+        if ((libNtve_gf_UnitGroupIsDead(libMDNC_gv_mMGardenTerrorNightMinionGroups[lv_itGroupIndex].lv_units) == true)) {
+            UnitRemove(libMDNC_gv_mMGardenTerrorNightMinionGroupIcons[lv_itGroupIndex]);
+            libMDNC_gv_mMGardenTerrorNightMinionGroupIcons[lv_itGroupIndex] = null;
+            libGame_gf_DropLootBannerinSconce(libMDNC_gv_mMGardenTerrorNightMinionGroups[lv_itGroupIndex].lv_bannerSconce, libGame_gv_players[libNtve_gf_KillingPlayer()].lv_lootContent.lv_loot_Banner.lv_bannerID, libNtve_gf_KillingPlayer(), true);
+        }
+
+    }
+    libMDNC_gv_mMGardenTerrorNightMonstersTotalCount -= 1;
+    if ((libNtve_gf_UnitGroupIsDead(libMDNC_gv_mMGardenTerrorNightMonsters) == true)) {
+        Wait(3.0, c_timeGame);
+        libMDNC_gf_MMGardenTerrorNightEnds();
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorNightMonsterDies_Init () {
+    libMDNC_gt_MMGardenTerrorNightMonsterDies = TriggerCreate("libMDNC_gt_MMGardenTerrorNightMonsterDies_Func");
+    TriggerEnable(libMDNC_gt_MMGardenTerrorNightMonsterDies, false);
+    TriggerAddEventUnitDied(libMDNC_gt_MMGardenTerrorNightMonsterDies, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Seed Dropped
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorSeedDropped_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itTeam;
+    bool[3] lv_visionShared;
+
+    // Automatic Variable Declarations
+    const int auto8EA0091C_ae = 2;
+    const int auto8EA0091C_ai = 1;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(EventUnitCreatedUnit()) == "ItemSeedPickup"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    SoundPlayAtPointForPlayer(SoundLink("UI_SeedPickup_Drop", -1), c_maxPlayers, PlayerGroupAll(), UnitGetPosition(EventUnitCreatedUnit()), 0.0, 100.0, 0.5);
+    while (true) {
+        if ((UnitIsAlive(EventUnitCreatedUnit()) == false)) {
+            return true;
+        }
+
+        lv_itTeam = 1;
+        for ( ; ( (auto8EA0091C_ai >= 0 && lv_itTeam <= auto8EA0091C_ae) || (auto8EA0091C_ai < 0 && lv_itTeam >= auto8EA0091C_ae) ) ; lv_itTeam += auto8EA0091C_ai ) {
+            if ((lv_visionShared[lv_itTeam] == false) && (libNtve_gf_UnitIsVisibleToPlayer(EventUnitCreatedUnit(), libGame_gf_ComputerPlayerInTeam(lv_itTeam)) == true)) {
+                libNtve_gf_ShareVisionofUnit(EventUnitCreatedUnit(), true, libGame_gf_ComputerPlayerInTeam(lv_itTeam));
+                lv_visionShared[lv_itTeam] = true;
+                if ((lv_visionShared[1] == true) && (lv_visionShared[2] == true)) {
+                    return true;
+                }
+
+            }
+
+        }
+        Wait(0.0625, c_timeGame);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorSeedDropped_Init () {
+    libMDNC_gt_MMGardenTerrorSeedDropped = TriggerCreate("libMDNC_gt_MMGardenTerrorSeedDropped_Func");
+    TriggerEnable(libMDNC_gt_MMGardenTerrorSeedDropped, false);
+    TriggerAddEventUnitCreated(libMDNC_gt_MMGardenTerrorSeedDropped, null, null, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Seed Pickup
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorSeedPickup_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_collectingPlayer;
+    unit lv_collectingUnit;
+    playergroup lv_textTagPlayers;
+    int lv_alliedSeedsCollected;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_textTagPlayers = PlayerGroupEmpty();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_collectingPlayer = EventPlayerEffectUsedUnitOwner(c_effectPlayerTarget);
+    lv_collectingUnit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    libGame_gf_SendEventMapGardenOfTerrorSeedsCollected(lv_collectingPlayer);
+    libMDNC_gv_mMGardenTerrorSeedsCollected[libGame_gf_TeamNumberOfPlayer(lv_collectingPlayer)] += 1;
+    libMDNC_gv_mMGardenTerrorSeedsCollectedTonight[libGame_gf_TeamNumberOfPlayer(lv_collectingPlayer)] += 1;
+    lv_alliedSeedsCollected = libMDNC_gv_mMGardenTerrorSeedsCollected[libGame_gf_TeamNumberOfPlayer(lv_collectingPlayer)];
+    SoundPlayAtPointForPlayer(SoundLink("UI_SeedPickup_Pickup", -1), c_maxPlayers, PlayerGroupAll(), UnitGetPosition(lv_collectingUnit), 0.5, 100.0, 0.0);
+    libNtve_gf_AddPlayerGroupToPlayerGroup(libGame_gf_AlliedPlayerGroupOfPlayer(lv_collectingPlayer), lv_textTagPlayers);
+    PlayerGroupAdd(lv_textTagPlayers, libCore_gv_oBSERVER_ObserverUIPlayer);
+    TextTagCreate(StringExternal("Param/Value/lib_MDNC_C760B91E"), 24, UnitGetPosition(lv_collectingUnit), 1.0, true, true, lv_textTagPlayers);
+    TextTagSetVelocity(TextTagLastCreated(), 1.5, 90.0);
+    TextTagSetTime(TextTagLastCreated(), c_textTagTimeDuration, 3.0);
+    TextTagSetFogVisibility(TextTagLastCreated(), c_visTypeFog);
+    TextTagCreate(StringExternal("Param/Value/lib_MDNC_C9763548"), 24, UnitGetPosition(lv_collectingUnit), 1.0, true, true, libGame_gf_EnemyPlayerGroupOfPlayer(lv_collectingPlayer));
+    TextTagSetVelocity(TextTagLastCreated(), 1.5, 90.0);
+    TextTagSetTime(TextTagLastCreated(), c_textTagTimeDuration, 3.0);
+    TextTagSetFogVisibility(TextTagLastCreated(), c_visTypeFog);
+    libMDNC_gf_MMGardenTerrorUpdateHauntedGarden(1);
+    libMDNC_gf_MMGardenTerrorUpdateHauntedGarden(2);
+    if (((lv_alliedSeedsCollected == 100) || (lv_alliedSeedsCollected == 200) || (lv_alliedSeedsCollected == 300))) {
+        libGame_gf_SendEventMapObjectiveCapturedByUnit(lv_collectingUnit);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorSeedPickup_Init () {
+    libMDNC_gt_MMGardenTerrorSeedPickup = TriggerCreate("libMDNC_gt_MMGardenTerrorSeedPickup_Func");
+    TriggerEnable(libMDNC_gt_MMGardenTerrorSeedPickup, false);
+    TriggerAddEventPlayerEffectUsed(libMDNC_gt_MMGardenTerrorSeedPickup, c_playerAny, "SeedPickupSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Night Vignette
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorNightVignette_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    const int auto2B8529BD_ae = libCore_gv_bALMaxPlayers;
+    const int auto2B8529BD_ai = 1;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_itPlayer = 1;
+    for ( ; ( (auto2B8529BD_ai >= 0 && lv_itPlayer <= auto2B8529BD_ae) || (auto2B8529BD_ai < 0 && lv_itPlayer >= auto2B8529BD_ae) ) ; lv_itPlayer += auto2B8529BD_ai ) {
+        libUIUI_gf_VignetteOverlayPlayForPlayer(lv_itPlayer, "Cutscenes\\GameUI_GlobalVignetteOverlay.StormCutscene");
+    }
+    libUIUI_gf_VignetteOverlayPlayForPlayer(libCore_gv_oBSERVER_ObserverUIPlayer, "Cutscenes\\GameUI_GlobalVignetteOverlay.StormCutscene");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorNightVignette_Init () {
+    libMDNC_gt_MMGardenTerrorNightVignette = TriggerCreate("libMDNC_gt_MMGardenTerrorNightVignette_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Plant Damage Calculation
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorPlantDamageCalculation_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_damagingPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_damagingPlayer = EventUnitDamageSourcePlayer();
+
+    // Conditions
+    if (testConds) {
+        if (!(((UnitGetType(EventUnit()) == "JunglePlantHorror") || (UnitGetType(EventUnit()) == "PlantZombie") || (UnitGetType(EventUnit()) == "PlantZombieRanged")))) {
+            return false;
+        }
+
+        if (!((lv_damagingPlayer > 0))) {
+            return false;
+        }
+
+        if (!((lv_damagingPlayer <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libMDNC_gv_mMGardenTerrorPlantDamageTotal[lv_damagingPlayer] = (libMDNC_gv_mMGardenTerrorPlantDamageTotal[lv_damagingPlayer] + EventUnitDamageAmount());
+    libGame_gf_SendMapSpecificAwardEvent(lv_damagingPlayer, libMDNC_gv_mMGardenTerrorPlantDamageTotal[lv_damagingPlayer], false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorPlantDamageCalculation_Init () {
+    libMDNC_gt_MMGardenTerrorPlantDamageCalculation = TriggerCreate("libMDNC_gt_MMGardenTerrorPlantDamageCalculation_Func");
+    TriggerEnable(libMDNC_gt_MMGardenTerrorPlantDamageCalculation, false);
+    TriggerAddEventUnitDamaged(libMDNC_gt_MMGardenTerrorPlantDamageCalculation, null, c_unitDamageTypeAny, c_unitDamageEither, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Plant Damage Report
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorPlantDamageReport_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_iterator;
+
+    // Automatic Variable Declarations
+    int auto26546472_ae;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto26546472_ae = libCore_gv_bALMaxPlayers;
+    lv_iterator = 1;
+    for ( ; lv_iterator <= auto26546472_ae ; lv_iterator += 1 ) {
+        libGame_gf_ScoreValuesReportRealValueAndLog(lv_iterator, "GardensPlantDamage", libMDNC_gv_mMGardenTerrorPlantDamageTotal[lv_iterator]);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorPlantDamageReport_Init () {
+    libMDNC_gt_MMGardenTerrorPlantDamageReport = TriggerCreate("libMDNC_gt_MMGardenTerrorPlantDamageReport_Func");
+    libGame_gf_GameOverEvent(libMDNC_gt_MMGardenTerrorPlantDamageReport);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Channel Started
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorChannelStarted_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libNtve_gf_SendActorMessageToUnit(EventUnitTargetUnit(), "Signal ChannelStart");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorChannelStarted_Init () {
+    libMDNC_gt_MMGardenTerrorChannelStarted = TriggerCreate("libMDNC_gt_MMGardenTerrorChannelStarted_Func");
+    TriggerEnable(libMDNC_gt_MMGardenTerrorChannelStarted, false);
+    TriggerAddEventUnitAbility(libMDNC_gt_MMGardenTerrorChannelStarted, null, AbilityCommand("UseVehicle", 0), c_abilEffectStageChannel, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Channel Completed
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorChannelCompleted_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_team;
+    actor lv_light;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_team = libGame_gf_TeamNumberOfPlayer(EventPlayer());
+    UnitBehaviorRemove(libMDNC_gv_mMGardenTerrorSummonedBoss[lv_team], "PlantHorrorBirth", 1);
+    UnitCreateEffectUnit(EventPlayerEffectUsedUnit(c_effectUnitCaster), "UseVehiclePropagateOrders", EventPlayerEffectUsedUnit(c_effectUnitTarget));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorChannelCompleted_Init () {
+    libMDNC_gt_MMGardenTerrorChannelCompleted = TriggerCreate("libMDNC_gt_MMGardenTerrorChannelCompleted_Func");
+    TriggerEnable(libMDNC_gt_MMGardenTerrorChannelCompleted, false);
+    TriggerAddEventPlayerEffectUsed(libMDNC_gt_MMGardenTerrorChannelCompleted, c_playerAny, "UseVehicleCastCompleteSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Golem Summon Started
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorGolemSummonStarted_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_team;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_team = libGame_gf_TeamNumberOfPlayer(UnitGetOwner(EventUnit()));
+    UnitAbilitySpendExplicit(libMDNC_gv_mMGardenTerrorSummonedBoss[lv_team], AbilityCommand("LeaveVehicle", 0), c_spendLocationAbility, 1.0, 1.0, 1.0, 1.0);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorGolemSummonStarted_Init () {
+    libMDNC_gt_MMGardenTerrorGolemSummonStarted = TriggerCreate("libMDNC_gt_MMGardenTerrorGolemSummonStarted_Func");
+    TriggerEnable(libMDNC_gt_MMGardenTerrorGolemSummonStarted, false);
+    TriggerAddEventUnitAbility(libMDNC_gt_MMGardenTerrorGolemSummonStarted, null, AbilityCommand("UseVehicle", 0), c_abilEffectStageChannel, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Golem Summoned
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorGolemSummoned_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_team;
+    int lv_enemyTeam;
+    actor lv_light;
+    fixed lv_duration;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_team = libGame_gf_TeamNumberOfPlayer(EventPlayer());
+    if ((libGame_gf_TeamNumberIsValid(lv_team) == false)) {
+        return true;
+    }
+
+    libMDNC_gv_mMGardenTerrorPlayerSummoned[EventPlayer()] = true;
+    lv_enemyTeam = libGame_gf_EnemyTeam(lv_team);
+    libMDNC_gv_mMGardenTerrorSummonedBoss[lv_team] = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    libMDNC_gv_mMGardenTerrorBossSummoned[lv_team] = true;
+    libMDNC_gv_mMGardenTerrorNumberOfBossesSummoned += 1;
+    libNtve_gf_SendActorMessageToUnit(libMDNC_gv_mMGardenTerrorSummonedBoss[lv_team], "SetMinimapVisibility 1");
+    libNtve_gf_SendActorMessageToUnit(libMDNC_gv_mMGardenTerrorSummonedBoss[lv_team], "Signal VehicleEntered");
+    UnitAbilitySpendExplicit(libMDNC_gv_mMGardenTerrorSummonedBoss[lv_team], AbilityCommand("LeaveVehicle", 0), c_spendLocationAbility, 1.0, 1.0, 1.0, 1.0);
+    libNtve_gf_UnitAbilityRemoveCooldown(libMapM_gv_mMGardensDragonStatue, "LeaveVehicle", "Abil/LeaveVehicle");
+    UnitAbilityAddCooldown(libMapM_gv_mMGardensDragonStatue, "LeaveVehicle", "Abil/LeaveVehicle", 5.0);
+    UnitSetState(libMDNC_gv_mMGardenTerrorSummonedBoss[lv_team], c_unitStateTooltipable, false);
+    libNtve_gf_MakeUnitInvulnerable(libMDNC_gv_mMGardenTerrorSummonedBoss[lv_team], false);
+    UnitStatusBarOverride(libMDNC_gv_mMGardenTerrorSummonedBoss[lv_team], c_unitStatusGroupAll);
+    UnitBehaviorAdd(libMDNC_gv_mMGardenTerrorSummonedBoss[lv_team], "PlantHorrorTimedLife", EventPlayerEffectUsedUnit(c_effectUnitCaster), 1);
+    lv_duration = libMDNC_gf_MMGardenTerrorSummonedGolemDuration();
+    UnitBehaviorSetDuration(libMDNC_gv_mMGardenTerrorSummonedBoss[lv_team], "PlantHorrorTimedLife", lv_duration);
+    UnitBehaviorSetDurationRemaining(libMDNC_gv_mMGardenTerrorSummonedBoss[lv_team], "PlantHorrorTimedLife", lv_duration);
+    if ((libCore_gf_TextTagStoredForUnit(libMDNC_gv_mMGardenTerrorGarden[lv_team].lv_units, 1) != c_textTagNone)) {
+        TextTagDestroy(libCore_gf_TextTagStoredForUnit(libMDNC_gv_mMGardenTerrorGarden[lv_team].lv_units, 1));
+        libCore_gf_StoreTextTagForUnit(libMDNC_gv_mMGardenTerrorGarden[lv_team].lv_units, 1, c_textTagNone);
+    }
+
+    if ((libMDNC_gv_mMGardenTerrorGarden[lv_team].lv_units == libMDNC_gv_mMGardenTerrorSummonedBoss[lv_team])) {
+        libMDNC_gv_mMGardenTerrorGarden[lv_team].lv_units = null;
+    }
+
+    libMDNC_gf_MMGardenTerrorUpdateHauntedGarden(lv_team);
+    TriggerEnable(libMDNC_gt_MMGardenTerrorSummonedGolemKilled, true);
+    libMDNC_gf_MMGardenTerrorUpdateCampHibernating();
+    StatEventCreate("GardenTerrorActivated");
+    StatEventAddDataFixed(StatEventLastCreated(), "Event", libMDNC_gv_mMGardenTerrorNumberOfBossesSummoned);
+    StatEventAddDataFixed(StatEventLastCreated(), "TeamID", lv_team);
+    StatEventSend(StatEventLastCreated());
+    TriggerExecute(libMDNC_gt_MMGardenTerrorUIUpdateSummonedBossBar, true, false);
+    libCore_gf_CreateMinimapPingStorm(libGame_gf_PlayersOnTeamHeroes(lv_team, false), "StormAlert", libMDNC_gv_mMGardenTerrorGarden[lv_team].lv_positions, Color(0.00, 100.00, 0.00), 6.0);
+    PingSetUnit(PingLastCreated(), libMDNC_gv_mMGardenTerrorSummonedBoss[lv_team]);
+    libCore_gf_CreateMinimapPingStorm(libGame_gf_PlayersOnTeamHeroes(lv_enemyTeam, false), "StormAlert", libMDNC_gv_mMGardenTerrorGarden[lv_team].lv_positions, Color(100.00, 0.00, 0.00), 6.0);
+    PingSetUnit(PingLastCreated(), libMDNC_gv_mMGardenTerrorSummonedBoss[lv_team]);
+    libMDNC_gf_MMDragonballsTransmissionDragonActiveQ2(lv_team);
+    libGame_gf_AnnouncementAddItemForPlayerGroup(libGame_gf_PlayersOnTeamHeroes(lv_team, false), libGame_ge_AnnouncementPriorities_Critical, libCore_ge_AnnouncerVOEvents_Null, "DragonKnightAlly", StringExternal("Param/Value/lib_MDNC_CF799970"), StringToText(""), null, null, null, libGame_gv_announcement_StandardTimerDuration_C, false);
+    libGame_gf_AnnouncementAddItemForPlayerGroup(libGame_gf_PlayersOnTeamHeroes(lv_enemyTeam, false), libGame_ge_AnnouncementPriorities_Critical, libCore_ge_AnnouncerVOEvents_Null, "DragonKnightEnemy", StringExternal("Param/Value/lib_MDNC_58DD3852"), StringToText(""), null, null, null, libGame_gv_announcement_StandardTimerDuration_C, false);
+    if ((lv_team == libGame_gv_teamOrderIndex_C)) {
+        libGame_gf_AnnouncementAddItemForPlayerGroup(libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], libGame_ge_AnnouncementPriorities_Normal, libCore_ge_AnnouncerVOEvents_Null, "RavenCurseBegin", StringExternal("Param/Value/lib_MDNC_335FD6C0"), StringToText(""), null, null, null, libGame_gv_announcement_StandardTimerDuration_C, false);
+    }
+    else {
+        libGame_gf_AnnouncementAddItemForPlayerGroup(libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], libGame_ge_AnnouncementPriorities_Normal, libCore_ge_AnnouncerVOEvents_Null, "RavenCurseBegin", StringExternal("Param/Value/lib_MDNC_2FDC431E"), StringToText(""), null, null, null, libGame_gv_announcement_StandardTimerDuration_C, false);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorGolemSummoned_Init () {
+    libMDNC_gt_MMGardenTerrorGolemSummoned = TriggerCreate("libMDNC_gt_MMGardenTerrorGolemSummoned_Func");
+    TriggerEnable(libMDNC_gt_MMGardenTerrorGolemSummoned, false);
+    TriggerAddEventPlayerEffectUsed(libMDNC_gt_MMGardenTerrorGolemSummoned, c_playerAny, "UseVehicleCastCompleteSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Summoned Golem Killed
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorSummonedGolemKilled_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+    int lv_team;
+    int lv_enemyTeam;
+    int lv_cooldownTextTag;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_cooldownTextTag = c_textTagNone;
+
+    // Conditions
+    if (testConds) {
+        if (!(((EventUnit() == libMDNC_gv_mMGardenTerrorSummonedBoss[libGame_gv_teamOrderIndex_C]) || (EventUnit() == libMDNC_gv_mMGardenTerrorSummonedBoss[libGame_gv_teamChaosIndex_C])))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_player = EventPlayer();
+    lv_team = libGame_gf_TeamNumberOfPlayer(lv_player);
+    if ((libGame_gf_TeamNumberIsValid(lv_team) == false)) {
+        return true;
+    }
+
+    libUIUI_gf_MapMechanicsGardenOfTerrorSetUpGolemStatusBarForTeam(EventUnit(), lv_team);
+    lv_enemyTeam = libGame_gf_EnemyTeam(lv_team);
+    libMDNC_gv_mMGardenTerrorBossSummoned[lv_team] = false;
+    libMDNC_gv_mMGardenTerrorSummonedBoss[lv_team] = null;
+    libMDNC_gf_MMGardenTerrorUpdateCampHibernating();
+    Wait(0.5, c_timeGame);
+    libMDNC_gf_MMDragonballsTransmissionDragonActiveQ3(lv_team);
+    libMDNC_gf_MMGardenTerrorGardenCooldown(lv_team);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorSummonedGolemKilled_Init () {
+    libMDNC_gt_MMGardenTerrorSummonedGolemKilled = TriggerCreate("libMDNC_gt_MMGardenTerrorSummonedGolemKilled_Func");
+    TriggerEnable(libMDNC_gt_MMGardenTerrorSummonedGolemKilled, false);
+    TriggerAddEventUnitDied(libMDNC_gt_MMGardenTerrorSummonedGolemKilled, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror UI Handler
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorUIHandler_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_indexTeam;
+    int lv_indexTeamEnemy;
+    int lv_state;
+    int lv_lastState;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_state = libMDNC_ge_MMGardenTerrorState_Idle;
+    lv_lastState = libMDNC_ge_MMGardenTerrorState_Night;
+
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    while (true) {
+        if ((libMDNC_gv_mMGardenTerrorDays == 1) && (TimerIsPaused(libMDNC_gv_mMGardenTerrorPrepTimer) == false) && (TimerGetRemaining(libMDNC_gv_mMGardenTerrorPrepTimer) > 0.0)) {
+            lv_state = libMDNC_ge_MMGardenTerrorState_Preparing;
+            if ((lv_state != lv_lastState)) {
+                libUIUI_gf_MapMechanicsGardenOfTerrorShowHidePanel(true);
+                libUIUI_gf_MapMechanicsGardenOfTerrorShowHideNightWarning(true);
+            }
+
+            libUIUI_gf_MapMechanicsGardenOfTerrorSetNightWarningTime(FixedToInt(TimerGetRemaining(libMDNC_gv_mMGardenTerrorPrepTimer)));
+            lv_lastState = lv_state;
+        }
+        else if ((libMDNC_gv_mMGardenTerrorNightFallen == true)) {
+            lv_state = libMDNC_ge_MMGardenTerrorState_Night;
+            if ((lv_state != lv_lastState)) {
+                libUIUI_gf_MapMechanicsGardenOfTerrorShowHideNightWarning(false);
+                libUIUI_gf_MapMechanicsGardenOfTerrorSetNightWarningTime(0);
+                libUIUI_gf_MapMechanicsGardenOfTerrorShowHidePanel(true);
+            }
+
+            libMDNC_gf_MMGardenTerrorUIUpdateText();
+            libMDNC_gf_MMGardenTerrorUIUpdateGolemPanel();
+            lv_lastState = lv_state;
+        }
+        else if (true) {
+            lv_state = libMDNC_ge_MMGardenTerrorState_Day;
+            if ((lv_state != lv_lastState)) {
+                libUIUI_gf_MapMechanicsGardenOfTerrorShowHidePanel(true);
+            }
+
+            if ((TimerIsPaused(libMDNC_gv_mMGardenTerrorPrepTimer) == false) && (TimerGetRemaining(libMDNC_gv_mMGardenTerrorPrepTimer) > 0.0)) {
+                libUIUI_gf_MapMechanicsGardenOfTerrorSetNightWarningTime(FixedToInt(TimerGetRemaining(libMDNC_gv_mMGardenTerrorPrepTimer)));
+                libUIUI_gf_MapMechanicsGardenOfTerrorShowHideNightWarning(true);
+            }
+
+            libMDNC_gf_MMGardenTerrorUIUpdateText();
+            libMDNC_gf_MMGardenTerrorUIUpdateGolemPanel();
+            lv_lastState = lv_state;
+        }
+        TriggerExecute(libMDNC_gt_MMGardenTerrorUIUpdateSummonedBossBar, true, false);
+        Wait(1.0, c_timeGame);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorUIHandler_Init () {
+    libMDNC_gt_MMGardenTerrorUIHandler = TriggerCreate("libMDNC_gt_MMGardenTerrorUIHandler_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror UI Update Summoned Boss Bar
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorUIUpdateSummonedBossBar_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itTeam;
+
+    // Automatic Variable Declarations
+    const int auto4DD548A7_ae = libCore_gv_bALMaxTeams;
+    const int auto4DD548A7_ai = 1;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_itTeam = 1;
+    for ( ; ( (auto4DD548A7_ai >= 0 && lv_itTeam <= auto4DD548A7_ae) || (auto4DD548A7_ai < 0 && lv_itTeam >= auto4DD548A7_ae) ) ; lv_itTeam += auto4DD548A7_ai ) {
+        if (((libMDNC_gv_mMGardenTerrorGarden[lv_itTeam].lv_growing == true) || (libMDNC_gv_mMGardenTerrorGarden[lv_itTeam].lv_readyToControl == true))) {
+            continue;
+        }
+
+        if ((UnitIsAlive(libMDNC_gv_mMGardenTerrorSummonedBoss[lv_itTeam]) == true)) {
+            libUIUI_gf_MapMechanicsGardenOfTerrorSetUpGolemStatusBarForTeam(libMDNC_gv_mMGardenTerrorSummonedBoss[lv_itTeam], lv_itTeam);
+        }
+
+        if ((UnitIsAlive(libMDNC_gv_mMGardenTerrorSummonedBoss[lv_itTeam]) == true)) {
+            libUIUI_gf_MapMechanicsGardenOfTerrorSetGolemRemainingTimeForTeam(lv_itTeam, FixedToInt(UnitBehaviorDuration(libMDNC_gv_mMGardenTerrorSummonedBoss[lv_itTeam], "PlantHorrorTimedLife")));
+        }
+        else {
+            libUIUI_gf_MapMechanicsGardenOfTerrorSetGolemRemainingTimeForTeam(lv_itTeam, 0);
+        }
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorUIUpdateSummonedBossBar_Init () {
+    libMDNC_gt_MMGardenTerrorUIUpdateSummonedBossBar = TriggerCreate("libMDNC_gt_MMGardenTerrorUIUpdateSummonedBossBar_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror - HeroAI - Team Map Logic
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorHeroAITeamMapLogic_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libMDNC_gf_MMGardenTerrorHeroAIPickupSeedsLogic(libAIAI_gv_heroAITeamMapLogicFaction);
+    libMDNC_gf_MMGardenTerrorHeroAITerrorCampLogic(libAIAI_gv_heroAITeamMapLogicFaction);
+    libMDNC_gf_MMGardenTerrorHeroAITerrorVehicleLogic(libAIAI_gv_heroAITeamMapLogicFaction);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorHeroAITeamMapLogic_Init () {
+    libMDNC_gt_MMGardenTerrorHeroAITeamMapLogic = TriggerCreate("libMDNC_gt_MMGardenTerrorHeroAITeamMapLogic_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror - HeroAI - State Logic
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorHeroAIStateLogic_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    int auto62709904_val;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto62709904_val = libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSMapStateCurrentState;
+    if (auto62709904_val == libMDNC_ge_MMGardenTerrorHeroAIStates_MMHWPickupSeed) {
+        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libMDNC_gf_MMGardenTerrorHeroAIPickupSeed(libAIAI_gv_heroAICustomStateCurrentPlayer);
+    }
+    else if (auto62709904_val == libMDNC_ge_MMGardenTerrorHeroAIStates_MMHWKillCamp) {
+        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libMDNC_gf_MMGardenTerrorHeroAIKillCamp(libAIAI_gv_heroAICustomStateCurrentPlayer);
+    }
+    else if (auto62709904_val == libMDNC_ge_MMGardenTerrorHeroAIStates_MMHWEnterTerror) {
+        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libMDNC_gf_MMGardenTerrorHeroAITerrorEnter(libAIAI_gv_heroAICustomStateCurrentPlayer);
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorHeroAIStateLogic_Init () {
+    libMDNC_gt_MMGardenTerrorHeroAIStateLogic = TriggerCreate("libMDNC_gt_MMGardenTerrorHeroAIStateLogic_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Ping Callback Player Pings Night Boss
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorPingCallbackPlayerPingsNightBoss_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libMDNC_gf_MMGardenTerrorHeroAINightBossPinged(libUIUI_gv_ping_PingCallbackPingingPlayer, libUIUI_gv_ping_PingCallbackTargetUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorPingCallbackPlayerPingsNightBoss_Init () {
+    libMDNC_gt_MMGardenTerrorPingCallbackPlayerPingsNightBoss = TriggerCreate("libMDNC_gt_MMGardenTerrorPingCallbackPlayerPingsNightBoss_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror - DisableEvent
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorDisableEvent_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libMDNC_gv_mMGardenTerrorDebugAlways = 1;
+    TriggerDebugOutput(1, StringExternal("Param/Value/lib_MDNC_1C623E7E"), true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorDisableEvent_Init () {
+    libMDNC_gt_MMGardenTerrorDisableEvent = TriggerCreate("libMDNC_gt_MMGardenTerrorDisableEvent_Func");
+    TriggerAddEventChatMessage(libMDNC_gt_MMGardenTerrorDisableEvent, c_playerAny, "DisableEvent", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Debug - Temp
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorDebugTemp_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    point lv_loc;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerDebugOutput(1, FixedToText(PointGetFacing(libMDNC_gv_mMGardenTerrorGarden[1].lv_positions), c_fixedPrecisionAny), true);
+    lv_loc = libMDNC_gv_mMGardenTerrorGarden[1].lv_positions;
+    TriggerDebugOutput(1, libCore_gf_ConvertPointToText(lv_loc), true);
+    lv_loc = PointWithOffsetPolar(lv_loc, 2.0, PointGetFacing(lv_loc));
+    TriggerDebugOutput(1, libCore_gf_ConvertPointToText(lv_loc), true);
+    UnitSetPosition(libMDNC_gv_mMGardenTerrorSummonedBoss[1], lv_loc, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorDebugTemp_Init () {
+    libMDNC_gt_MMGardenTerrorDebugTemp = TriggerCreate("libMDNC_gt_MMGardenTerrorDebugTemp_Func");
+    TriggerEnable(libMDNC_gt_MMGardenTerrorDebugTemp, false);
+    TriggerAddEventChatMessage(libMDNC_gt_MMGardenTerrorDebugTemp, c_playerAny, "-ht", false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Debug Start 1
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorDebugStart1_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TimerPause(libMDNC_gv_mMGardenTerrorPrepTimer, true);
+    libMDNC_gf_MMGardenTerrorNightPrepare();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorDebugStart1_Init () {
+    libMDNC_gt_MMGardenTerrorDebugStart1 = TriggerCreate("libMDNC_gt_MMGardenTerrorDebugStart1_Func");
+    TriggerEnable(libMDNC_gt_MMGardenTerrorDebugStart1, false);
+    TriggerAddEventChatMessage(libMDNC_gt_MMGardenTerrorDebugStart1, c_playerAny, "EVENTSTART", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Debug Start
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorDebugStart_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libMDNC_gv_mMGardenTerrorNightFallen == true)) {
+        return true;
+    }
+
+    TimerPause(libMDNC_gv_mMGardenTerrorPrepTimer, true);
+    libMDNC_gf_MMGardenTerrorNightPrepare();
+    TimerStart(libMDNC_gv_mMGardenTerrorPrepTimer, 1.0, false, c_timeGame);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorDebugStart_Init () {
+    libMDNC_gt_MMGardenTerrorDebugStart = TriggerCreate("libMDNC_gt_MMGardenTerrorDebugStart_Func");
+    TriggerEnable(libMDNC_gt_MMGardenTerrorDebugStart, false);
+    TriggerAddEventChatMessage(libMDNC_gt_MMGardenTerrorDebugStart, c_playerAny, "NIGHTBEGINS", true);
+    TriggerAddEventChatMessage(libMDNC_gt_MMGardenTerrorDebugStart, c_playerAny, "-NB", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Debug Night Ends
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorDebugNightEnds_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_team;
+    int lv_itGroup;
+    unit lv_itHorror;
+
+    // Automatic Variable Declarations
+    unitgroup auto95DCE726_g;
+    int auto95DCE726_u;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libMDNC_gv_mMGardenTerrorNightFallen == false)) {
+        return true;
+    }
+
+    lv_team = libGame_gf_TeamNumberOfPlayer(EventPlayer());
+    if (((lv_team < 1) || (lv_team > 2))) {
+        lv_team = 1;
+    }
+
+    libMDNC_gv_mMGardenTerrorSeedsCollected[lv_team] = StringToInt(StringWord(EventChatMessage(false), 2));
+    libMDNC_gv_mMGardenTerrorSeedsCollected[libGame_gf_EnemyTeam(lv_team)] = StringToInt(StringWord(EventChatMessage(false), 3));
+    auto95DCE726_g = libMDNC_gv_mMGardenTerrorNightMonsters;
+    auto95DCE726_u = UnitGroupCount(auto95DCE726_g, c_unitCountAll);
+    for (;; auto95DCE726_u -= 1) {
+        lv_itHorror = UnitGroupUnitFromEnd(auto95DCE726_g, auto95DCE726_u);
+        if (lv_itHorror == null) { break; }
+        PlayerCreateEffectUnit(libCore_gv_cOMPUTER_Hostile, "Kill", lv_itHorror);
+    }
+    libMDNC_gv_mMGardenTerrorNightMonstersTotalCount = 0;
+    libMDNC_gf_MMGardenTerrorUpdateHauntedGarden(1);
+    libMDNC_gf_MMGardenTerrorUpdateHauntedGarden(2);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorDebugNightEnds_Init () {
+    libMDNC_gt_MMGardenTerrorDebugNightEnds = TriggerCreate("libMDNC_gt_MMGardenTerrorDebugNightEnds_Func");
+    TriggerEnable(libMDNC_gt_MMGardenTerrorDebugNightEnds, false);
+    TriggerAddEventChatMessage(libMDNC_gt_MMGardenTerrorDebugNightEnds, c_playerAny, "NIGHTENDS", false);
+    TriggerAddEventChatMessage(libMDNC_gt_MMGardenTerrorDebugNightEnds, c_playerAny, "-NE", false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Debug Always Day
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorDebugAlwaysDay_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libMDNC_gv_mMGardenTerrorDebugAlways = 1;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorDebugAlwaysDay_Init () {
+    libMDNC_gt_MMGardenTerrorDebugAlwaysDay = TriggerCreate("libMDNC_gt_MMGardenTerrorDebugAlwaysDay_Func");
+    TriggerEnable(libMDNC_gt_MMGardenTerrorDebugAlwaysDay, false);
+    TriggerAddEventChatMessage(libMDNC_gt_MMGardenTerrorDebugAlwaysDay, c_playerAny, "ALWAYSDAY", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMGardenTerror Debug Always Night
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_MMGardenTerrorDebugAlwaysNight_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libMDNC_gv_mMGardenTerrorDebugAlways = 2;
+    if ((libMDNC_gv_mMGardenTerrorNightFallen == true)) {
+        return true;
+    }
+
+    libMDNC_gf_MMGardenTerrorNightStarts();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_MMGardenTerrorDebugAlwaysNight_Init () {
+    libMDNC_gt_MMGardenTerrorDebugAlwaysNight = TriggerCreate("libMDNC_gt_MMGardenTerrorDebugAlwaysNight_Func");
+    TriggerEnable(libMDNC_gt_MMGardenTerrorDebugAlwaysNight, false);
+    TriggerAddEventChatMessage(libMDNC_gt_MMGardenTerrorDebugAlwaysNight, c_playerAny, "ALWAYSNIGHT", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Plant Horror Overgrowth Apply XP
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_PlantHorrorOvergrowthApplyXP_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(EventUnit()) == "PlantHorrorOvergrowthPlant"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitXPAddXP(EventUnit(), null, FixedToInt(libGame_gv_scalingTicks));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_PlantHorrorOvergrowthApplyXP_Init () {
+    libMDNC_gt_PlantHorrorOvergrowthApplyXP = TriggerCreate("libMDNC_gt_PlantHorrorOvergrowthApplyXP_Func");
+    TriggerAddEventUnitRegion(libMDNC_gt_PlantHorrorOvergrowthApplyXP, null, RegionEntireMap(), true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Plant Horror Overgrowth Plant Scaling
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_PlantHorrorOvergrowthPlantScaling_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itPlayer;
+    string lv_amount;
+    int lv_newAmount;
+
+    // Automatic Variable Declarations
+    int auto6BA63E15_ae;
+
+    // Variable Initialization
+    lv_amount = "";
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libMDNC_gv_plantHorrorOvergrowthPlantScaling += 1;
+    if ((libMDNC_gv_plantHorrorOvergrowthPlantScaling >= 3)) {
+        lv_amount = CatalogFieldValueGet(c_gameCatalogEffect, "PlantHorrorOvergrowthTooltipDummyDamage", "Amount", 1);
+        lv_newAmount = (StringToInt(lv_amount) + 7);
+        auto6BA63E15_ae = 10;
+        lv_itPlayer = 1;
+        for ( ; lv_itPlayer <= auto6BA63E15_ae ; lv_itPlayer += 1 ) {
+            CatalogFieldValueSet(c_gameCatalogEffect, "PlantHorrorOvergrowthTooltipDummyDamage", "Amount", lv_itPlayer, IntToString(lv_newAmount));
+            CatalogFieldValueSet(c_gameCatalogEffect, "PlantHorrorOvergrowthSelfDamage", "Amount", lv_itPlayer, IntToString(FixedToInt((CatalogFieldValueGetAsInt(c_gameCatalogEffect, "PlantHorrorOvergrowthSelfDamage", "Amount", lv_itPlayer) + libMDNC_gv_mMGardenTerrorOvergrowthSelfHealthDecay_C))));
+        }
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_PlantHorrorOvergrowthPlantScaling_Init () {
+    libMDNC_gt_PlantHorrorOvergrowthPlantScaling = TriggerCreate("libMDNC_gt_PlantHorrorOvergrowthPlantScaling_Func");
+    TriggerAddEventTimer(libMDNC_gt_PlantHorrorOvergrowthPlantScaling, libGame_gv_scalingTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Night Minion Becomes Idle During Day
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_NightMinionBecomesIdleDuringDay_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((UnitGroupHasUnit(libMDNC_gv_nightMinionActiveGroup, EventUnit()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitRemove(EventUnit());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_NightMinionBecomesIdleDuringDay_Init () {
+    libMDNC_gt_NightMinionBecomesIdleDuringDay = TriggerCreate("libMDNC_gt_NightMinionBecomesIdleDuringDay_Func");
+    TriggerAddEventUnitBecomesIdle(libMDNC_gt_NightMinionBecomesIdleDuringDay, null, true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Lignify Hero
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_LignifyHero_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_earnedXP;
+    fixed lv_wait;
+    int lv_player;
+    string lv_weapon;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_earnedXP = UnitGetPropertyFixed(EventUnit(), c_unitPropXP, c_unitPropCurrent);
+    lv_player = UnitGetOwner(EventUnit());
+    lv_weapon = UnitWeaponGet(EventUnit(), 1);
+    UnitXPAddXP(EventUnit(), "LignifyScaling", lv_earnedXP);
+    UnitSetPropertyFixed(EventUnit(), c_unitPropHeight, 0.0);
+    libUIUI_gf_HeroConsoleUnitStatusBarsUpdateStunDeathBar(EventUnitBehavior(), lv_player);
+    lv_wait = UnitBehaviorDuration(EventUnit(), EventUnitBehavior());
+    Wait(lv_wait, c_timeGame);
+    libGDHL_gf_RestoreHeight(EventUnit());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_LignifyHero_Init () {
+    libMDNC_gt_LignifyHero = TriggerCreate("libMDNC_gt_LignifyHero_Func");
+    TriggerAddEventUnitBehaviorChange(libMDNC_gt_LignifyHero, null, "PlantHorrorPolymorph", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Lignify Hero Off
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_LignifyHeroOff_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_player = UnitGetOwner(EventUnit());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_LignifyHeroOff_Init () {
+    libMDNC_gt_LignifyHeroOff = TriggerCreate("libMDNC_gt_LignifyHeroOff_Func");
+    TriggerAddEventUnitBehaviorChange(libMDNC_gt_LignifyHeroOff, null, "PlantHorrorPolymorph", c_unitBehaviorChangeDeactivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Vehicle Plant Horror Vine Shield Damage Response
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_VehiclePlantHorrorVineShieldDamageResponse_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_tyrael;
+    fixed lv_damage;
+    unit lv_attacker;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_attacker = EventUnitDamageSourceUnit();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitHasBehavior(EventUnit(), "VehiclePlantHorrorVineShieldTarget") == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_tyrael = UnitBehaviorEffectUnit(EventUnit(), "VehiclePlantHorrorVineShieldTarget", c_effectUnitCaster, 0);
+    lv_damage = EventUnitDamageBehaviorShield();
+    if ((lv_damage >= UnitGetPropertyFixed(lv_tyrael, c_unitPropLife, c_unitPropCurrent))) {
+        lv_damage = (UnitGetPropertyFixed(lv_tyrael, c_unitPropLife, c_unitPropCurrent) - 1.0);
+        UnitBehaviorRemove(lv_tyrael, "VehiclePlantHorrorVineShieldCaster", 1);
+    }
+
+    UnitDamage(lv_attacker, "VehiclePlantHorrorVineShieldRedirectDamage", lv_tyrael, lv_damage);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_VehiclePlantHorrorVineShieldDamageResponse_Init () {
+    libMDNC_gt_VehiclePlantHorrorVineShieldDamageResponse = TriggerCreate("libMDNC_gt_VehiclePlantHorrorVineShieldDamageResponse_Func");
+    TriggerEnable(libMDNC_gt_VehiclePlantHorrorVineShieldDamageResponse, false);
+    TriggerAddEventUnitDamaged(libMDNC_gt_VehiclePlantHorrorVineShieldDamageResponse, null, c_unitDamageTypeAny, c_unitDamageNonFatal, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Vehicle Plant Horror Vine Shield Increment
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_VehiclePlantHorrorVineShieldIncrement_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libMDNC_gv_vehiclePlantHorrorVineShieldBuffCount += 1;
+    if ((libMDNC_gv_vehiclePlantHorrorVineShieldBuffCount >= 1)) {
+        TriggerEnable(libMDNC_gt_VehiclePlantHorrorVineShieldDamageResponse, true);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_VehiclePlantHorrorVineShieldIncrement_Init () {
+    libMDNC_gt_VehiclePlantHorrorVineShieldIncrement = TriggerCreate("libMDNC_gt_VehiclePlantHorrorVineShieldIncrement_Func");
+    TriggerAddEventUnitBehaviorChange(libMDNC_gt_VehiclePlantHorrorVineShieldIncrement, null, "VehiclePlantHorrorVineShieldTarget", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Vehicle Plant Horror Vine Shield Decrement
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_VehiclePlantHorrorVineShieldDecrement_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libMDNC_gv_vehiclePlantHorrorVineShieldBuffCount -= 1;
+    if ((libMDNC_gv_vehiclePlantHorrorVineShieldBuffCount < 1)) {
+        TriggerEnable(libMDNC_gt_VehiclePlantHorrorVineShieldDamageResponse, false);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_VehiclePlantHorrorVineShieldDecrement_Init () {
+    libMDNC_gt_VehiclePlantHorrorVineShieldDecrement = TriggerCreate("libMDNC_gt_VehiclePlantHorrorVineShieldDecrement_Func");
+    TriggerAddEventUnitBehaviorChange(libMDNC_gt_VehiclePlantHorrorVineShieldDecrement, null, "VehiclePlantHorrorVineShieldTarget", c_unitBehaviorChangeDeactivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Vehicle Plant Horror Vine Grab Activate
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_VehiclePlantHorrorVineGrabActivate_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_eatenUnit;
+    unit lv_plantHorror;
+    actor lv_eatenUnitActor;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_plantHorror = UnitBehaviorEffectUnit(EventUnit(), "PlantHorrorVineGrabTargetEaten", c_effectUnitCaster, 0);
+    lv_eatenUnit = UnitBehaviorEffectUnit(EventUnit(), "PlantHorrorVineGrabTargetEaten", c_effectUnitTarget, 0);
+    libNtve_gf_AttachModelToUnit(lv_plantHorror, libCore_gf_GetModelLinkForUnitType(UnitGetType(lv_eatenUnit)), "Ref_Hand Right");
+    lv_eatenUnitActor = libNtve_gf_ActorLastCreated();
+    ActorSend(lv_eatenUnitActor, "AnimPlay Flail Flail PlayForever");
+    while ((UnitIsAlive(lv_plantHorror) == true) && (UnitHasBehavior2(lv_eatenUnit, "PlantHorrorVineGrabTargetEaten") == true)) {
+        if ((UnitHasBehavior2(lv_eatenUnit, "PlantHorrorVineGrabTargetEaten") == true)) {
+            if ((DistanceBetweenPoints(UnitGetPosition(lv_plantHorror), UnitGetPosition(lv_eatenUnit)) >= 4.0)) {
+                UnitSetPosition(lv_eatenUnit, UnitGetPosition(lv_plantHorror), false);
+            }
+            else {
+                UnitSetPosition(lv_eatenUnit, UnitGetPosition(lv_plantHorror), true);
+            }
+            Wait(0.0625, c_timeGame);
+        }
+
+        UnitSetPosition(lv_eatenUnit, PointWithOffsetPolar(UnitGetPosition(lv_plantHorror), 1.0, UnitGetFacing(lv_plantHorror)), false);
+    }
+    ActorSend(lv_eatenUnitActor, "Destroy Immediate");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_VehiclePlantHorrorVineGrabActivate_Init () {
+    libMDNC_gt_VehiclePlantHorrorVineGrabActivate = TriggerCreate("libMDNC_gt_VehiclePlantHorrorVineGrabActivate_Func");
+    TriggerAddEventUnitBehaviorChange(libMDNC_gt_VehiclePlantHorrorVineGrabActivate, null, "PlantHorrorVineGrabTargetEaten", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Jungle Plant Horror Defender Spells
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_gt_JunglePlantHorrorDefenderSpells_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_creepUnit;
+    int lv_defenderAIIndex;
+    unit lv_currentOrderTarget;
+    int lv_graveGolemBindingRootsValidTargets;
+    unitgroup lv_enemyGroup;
+
+    // Automatic Variable Declarations
+    unitgroup auto0BC9AC6E_g;
+    int auto0BC9AC6E_u;
+    unit auto0BC9AC6E_var;
+
+    // Variable Initialization
+    lv_creepUnit = libCore_gv_segTriggerUnit;
+    lv_defenderAIIndex = libCore_gv_segTriggerIndex;
+    lv_enemyGroup = UnitGroupEmpty();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libAIAI_gf_DefendersAreFighting(lv_defenderAIIndex) == true) && ((libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_fightStartTime + libAIAI_gv_aIDefenderMinTimeBeforeCasting) < TimerGetElapsed(libGame_gv_gameTimer))) {
+        if ((UnitGetCooldown(lv_creepUnit, "Abil/PlantHorrorPoisonBulbs") <= 0.0) && (UnitGroupCount(UnitGroup(null, c_playerAny, RegionCircle(UnitGetPosition(lv_creepUnit), 5.0), UnitFilter((1 << c_targetFilterHeroic) | (1 << c_targetFilterVisible), 0, (1 << c_targetFilterPlayer) | (1 << c_targetFilterAlly) | (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), c_unitCountAlive) > 1)) {
+            UnitIssueOrder(lv_creepUnit, Order(AbilityCommand("UnderworldBossStun", 0)), c_orderQueueReplace);
+            libAIAI_gv_defenderAICreepNeedsNewOrder = false;
+        }
+        else {
+            lv_enemyGroup = libNtve_gf_UnitsInRegionWithAllianceToPlayerMatchingCondition(null, "", "", UnitGetOwner(lv_creepUnit), c_unitAllianceEnemy, RegionCircle(UnitGetPosition(lv_creepUnit), 8.0), UnitFilter((1 << c_targetFilterHeroic) | (1 << c_targetFilterVisible), 0, (1 << c_targetFilterPlayer) | (1 << c_targetFilterAlly) | (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+            if ((UnitGetCooldown(lv_creepUnit, "Abil/UnderworldBossRoots") <= 0.0) && (UnitGroupCount(lv_enemyGroup, c_unitCountAlive) > 1)) {
+                auto0BC9AC6E_g = lv_enemyGroup;
+                auto0BC9AC6E_u = UnitGroupCount(auto0BC9AC6E_g, c_unitCountAll);
+                for (;; auto0BC9AC6E_u -= 1) {
+                    auto0BC9AC6E_var = UnitGroupUnitFromEnd(auto0BC9AC6E_g, auto0BC9AC6E_u);
+                    if (auto0BC9AC6E_var == null) { break; }
+                    if ((auto0BC9AC6E_var != lv_currentOrderTarget) && (DistanceBetweenPoints(UnitGetPosition(auto0BC9AC6E_var), UnitGetPosition(lv_creepUnit)) >= 2.0)) {
+                        lv_graveGolemBindingRootsValidTargets += 1;
+                    }
+
+                }
+                if ((lv_graveGolemBindingRootsValidTargets >= 1)) {
+                    UnitIssueOrder(lv_creepUnit, OrderTargetingPoint(AbilityCommand("UnderworldBossRoots", 0), UnitGetPosition(libMapM_gf_JungleGetRandomEnemyHeroInRangeOfMinionWithMinimumRangeRequirements(lv_creepUnit, UnitGetPosition(lv_creepUnit), 0.0, 8.0, lv_currentOrderTarget))), c_orderQueueReplace);
+                    UnitAddCooldown(lv_creepUnit, "Abil/UnderworldBossRoots", 1.5);
+                    libAIAI_gv_defenderAICreepNeedsNewOrder = false;
+                }
+                else {
+                    UnitAddCooldown(lv_creepUnit, "Abil/UnderworldBossRoots", 0.5);
+                }
+            }
+
+        }
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMDNC_gt_JunglePlantHorrorDefenderSpells_Init () {
+    libMDNC_gt_JunglePlantHorrorDefenderSpells = TriggerCreate("libMDNC_gt_JunglePlantHorrorDefenderSpells_Func");
+}
+
+void libMDNC_InitTriggers () {
+    libMDNC_gt_MMGardenTerrorInit_Init();
+    libMDNC_gt_MMGardenTerrorPingDataInit_Init();
+    libMDNC_gt_MMGardenTerrorAnnouncerInit_Init();
+    libMDNC_gt_MMGardenTerrorGatesOpened_Init();
+    libMDNC_gt_MMGardenTerrorNightStarts_Init();
+    libMDNC_gt_MMGardenTerrorNightStartLightTransition_Init();
+    libMDNC_gt_MMGardenTerrorNightEndLightTransition_Init();
+    libMDNC_gt_MMGardenTerrorNightMonsterDies_Init();
+    libMDNC_gt_MMGardenTerrorSeedDropped_Init();
+    libMDNC_gt_MMGardenTerrorSeedPickup_Init();
+    libMDNC_gt_MMGardenTerrorNightVignette_Init();
+    libMDNC_gt_MMGardenTerrorPlantDamageCalculation_Init();
+    libMDNC_gt_MMGardenTerrorPlantDamageReport_Init();
+    libMDNC_gt_MMGardenTerrorChannelStarted_Init();
+    libMDNC_gt_MMGardenTerrorChannelCompleted_Init();
+    libMDNC_gt_MMGardenTerrorGolemSummonStarted_Init();
+    libMDNC_gt_MMGardenTerrorGolemSummoned_Init();
+    libMDNC_gt_MMGardenTerrorSummonedGolemKilled_Init();
+    libMDNC_gt_MMGardenTerrorUIHandler_Init();
+    libMDNC_gt_MMGardenTerrorUIUpdateSummonedBossBar_Init();
+    libMDNC_gt_MMGardenTerrorHeroAITeamMapLogic_Init();
+    libMDNC_gt_MMGardenTerrorHeroAIStateLogic_Init();
+    libMDNC_gt_MMGardenTerrorPingCallbackPlayerPingsNightBoss_Init();
+    libMDNC_gt_MMGardenTerrorDisableEvent_Init();
+    libMDNC_gt_MMGardenTerrorDebugTemp_Init();
+    libMDNC_gt_MMGardenTerrorDebugStart1_Init();
+    libMDNC_gt_MMGardenTerrorDebugStart_Init();
+    libMDNC_gt_MMGardenTerrorDebugNightEnds_Init();
+    libMDNC_gt_MMGardenTerrorDebugAlwaysDay_Init();
+    libMDNC_gt_MMGardenTerrorDebugAlwaysNight_Init();
+    libMDNC_gt_PlantHorrorOvergrowthApplyXP_Init();
+    libMDNC_gt_PlantHorrorOvergrowthPlantScaling_Init();
+    libMDNC_gt_NightMinionBecomesIdleDuringDay_Init();
+    libMDNC_gt_LignifyHero_Init();
+    libMDNC_gt_LignifyHeroOff_Init();
+    libMDNC_gt_VehiclePlantHorrorVineShieldDamageResponse_Init();
+    libMDNC_gt_VehiclePlantHorrorVineShieldIncrement_Init();
+    libMDNC_gt_VehiclePlantHorrorVineShieldDecrement_Init();
+    libMDNC_gt_VehiclePlantHorrorVineGrabActivate_Init();
+    libMDNC_gt_JunglePlantHorrorDefenderSpells_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libMDNC_InitLib_completed = false;
+
+void libMDNC_InitLib () {
+    if (libMDNC_InitLib_completed) {
+        return;
+    }
+
+    libMDNC_InitLib_completed = true;
+
+    libMDNC_InitLibraries();
+    libMDNC_InitVariables();
+    libMDNC_InitCustomScript();
+    libMDNC_InitTriggers();
+}
+

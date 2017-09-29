@@ -89,8 +89,9 @@ void TerrainBlendVertexMain( in Input vertIn, out VertexTransport vertOut ) {
         vertOut.vUV0.xy = uv.xy*float2(0.5f, -0.5f) + 0.5f ;
 
         // back buffer uv
-        vertOut.vUV1.xy = vertOut.vPos.xy/vertOut.vPos.w;
-        vertOut.vUV1.xy = vertOut.vUV1.xy*float2(0.5f, -0.5f) + 0.5f;
+        // This is only used for BLEND_COPY_TERRAIN_SPEC and BLEND_COPY_FINAL_SPEC which are always rendered to the entire viewport,
+        // So we convert the input vertex to normalized UV space and apply the mask
+        vertOut.vUV1.xy = vertIn.vPosition * p_vMaskTiling.xy + p_vMaskTiling.zw;
     }
 
 #ifdef USE_CLIP_PLANES

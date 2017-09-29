@@ -1,0 +1,474 @@
+//-------------------------------------------------------------------------------------------------
+// Amazon Tactical
+//-------------------------------------------------------------------------------------------------
+
+// Lightning Fury (Q)
+const string c_AB_AmazonLightningFury = "AmazonLightningFury";
+const fixed c_AmazonLightningFuryRange = 8.0;
+const fixed c_AmazonBlindingLightNearbyUnitRadius = 3.0;
+const fixed c_AmazonLightningFuryHeroLowHealthThresholdPercent = 40.0;
+
+// Blinding Light (W)
+const string c_AB_AmazonBlindingLight = "AmazonBlindingLight";
+const fixed c_AmazonBlindingLightRange = 6.5;
+const fixed c_AmazonBlindingLightRadius = 2.5;
+// We're not using these for now since Blinding Light is being comboed with
+// Fend, but we may want to use these in the futures so I'm leaving
+// them commented out.
+// const string c_AmazonBlindingLightInnerLightTalent = "AmazonInnerLight";
+// const fixed c_AmazonBlindingLightInnerLightTalentRadiusModifier = 1.2;
+
+// Fend (E)
+const string c_AB_AmazonFend = "AmazonFend";
+const string c_AB_AmazonFendCancelChannel = "AmazonFendCancelChannel";
+const string c_AmazonFendChannelingBehavior = "AmazonFendChanneling";
+const string c_AmazonFendLungingStrikeTalent = "AmazonLungingStrike";
+const fixed c_AmazonFendLungingStrikeTalentRadiusModifier = 1.25;
+const fixed c_AmazonFendRange = 6.0;
+const fixed c_AmazonFendRadius = 4.0;
+const fixed c_AmazonFendDuration = 1.5;
+const string c_AmazonFendDeterminationTalent = "AmazonDetermination";
+const fixed c_AmazonFendDeterminationTalentDurationBonus = 1.0;
+
+// Ball Lightning (R1)
+const string c_AB_AmazonBallLightning = "AmazonBallLightning";
+const string c_AmazonBallLightningHeroicTalent = "AmazonBallLightning";
+const fixed c_AmazonBallLightningRange = 6.0;
+const fixed c_AmazonBallLightningRadius = 5.0;
+
+// Valkyrie (R2)
+const string c_AB_AmazonValkyrie = "AmazonValkyrie";
+const string c_AmazonValkyrieHeroicTalent = "AmazonValkyrie";
+const fixed c_AmazonValkyrieMaxRange = 12.0;
+const fixed c_AmazonValkyrieMinRange = 8.0;
+
+// Surge of Light (Talent)
+const string c_AB_AmazonAvoidanceSurgeOfLight = "AmazonSurgeOfLight";
+const string c_AmazonAvoidanceSurgeOfLightTalent = "AmazonSurgeOfLight";
+const fixed c_AmazonAvoidanceSurgeOfLightRadius = 5.0;
+
+// Charged Strikes (Talent)
+const string c_AmazonHeroWeaponChargedStrikesItem ="AmazonHeroWeaponChargedStrikes";
+const fixed c_AmazonChargedStrikesScanRange = 8.0;
+const fixed c_AmazonChargedStrikesScanRadius = 5.0;
+
+//---------------------------------------------------------------------------------------------
+bool AmazonLightningFury (int player, unit aiUnit, unitgroup scanGroup) {
+    unit targetUnit;
+    point targetUnitPos;
+    order abilOrder;
+    fixed energy;
+    bool requireHero;
+    bool bypassAreaCheck;
+    fixed minHeroes;
+    fixed minMercs;
+    fixed minMinions;
+    Storm_AI_TargetQueryOptions query;
+
+    abilOrder = StormHeroAICreateOrder(player, c_AB_AmazonLightningFury, 0);
+    if (!UnitOrderIsValid(aiUnit, abilOrder)) {
+        return false;
+    }
+
+    energy = UnitGetPropertyFixed(aiUnit, c_unitPropEnergyPercent, c_unitPropCurrent);
+
+    query.lv_maxDistance = c_AmazonLightningFuryRange;
+    query.lv_healthFactor = c_Storm_AI_PreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_PreferCloserTargets;
+    // We need to make sure Cassia has a clear path to her target
+    query.lv_lineOfSightRequired = c_Storm_AI_LOS_Required;
+
+    // Default (full/very high energy), will spam at Heroes and groups of minions
+    requireHero = false;
+    minHeroes = c_Storm_AI_AtLeast1Hero;
+    minMercs = c_Storm_AI_AtLeast1Creep;
+    minMinions = c_Storm_AI_AtLeast2Minions;
+
+    if (energy < libAIAI_gv_aIHeroLowEnergyPercent) {
+        // Low energy, only use on low health Heroes
+        requireHero = true;
+        query.lv_healthFactor = c_Storm_AI_StronglyPreferUnhealthyTargets;
+        query.lv_maxHealthPercent = c_AmazonLightningFuryHeroLowHealthThresholdPercent;
+    } else if (energy < libAIAI_gv_aIHeroHighEnergyPercent) {
+        // High but not full energy, spam at groups of Heroes of groups of minions
+        minHeroes = c_Storm_AI_AtLeast2Heroes;
+        minMercs = c_Storm_AI_AtLeast2Creeps;
+        minMinions = c_Storm_AI_AtLeast4Minions;
+    }
+
+    // Look for a Hero in the scanGroup
+    targetUnit = FindBestHero(scanGroup, aiUnit, query);
+
+    // No Hero found
+    if (!UnitIsValid(targetUnit)) {
+        // We didn't find a Hero but we require one
+        if (requireHero) {
+            return false;
+        }
+
+        // Attempt to find a non-Heroic target
+        targetUnit = FindBestTacticalTarget(scanGroup, aiUnit, query);
+    }
+
+    // No Heroes or minions found, try finding a structure if we're not low on
+    // mana.  We set the bypassAreaCheck flag to true so we're not worrying about
+    // nearby enemies, we just want to hit something.
+    if (!UnitIsValid(targetUnit) && (energy > libAIAI_gv_aIHeroLowEnergyPercent)) {
+        bypassAreaCheck = true;
+        targetUnit = FindBestUnit(UnitGroupFilterTowers(scanGroup), scanGroup, aiUnit, query);
+    }
+
+    // Nothing to shoot at, give up
+    if (!UnitIsValid(targetUnit)) {
+        return false;
+    }
+
+    targetUnitPos = UnitGetPosition(targetUnit);
+
+    if (!bypassAreaCheck && !EnoughEnemiesInArea(scanGroup, targetUnitPos, c_AmazonBlindingLightNearbyUnitRadius, minHeroes, minMercs, minMinions)) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, abilOrder, null, c_orderQueueAddToFront, null, targetUnitPos);
+}
+
+//---------------------------------------------------------------------------------------------
+bool AmazonBlindingLight (int player, unit aiUnit, unitgroup scanGroup) {
+    unit targetUnit;
+    point targetUnitPos;
+    order abilOrder;
+    Storm_AI_TargetQueryOptions query;
+
+    // Set up and validate an Ability order
+    abilOrder = StormHeroAICreateOrder(player, c_AB_AmazonBlindingLight, 0);
+    if (!UnitOrderIsValid(aiUnit, abilOrder)) {
+        return false;
+    }
+
+    query.lv_maxDistance = c_AmazonBlindingLightRange;
+
+    // Execute the target query
+    targetUnit = FindBestTacticalTarget(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetUnit)) {
+        return false;
+    }
+
+    targetUnitPos = UnitGetPosition(targetUnit);
+
+    if (!EnoughEnemiesInArea(scanGroup, targetUnitPos, c_AmazonBlindingLightRadius, c_Storm_AI_AtLeast1Hero, c_Storm_AI_AtLeast1Creep, c_Storm_AI_AtLeast2Minions)) {
+       return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, abilOrder, null, c_orderQueueAddToFront, null, targetUnitPos);
+}
+
+//---------------------------------------------------------------------------------------------
+bool AmazonFend (int player, unit aiUnit, unitgroup scanGroup) {
+    unit targetUnit;
+    point targetUnitPos;
+    order blindingLightOrder;
+    order fendOrder;
+    fixed areaRadius;
+    fixed duration;
+    Storm_AI_TargetQueryOptions query;
+
+    blindingLightOrder = StormHeroAICreateOrder(player, c_AB_AmazonBlindingLight, 0);
+
+    // Set up and validate an Ability order
+    fendOrder = StormHeroAICreateOrder(player, c_AB_AmazonFend, 0);
+    if (!UnitOrderIsValid(aiUnit, fendOrder)) {
+        return false;
+    }
+
+    // We want to find close, low-health Heroes that we can finish off quickly
+    // with Fend.  These are the most likely to be retreating
+    // so that we can get a lot of value out of Fend positioning
+    query.lv_maxDistance = c_AmazonFendRange;
+    query.lv_healthFactor = c_Storm_AI_StronglyPreferUnhealthyTargets;
+    query.lv_distanceFactor = c_Storm_AI_StronglyPreferCloserTargets;
+
+    // Try to find a Hero first
+    targetUnit = FindBestHero(scanGroup, aiUnit, query);
+
+    // No Hero found, try to find a minion
+    if (!UnitIsValid(targetUnit)) {
+        targetUnit = FindBestTacticalTarget(scanGroup, aiUnit, query);
+    }
+
+    // No suitable units found
+    if (!UnitIsValid(targetUnit)) {
+        return false;
+    }
+
+    areaRadius = c_AmazonFendRadius;
+
+    // Lunging Strike increases the range of Fend by 25%
+    if (PlayerHasTalent(player, c_AmazonFendLungingStrikeTalent)) {
+        areaRadius *= c_AmazonFendLungingStrikeTalentRadiusModifier;
+    }
+
+    duration = c_AmazonFendDuration;
+
+    // Determination increases the duration of Fend by 1 second
+    if (PlayerHasTalent(player, c_AmazonFendDeterminationTalent)) {
+        duration += c_AmazonFendDeterminationTalentDurationBonus;
+    }
+
+    targetUnitPos = UnitGetPosition(targetUnit);
+
+    if (!EnoughEnemiesInArea(scanGroup, targetUnitPos, areaRadius, c_Storm_AI_AtLeast1Hero, c_Storm_AI_AtLeast2Creeps, c_Storm_AI_AtLeast4Minions)) {
+        return false;
+    }
+
+    // Disconnect Cassia's AI from the Tactial AI so it doesn't try to cancel
+    // Fend channeling, we'll return it after a set duration, if
+    // we've run out of targets in the area, or if we're low on health
+    HeroClaimForTactical(player, duration, true);
+
+    // Try to use Blinding Light to combo if it's off cooldown
+    // TODO: Set a timer before we start using Fend after Blinding
+    // Light
+    if (UnitOrderIsValid(aiUnit, blindingLightOrder)) {
+        HeroIssueOrder(player, aiUnit, blindingLightOrder, null, c_orderQueueReplace, null, targetUnitPos);
+        HeroIssueOrder(player, aiUnit, null, fendOrder, c_orderQueueAddToFront, targetUnit, null);
+    } else {
+        HeroIssueOrder(player, aiUnit, null, fendOrder, c_orderQueueReplace, targetUnit, null);
+    }
+
+    return true;
+}
+
+//---------------------------------------------------------------------------------------------
+bool AmazonFendCancel (int player, unit aiUnit, unitgroup scanGroup) {
+    unit targetUnit;
+    point areaCenter;
+    order cancelOrder;
+    fixed areaRadiusAndOffset;
+
+    // Return false if Cassia doesn't have the channeling behavior
+    if (!UnitHasBehavior2(aiUnit, c_AmazonFendChannelingBehavior)) {
+        return false;
+    }
+
+    cancelOrder = StormHeroAICreateOrder(player, c_AB_AmazonFendCancelChannel, 0);
+    if (!UnitOrderIsValid(aiUnit, cancelOrder)) {
+        return false;
+    }
+
+    // Check if we should disengage because of low health
+    if ((UnitGetPropertyFixed(aiUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[player].lv_endOffensiveHealth)) {
+        HeroIssueOrder(player, aiUnit, cancelOrder, null, c_orderQueueReplace, null, null);
+        HeroReleaseFromTactical(player);
+        return true;
+    }
+
+    // We want to create a circle in front of Cassia that encompasses the general
+    // area of Fend, so we create a circle with half the radius of
+    // Fend' arc, and offset it by its radius so it's right in front
+    // of her.
+    areaRadiusAndOffset = c_AmazonFendRadius / 2;
+
+    // Lunging Strike increases the range of Fend by 25%
+    if (PlayerHasTalent(player, c_AmazonFendLungingStrikeTalent)) {
+        areaRadiusAndOffset *= c_AmazonFendLungingStrikeTalentRadiusModifier;
+    }
+
+    // Create a point in front of Cassia
+    areaCenter = PointWithOffsetPolar(UnitGetPosition(aiUnit), areaRadiusAndOffset, UnitGetFacing(aiUnit));
+
+    // We check to see if there are enough targets in the area of Fend,
+    // otherwise we issue a cancel order and return control back to the standard
+    // AI.
+    if (!EnoughEnemiesInArea(scanGroup, areaCenter, areaRadiusAndOffset, c_Storm_AI_AtLeast1Hero, c_Storm_AI_AtLeast1Creep, c_Storm_AI_AtLeast3Minions)) {
+        HeroIssueOrder(player, aiUnit, cancelOrder, null, c_orderQueueReplace, null, null);
+        HeroReleaseFromTactical(player);
+        return true;
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+bool AmazonBallLightning (int player, unit aiUnit, unitgroup scanGroup) {
+    unit targetUnit;
+    point targetUnitPos;
+    order abilOrder;
+    Storm_AI_TargetQueryOptions query;
+
+    if (!PlayerHasTalent(player, c_AmazonBallLightningHeroicTalent)) {
+        return false;
+    }
+
+    // Skip this unless there is a team fight.  We're not going to bother
+    // trying to have AI Cassia use this one-on-one.
+    if (!TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), c_Storm_AI_DefaultTeamfightRange)) {
+        return false;
+    }
+
+    abilOrder = StormHeroAICreateOrder(player, c_AB_AmazonBallLightning, 0);
+    if (!UnitOrderIsValid(aiUnit, abilOrder)) {
+        return false;
+    }
+
+    query.lv_maxDistance = c_AmazonBallLightningRange;
+
+    // Execute the target query
+    targetUnit = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetUnit)) {
+        return false;
+    }
+
+    targetUnitPos = UnitGetPosition(targetUnit);
+
+    // All we need to worry about are if enemy Heroes are clumped up, that's it!
+    if (!EnoughEnemiesInArea(scanGroup, targetUnitPos, c_AmazonBallLightningRadius, c_Storm_AI_AtLeast2Heroes, 0, 0)) {
+       return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, abilOrder, null, c_orderQueueAddToFront, targetUnit, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool AmazonValkyrie (int player, unit aiUnit, unitgroup scanGroup) {
+    unit targetUnit;
+    order abilOrder;
+    point targetPoint;
+    Storm_AI_TargetQueryOptions query;
+
+    if (!PlayerHasTalent(player, c_AmazonValkyrieHeroicTalent)) {
+        return false;
+    }
+
+    // Skip this unless there is a team fight.  This ability is great for
+    // locking down fleeing targets, but in an AI situation we want to use this
+    // as an initiation tool.
+    if (!TeamFightInArea(player, scanGroup, UnitGetPosition(aiUnit), c_Storm_AI_DefaultTeamfightRange)) {
+        return false;
+    }
+
+    abilOrder = StormHeroAICreateOrder(player, c_AB_AmazonValkyrie, 0);
+    if (!UnitOrderIsValid(aiUnit, abilOrder)) {
+        return false;
+    }
+
+    // Since Valkyrie comes from behind, we want to pull targets that are in the back
+    query.lv_distanceFactor = c_Storm_AI_PreferDistantTargets;
+    query.lv_healthFactor = c_Storm_AI_StronglyPreferUnhealthyTargets;
+    // We don't want to pull targets that are too close as there's no point, so
+    // we have a sweet spot in between these two ranges.
+    query.lv_minDistance = c_AmazonValkyrieMinRange;
+    query.lv_maxDistance = c_AmazonValkyrieMaxRange;
+
+    targetUnit = FindBestHero(scanGroup, aiUnit, query);
+    if (!UnitIsValid(targetUnit)) {
+        return false;
+    }
+
+    targetPoint = UnitGetPosition(targetUnit);
+
+    return HeroIssueOrder(player, aiUnit, abilOrder, null, c_orderQueueAddToFront, null, targetPoint);
+}
+
+//---------------------------------------------------------------------------------------------
+// == Surge of Light ==
+// Talent that absorbs damage with Avoidance
+// Trait can be activated to deal PBAoE damage
+//---------------------------------------------------------------------------------------------
+bool AmazonAvoidanceSurgeOfLight (int player, unit aiUnit, unitgroup scanGroup) {
+    order abilOrder;
+
+    if (!PlayerHasTalent(player, c_AmazonAvoidanceSurgeOfLightTalent)) {
+        return false;
+    }
+
+    abilOrder = StormHeroAICreateOrder(player, c_AB_AmazonAvoidanceSurgeOfLight, 0);
+    if (!UnitOrderIsValid(aiUnit, abilOrder)) {
+        return false;
+    }
+
+    if (!EnoughEnemiesInArea(scanGroup, UnitGetPosition(aiUnit), c_AmazonAvoidanceSurgeOfLightRadius, c_Storm_AI_AtLeast2Heroes, 0, c_Storm_AI_AtLeast5Minions)) {
+        return false;
+    }
+
+    return HeroIssueOrder(player, aiUnit, abilOrder, null, c_orderQueueAddToFront, null, null);
+}
+
+//---------------------------------------------------------------------------------------------
+bool AmazonItemCallback (int player, unit aiUnit, unitgroup scanGroup, string itemType, order ord, order ordTarget, order ordTogOn, order ordTogOff) {
+    unit targetUnit;
+    point targetUnitPos;
+    Storm_AI_TargetQueryOptions query;
+
+    // == Charged Strikes ==
+    // Active talent that causes Basic Attacks to bounce to nearby Heroes
+    if (itemType == c_AmazonHeroWeaponChargedStrikesItem) {
+        query.lv_maxDistance = c_AmazonChargedStrikesScanRange;
+
+        targetUnit = FindBestTacticalTarget(scanGroup, aiUnit, query);
+        if (!UnitIsValid(targetUnit)) {
+            return false;
+        }
+
+        targetUnitPos = UnitGetPosition(targetUnit);
+
+        // There's no point in using Charged Strikes if there aren't at least
+        // 2 Heroes clumped up together
+        if (!EnoughEnemiesInArea(scanGroup, targetUnitPos, c_AmazonChargedStrikesScanRadius, c_Storm_AI_AtLeast2Heroes, 0, 0)) {
+           return false;
+        }
+
+        return UnitIssueOrder(aiUnit, ord, c_orderQueueAddToFront);
+    }
+
+    return false;
+}
+
+//---------------------------------------------------------------------------------------------
+void AIThinkAmazon (int player, unit aiUnit, unitgroup scanGroup) {
+    if (HeroSkipTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (HeroSkipOffensiveTactical(player, aiUnit)) {
+        return;
+    }
+
+    if (UseItem(player, aiUnit, scanGroup, AmazonItemCallback)) {
+        return;
+    }
+
+    if (AmazonFendCancel(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    // Blinding Light will only be used in combination with Fend,
+    // so we'll leave this commented out for now.  We may want to re-enable this
+    // if her balance numbers change.
+    // AmazonBlindingLight(player, aiUnit, scanGroup);
+
+    if (AmazonAvoidanceSurgeOfLight(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (AmazonLightningFury(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (AmazonFend(player, aiUnit, scanGroup)) {
+        return;
+    }
+
+    if (libAIAI_gf_HeroAIShouldUseUltimates(player)) {
+        if (AmazonBallLightning(player, aiUnit, scanGroup)) {
+            return;
+        }
+
+        if (AmazonValkyrie(player, aiUnit, scanGroup)) {
+            return;
+        }
+    }
+
+    if (RevealCloakedEnemies(player, aiUnit, scanGroup)) {
+        return;
+    }
+}
