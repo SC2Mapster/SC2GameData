@@ -229,30 +229,6 @@ void libMDoE_gf_MDoEGameOverSequence () {
     libGame_gf_CameraPanCameraForPlayerAndUpdateMapBoundsIfNecessary(libCore_gv_oBSERVER_ObserverUIPlayer, UnitGetPosition(EventUnit()), libGame_gv_gameOver_CameraPanTime_C, -1, 10, false);
 }
 
-void libMDoE_gf_MDoESetUpMapMechanicObjects () {
-    // Automatic Variable Declarations
-    unitgroup autoDC412D9E_g;
-    int autoDC412D9E_u;
-    unit autoDC412D9E_var;
-    unitgroup autoFFB1E72F_g;
-    int autoFFB1E72F_u;
-    unit autoFFB1E72F_var;
-
-    // Implementation
-    autoDC412D9E_g = libMDoE_gv_mDoE_Cannons.lv_activeCannonUnitGroup;
-    autoDC412D9E_u = UnitGroupCount(autoDC412D9E_g, c_unitCountAll);
-    for (;; autoDC412D9E_u -= 1) {
-        autoDC412D9E_var = UnitGroupUnitFromEnd(autoDC412D9E_g, autoDC412D9E_u);
-        if (autoDC412D9E_var == null) { break; }
-    }
-    autoFFB1E72F_g = libMDoE_gv_mDoE_AmmoCache.lv_availableAmmoCaches;
-    autoFFB1E72F_u = UnitGroupCount(autoFFB1E72F_g, c_unitCountAll);
-    for (;; autoFFB1E72F_u -= 1) {
-        autoFFB1E72F_var = UnitGroupUnitFromEnd(autoFFB1E72F_g, autoFFB1E72F_u);
-        if (autoFFB1E72F_var == null) { break; }
-    }
-}
-
 void libMDoE_gf_InitializeLaneStagingPoints (point lp_orderPoint, point lp_chaosPoint1, point lp_chaosPoint2) {
     // Automatic Variable Declarations
     // Implementation
@@ -538,7 +514,13 @@ void libMDoE_gf_MMCannonballsBattleshipShootingShakingCamera (point lp_targetLoc
 }
 
 void libMDoE_gf_MDoEActivateCannon (unit lp_unit, bool lp_ping) {
+    // Variable Declarations
+    int lv_cannonTeam;
+
     // Automatic Variable Declarations
+    // Variable Initialization
+    lv_cannonTeam = libGame_gf_TeamNumberOfPlayer(UnitGetOwner(lp_unit));
+
     // Implementation
     if ((lp_ping == true)) {
         libCore_gf_CreateMinimapPingStorm(PlayerGroupAll(), "CannonActivated", UnitGetPosition(lp_unit), ColorWithAlpha(100.00, 100.00, 0.00, 0.00), 3.0);
@@ -546,7 +528,8 @@ void libMDoE_gf_MDoEActivateCannon (unit lp_unit, bool lp_ping) {
 
     UnitBehaviorRemove(lp_unit, "CannonDeactivated", 1);
     UnitBehaviorRemove(lp_unit, "CannonDeactivatedVisualBehavior", 1);
-    AddUnitOfInterest(lp_unit, 0.0, 0.0, "DeliverCannonball", libNtve_ge_GoalTeam_Both, 0);
+    AddUnitOfInterest(lp_unit, 0.0, 0.0, "DeliverCannonball", libAIAI_gf_ConvertIntegertoGoalTeam(lv_cannonTeam), 0);
+    AddUnitOfInterest(lp_unit, 0.0, 0.0, "DefendCannon", libAIAI_gf_ConvertIntegertoGoalTeam(libGame_gf_EnemyTeam(libAIAI_gf_ConvertIntegertoGoalTeam(lv_cannonTeam))), 0);
 }
 
 trigger auto_libMDoE_gf_MDoEDisableCannon_Trigger = null;
@@ -566,13 +549,15 @@ bool auto_libMDoE_gf_MDoEDisableCannon_TriggerFunc (bool testConds, bool runActi
     unit lp_unit = auto_libMDoE_gf_MDoEDisableCannon_lp_unit;
 
     // Variable Declarations
-    int lv_tagIndex;
+    int lv_cannonTeam;
 
     // Automatic Variable Declarations
     // Variable Initialization
+    lv_cannonTeam = libGame_gf_TeamNumberOfPlayer(UnitGetOwner(lp_unit));
 
     // Implementation
-    RemoveUnitOfInterest(lp_unit, "DeliverCannonball", libNtve_ge_GoalTeam_Both);
+    RemoveUnitOfInterest(lp_unit, "DeliverCannonball", libAIAI_gf_ConvertIntegertoGoalTeam(lv_cannonTeam));
+    RemoveUnitOfInterest(lp_unit, "DefendCannon", libAIAI_gf_ConvertIntegertoGoalTeam(libGame_gf_EnemyTeam(libAIAI_gf_ConvertIntegertoGoalTeam(lv_cannonTeam))));
     while (!((UnitHasBehavior2(lp_unit, "CaptureMacguffinTargetDummy") == false))) {
         Wait(0.0625, c_timeGame);
     }
@@ -697,7 +682,6 @@ void libMDoE_gf_MDoEActivateValidCannonsInUnitGroup (unitgroup lp_unitGroup, boo
         UnitCreateEffectUnit(auto98962299_var, "MakeCannonFaceBoatModifyUnit", libGame_gv_teams[libGame_gf_EnemyTeam(libGame_gf_TeamNumberOfPlayer(UnitGetOwner(auto98962299_var)))].lv_core);
         lv_unitCount += 1;
     }
-    libMDoE_gf_MDoESetUpMapMechanicObjects();
 }
 
 void libMDoE_gf_MDoEResetCannonSetup () {
@@ -996,8 +980,6 @@ void libMDoE_gf_DoEsSetHeroCannonballCount (int lp_player, unit lp_heroUnit, int
     int lv_numCannonballs;
 
     // Automatic Variable Declarations
-    const int autoE47C1311_ae = libCore_gv_bALMaxPlayers;
-    const int autoE47C1311_ai = 1;
     unitgroup auto6802BC0D_g;
     int auto6802BC0D_u;
 
@@ -1011,13 +993,6 @@ void libMDoE_gf_DoEsSetHeroCannonballCount (int lp_player, unit lp_heroUnit, int
         UnitBehaviorAdd(lp_heroUnit, "MapMechanicStack", lp_heroUnit, lp_count);
     }
 
-    lv_itPlayer = 1;
-    for ( ; ( (autoE47C1311_ai >= 0 && lv_itPlayer <= autoE47C1311_ae) || (autoE47C1311_ai < 0 && lv_itPlayer >= autoE47C1311_ae) ) ; lv_itPlayer += autoE47C1311_ai ) {
-        if ((libUIUI_gv_uITargetInfoPanelCurrentTargetForPlayer[lv_itPlayer] == lp_heroUnit)) {
-            libUIUI_gf_UITargetInfoPanelUpdateMapMechanicTextForPlayer(IntToText(lp_count), lv_itPlayer);
-        }
-
-    }
     if ((UnitGroupCount(libGame_gv_players[lp_player].lv_heroUnitGroup, c_unitCountAll) > 1)) {
         auto6802BC0D_g = libGame_gv_players[lp_player].lv_heroUnitGroup;
         auto6802BC0D_u = UnitGroupCount(auto6802BC0D_g, c_unitCountAll);
@@ -1157,18 +1132,10 @@ void libMDoE_gf_MDoESpawnInitialAmmoCaches (int lp_defendingTeam) {
         libMDoE_gv_mDoE_AmmoCache.lv_ammoDefenderTextTag[auto979DE84E_var] = TextTagLastCreated();
         libMDoE_gv_mDoE_AmmoCache.lv_ammoExistingOnGround += 1;
         libCore_gf_CreateMinimapPingStorm(PlayerGroupAll(), "StormAlert", UnitGetPosition(UnitLastCreated()), ColorWithAlpha(100.00, 100.00, 0.00, 0.00), 3.0);
-        if ((lp_defendingTeam == libGame_gv_teamOrderIndex_C)) {
-            AddUnitOfInterest(libMDoE_gv_mDoE_AmmoCache.lv_unit[auto979DE84E_var], 0.0, 0.0, "PickupCannonball", libNtve_ge_GoalTeam_Order, 0);
-            AddUnitOfInterest(libMDoE_gv_mDoE_AmmoCache.lv_unit[auto979DE84E_var], 0.0, 0.0, "DefendCannonballPile", libNtve_ge_GoalTeam_Chaos, 0);
-        }
-        else {
-            AddUnitOfInterest(libMDoE_gv_mDoE_AmmoCache.lv_unit[auto979DE84E_var], 0.0, 0.0, "PickupCannonball", libNtve_ge_GoalTeam_Chaos, 0);
-            AddUnitOfInterest(libMDoE_gv_mDoE_AmmoCache.lv_unit[auto979DE84E_var], 0.0, 0.0, "DefendCannonballPile", libNtve_ge_GoalTeam_Order, 0);
-        }
+        AddUnitOfInterest(libMDoE_gv_mDoE_AmmoCache.lv_unit[auto979DE84E_var], 0.0, 0.0, "PickupCannonball", libAIAI_gf_ConvertIntegertoGoalTeam(lp_defendingTeam), 0);
     }
     libMDoE_gf_MDoEUIUpdateCannonballCount(libMDoE_gv_mDoE_AmmoCache.lv_ammoExistingOnGround, libMDoE_gv_mDoE_AmmoCache.lv_ammoCarriedByPlayers);
     libMDoE_gf_MDoEUIShowHideMainPanel3(true);
-    libMDoE_gf_MDoESetUpMapMechanicObjects();
 }
 
 void libMDoE_gf_MDoEUpdateAmmoSpawnLocationQueue () {
@@ -2185,8 +2152,6 @@ bool libMDoE_gt_MDoE_InitTowerCannonGoals_Func (bool testConds, bool runActions)
     // Automatic Variable Declarations
     unitgroup autoFE45C5E0_g;
     int autoFE45C5E0_u;
-    unitgroup auto80A7837D_g;
-    int auto80A7837D_u;
 
     // Variable Initialization
 
@@ -2202,13 +2167,6 @@ bool libMDoE_gt_MDoE_InitTowerCannonGoals_Func (bool testConds, bool runActions)
         if (lv_tower == null) { break; }
         AITrackUnitDanger(lv_tower);
     }
-    auto80A7837D_g = UnitGroup("Cannon", c_playerAny, RegionEntireMap(), UnitFilter(0, 0, 0, 0), 0);
-    auto80A7837D_u = UnitGroupCount(auto80A7837D_g, c_unitCountAll);
-    for (;; auto80A7837D_u -= 1) {
-        lv_cannon = UnitGroupUnitFromEnd(auto80A7837D_g, auto80A7837D_u);
-        if (lv_cannon == null) { break; }
-        AddUnitOfInterest(lv_cannon, 5.0, 0.0, "DefendCannon", libNtve_ge_GoalTeam_Both, 0);
-    }
     return true;
 }
 
@@ -2219,9 +2177,9 @@ void libMDoE_gt_MDoE_InitTowerCannonGoals_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: MDoE_AddUnitOfInterest
+// Trigger: MDoE_Add Intercept Goal to Heroes Leaving Safe Zone
 //--------------------------------------------------------------------------------------------------
-bool libMDoE_gt_MDoE_AddUnitOfInterest_Func (bool testConds, bool runActions) {
+bool libMDoE_gt_MDoE_AddInterceptGoaltoHeroesLeavingSafeZone_Func (bool testConds, bool runActions) {
     // Automatic Variable Declarations
     // Conditions
     if (testConds) {
@@ -2240,15 +2198,15 @@ bool libMDoE_gt_MDoE_AddUnitOfInterest_Func (bool testConds, bool runActions) {
 }
 
 //--------------------------------------------------------------------------------------------------
-void libMDoE_gt_MDoE_AddUnitOfInterest_Init () {
-    libMDoE_gt_MDoE_AddUnitOfInterest = TriggerCreate("libMDoE_gt_MDoE_AddUnitOfInterest_Func");
-    TriggerAddEventUnitBehaviorChange(libMDoE_gt_MDoE_AddUnitOfInterest, null, "HomeShieldProtection", c_unitBehaviorChangeDestroy);
+void libMDoE_gt_MDoE_AddInterceptGoaltoHeroesLeavingSafeZone_Init () {
+    libMDoE_gt_MDoE_AddInterceptGoaltoHeroesLeavingSafeZone = TriggerCreate("libMDoE_gt_MDoE_AddInterceptGoaltoHeroesLeavingSafeZone_Func");
+    TriggerAddEventUnitBehaviorChange(libMDoE_gt_MDoE_AddInterceptGoaltoHeroesLeavingSafeZone, null, "HomeShieldProtection", c_unitBehaviorChangeDestroy);
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: MDoE_RemoveUnitOfInterest
+// Trigger: MDoE_Remove Intercept Goal from Heroes in Safe Zone
 //--------------------------------------------------------------------------------------------------
-bool libMDoE_gt_MDoE_RemoveUnitOfInterest_Func (bool testConds, bool runActions) {
+bool libMDoE_gt_MDoE_RemoveInterceptGoalfromHeroesinSafeZone_Func (bool testConds, bool runActions) {
     // Automatic Variable Declarations
     // Conditions
     if (testConds) {
@@ -2267,9 +2225,9 @@ bool libMDoE_gt_MDoE_RemoveUnitOfInterest_Func (bool testConds, bool runActions)
 }
 
 //--------------------------------------------------------------------------------------------------
-void libMDoE_gt_MDoE_RemoveUnitOfInterest_Init () {
-    libMDoE_gt_MDoE_RemoveUnitOfInterest = TriggerCreate("libMDoE_gt_MDoE_RemoveUnitOfInterest_Func");
-    TriggerAddEventUnitBehaviorChange(libMDoE_gt_MDoE_RemoveUnitOfInterest, null, "HomeShieldProtection", c_unitBehaviorChangeCreate);
+void libMDoE_gt_MDoE_RemoveInterceptGoalfromHeroesinSafeZone_Init () {
+    libMDoE_gt_MDoE_RemoveInterceptGoalfromHeroesinSafeZone = TriggerCreate("libMDoE_gt_MDoE_RemoveInterceptGoalfromHeroesinSafeZone_Func");
+    TriggerAddEventUnitBehaviorChange(libMDoE_gt_MDoE_RemoveInterceptGoalfromHeroesinSafeZone, null, "HomeShieldProtection", c_unitBehaviorChangeCreate);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -2495,8 +2453,7 @@ bool libMDoE_gt_CoreDies_Func (bool testConds, bool runActions) {
     while (true) {
         	auto6DFE6170_var = PlayerGroupNextPlayer(auto6DFE6170_g, auto6DFE6170_var);
         	if (auto6DFE6170_var<0) { break; }
-        	libUIUI_gf_UITargetInfoPanelClearTargetForPlayer(auto6DFE6170_var);
-        libUIUI_gf_UIHeroConsoleShowHideForPlayer(false, auto6DFE6170_var);
+        	libUIUI_gf_UIHeroConsoleShowHideForPlayer(false, auto6DFE6170_var);
         UISetMode(libCore_gv_playerGroupFromPlayer[auto6DFE6170_var], c_uiModeFullscreen, c_transitionDurationImmediate);
         DialogControlSetVisible(libUIUI_gv_uIGameUIHandles.lv_talentsButton, libCore_gv_playerGroupFromPlayer[auto6DFE6170_var], false);
         UISetFrameVisible(libCore_gv_playerGroupFromPlayer[auto6DFE6170_var], c_syncFrameTypeMinimapPanel, false);
@@ -2864,7 +2821,6 @@ bool libMDoE_gt_SpawnNewAmmoCache_Func (bool testConds, bool runActions) {
     libMDoE_gv_mDoE_AmmoCache.lv_ammoExistingOnGround += 1;
     libMDoE_gf_MDoEUIUpdateCannonballCount(libMDoE_gv_mDoE_AmmoCache.lv_ammoExistingOnGround, libMDoE_gv_mDoE_AmmoCache.lv_ammoCarriedByPlayers);
     AddUnitOfInterest(libMDoE_gv_mDoE_AmmoCache.lv_unit[lv_ammoIndex], 0.0, 0.0, "PickupCannonball", libNtve_ge_GoalTeam_Both, 0);
-    libMDoE_gf_MDoESetUpMapMechanicObjects();
     return true;
 }
 
@@ -3012,6 +2968,7 @@ bool libMDoE_gt_DoEsHeroPicksUpCannonball_Func (bool testConds, bool runActions)
     libMDoE_gv_mDoE_AmmoCache.lv_ammoExistingOnGround -= 1;
     libMDoE_gv_mDoE_AmmoCache.lv_ammoCarriedByPlayers += 1;
     libMDoE_gf_MDoEUIUpdateCannonballCount(libMDoE_gv_mDoE_AmmoCache.lv_ammoExistingOnGround, libMDoE_gv_mDoE_AmmoCache.lv_ammoCarriedByPlayers);
+    libMDoE_gf_PlayerPicksUpAmmoDisplayText(lv_collectingPlayer, lv_collectingUnit);
     if ((lv_collectingTeam == libGame_gv_teamOrderIndex_C)) {
         PlayerCreateEffectUnit(libCore_gv_cOMPUTER_TeamChaos, "ApplyCannonballRevealed", lv_collectingUnit);
     }
@@ -3020,6 +2977,7 @@ bool libMDoE_gt_DoEsHeroPicksUpCannonball_Func (bool testConds, bool runActions)
     }
     AddUnitOfInterest(lv_collectingUnit, 0.0, 0.0, "InterceptCannonball", libNtve_ge_GoalTeam_Both, 0);
     libMDoE_gf_ShowHideRelevantDefenderCannonTextRightClickMechanic();
+    libUIUI_gf_CreateMapMechanicPickupTextTag(lv_collectingUnit, TextExpressionAssemble("Param/Expression/lib_MDoE_FC7DEB72"));
     return true;
 }
 
@@ -3112,12 +3070,7 @@ bool libMDoE_gt_DoEsHeroLootsAmmoCacher_Func (bool testConds, bool runActions) {
         }
     }
 
-    libNtve_gf_SendActorMessageToUnit(lv_collectingUnit, "Create FloatingTextPickupCannonball");
-    libMDoE_gf_DoEsModifyHeroCannonballCount(lv_collectingPlayer, lv_collectingUnit, 1);
-    libMDoE_gf_PlayerPicksUpAmmoDisplayText(lv_collectingPlayer, lv_collectingUnit);
-    libMDoE_gv_mDoE_AmmoCache.lv_ammoExistingOnGround -= 1;
-    libMDoE_gv_mDoE_AmmoCache.lv_ammoCarriedByPlayers += 1;
-    libMDoE_gf_MDoEUIUpdateCannonballCount(libMDoE_gv_mDoE_AmmoCache.lv_ammoExistingOnGround, libMDoE_gv_mDoE_AmmoCache.lv_ammoCarriedByPlayers);
+    PlayerCreateEffectUnit(lv_collectingPlayer, "DoubloonPickupSet", lv_collectingUnit);
     if ((lv_collectingTeam == libGame_gv_teamOrderIndex_C)) {
         PlayerCreateEffectUnit(libCore_gv_cOMPUTER_TeamChaos, "ApplyCannonballRevealed", lv_collectingUnit);
     }
@@ -3125,7 +3078,6 @@ bool libMDoE_gt_DoEsHeroLootsAmmoCacher_Func (bool testConds, bool runActions) {
         PlayerCreateEffectUnit(libCore_gv_cOMPUTER_TeamOrder, "ApplyCannonballRevealed", lv_collectingUnit);
     }
     AddUnitOfInterest(lv_collectingUnit, 0.0, 0.0, "InterceptCannonball", libNtve_ge_GoalTeam_Both, 0);
-    libMDoE_gf_MDoESetUpMapMechanicObjects();
     libMDoE_gf_ShowHideRelevantDefenderCannonTextRightClickMechanic();
     return true;
 }
@@ -3809,8 +3761,8 @@ void libMDoE_InitTriggers () {
     libMDoE_gt_MDoEInit_Init();
     libMDoE_gt_MDoE_CustomChooseWaitForGameStartPosition_Init();
     libMDoE_gt_MDoE_InitTowerCannonGoals_Init();
-    libMDoE_gt_MDoE_AddUnitOfInterest_Init();
-    libMDoE_gt_MDoE_RemoveUnitOfInterest_Init();
+    libMDoE_gt_MDoE_AddInterceptGoaltoHeroesLeavingSafeZone_Init();
+    libMDoE_gt_MDoE_RemoveInterceptGoalfromHeroesinSafeZone_Init();
     libMDoE_gt_MDoEInitPingData_Init();
     libMDoE_gt_InitialOpenTheGatesTimerStarts_Init();
     libMDoE_gt_OpenTheGameTimerExpires_Init();

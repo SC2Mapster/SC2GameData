@@ -1,0 +1,3821 @@
+//==================================================================================================
+// 
+// Generated Map Script
+// 
+// Name:   Temple of Ascension
+// 
+//==================================================================================================
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/LibertyLib"
+include "TriggerLibs/SwarmLib"
+include "TriggerLibs/VoidLib"
+include "TriggerLibs/VoidCampaignLib"
+include "TriggerLibs/VoidCampaignMissionLib"
+include "TriggerLibs/VoidCampaignUILib"
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+void InitLibs () {
+    libNtve_InitLib();
+    libLbty_InitLib();
+    libHots_InitLib();
+    libLotv_InitLib();
+    libVoiC_InitLib();
+    libVCMI_InitLib();
+    libVCUI_InitLib();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Constants
+//--------------------------------------------------------------------------------------------------
+const int gv_pLAYER_01_USER = 1;
+const int gv_pLAYER_02_TALDARIM = 2;
+const int gv_pLAYER_03_MOEBIUS = 3;
+const int gv_pLAYER_04_AMON = 4;
+const int gv_celestialLocksRequired = 5;
+const int gv_lockProgressMIN = 0;
+const int gv_lockProgressMAX = 80;
+
+//--------------------------------------------------------------------------------------------------
+// Global Structures
+//--------------------------------------------------------------------------------------------------
+struct gs_RECORD_CelestialLock {
+    unit lv_celestialLock;
+    int lv_state;
+    bool lv_transitionInProgress;
+    region lv_captureRegion;
+    region lv_firstCaptureRegion;
+    region lv_celestialLockRegion;
+    region lv_defenseRegion;
+    region lv_revealRegion;
+    revealer lv_revealer;
+    region lv_bulliesStage1;
+    region lv_bulliesStage2;
+    region lv_bulliesStage3;
+    int lv_objectivePing;
+    int lv_recaptureCount;
+    int lv_staticDefenseStrength;
+    unit lv_progressBarDummyUnit;
+    timer lv_bullyMicroCooldown;
+};
+
+//--------------------------------------------------------------------------------------------------
+// Global Preset Declarations
+//--------------------------------------------------------------------------------------------------
+const int ge_PRESET_CelestialLockState_Inactive = 0;
+const int ge_PRESET_CelestialLockState_PlayerControlled = 1;
+const int ge_PRESET_CelestialLockState_EnemyControlled = 2;
+
+//--------------------------------------------------------------------------------------------------
+// Global Variables
+//--------------------------------------------------------------------------------------------------
+string gv_mapMusicTrack;
+playergroup gv_playerGroup;
+playergroup gv_enemyPlayerGroup;
+unitgroup gv_stargateGroup;
+bool gv_phoenixOrderIssued;
+gs_RECORD_CelestialLock[6] gv_celestialLocks;
+int gv_celestialLocksActivated;
+unit gv_titanicWarpPrism;
+int gv_titanicWarpPrismPing;
+region[8] gv_attackTargetList_PARAM;
+int gv_attackTargetCount_PARAM;
+int[8] gv_attackUnitNumbers_PARAM;
+string[8] gv_attackUnitTypes_PARAM;
+int gv_attackUnitsCount_PARAM;
+wave gv_attackWave_PARAM;
+unitgroup gv_attackWaveUnits_PARAM;
+wave[8] gv_recentlySentAttackWaves;
+int gv_recentlySentAttackWaveCounter;
+bool gv_lockWarningIssued;
+bool gv_baseWarningIssued;
+int gv_phoenixGravitons;
+timer gv_titanicWarpPrismAchievementTimer;
+int gv_locksRecapturedByEnemy;
+int gv_firstLockIndex;
+bool gv_firstLockRecaptured;
+int gv_objectiveDestroyZergBase;
+int gv_objectiveRescueStalkers;
+unitgroup gv_cinematicPausedUnits;
+unitgroup gv_cinematicHiddenUnits;
+unitgroup gv_cinematicTempUnits;
+bool gv_cinematicCompleted;
+bool gv_introMusicComplete;
+int[9] gv_introMinerals;
+int[2] gv_introGas;
+unit gv_introSpectreSpeaker;
+unit gv_introPlayerUnit;
+unit gv_victoryBeamOrigin;
+sound gv_victorySound;
+int gv_victoryLock;
+
+void InitGlobals () {
+    int init_i;
+
+    gv_playerGroup = PlayerGroupEmpty();
+    gv_enemyPlayerGroup = PlayerGroupEmpty();
+    gv_stargateGroup = UnitGroupEmpty();
+    for (init_i = 0; init_i <= 5; init_i += 1) {
+        gv_celestialLocks[init_i].lv_state = ge_PRESET_CelestialLockState_Inactive;
+        gv_celestialLocks[init_i].lv_captureRegion = RegionFromId(3);
+        gv_celestialLocks[init_i].lv_firstCaptureRegion = RegionFromId(40);
+        gv_celestialLocks[init_i].lv_celestialLockRegion = RegionFromId(16);
+        gv_celestialLocks[init_i].lv_bulliesStage1 = RegionFromId(1);
+        gv_celestialLocks[init_i].lv_bulliesStage2 = RegionFromId(2);
+        gv_celestialLocks[init_i].lv_bulliesStage3 = RegionFromId(41);
+        gv_celestialLocks[init_i].lv_objectivePing = c_invalidPingId;
+        gv_celestialLocks[init_i].lv_staticDefenseStrength = 1;
+        gv_celestialLocks[init_i].lv_bullyMicroCooldown = TimerCreate();
+    }
+    gv_titanicWarpPrism = UnitFromId(1030);
+    gv_titanicWarpPrismPing = c_invalidPingId;
+    for (init_i = 0; init_i <= 7; init_i += 1) {
+        gv_attackTargetList_PARAM[init_i] = RegionFromId(28);
+    }
+    for (init_i = 0; init_i <= 7; init_i += 1) {
+        gv_attackUnitNumbers_PARAM[init_i] = 1;
+    }
+    for (init_i = 0; init_i <= 7; init_i += 1) {
+        gv_attackUnitTypes_PARAM[init_i] = "Zealot";
+    }
+    gv_attackWaveUnits_PARAM = UnitGroupEmpty();
+    gv_recentlySentAttackWaveCounter = 1;
+    gv_titanicWarpPrismAchievementTimer = TimerCreate();
+    gv_objectiveDestroyZergBase = c_invalidObjectiveId;
+    gv_objectiveRescueStalkers = c_invalidObjectiveId;
+    gv_cinematicPausedUnits = UnitGroupEmpty();
+    gv_cinematicHiddenUnits = UnitGroupEmpty();
+    gv_cinematicTempUnits = UnitGroupEmpty();
+    gv_victoryLock = 5;
+}
+
+//--------------------------------------------------------------------------------------------------
+// Global Function Declarations
+//--------------------------------------------------------------------------------------------------
+void gf_ActivateDeactivateCelestialLock (bool lp_activateDeactivate, int lp_index);
+void gf_SetCelestialLockState (int lp_index, int lp_state);
+void gf_ActivateDeactivateStaticDefenseforLock (bool lp_activateDeactivate, int lp_index);
+void gf_SendBulliesHome (int lp_index);
+bool gf_AttackRegionisValid (region lp_region);
+void gf_AddLockAttackTarget (region lp_region);
+void gf_AddLockAttackWaveUnits (int lp_count, string lp_unitType);
+void gf_SendLockAttackWave (int lp_player, int lp_duration);
+void gf_LockBullyUpgrades (int lp_index);
+
+//--------------------------------------------------------------------------------------------------
+// Trigger Variables
+//--------------------------------------------------------------------------------------------------
+trigger gt_Initialization;
+trigger gt_Init01Technology;
+trigger gt_Init02Players;
+trigger gt_Init03Units;
+trigger gt_Init04MusicSound;
+trigger gt_Init05Environment;
+trigger gt_Init06Difficulties;
+trigger gt_Init07Help;
+trigger gt_StartGameQ;
+trigger gt_PhoenixIntroQ;
+trigger gt_StargateSelectedCleanup;
+trigger gt_StargateDiesCleanup;
+trigger gt_PhoenixOrderIssued;
+trigger gt_CelestialLockInit;
+trigger gt_CelestialLockController;
+trigger gt_CelestialLockDeactivatedQ;
+trigger gt_CelestialLockCloakWarningQ;
+trigger gt_FirstCaptureQ;
+trigger gt_Autosave2Locks;
+trigger gt_Autosave4Locks;
+trigger gt_TitanicWarpPrismQ;
+trigger gt_TitanicWarpPrismWaitTrigger;
+trigger gt_TitanicWarpPrismProximityTrigger;
+trigger gt_TitanicWarpPrismBehaviour;
+trigger gt_SetUpTitanicWarpPrismEscorts;
+trigger gt_TitanicWarpPrismDies;
+trigger gt_TitanicWarpPrismWarpInShields;
+trigger gt_StartAI;
+trigger gt_AttackWaves;
+trigger gt_AIUpgradesNormal;
+trigger gt_AIUpgradesHard;
+trigger gt_AIGiveResources;
+trigger gt_RecentlySentWaves;
+trigger gt_LockAttackWarningQ;
+trigger gt_BaseAttackWarningFollowthroughQ;
+trigger gt_EnemyBaseWarningQ;
+trigger gt_DefeatBaseDead;
+trigger gt_VictoryCelestialLocksActivated;
+trigger gt_VictorySequence;
+trigger gt_Victory;
+trigger gt_Defeat;
+trigger gt_VictoryCheat;
+trigger gt_DefeatCheat;
+trigger gt_StatsPhoenixUsesGravitonBeam;
+trigger gt_AchievementTitanoPrismKilledQuickly;
+trigger gt_MasteryDestroyEnemyMainBases;
+trigger gt_ObjectiveActivateCelestialLocksCreate;
+trigger gt_ObjectiveActivateCelestialLocksComplete;
+trigger gt_ObjectiveActivateCelestialLocksUpdate;
+trigger gt_ObjectiveDestroyTitanicWarpPrismCreate;
+trigger gt_ObjectiveDestroyTitanicWarpPrismComplete;
+trigger gt_IntroQ;
+trigger gt_IntroSetup;
+trigger gt_IntroCinematic;
+trigger gt_IntroCinematicEnd;
+trigger gt_IntroCleanup;
+trigger gt_IntroMusic;
+trigger gt_IntroCapture1;
+trigger gt_IntroCapture2;
+trigger gt_VictoryQ;
+trigger gt_VictorySetup;
+trigger gt_VictoryCinematic;
+trigger gt_VictoryCinematicEnd;
+trigger gt_VictoryCleanup;
+
+//--------------------------------------------------------------------------------------------------
+// Global Presets
+//--------------------------------------------------------------------------------------------------
+
+//--------------------------------------------------------------------------------------------------
+// Global Functions
+//--------------------------------------------------------------------------------------------------
+trigger auto_gf_ActivateDeactivateCelestialLock_Trigger = null;
+bool auto_gf_ActivateDeactivateCelestialLock_lp_activateDeactivate;
+int auto_gf_ActivateDeactivateCelestialLock_lp_index;
+
+void gf_ActivateDeactivateCelestialLock (bool lp_activateDeactivate, int lp_index) {
+    auto_gf_ActivateDeactivateCelestialLock_lp_activateDeactivate = lp_activateDeactivate;
+    auto_gf_ActivateDeactivateCelestialLock_lp_index = lp_index;
+
+    if (auto_gf_ActivateDeactivateCelestialLock_Trigger == null) {
+        auto_gf_ActivateDeactivateCelestialLock_Trigger = TriggerCreate("auto_gf_ActivateDeactivateCelestialLock_TriggerFunc");
+    }
+
+    TriggerExecute(auto_gf_ActivateDeactivateCelestialLock_Trigger, false, false);
+}
+
+bool auto_gf_ActivateDeactivateCelestialLock_TriggerFunc (bool testConds, bool runActions) {
+    bool lp_activateDeactivate = auto_gf_ActivateDeactivateCelestialLock_lp_activateDeactivate;
+    int lp_index = auto_gf_ActivateDeactivateCelestialLock_lp_index;
+
+    // Variable Declarations
+    bool lv_enemyUnitsPresent;
+    bool lv_friendlyUnitsPresent;
+    int lv_progress;
+    int lv_progressBarLabel;
+
+    // Variable Initialization
+    lv_progressBarLabel = c_invalidDialogControlId;
+
+    // Implementation
+    if (((libVCMI_gf_GameIsOver() == true) || (gv_celestialLocks[lp_index].lv_transitionInProgress == true))) {
+        return true;
+    }
+    else {
+    }
+    gv_celestialLocks[lp_index].lv_transitionInProgress = true;
+    if ((lp_activateDeactivate == true)) {
+        libVCUI_gf_SetUnitProgresBarTitle(gv_celestialLocks[lp_index].lv_progressBarDummyUnit, StringExternal("Param/Value/73DBBB33"));
+    }
+    else {
+        libVCUI_gf_SetUnitProgresBarTitle(gv_celestialLocks[lp_index].lv_progressBarDummyUnit, StringExternal("Param/Value/5799B07F"));
+    }
+    libVCUI_gf_SetUnitProgressBarProgress(gv_celestialLocks[lp_index].lv_progressBarDummyUnit, gv_lockProgressMIN);
+    libVCUI_gf_ShowHideUnitProgressBar(gv_celestialLocks[lp_index].lv_progressBarDummyUnit, true);
+    lv_progressBarLabel = libNtve_gf_ValueFromDataTableDialogItem(true, libVCUI_gf_PU_UnitProgressBar_Dialog(gv_celestialLocks[lp_index].lv_progressBarDummyUnit, libVCUI_ge_PU_UnitProgressBar_DialogTypes_ProgressBar_Value));
+    DialogControlSetVisible(lv_progressBarLabel, PlayerGroupAll(), false);
+    while (true) {
+        if ((libVCMI_gf_GameIsOver() == true)) {
+            libVCUI_gf_ShowHideUnitProgressBar(gv_celestialLocks[lp_index].lv_progressBarDummyUnit, false);
+            gv_celestialLocks[lp_index].lv_transitionInProgress = false;
+            return true;
+        }
+        else {
+        }
+        lv_friendlyUnitsPresent = false;
+        lv_enemyUnitsPresent = false;
+        if ((UnitGroupCount(UnitGroup(null, gv_pLAYER_01_USER, gv_celestialLocks[lp_index].lv_captureRegion, UnitFilter(0, 0, (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile) | (1 << c_targetFilterCloaked), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), c_unitCountAlive) > 0)) {
+            lv_friendlyUnitsPresent = true;
+        }
+        else {
+        }
+        if (((UnitGroupCount(UnitGroup(null, gv_pLAYER_02_TALDARIM, gv_celestialLocks[lp_index].lv_captureRegion, UnitFilter(0, 0, (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile) | (1 << c_targetFilterCloaked), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), c_unitCountAlive) > 0) || (UnitGroupCount(UnitGroup(null, gv_pLAYER_03_MOEBIUS, gv_celestialLocks[lp_index].lv_captureRegion, UnitFilter(0, 0, (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile) | (1 << c_targetFilterCloaked), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), c_unitCountAlive) > 0))) {
+            lv_enemyUnitsPresent = true;
+        }
+        else {
+        }
+        if ((((lp_activateDeactivate == true) && (lv_friendlyUnitsPresent == true) && (lv_enemyUnitsPresent == false)) || ((lp_activateDeactivate == false) && (lv_friendlyUnitsPresent == false) && (lv_enemyUnitsPresent == true)))) {
+            lv_progress += 1;
+            if ((lv_progress == (gv_lockProgressMAX + 1))) {
+                if ((lp_activateDeactivate == true)) {
+                    gf_SetCelestialLockState(lp_index, ge_PRESET_CelestialLockState_PlayerControlled);
+                }
+                else {
+                    gf_SetCelestialLockState(lp_index, ge_PRESET_CelestialLockState_EnemyControlled);
+                    if ((libVCMI_gf_PlayerInCinematicModeCampaign() == false) && (libVCMI_gf_GameIsOver() == false)) {
+                        gv_locksRecapturedByEnemy += 1;
+                    }
+                    else {
+                    }
+                }
+                gv_celestialLocks[lp_index].lv_transitionInProgress = false;
+                libVCUI_gf_ShowHideUnitProgressBar(gv_celestialLocks[lp_index].lv_progressBarDummyUnit, false);
+                return true;
+            }
+            else {
+                libVCUI_gf_SetUnitProgressBarProgress(gv_celestialLocks[lp_index].lv_progressBarDummyUnit, lv_progress);
+            }
+        }
+        else {
+            if ((((lv_friendlyUnitsPresent == false) && (lv_enemyUnitsPresent == false)) || ((lp_activateDeactivate == false) && (lv_friendlyUnitsPresent == true) && (lv_enemyUnitsPresent == false)) || ((lp_activateDeactivate == true) && (lv_friendlyUnitsPresent == false) && (lv_enemyUnitsPresent == true)))) {
+                libVCUI_gf_ShowHideUnitProgressBar(gv_celestialLocks[lp_index].lv_progressBarDummyUnit, false);
+                gv_celestialLocks[lp_index].lv_transitionInProgress = false;
+                return true;
+            }
+            else {
+            }
+        }
+        Wait(0.0625, c_timeAI);
+    }
+    return true;
+}
+
+void gf_SetCelestialLockState (int lp_index, int lp_state) {
+    int auto662517A2_val;
+    int auto33DB1416_ae;
+    int auto33DB1416_ai;
+
+    // Variable Declarations
+    int lv_i;
+    int lv_locksActivated_LOCAL;
+
+    // Variable Initialization
+
+    // Implementation
+    auto662517A2_val = lp_state;
+    if (auto662517A2_val == ge_PRESET_CelestialLockState_Inactive) {
+        gv_celestialLocks[lp_index].lv_state = ge_PRESET_CelestialLockState_Inactive;
+        UnitSetInfoSubTip(gv_celestialLocks[lp_index].lv_celestialLock, StringExternal("Param/Value/DB7CBD4A"));
+        ActorSend(libNtve_gf_MainActorofUnit(gv_celestialLocks[lp_index].lv_celestialLock), "Signal StateNeutral");
+        PingSetTooltip(gv_celestialLocks[lp_index].lv_objectivePing, StringExternal("Param/Value/7B6CAE96"));
+        PingSetColor(gv_celestialLocks[lp_index].lv_objectivePing, Color(100.00, 100.00, 100.00));
+        VisRevealerEnable(gv_celestialLocks[lp_index].lv_revealer, false);
+        VisRevealArea(gv_pLAYER_01_USER, RegionCircle(UnitGetPosition(gv_celestialLocks[lp_index].lv_celestialLock), 8.0), 10.0, false);
+        gf_ActivateDeactivateStaticDefenseforLock(false, lp_index);
+        gf_SendBulliesHome(lp_index);
+    }
+    else if (auto662517A2_val == ge_PRESET_CelestialLockState_PlayerControlled) {
+        if ((gv_firstLockIndex == 0) && (GameGetMissionTime() <= 360.0)) {
+            gv_firstLockIndex = lp_index;
+        }
+        else {
+        }
+        gv_celestialLocks[lp_index].lv_state = ge_PRESET_CelestialLockState_PlayerControlled;
+        UnitSetInfoSubTip(gv_celestialLocks[lp_index].lv_celestialLock, StringExternal("Param/Value/20B971DA"));
+        ActorSend(libNtve_gf_MainActorofUnit(gv_celestialLocks[lp_index].lv_celestialLock), "Signal StateGood");
+        PingSetTooltip(gv_celestialLocks[lp_index].lv_objectivePing, StringExternal("Param/Value/C0BB7C7F"));
+        PingSetColor(gv_celestialLocks[lp_index].lv_objectivePing, Color(0.00, 100.00, 0.00));
+        VisRevealerEnable(gv_celestialLocks[lp_index].lv_revealer, true);
+        gf_ActivateDeactivateStaticDefenseforLock(false, lp_index);
+        gf_SendBulliesHome(lp_index);
+    }
+    else if (auto662517A2_val == ge_PRESET_CelestialLockState_EnemyControlled) {
+        if ((gv_firstLockIndex == lp_index) && (gv_firstLockRecaptured == false)) {
+            gv_firstLockRecaptured = true;
+        }
+        else {
+        }
+        gv_celestialLocks[lp_index].lv_state = ge_PRESET_CelestialLockState_EnemyControlled;
+        UnitSetInfoSubTip(gv_celestialLocks[lp_index].lv_celestialLock, StringExternal("Param/Value/BBC4FB39"));
+        ActorSend(libNtve_gf_MainActorofUnit(gv_celestialLocks[lp_index].lv_celestialLock), "Signal StateBad");
+        PingSetTooltip(gv_celestialLocks[lp_index].lv_objectivePing, StringExternal("Param/Value/5BE1BE19"));
+        PingSetColor(gv_celestialLocks[lp_index].lv_objectivePing, Color(100.00, 0.00, 0.00));
+        VisRevealerEnable(gv_celestialLocks[lp_index].lv_revealer, false);
+        VisRevealArea(gv_pLAYER_01_USER, RegionCircle(UnitGetPosition(gv_celestialLocks[lp_index].lv_celestialLock), 8.0), 10.0, false);
+        gf_ActivateDeactivateStaticDefenseforLock(true, lp_index);
+        TriggerExecute(gt_CelestialLockDeactivatedQ, true, false);
+    }
+    else {
+    }
+    auto33DB1416_ae = 5;
+    auto33DB1416_ai = 1;
+    lv_i = 1;
+    for ( ; ( (auto33DB1416_ai >= 0 && lv_i <= auto33DB1416_ae) || (auto33DB1416_ai <= 0 && lv_i >= auto33DB1416_ae) ) ; lv_i += auto33DB1416_ai ) {
+        if ((gv_celestialLocks[lv_i].lv_state == ge_PRESET_CelestialLockState_PlayerControlled)) {
+            lv_locksActivated_LOCAL += 1;
+        }
+        else {
+        }
+    }
+    if ((lv_locksActivated_LOCAL != gv_celestialLocksActivated)) {
+        gv_celestialLocksActivated = lv_locksActivated_LOCAL;
+        TriggerExecute(gt_ObjectiveActivateCelestialLocksUpdate, true, false);
+    }
+    else {
+    }
+    if ((gv_celestialLocksActivated == gv_celestialLocksRequired)) {
+        gv_victoryLock = lp_index;
+        TriggerExecute(gt_VictoryCelestialLocksActivated, true, false);
+    }
+    else {
+    }
+    if ((gv_celestialLocksActivated == 2)) {
+        TriggerExecute(gt_Autosave2Locks, true, false);
+    }
+    else {
+    }
+    if ((gv_celestialLocksActivated == 4)) {
+        TriggerExecute(gt_Autosave4Locks, true, false);
+    }
+    else {
+    }
+}
+
+void gf_ActivateDeactivateStaticDefenseforLock (bool lp_activateDeactivate, int lp_index) {
+    // Implementation
+    PlayerGroupLoopBegin(gv_enemyPlayerGroup);
+    for ( ; !PlayerGroupLoopDone() ; PlayerGroupLoopStep() ) {
+        if ((lp_activateDeactivate == true)) {
+            gv_celestialLocks[lp_index].lv_recaptureCount += 1;
+            AIResetBullyRebuildCountsInRegion(PlayerGroupLoopCurrent(), gv_celestialLocks[lp_index].lv_bulliesStage1);
+            AIToggleBulliesInRegion(PlayerGroupLoopCurrent(), gv_celestialLocks[lp_index].lv_bulliesStage1, true);
+            gf_LockBullyUpgrades(lp_index);
+        }
+        else {
+            gv_celestialLocks[lp_index].lv_staticDefenseStrength = 1;
+            AIToggleBulliesInRegion(PlayerGroupLoopCurrent(), gv_celestialLocks[lp_index].lv_bulliesStage1, false);
+            AIToggleBulliesInRegion(PlayerGroupLoopCurrent(), gv_celestialLocks[lp_index].lv_bulliesStage2, false);
+            AIToggleBulliesInRegion(PlayerGroupLoopCurrent(), gv_celestialLocks[lp_index].lv_bulliesStage3, false);
+        }
+    }
+    PlayerGroupLoopEnd();
+}
+
+void gf_SendBulliesHome (int lp_index) {
+    // Variable Declarations
+    unitgroup lv_enemyUnits;
+
+    // Variable Initialization
+    lv_enemyUnits = UnitGroupEmpty();
+
+    // Implementation
+    PlayerGroupLoopBegin(gv_enemyPlayerGroup);
+    for ( ; !PlayerGroupLoopDone() ; PlayerGroupLoopStep() ) {
+        UnitGroupAddUnitGroup(lv_enemyUnits, UnitGroup(null, PlayerGroupLoopCurrent(), RegionPlayableMap(), UnitFilter(0, 0, (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterInvulnerable - 32))), 0));
+    }
+    PlayerGroupLoopEnd();
+    UnitGroupLoopBegin(lv_enemyUnits);
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        if ((AIUnitGetWave(UnitGroupLoopCurrent()) == null) && (RegionContainsPoint(gv_celestialLocks[lp_index].lv_defenseRegion, UnitGetGoalPosition(UnitGroupLoopCurrent())) == true)) {
+            AIRemoveUnitFromAnyWavesAndSetHome(UnitGroupLoopCurrent(), PlayerStartLocation(UnitGetOwner(UnitGroupLoopCurrent())));
+            UnitIssueOrder(UnitGroupLoopCurrent(), OrderTargetingPoint(null, PlayerStartLocation(UnitGetOwner(UnitGroupLoopCurrent()))), c_orderQueueReplace);
+            AISetUnitScriptControlled(UnitGroupLoopCurrent(), false);
+            UnitSetAIOption(UnitGroupLoopCurrent(), c_unitAIOptionUsable, true);
+        }
+        else {
+        }
+    }
+    UnitGroupLoopEnd();
+}
+
+bool gf_AttackRegionisValid (region lp_region) {
+    int auto684561D5_ae;
+    int auto684561D5_ai;
+
+    // Variable Declarations
+    int lv_lockIndex;
+    int lv_i;
+
+    // Variable Initialization
+
+    // Implementation
+    auto684561D5_ae = 5;
+    auto684561D5_ai = 1;
+    lv_i = 1;
+    for ( ; ( (auto684561D5_ai >= 0 && lv_i <= auto684561D5_ae) || (auto684561D5_ai <= 0 && lv_i >= auto684561D5_ae) ) ; lv_i += auto684561D5_ai ) {
+        if ((lp_region == gv_celestialLocks[lv_i].lv_captureRegion)) {
+            lv_lockIndex = lv_i;
+            break;
+        }
+        else {
+        }
+    }
+    if ((lv_lockIndex > 0)) {
+        if (((gv_celestialLocks[lv_lockIndex].lv_state == ge_PRESET_CelestialLockState_PlayerControlled) || (gv_celestialLocks[lv_lockIndex].lv_state == ge_PRESET_CelestialLockState_Inactive))) {
+            return true;
+        }
+        else {
+        }
+    }
+    else {
+        if ((UnitGroupCount(UnitGroup(null, gv_pLAYER_01_USER, lp_region, UnitFilter((1 << c_targetFilterStructure), 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), c_unitCountAlive) > 0)) {
+            return true;
+        }
+        else {
+        }
+    }
+    return false;
+}
+
+void gf_AddLockAttackTarget (region lp_region) {
+    // Implementation
+    gv_attackTargetCount_PARAM += 1;
+    if ((gv_attackTargetCount_PARAM > 7)) {
+        gv_attackTargetCount_PARAM = 7;
+        return ;
+    }
+    else {
+        gv_attackTargetList_PARAM[gv_attackTargetCount_PARAM] = lp_region;
+    }
+}
+
+void gf_AddLockAttackWaveUnits (int lp_count, string lp_unitType) {
+    // Implementation
+    gv_attackUnitsCount_PARAM += 1;
+    if ((gv_attackUnitsCount_PARAM > 7)) {
+        gv_attackUnitsCount_PARAM = 7;
+        return ;
+    }
+    else {
+        gv_attackUnitNumbers_PARAM[gv_attackUnitsCount_PARAM] = lp_count;
+        gv_attackUnitTypes_PARAM[gv_attackUnitsCount_PARAM] = lp_unitType;
+    }
+}
+
+trigger auto_gf_SendLockAttackWave_Trigger = null;
+int auto_gf_SendLockAttackWave_lp_player;
+int auto_gf_SendLockAttackWave_lp_duration;
+
+void gf_SendLockAttackWave (int lp_player, int lp_duration) {
+    auto_gf_SendLockAttackWave_lp_player = lp_player;
+    auto_gf_SendLockAttackWave_lp_duration = lp_duration;
+
+    if (auto_gf_SendLockAttackWave_Trigger == null) {
+        auto_gf_SendLockAttackWave_Trigger = TriggerCreate("auto_gf_SendLockAttackWave_TriggerFunc");
+    }
+
+    TriggerExecute(auto_gf_SendLockAttackWave_Trigger, false, false);
+}
+
+bool auto_gf_SendLockAttackWave_TriggerFunc (bool testConds, bool runActions) {
+    int lp_player = auto_gf_SendLockAttackWave_lp_player;
+    int lp_duration = auto_gf_SendLockAttackWave_lp_duration;
+
+    int init_i;
+
+    int auto8121782D_ae;
+    int auto8121782D_ai;
+    int auto07384964_ae;
+    int auto07384964_ai;
+    int auto44C204A1_ae;
+    int auto44C204A1_ai;
+    int autoE705FAEF_ae;
+    int autoE705FAEF_ai;
+    int autoFBE06913_ae;
+    int autoFBE06913_ai;
+
+    // Variable Declarations
+    int lv_attackTargetCount;
+    region[8] lv_attackTargetList;
+    int lv_attackUnitsCount;
+    int[8] lv_attackUnitNumbers;
+    string[8] lv_attackUnitTypes;
+    int lv_i;
+    int lv_currentValidTarget;
+    wave lv_attackWave;
+    unitgroup lv_attackWaveUnits;
+    bool lv_lowerRightAttack;
+
+    // Variable Initialization
+    for (init_i = 0; init_i <= 7; init_i += 1) {
+        lv_attackTargetList[init_i] = RegionFromId(28);
+    }
+    lv_attackWaveUnits = UnitGroupEmpty();
+
+    // Implementation
+    lv_attackTargetCount = gv_attackTargetCount_PARAM;
+    auto8121782D_ae = lv_attackTargetCount;
+    auto8121782D_ai = 1;
+    lv_i = 1;
+    for ( ; ( (auto8121782D_ai >= 0 && lv_i <= auto8121782D_ae) || (auto8121782D_ai <= 0 && lv_i >= auto8121782D_ae) ) ; lv_i += auto8121782D_ai ) {
+        lv_attackTargetList[lv_i] = gv_attackTargetList_PARAM[lv_i];
+    }
+    lv_attackUnitsCount = gv_attackUnitsCount_PARAM;
+    auto07384964_ae = lv_attackUnitsCount;
+    auto07384964_ai = 1;
+    lv_i = 1;
+    for ( ; ( (auto07384964_ai >= 0 && lv_i <= auto07384964_ae) || (auto07384964_ai <= 0 && lv_i >= auto07384964_ae) ) ; lv_i += auto07384964_ai ) {
+        lv_attackUnitNumbers[lv_i] = gv_attackUnitNumbers_PARAM[lv_i];
+        lv_attackUnitTypes[lv_i] = gv_attackUnitTypes_PARAM[lv_i];
+    }
+    gv_attackTargetCount_PARAM = 0;
+    gv_attackUnitsCount_PARAM = 0;
+    if ((lv_attackTargetCount == 0)) {
+        AIAttackWaveSetTargetPlayer(lp_player, PlayerGroupSingle(gv_pLAYER_01_USER));
+        if ((lp_player == gv_pLAYER_02_TALDARIM)) {
+            AIAttackWaveSetGatherPoint(lp_player, PointFromId(1002));
+            AIAttackWaveAddWaypoint(lp_player, PointFromId(344), false);
+        }
+        else {
+            AIAttackWaveSetGatherPoint(lp_player, PointFromId(904));
+            AIAttackWaveAddWaypoint(lp_player, PointFromId(452), false);
+        }
+    }
+    else {
+        if (((lv_attackTargetList[1] == gv_celestialLocks[1].lv_captureRegion) || (lv_attackTargetList[1] == gv_celestialLocks[4].lv_captureRegion) || (lv_attackTargetList[1] == gv_celestialLocks[5].lv_captureRegion))) {
+            if ((lp_player == gv_pLAYER_02_TALDARIM)) {
+                AIAttackWaveSetTargetRegion(lp_player, RegionCircle(PointFromId(432), 4.0), 0);
+                AIAttackWaveSetGatherPoint(lp_player, PointFromId(1003));
+            }
+            else {
+                AIAttackWaveSetTargetRegion(lp_player, RegionCircle(PointFromId(907), 4.0), 0);
+                AIAttackWaveSetGatherPoint(lp_player, PointFromId(905));
+            }
+        }
+        else {
+            if ((lp_player == gv_pLAYER_02_TALDARIM)) {
+                AIAttackWaveSetTargetRegion(lp_player, RegionCircle(PointFromId(344), 4.0), 0);
+                AIAttackWaveSetGatherPoint(lp_player, PointFromId(1002));
+            }
+            else {
+                lv_lowerRightAttack = true;
+                AIAttackWaveSetTargetRegion(lp_player, RegionCircle(PointFromId(452), 4.0), 0);
+                AIAttackWaveSetGatherPoint(lp_player, PointFromId(904));
+            }
+        }
+    }
+    auto44C204A1_ae = lv_attackUnitsCount;
+    auto44C204A1_ai = 1;
+    lv_i = 1;
+    for ( ; ( (auto44C204A1_ai >= 0 && lv_i <= auto44C204A1_ae) || (auto44C204A1_ai <= 0 && lv_i >= auto44C204A1_ae) ) ; lv_i += auto44C204A1_ai ) {
+        if ((lv_attackUnitNumbers[lv_i] > 0)) {
+            AIAttackWaveAddUnits4(lv_attackUnitNumbers[lv_i], lv_attackUnitNumbers[lv_i], lv_attackUnitNumbers[lv_i], lv_attackUnitNumbers[lv_i], lv_attackUnitTypes[lv_i]);
+        }
+        else {
+        }
+    }
+    AIAttackWaveSend(lp_player, lp_duration, false);
+    if ((lv_attackTargetCount == 0)) {
+        return true;
+    }
+    else {
+    }
+    lv_attackWave = WaveLastCreated();
+    Wait((lp_duration - 15.0), c_timeAI);
+    gv_attackTargetCount_PARAM = lv_attackTargetCount;
+    autoE705FAEF_ae = lv_attackTargetCount;
+    autoE705FAEF_ai = 1;
+    lv_i = 1;
+    for ( ; ( (autoE705FAEF_ai >= 0 && lv_i <= autoE705FAEF_ae) || (autoE705FAEF_ai <= 0 && lv_i >= autoE705FAEF_ae) ) ; lv_i += autoE705FAEF_ai ) {
+        gv_attackTargetList_PARAM[lv_i] = lv_attackTargetList[lv_i];
+    }
+    gv_attackWave_PARAM = lv_attackWave;
+    TriggerExecute(gt_LockAttackWarningQ, true, false);
+    Wait(15.0, c_timeAI);
+    lv_attackWaveUnits = AIWaveGetUnits(lv_attackWave);
+    if (((lv_attackWaveUnits == null) || (lv_attackWaveUnits == UnitGroupEmpty()))) {
+        return true;
+    }
+    else {
+    }
+    while (true) {
+        if (((libVCMI_gf_GameIsOver() == true) || (libNtve_gf_UnitGroupIsDead(lv_attackWaveUnits) == true))) {
+            return true;
+        }
+        else {
+        }
+        if ((gf_AttackRegionisValid(lv_attackTargetList[lv_currentValidTarget]) == false)) {
+            if (((lv_attackTargetList[lv_currentValidTarget] == gv_celestialLocks[1].lv_captureRegion) || (lv_attackTargetList[lv_currentValidTarget] == gv_celestialLocks[2].lv_captureRegion) || (lv_attackTargetList[lv_currentValidTarget] == gv_celestialLocks[3].lv_captureRegion) || (lv_attackTargetList[lv_currentValidTarget] == gv_celestialLocks[4].lv_captureRegion) || (lv_attackTargetList[lv_currentValidTarget] == gv_celestialLocks[5].lv_captureRegion))) {
+                if ((lv_attackTargetList[lv_currentValidTarget] == gv_celestialLocks[1].lv_captureRegion)) {
+                    Wait(70.0, c_timeAI);
+                }
+                else {
+                    Wait(55.0, c_timeAI);
+                }
+                if (((libVCMI_gf_GameIsOver() == true) || (libNtve_gf_UnitGroupIsDead(lv_attackWaveUnits) == true))) {
+                    return true;
+                }
+                else {
+                }
+            }
+            else {
+            }
+            autoFBE06913_ae = lv_attackTargetCount;
+            autoFBE06913_ai = 1;
+            lv_i = (lv_currentValidTarget + 1);
+            for ( ; ( (autoFBE06913_ai >= 0 && lv_i <= autoFBE06913_ae) || (autoFBE06913_ai <= 0 && lv_i >= autoFBE06913_ae) ) ; lv_i += autoFBE06913_ai ) {
+                if ((gf_AttackRegionisValid(lv_attackTargetList[lv_i]) == true)) {
+                    lv_currentValidTarget = lv_i;
+                    break;
+                }
+                else {
+                }
+            }
+            if ((gf_AttackRegionisValid(lv_attackTargetList[lv_currentValidTarget]) == true)) {
+                AIRemoveGroupFromAnyWavesAndSetHome(lv_attackWaveUnits, UnitGroupCenterOfGroup(lv_attackWaveUnits));
+                AIAttackWaveSetTargetRegion(lp_player, lv_attackTargetList[lv_currentValidTarget], 0);
+                AIAttackWaveSetGatherPoint(lp_player, UnitGroupCenterOfGroup(lv_attackWaveUnits));
+                if ((lv_lowerRightAttack == true) && ((lv_attackTargetList[lv_currentValidTarget] == RegionFromId(32)) || (lv_attackTargetList[lv_currentValidTarget] == RegionFromId(33)))) {
+                    AIAttackWaveAddWaypoint(lp_player, PointFromId(702), false);
+                }
+                else {
+                }
+                if ((lv_lowerRightAttack == true) && (lv_attackTargetList[lv_currentValidTarget] == gv_celestialLocks[2].lv_captureRegion)) {
+                    AIAttackWaveAddWaypoint(lp_player, PointFromId(1705), false);
+                }
+                else {
+                }
+                AIAttackWaveUseGroup(lp_player, lv_attackWaveUnits);
+                AIAttackWaveSend(lp_player, 0, false);
+                lv_attackWave = WaveLastCreated();
+                if (((lv_attackTargetList[lv_currentValidTarget] == RegionFromId(32)) || (lv_attackTargetList[lv_currentValidTarget] == RegionFromId(33)))) {
+                    gv_attackTargetList_PARAM[1] = lv_attackTargetList[lv_currentValidTarget];
+                    gv_attackWaveUnits_PARAM = lv_attackWaveUnits;
+                    TriggerExecute(gt_BaseAttackWarningFollowthroughQ, true, false);
+                }
+                else {
+                }
+            }
+            else {
+                break;
+            }
+        }
+        else {
+        }
+        Wait(1.0, c_timeAI);
+    }
+    AIRemoveGroupFromAnyWavesAndSetHome(lv_attackWaveUnits, UnitGroupCenterOfGroup(lv_attackWaveUnits));
+    AIAttackWaveSetTargetPlayer(lp_player, PlayerGroupSingle(gv_pLAYER_01_USER));
+    AIAttackWaveSetGatherPoint(lp_player, UnitGroupCenterOfGroup(lv_attackWaveUnits));
+    AIAttackWaveUseGroup(lp_player, lv_attackWaveUnits);
+    AIAttackWaveSend(lp_player, 0, false);
+    return true;
+}
+
+trigger auto_gf_LockBullyUpgrades_Trigger = null;
+int auto_gf_LockBullyUpgrades_lp_index;
+
+void gf_LockBullyUpgrades (int lp_index) {
+    auto_gf_LockBullyUpgrades_lp_index = lp_index;
+
+    if (auto_gf_LockBullyUpgrades_Trigger == null) {
+        auto_gf_LockBullyUpgrades_Trigger = TriggerCreate("auto_gf_LockBullyUpgrades_TriggerFunc");
+    }
+
+    TriggerExecute(auto_gf_LockBullyUpgrades_Trigger, false, false);
+}
+
+bool auto_gf_LockBullyUpgrades_TriggerFunc (bool testConds, bool runActions) {
+    int lp_index = auto_gf_LockBullyUpgrades_lp_index;
+
+    // Implementation
+    if ((gv_celestialLocks[lp_index].lv_recaptureCount == 0)) {
+        Wait(300.0, c_timeAI);
+    }
+    else {
+        Wait(180.0, c_timeAI);
+    }
+    if ((gv_celestialLocks[lp_index].lv_state == ge_PRESET_CelestialLockState_EnemyControlled)) {
+        gv_celestialLocks[lp_index].lv_staticDefenseStrength = 2;
+        PlayerGroupLoopBegin(gv_enemyPlayerGroup);
+        for ( ; !PlayerGroupLoopDone() ; PlayerGroupLoopStep() ) {
+            AIResetBullyRebuildCountsInRegion(PlayerGroupLoopCurrent(), gv_celestialLocks[lp_index].lv_bulliesStage2);
+            AIToggleBulliesInRegion(PlayerGroupLoopCurrent(), gv_celestialLocks[lp_index].lv_bulliesStage2, true);
+        }
+        PlayerGroupLoopEnd();
+    }
+    else {
+        return true;
+    }
+    if (((gv_celestialLocks[lp_index].lv_recaptureCount == 0) || (GameGetMissionTime() < 600.0))) {
+        Wait(300.0, c_timeAI);
+    }
+    else {
+        Wait(180.0, c_timeAI);
+    }
+    if ((gv_celestialLocks[lp_index].lv_state == ge_PRESET_CelestialLockState_EnemyControlled)) {
+        gv_celestialLocks[lp_index].lv_staticDefenseStrength = 3;
+        PlayerGroupLoopBegin(gv_enemyPlayerGroup);
+        for ( ; !PlayerGroupLoopDone() ; PlayerGroupLoopStep() ) {
+            AIResetBullyRebuildCountsInRegion(PlayerGroupLoopCurrent(), gv_celestialLocks[lp_index].lv_bulliesStage3);
+            AIToggleBulliesInRegion(PlayerGroupLoopCurrent(), gv_celestialLocks[lp_index].lv_bulliesStage3, true);
+        }
+        PlayerGroupLoopEnd();
+    }
+    else {
+        return true;
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Initialization
+//--------------------------------------------------------------------------------------------------
+bool gt_Initialization_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libVoiC_gf_ULoadCampaignData("PUlnar01");
+    TriggerExecute(gt_Init01Technology, true, false);
+    libVoiC_gf_PurchaseStorymodeTech();
+    TriggerExecute(gt_Init02Players, true, false);
+    TriggerExecute(gt_Init03Units, true, false);
+    TriggerExecute(gt_Init04MusicSound, true, false);
+    TriggerExecute(gt_Init05Environment, true, false);
+    TriggerExecute(gt_Init06Difficulties, true, false);
+    TriggerExecute(gt_Init07Help, true, false);
+    TriggerExecute(gt_IntroQ, true, true);
+    TriggerExecute(gt_StartGameQ, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Initialization_Init () {
+    gt_Initialization = TriggerCreate("gt_Initialization_Func");
+    TriggerAddEventMapInit(gt_Initialization);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 01 Technology
+//--------------------------------------------------------------------------------------------------
+bool gt_Init01Technology_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libVoiC_gf_SetTechRestrictionsCallback(TriggerGetCurrent());
+    libVoiC_gf_EnableCampaignTechUnit(true, "Phoenix", gv_pLAYER_01_USER);
+    libNtve_gf_SetUpgradeLevelForPlayer(gv_pLAYER_02_TALDARIM, "DarkProtoss", 1);
+    libNtve_gf_SetUpgradeLevelForPlayer(gv_pLAYER_03_MOEBIUS, "DarkProtoss", 1);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init01Technology_Init () {
+    gt_Init01Technology = TriggerCreate("gt_Init01Technology_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 02 Players
+//--------------------------------------------------------------------------------------------------
+bool gt_Init02Players_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    PlayerGroupAdd(gv_playerGroup, gv_pLAYER_01_USER);
+    PlayerGroupAdd(gv_enemyPlayerGroup, gv_pLAYER_02_TALDARIM);
+    PlayerGroupAdd(gv_enemyPlayerGroup, gv_pLAYER_03_MOEBIUS);
+    libNtve_gf_SetAlliance(gv_pLAYER_01_USER, gv_pLAYER_02_TALDARIM, libNtve_ge_AllianceSetting_Enemy);
+    libNtve_gf_SetAlliance(gv_pLAYER_01_USER, gv_pLAYER_03_MOEBIUS, libNtve_ge_AllianceSetting_Enemy);
+    libNtve_gf_SetAlliance(gv_pLAYER_02_TALDARIM, gv_pLAYER_03_MOEBIUS, libNtve_ge_AllianceSetting_AllyWithSharedVision);
+    libNtve_gf_SetAlliance(gv_pLAYER_02_TALDARIM, gv_pLAYER_04_AMON, libNtve_ge_AllianceSetting_Neutral);
+    libNtve_gf_SetAlliance(gv_pLAYER_03_MOEBIUS, gv_pLAYER_04_AMON, libNtve_ge_AllianceSetting_Neutral);
+    PlayerModifyPropertyInt(gv_pLAYER_01_USER, c_playerPropMinerals, c_playerPropOperSetTo, 200);
+    PlayerModifyPropertyInt(gv_pLAYER_01_USER, c_playerPropVespene, c_playerPropOperSetTo, 150);
+    PlayerModifyPropertyInt(gv_pLAYER_02_TALDARIM, c_playerPropMinerals, c_playerPropOperSetTo, 5000);
+    PlayerModifyPropertyInt(gv_pLAYER_02_TALDARIM, c_playerPropVespene, c_playerPropOperSetTo, 5000);
+    PlayerModifyPropertyInt(gv_pLAYER_03_MOEBIUS, c_playerPropMinerals, c_playerPropOperSetTo, 5000);
+    PlayerModifyPropertyInt(gv_pLAYER_03_MOEBIUS, c_playerPropVespene, c_playerPropOperSetTo, 5000);
+    PlayerSetState(gv_pLAYER_02_TALDARIM, c_playerStateFoodIgnored, true);
+    PlayerSetState(gv_pLAYER_03_MOEBIUS, c_playerStateFoodIgnored, true);
+    libNtve_gf_SetUpgradeLevelForPlayer(gv_pLAYER_01_USER, "HeroicShieldCleanUp", 1);
+    libNtve_gf_SetUpgradeLevelForPlayer(gv_pLAYER_02_TALDARIM, "HeroicShieldCleanUp", 1);
+    libNtve_gf_SetUpgradeLevelForPlayer(gv_pLAYER_03_MOEBIUS, "HeroicShieldCleanUp", 1);
+    libNtve_gf_SetUpgradeLevelForPlayer(gv_pLAYER_04_AMON, "HeroicShieldCleanUp", 1);
+    PlayerSetColorIndex(gv_pLAYER_02_TALDARIM, 1, true);
+    PlayerSetColorIndex(gv_pLAYER_03_MOEBIUS, 1, true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init02Players_Init () {
+    gt_Init02Players = TriggerCreate("gt_Init02Players_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 03 Units
+//--------------------------------------------------------------------------------------------------
+bool gt_Init03Units_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_i;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libVCMI_gf_SetWorkerRallyPointsPlayersNexuses(gv_pLAYER_01_USER);
+    TriggerExecute(gt_CelestialLockInit, true, false);
+    UnitGroupLoopBegin(UnitGroup("Bunker", gv_pLAYER_03_MOEBIUS, RegionPlayableMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        UnitCargoCreate(UnitGroupLoopCurrent(), "Spectre", 2);
+    }
+    UnitGroupLoopEnd();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init03Units_Init () {
+    gt_Init03Units = TriggerCreate("gt_Init03Units_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 04 Music/Sound
+//--------------------------------------------------------------------------------------------------
+bool gt_Init04MusicSound_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    gv_mapMusicTrack = "PUlnar01_Music_Main";
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init04MusicSound_Init () {
+    gt_Init04MusicSound = TriggerCreate("gt_Init04MusicSound_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 05 Environment
+//--------------------------------------------------------------------------------------------------
+bool gt_Init05Environment_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    GameTimeOfDaySet("08:00:00");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init05Environment_Init () {
+    gt_Init05Environment = TriggerCreate("gt_Init05Environment_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 06 Difficulties
+//--------------------------------------------------------------------------------------------------
+bool gt_Init06Difficulties_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitSetPropertyFixed(gv_titanicWarpPrism, c_unitPropShieldsRegen, libLotv_gf_DifficultyValueFixed2(2.0, 2.0, 6.0, 6.0));
+    UnitSetPropertyFixed(gv_titanicWarpPrism, c_unitPropLifeMax, libLotv_gf_DifficultyValueFixed2(1000.0, 1000.0, 1500.0, 2000.0));
+    UnitSetPropertyFixed(gv_titanicWarpPrism, c_unitPropShieldsMax, libLotv_gf_DifficultyValueFixed2(500.0, 500.0, 800.0, 1000.0));
+    UnitSetPropertyFixed(gv_titanicWarpPrism, c_unitPropLifePercent, 100.0);
+    UnitSetPropertyFixed(gv_titanicWarpPrism, c_unitPropShieldsPercent, 100.0);
+    UnitGroupLoopBegin(UnitGroup("Gateway", gv_pLAYER_02_TALDARIM, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        UnitBehaviorAddPlayer(UnitGroupLoopCurrent(), "Queue2x", gv_pLAYER_02_TALDARIM, 1);
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(UnitGroup("RoboticsFacility", gv_pLAYER_02_TALDARIM, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        UnitBehaviorAddPlayer(UnitGroupLoopCurrent(), "Queue2x", gv_pLAYER_02_TALDARIM, 1);
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(UnitGroup("Stargate", gv_pLAYER_02_TALDARIM, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        UnitBehaviorAddPlayer(UnitGroupLoopCurrent(), "Queue2x", gv_pLAYER_02_TALDARIM, 1);
+    }
+    UnitGroupLoopEnd();
+    PlayerGroupLoopBegin(gv_enemyPlayerGroup);
+    for ( ; !PlayerGroupLoopDone() ; PlayerGroupLoopStep() ) {
+        if ((libLotv_gf_DifficultyValueInt2(0, 0, 1, 1) == 1)) {
+            TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "ExtendedThermalLance", 1);
+            TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "ProtossAirWeaponsLevel1", 1);
+            TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "ProtossGroundWeaponsLevel1", 1);
+            TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "ProtossAirArmorsLevel1", 1);
+            TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "ProtossGroundArmorsLevel1", 1);
+            TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "ProtossShieldsLevel1", 1);
+            TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "PunisherGrenades", 1);
+            TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "ClusterWarheads", 1);
+            TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "TerranInfantryArmorsLevel1", 1);
+            TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "TerranInfantryWeaponsLevel1", 1);
+            TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "TerranVehicleAndShipArmorsLevel1", 1);
+            TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "TerranVehicleAndShipWeaponsLevel1", 1);
+        }
+        else {
+        }
+        if ((libLotv_gf_DifficultyValueInt2(0, 0, 0, 1) == 1)) {
+            TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "VoidRayBeamCanCharge", 1);
+            TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "MultilockTargetingSystems", 1);
+        }
+        else {
+        }
+    }
+    PlayerGroupLoopEnd();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init06Difficulties_Init () {
+    gt_Init06Difficulties = TriggerCreate("gt_Init06Difficulties_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 07 Help
+//--------------------------------------------------------------------------------------------------
+bool gt_Init07Help_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libVCMI_gf_AddMissionTipCampaign("Phoenix");
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("Zealot", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("Stalker", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("Archon", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("Colossus", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("Scout", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("VoidRay", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("WarpPrismPhasing", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("WarpPrism", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("PhotonCannon", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("Probe", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("SCV", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("Reaper", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("Marauder", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("Medic", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("Spectre", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("HellionTank", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("Goliath", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("SiegeTank", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("SiegeTankSieged", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("Wraith", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("Banshee", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("Battlecruiser", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("MissileTurret", false, gv_pLAYER_01_USER);
+    libVoiC_gf_AddUnitTypeToUnitHelpPanel("Bunker", false, gv_pLAYER_01_USER);
+    if ((libHots_gf_DifficultyValueInt2(0, 0, 1) == 1)) {
+        libVoiC_gf_AddUnitTypeToUnitHelpPanel("Carrier", false, gv_pLAYER_01_USER);
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init07Help_Init () {
+    gt_Init07Help = TriggerCreate("gt_Init07Help_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Start Game Q
+//--------------------------------------------------------------------------------------------------
+bool gt_StartGameQ_Func (bool testConds, bool runActions) {
+    int auto2F9A411F_ae;
+    int auto2F9A411F_ai;
+
+    // Variable Declarations
+    int lv_index;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(gt_DefeatBaseDead, true);
+    UIAlertPoint("Trigger", gv_pLAYER_01_USER, StringExternal("Param/Value/152A3248"), null, PointFromId(9));
+    TriggerExecute(gt_TitanicWarpPrismBehaviour, true, false);
+    TriggerExecute(gt_TitanicWarpPrismWaitTrigger, true, false);
+    TimerStart(gv_titanicWarpPrismAchievementTimer, 600.0, false, c_timeAI);
+    if ((libLotv_gf_DifficultyValueInt2(0, 0, 1, 1) == 1)) {
+        TriggerEnable(gt_MasteryDestroyEnemyMainBases, true);
+    }
+    else {
+    }
+    TriggerExecute(gt_FirstCaptureQ, true, false);
+    VisExploreArea(gv_pLAYER_01_USER, RegionFromId(26), true, false);
+    Wait(3.0, c_timeReal);
+    TriggerQueueEnter();
+    auto2F9A411F_ae = 5;
+    auto2F9A411F_ai = 1;
+    lv_index = 1;
+    for ( ; ( (auto2F9A411F_ai >= 0 && lv_index <= auto2F9A411F_ae) || (auto2F9A411F_ai <= 0 && lv_index >= auto2F9A411F_ae) ) ; lv_index += auto2F9A411F_ai ) {
+        libVCMI_gf_CreateObjectivePing(true, RegionGetCenter(gv_celestialLocks[lv_index].lv_captureRegion), StringExternal("Param/Value/D699C068"));
+        gv_celestialLocks[lv_index].lv_objectivePing = PingLastCreated();
+        PingSetColor(gv_celestialLocks[lv_index].lv_objectivePing, Color(100.00, 0.00, 0.00));
+        VisRevealerCreate(gv_pLAYER_01_USER, gv_celestialLocks[lv_index].lv_revealRegion);
+        VisRevealerEnable(VisRevealerLastCreated(), false);
+        gv_celestialLocks[lv_index].lv_revealer = VisRevealerLastCreated();
+        VisRevealArea(gv_pLAYER_01_USER, RegionCircle(UnitGetPosition(gv_celestialLocks[lv_index].lv_celestialLock), 8.0), 16.0, false);
+    }
+    TriggerExecute(gt_ObjectiveActivateCelestialLocksCreate, true, false);
+    Wait(2.0, c_timeReal);
+    TriggerQueueExit();
+    TriggerExecute(gt_CelestialLockController, true, false);
+    Wait(8.0, c_timeGame);
+    TriggerExecute(gt_PhoenixIntroQ, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_StartGameQ_Init () {
+    gt_StartGameQ = TriggerCreate("gt_StartGameQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Phoenix Intro Q
+//--------------------------------------------------------------------------------------------------
+bool gt_PhoenixIntroQ_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerQueueEnter();
+    if ((libLotv_gf_DifficultyValueInt2(1, 1, 0, 0) == 1) && (gv_phoenixOrderIssued == false)) {
+        UnitGroupAddUnitGroup(gv_stargateGroup, UnitGroup("Stargate", gv_pLAYER_01_USER, RegionPlayableMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+        UnitGroupAddUnitGroup(gv_stargateGroup, UnitGroup("StargateWarp", gv_pLAYER_01_USER, RegionPlayableMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+        UnitGroupLoopBegin(gv_stargateGroup);
+        for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+            libVCMI_gf_AttachReticleEffectAndTextTagOnUnit(libVCMI_ge_CampaginReticleType_ProtossMainObjective, libVCMI_ge_CampaginReticleSize_Medium, StringExternal("Param/Value/7375D45B"), UnitGroupLoopCurrent(), "Ref_Center");
+            libHots_gf_StoreActorForUnit(UnitGroupLoopCurrent(), 1, libNtve_gf_ActorLastCreated());
+            libHots_gf_StoreTextTagForUnit(UnitGroupLoopCurrent(), 1, TextTagLastCreated());
+        }
+        UnitGroupLoopEnd();
+        if ((UnitGroupCount(gv_stargateGroup, c_unitCountAlive) > 0)) {
+            TriggerEnable(gt_StargateSelectedCleanup, true);
+            TriggerEnable(gt_StargateDiesCleanup, true);
+        }
+        else {
+        }
+        UISetButtonHighlighted(PlayerGroupAll(), AbilityCommand("StargateTrain", 0), true);
+        UISetButtonHighlighted(PlayerGroupAll(), AbilityCommand("StargateWarpTrain", 0), true);
+    }
+    else {
+    }
+    libVoiC_gf_SetAllSoundChannelVolumesCampaign(libVoiC_ge_VolumeChannelModeCampaign_Speech);
+    libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00008", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    libVoiC_gf_SetAllSoundChannelVolumesCampaign(libVoiC_ge_VolumeChannelModeCampaign_Game);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_PhoenixIntroQ_Init () {
+    gt_PhoenixIntroQ = TriggerCreate("gt_PhoenixIntroQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Stargate Selected Cleanup
+//--------------------------------------------------------------------------------------------------
+bool gt_StargateSelectedCleanup_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_GameIsOver() == false))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_PlayerInCinematicModeCampaign() == false))) {
+            return false;
+        }
+
+        if (!((UnitGroupHasUnit(gv_stargateGroup, EventUnit()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerEnable(gt_StargateDiesCleanup, false);
+    UnitGroupLoopBegin(gv_stargateGroup);
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        libNtve_gf_KillModel(libHots_gf_ActorForUnit(UnitGroupLoopCurrent(), 1));
+        TextTagDestroy(libHots_gf_TextTagForUnit(UnitGroupLoopCurrent(), 1));
+    }
+    UnitGroupLoopEnd();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_StargateSelectedCleanup_Init () {
+    gt_StargateSelectedCleanup = TriggerCreate("gt_StargateSelectedCleanup_Func");
+    TriggerEnable(gt_StargateSelectedCleanup, false);
+    TriggerAddEventUnitSelected(gt_StargateSelectedCleanup, null, gv_pLAYER_01_USER, true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Stargate Dies Cleanup
+//--------------------------------------------------------------------------------------------------
+bool gt_StargateDiesCleanup_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_GameIsOver() == false))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_PlayerInCinematicModeCampaign() == false))) {
+            return false;
+        }
+
+        if (!((UnitGroupHasUnit(gv_stargateGroup, EventUnit()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libNtve_gf_KillModel(libHots_gf_ActorForUnit(EventUnit(), 1));
+    TextTagDestroy(libHots_gf_TextTagForUnit(EventUnit(), 1));
+    if ((libNtve_gf_UnitGroupIsDead(gv_stargateGroup) == true)) {
+        TriggerEnable(TriggerGetCurrent(), false);
+        TriggerEnable(gt_StargateSelectedCleanup, false);
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_StargateDiesCleanup_Init () {
+    gt_StargateDiesCleanup = TriggerCreate("gt_StargateDiesCleanup_Func");
+    TriggerEnable(gt_StargateDiesCleanup, false);
+    TriggerAddEventUnitDied(gt_StargateDiesCleanup, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Phoenix Order Issued
+//--------------------------------------------------------------------------------------------------
+bool gt_PhoenixOrderIssued_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_GameIsOver() == false))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_PlayerInCinematicModeCampaign() == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerEnable(gt_StargateSelectedCleanup, false);
+    TriggerEnable(gt_StargateDiesCleanup, false);
+    gv_phoenixOrderIssued = true;
+    UISetButtonHighlighted(PlayerGroupAll(), AbilityCommand("StargateTrain", 0), false);
+    UISetButtonHighlighted(PlayerGroupAll(), AbilityCommand("StargateWarpTrain", 0), false);
+    UnitGroupLoopBegin(gv_stargateGroup);
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        libNtve_gf_KillModel(libHots_gf_ActorForUnit(UnitGroupLoopCurrent(), 1));
+        TextTagDestroy(libHots_gf_TextTagForUnit(UnitGroupLoopCurrent(), 1));
+    }
+    UnitGroupLoopEnd();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_PhoenixOrderIssued_Init () {
+    gt_PhoenixOrderIssued = TriggerCreate("gt_PhoenixOrderIssued_Func");
+    TriggerAddEventUnitOrder(gt_PhoenixOrderIssued, null, AbilityCommand("StargateTrain", 0));
+    TriggerAddEventUnitOrder(gt_PhoenixOrderIssued, null, AbilityCommand("StargateWarpTrain", 0));
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Celestial Lock Init
+//--------------------------------------------------------------------------------------------------
+bool gt_CelestialLockInit_Func (bool testConds, bool runActions) {
+    int autoFA62F2DA_ae;
+    int autoFA62F2DA_ai;
+
+    // Variable Declarations
+    int lv_index;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    autoFA62F2DA_ae = 5;
+    autoFA62F2DA_ai = 1;
+    lv_index = 1;
+    for ( ; ( (autoFA62F2DA_ai >= 0 && lv_index <= autoFA62F2DA_ae) || (autoFA62F2DA_ai <= 0 && lv_index >= autoFA62F2DA_ae) ) ; lv_index += autoFA62F2DA_ai ) {
+        gv_celestialLocks[lv_index].lv_captureRegion = RegionFromName(("Capture Region " + IntToString(lv_index)));
+        gv_celestialLocks[lv_index].lv_firstCaptureRegion = RegionFromName(("First Capture " + IntToString(lv_index)));
+        gv_celestialLocks[lv_index].lv_defenseRegion = RegionFromName(("Defense Region " + IntToString(lv_index)));
+        gv_celestialLocks[lv_index].lv_revealRegion = RegionFromName(("Mechanism Reveal " + IntToString(lv_index)));
+        gv_celestialLocks[lv_index].lv_celestialLockRegion = RegionFromName(("Mechanism " + IntToString(lv_index)));
+        gv_celestialLocks[lv_index].lv_celestialLock = UnitGroupUnit(UnitGroup("CelestialLock", c_playerAny, gv_celestialLocks[lv_index].lv_celestialLockRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), 1);
+        libVCMI_gf_SetUnitInfoTextCampaign(gv_celestialLocks[lv_index].lv_celestialLock, StringExternal("Param/Value/A367A792"), StringExternal("Param/Value/340CD5BB"), null);
+        gv_celestialLocks[lv_index].lv_bulliesStage1 = RegionFromName(("Mechanism " + IntToString(lv_index) + " Bullies - Stage 1"));
+        gv_celestialLocks[lv_index].lv_bulliesStage2 = RegionFromName(("Mechanism " + IntToString(lv_index) + " Bullies - Stage 2"));
+        gv_celestialLocks[lv_index].lv_bulliesStage3 = RegionFromName(("Mechanism " + IntToString(lv_index) + " Bullies - Stage 3"));
+        libNtve_gf_CreateUnitsWithDefaultFacing(1, "ProgressBarDummy", c_unitCreateIgnorePlacement, 0, UnitGetPosition(gv_celestialLocks[lv_index].lv_celestialLock));
+        gv_celestialLocks[lv_index].lv_progressBarDummyUnit = UnitLastCreated();
+        libVCUI_gf_DisplayUnitProgressBar(gv_celestialLocks[lv_index].lv_progressBarDummyUnit, StringToText(""), gv_lockProgressMIN, gv_lockProgressMAX);
+        libVCUI_gf_SetUnitProgressBarProgress(gv_celestialLocks[1].lv_progressBarDummyUnit, gv_lockProgressMIN);
+        libVCUI_gf_ShowHideUnitProgressBar(gv_celestialLocks[lv_index].lv_progressBarDummyUnit, false);
+        UnitSetState(gv_celestialLocks[lv_index].lv_celestialLock, c_unitStateStatusBar, false);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_CelestialLockInit_Init () {
+    gt_CelestialLockInit = TriggerCreate("gt_CelestialLockInit_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Celestial Lock Controller
+//--------------------------------------------------------------------------------------------------
+bool gt_CelestialLockController_Func (bool testConds, bool runActions) {
+    int autoDE13E207_ae;
+    int autoDE13E207_ai;
+
+    // Variable Declarations
+    int lv_index;
+    bool lv_enemyUnitsPresent;
+    bool lv_friendlyUnitsPresent;
+    unitgroup lv_playerUnits;
+
+    // Variable Initialization
+    lv_playerUnits = UnitGroupEmpty();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    while (true) {
+        if ((libVCMI_gf_GameIsOver() == true)) {
+            return true;
+        }
+        else {
+        }
+        autoDE13E207_ae = 5;
+        autoDE13E207_ai = 1;
+        lv_index = 1;
+        for ( ; ( (autoDE13E207_ai >= 0 && lv_index <= autoDE13E207_ae) || (autoDE13E207_ai <= 0 && lv_index >= autoDE13E207_ae) ) ; lv_index += autoDE13E207_ai ) {
+            lv_friendlyUnitsPresent = false;
+            lv_enemyUnitsPresent = false;
+            if (((UnitGroupCount(UnitGroup(null, gv_pLAYER_01_USER, gv_celestialLocks[lv_index].lv_captureRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile) | (1 << c_targetFilterCloaked), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), c_unitCountAlive) > 0))) {
+                lv_friendlyUnitsPresent = true;
+            }
+            else {
+            }
+            if (((UnitGroupCount(UnitGroup(null, gv_pLAYER_02_TALDARIM, gv_celestialLocks[lv_index].lv_captureRegion, UnitFilter(0, 0, (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile) | (1 << c_targetFilterCloaked), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), c_unitCountAlive) > 0) || (UnitGroupCount(UnitGroup(null, gv_pLAYER_03_MOEBIUS, gv_celestialLocks[lv_index].lv_captureRegion, UnitFilter(0, 0, (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile) | (1 << c_targetFilterCloaked), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), c_unitCountAlive) > 0))) {
+                lv_enemyUnitsPresent = true;
+            }
+            else {
+            }
+            if (((gv_celestialLocks[lv_index].lv_state == ge_PRESET_CelestialLockState_EnemyControlled) || (gv_celestialLocks[lv_index].lv_state == ge_PRESET_CelestialLockState_Inactive)) && (lv_friendlyUnitsPresent == true) && (lv_enemyUnitsPresent == false)) {
+                gf_ActivateDeactivateCelestialLock(true, lv_index);
+            }
+            else {
+                if (((gv_celestialLocks[lv_index].lv_state == ge_PRESET_CelestialLockState_PlayerControlled) || (gv_celestialLocks[lv_index].lv_state == ge_PRESET_CelestialLockState_Inactive)) && (lv_friendlyUnitsPresent == false) && (lv_enemyUnitsPresent == true)) {
+                    gf_ActivateDeactivateCelestialLock(false, lv_index);
+                }
+                else {
+                }
+            }
+            if ((gv_celestialLocks[lv_index].lv_state == ge_PRESET_CelestialLockState_EnemyControlled) && (TimerGetRemaining(gv_celestialLocks[lv_index].lv_bullyMicroCooldown) < 1)) {
+                lv_playerUnits = UnitGroup(null, gv_pLAYER_01_USER, gv_celestialLocks[lv_index].lv_captureRegion, UnitFilter(0, 0, (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile) | (1 << c_targetFilterCloaked), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+                if ((UnitGroupCount(lv_playerUnits, c_unitCountAlive) > 0)) {
+                    TimerStart(gv_celestialLocks[lv_index].lv_bullyMicroCooldown, 5.0, false, c_timeAI);
+                    UnitGroupLoopBegin(UnitGroupAlliance(gv_pLAYER_01_USER, c_unitAllianceEnemy, gv_celestialLocks[lv_index].lv_defenseRegion, UnitFilter(0, 0, (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+                    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+                        libNtve_gf_AICast(UnitGroupLoopCurrent(), OrderTargetingPoint(AbilityCommand("attack", 0), UnitGetPosition(UnitGroupClosestToPoint(lv_playerUnits, UnitGetPosition(UnitGroupLoopCurrent())))));
+                    }
+                    UnitGroupLoopEnd();
+                }
+                else {
+                    lv_playerUnits = UnitGroup(null, gv_pLAYER_01_USER, gv_celestialLocks[lv_index].lv_captureRegion, UnitFilter((1 << c_targetFilterCloaked), 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+                    if ((UnitGroupCount(lv_playerUnits, c_unitCountAlive) > 0)) {
+                        TriggerExecute(gt_CelestialLockCloakWarningQ, true, false);
+                    }
+                    else {
+                    }
+                }
+            }
+            else {
+            }
+        }
+        Wait(1.0, c_timeAI);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_CelestialLockController_Init () {
+    gt_CelestialLockController = TriggerCreate("gt_CelestialLockController_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Celestial Lock Deactivated Q
+//--------------------------------------------------------------------------------------------------
+bool gt_CelestialLockDeactivatedQ_Func (bool testConds, bool runActions) {
+    int auto029B18BC_val;
+
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_GameIsOver() == false))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_PlayerInCinematicModeCampaign() == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    libVoiC_gf_SetAllSoundChannelVolumesCampaign(libVoiC_ge_VolumeChannelModeCampaign_Speech);
+    auto029B18BC_val = RandomInt(1, 4);
+    if (auto029B18BC_val == 1) {
+        libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00060", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    }
+    else if (auto029B18BC_val == 2) {
+        libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00088", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    }
+    else if (auto029B18BC_val == 3) {
+        libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00089", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    }
+    else if (auto029B18BC_val == 4) {
+        libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00090", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    }
+    else {
+        libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00060", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    }
+    libVoiC_gf_SetAllSoundChannelVolumesCampaign(libVoiC_ge_VolumeChannelModeCampaign_Game);
+    TriggerQueueExit();
+    Wait(90.0, c_timeAI);
+    TriggerEnable(TriggerGetCurrent(), true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_CelestialLockDeactivatedQ_Init () {
+    gt_CelestialLockDeactivatedQ = TriggerCreate("gt_CelestialLockDeactivatedQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Celestial Lock Cloak Warning Q
+//--------------------------------------------------------------------------------------------------
+bool gt_CelestialLockCloakWarningQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_GameIsOver() == false))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_PlayerInCinematicModeCampaign() == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    libVoiC_gf_SetAllSoundChannelVolumesCampaign(libVoiC_ge_VolumeChannelModeCampaign_Speech);
+    libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00105", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    libVoiC_gf_SetAllSoundChannelVolumesCampaign(libVoiC_ge_VolumeChannelModeCampaign_Game);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_CelestialLockCloakWarningQ_Init () {
+    gt_CelestialLockCloakWarningQ = TriggerCreate("gt_CelestialLockCloakWarningQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: First Capture Q
+//--------------------------------------------------------------------------------------------------
+bool gt_FirstCaptureQ_Func (bool testConds, bool runActions) {
+    int autoADA486B8_ae;
+    int autoADA486B8_ai;
+
+    // Variable Declarations
+    int lv_i;
+    int lv_lockIndex;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    while (true) {
+        Wait(1.0, c_timeAI);
+        if ((libVCMI_gf_GameIsOver() == true)) {
+            return true;
+        }
+        else {
+        }
+        autoADA486B8_ae = 5;
+        autoADA486B8_ai = 1;
+        lv_i = 1;
+        for ( ; ( (autoADA486B8_ai >= 0 && lv_i <= autoADA486B8_ae) || (autoADA486B8_ai <= 0 && lv_i >= autoADA486B8_ae) ) ; lv_i += autoADA486B8_ai ) {
+            if ((gv_celestialLocks[lv_i].lv_state == ge_PRESET_CelestialLockState_EnemyControlled) && (UnitGroupCount(UnitGroup(null, gv_pLAYER_01_USER, gv_celestialLocks[lv_i].lv_firstCaptureRegion, UnitFilter(0, 0, (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), c_unitCountAlive) > 0)) {
+                lv_lockIndex = lv_i;
+                break;
+            }
+            else {
+            }
+        }
+        if ((lv_lockIndex > 0)) {
+            break;
+        }
+        else {
+        }
+    }
+    TriggerQueueEnter();
+    if ((gv_celestialLocks[lv_i].lv_state == ge_PRESET_CelestialLockState_EnemyControlled)) {
+        libVoiC_gf_SetAllSoundChannelVolumesCampaign(libVoiC_ge_VolumeChannelModeCampaign_Speech);
+        libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00087", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+        libVoiC_gf_SetAllSoundChannelVolumesCampaign(libVoiC_ge_VolumeChannelModeCampaign_Game);
+    }
+    else {
+    }
+    TriggerQueueExit();
+    while (!((gv_celestialLocksActivated > 0))) {
+        Wait(1.0, c_timeAI);
+    }
+    if ((libVCMI_gf_GameIsOver() == true)) {
+        return true;
+    }
+    else {
+    }
+    TriggerQueueEnter();
+    if ((gv_celestialLocksActivated > 0)) {
+        libVoiC_gf_SetAllSoundChannelVolumesCampaign(libVoiC_ge_VolumeChannelModeCampaign_Speech);
+        libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00122", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+        libVoiC_gf_SetAllSoundChannelVolumesCampaign(libVoiC_ge_VolumeChannelModeCampaign_Game);
+    }
+    else {
+    }
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_FirstCaptureQ_Init () {
+    gt_FirstCaptureQ = TriggerCreate("gt_FirstCaptureQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Autosave - 2 Locks
+//--------------------------------------------------------------------------------------------------
+bool gt_Autosave2Locks_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_GameIsOver() == false))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_PlayerInCinematicModeCampaign() == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libVCMI_gf_CreateMissionAutosavePoint(StringExternal("Param/Value/304DF034"));
+    TriggerEnable(gt_Autosave4Locks, true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Autosave2Locks_Init () {
+    gt_Autosave2Locks = TriggerCreate("gt_Autosave2Locks_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Autosave - 4 Locks
+//--------------------------------------------------------------------------------------------------
+bool gt_Autosave4Locks_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_GameIsOver() == false))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_PlayerInCinematicModeCampaign() == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libVCMI_gf_CreateMissionAutosavePoint(StringExternal("Param/Value/34598050"));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Autosave4Locks_Init () {
+    gt_Autosave4Locks = TriggerCreate("gt_Autosave4Locks_Func");
+    TriggerEnable(gt_Autosave4Locks, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Titanic Warp Prism Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TitanicWarpPrismQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerEnable(gt_TitanicWarpPrismProximityTrigger, false);
+    TriggerQueueEnter();
+    if ((UnitIsAlive(gv_titanicWarpPrism) == false)) {
+        return true;
+    }
+    else {
+    }
+    libNtve_gf_ShareVisionofUnit(gv_titanicWarpPrism, true, gv_pLAYER_01_USER);
+    MinimapPing(PlayerGroupAll(), UnitGetPosition(gv_titanicWarpPrism), 5.0, Color(100.00, 0.00, 0.00));
+    libVCMI_gf_CreateObjectivePing(false, UnitGetPosition(gv_titanicWarpPrism), StringExternal("Param/Value/C91F99F0"));
+    PingSetUnit(PingLastCreated(), gv_titanicWarpPrism);
+    gv_titanicWarpPrismPing = PingLastCreated();
+    Wait(1.0, c_timeReal);
+    libVoiC_gf_SetAllSoundChannelVolumesCampaign(libVoiC_ge_VolumeChannelModeCampaign_Speech);
+    libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00013", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00014", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    libVoiC_gf_SetAllSoundChannelVolumesCampaign(libVoiC_ge_VolumeChannelModeCampaign_Game);
+    TriggerExecute(gt_ObjectiveDestroyTitanicWarpPrismCreate, true, true);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TitanicWarpPrismQ_Init () {
+    gt_TitanicWarpPrismQ = TriggerCreate("gt_TitanicWarpPrismQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Titanic Warp Prism Wait Trigger
+//--------------------------------------------------------------------------------------------------
+bool gt_TitanicWarpPrismWaitTrigger_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    Wait(300.0, c_timeAI);
+    TriggerExecute(gt_TitanicWarpPrismQ, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TitanicWarpPrismWaitTrigger_Init () {
+    gt_TitanicWarpPrismWaitTrigger = TriggerCreate("gt_TitanicWarpPrismWaitTrigger_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Titanic Warp Prism Proximity Trigger
+//--------------------------------------------------------------------------------------------------
+bool gt_TitanicWarpPrismProximityTrigger_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+
+        if (!((UnitGetOwner(EventUnit()) == gv_pLAYER_01_USER))) {
+            return false;
+        }
+
+        if (!((UnitTypeTestFlag(UnitGetType(EventUnit()), c_unitFlagMissile) == false))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_GameIsOver() == false))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_PlayerInCinematicModeCampaign() == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(gt_TitanicWarpPrismProximityTrigger, false);
+    TriggerExecute(gt_TitanicWarpPrismQ, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TitanicWarpPrismProximityTrigger_Init () {
+    gt_TitanicWarpPrismProximityTrigger = TriggerCreate("gt_TitanicWarpPrismProximityTrigger_Func");
+    TriggerAddEventUnitRange(gt_TitanicWarpPrismProximityTrigger, null, UnitFromId(1030), 16.0, true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Titanic Warp Prism Behaviour
+//--------------------------------------------------------------------------------------------------
+bool gt_TitanicWarpPrismBehaviour_Func (bool testConds, bool runActions) {
+    point autoB57F3711_val;
+
+    // Variable Declarations
+    int lv_midFlip;
+    point lv_movementTarget;
+    timer lv_movementTimer;
+    bool lv_phaseThreshold;
+    int lv_stalkerLimit;
+    timer lv_stalkerCooldownTimer;
+
+    // Variable Initialization
+    lv_midFlip = 1;
+    lv_movementTarget = PointFromId(1265);
+    lv_movementTimer = TimerCreate();
+    lv_stalkerLimit = libLotv_gf_DifficultyValueInt2(4, 6, 8, 8);
+    lv_stalkerCooldownTimer = TimerCreate();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerExecute(gt_SetUpTitanicWarpPrismEscorts, true, false);
+    while (true) {
+        Wait(1.0, c_timeAI);
+        if (((UnitIsAlive(gv_titanicWarpPrism) == false) || (libVCMI_gf_GameIsOver() == true))) {
+            return true;
+        }
+        else {
+        }
+        if (((GameGetMissionTime() - AILastAttack(gv_titanicWarpPrism)) <= 15.0)) {
+            lv_phaseThreshold = true;
+        }
+        else {
+            lv_phaseThreshold = false;
+        }
+        if ((lv_phaseThreshold == false) && (TimerGetRemaining(lv_movementTimer) < 1)) {
+            if ((libNtve_gf_UnitInRegion(gv_titanicWarpPrism, RegionCircle(PointFromId(1264), 2.0)) == true)) {
+                lv_movementTarget = PointFromId(1263);
+                TimerStart(lv_movementTimer, 30.0, false, c_timeAI);
+            }
+            else {
+            }
+            if ((libNtve_gf_UnitInRegion(gv_titanicWarpPrism, RegionCircle(PointFromId(1263), 2.0)) == true)) {
+                if ((lv_midFlip == 1)) {
+                    lv_midFlip = 2;
+                    lv_movementTarget = PointFromId(1273);
+                }
+                else {
+                    lv_midFlip = 1;
+                    lv_movementTarget = PointFromId(39);
+                }
+                TimerStart(lv_movementTimer, 10.0, false, c_timeAI);
+            }
+            else {
+            }
+            if ((libNtve_gf_UnitInRegion(gv_titanicWarpPrism, RegionCircle(PointFromId(1273), 2.0)) == true)) {
+                lv_movementTarget = PointFromId(1265);
+                TimerStart(lv_movementTimer, 30.0, false, c_timeAI);
+            }
+            else {
+            }
+            if ((libNtve_gf_UnitInRegion(gv_titanicWarpPrism, RegionCircle(PointFromId(1265), 2.0)) == true)) {
+                lv_movementTarget = PointFromId(1263);
+                TimerStart(lv_movementTimer, 30.0, false, c_timeAI);
+            }
+            else {
+            }
+            if ((libNtve_gf_UnitInRegion(gv_titanicWarpPrism, RegionCircle(PointFromId(39), 2.0)) == true)) {
+                lv_movementTarget = PointFromId(1264);
+                TimerStart(lv_movementTimer, 30.0, false, c_timeAI);
+            }
+            else {
+            }
+        }
+        else {
+        }
+        if ((libNtve_gf_UnitInRegion(gv_titanicWarpPrism, RegionCircle(lv_movementTarget, 1.0)) == false)) {
+            if ((UnitGetType(gv_titanicWarpPrism) == "WarpPrismGiantPhasing")) {
+                UnitIssueOrder(gv_titanicWarpPrism, Order(AbilityCommand("WarpPrismGiantTransportMode", 0)), c_orderQueueReplace);
+            }
+            else {
+                UnitIssueOrder(gv_titanicWarpPrism, OrderTargetingPoint(AbilityCommand("move", 0), lv_movementTarget), c_orderQueueReplace);
+            }
+        }
+        else {
+            if ((UnitGetType(gv_titanicWarpPrism) == "WarpPrismGiant")) {
+                if ((lv_phaseThreshold == false)) {
+                    UnitIssueOrder(gv_titanicWarpPrism, Order(AbilityCommand("move", 2)), c_orderQueueReplace);
+                }
+                else {
+                    if ((PathingType(UnitGetPosition(gv_titanicWarpPrism)) == c_pathingGround)) {
+                        UnitIssueOrder(gv_titanicWarpPrism, Order(AbilityCommand("WarpPrismGiantPhasingMode", 0)), c_orderQueueReplace);
+                    }
+                    else {
+                        autoB57F3711_val = lv_movementTarget;
+                        if (autoB57F3711_val == PointFromId(1273)) {
+                            lv_movementTarget = PointFromId(1265);
+                        }
+                        else if (autoB57F3711_val == PointFromId(39)) {
+                            lv_movementTarget = PointFromId(1264);
+                        }
+                        else {
+                            lv_movementTarget = PointFromId(1263);
+                            breakpoint;
+                        }
+                        UnitIssueOrder(gv_titanicWarpPrism, OrderTargetingPoint(AbilityCommand("move", 0), lv_movementTarget), c_orderQueueReplace);
+                    }
+                }
+            }
+            else {
+                if ((lv_phaseThreshold == false)) {
+                    UnitIssueOrder(gv_titanicWarpPrism, Order(AbilityCommand("WarpPrismGiantTransportMode", 0)), c_orderQueueReplace);
+                    UnitIssueOrder(gv_titanicWarpPrism, Order(AbilityCommand("move", 2)), c_orderQueueAddToEnd);
+                }
+                else {
+                    if ((UnitGroupCount(UnitGroup(null, gv_pLAYER_01_USER, RegionCircle(UnitGetPosition(gv_titanicWarpPrism), 16.0), UnitFilter(0, 0, (1 << c_targetFilterMissile) | (1 << c_targetFilterCloaked), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), c_unitCountAlive) > 0)) {
+                        if ((UnitGroupCount(UnitGroup("Stalker", gv_pLAYER_02_TALDARIM, RegionCircle(UnitGetPosition(gv_titanicWarpPrism), 16.0), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), c_unitCountAlive) < libLotv_gf_DifficultyValueInt2(4, 6, 8, 8))) {
+                            if ((TimerGetRemaining(lv_stalkerCooldownTimer) < 1.0)) {
+                                TimerStart(lv_stalkerCooldownTimer, 30.0, false, c_timeAI);
+                                lv_stalkerLimit = libLotv_gf_DifficultyValueInt2(4, 4, 6, 8);
+                            }
+                            else {
+                            }
+                            if ((lv_stalkerLimit > 0)) {
+                                lv_stalkerLimit -= 1;
+                                UnitIssueOrder(UnitFromId(1266), OrderTargetingPoint(AbilityCommand("SuperWarpGateTrain", 1), RegionRandomPoint(RegionCircle(UnitGetPosition(gv_titanicWarpPrism), 5.0))), c_orderQueueReplace);
+                            }
+                            else {
+                            }
+                        }
+                        else {
+                        }
+                    }
+                    else {
+                    }
+                }
+            }
+        }
+        if ((UnitGroupCount(UnitGroup(null, gv_pLAYER_01_USER, RegionCircle(UnitGetPosition(gv_titanicWarpPrism), 16.0), UnitFilter(0, 0, (1 << c_targetFilterMissile) | (1 << c_targetFilterCloaked), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), c_unitCountAlive) > 0)) {
+            UnitGroupLoopBegin(UnitGroup("Stalker", gv_pLAYER_03_MOEBIUS, RegionCircle(UnitGetPosition(gv_titanicWarpPrism), 16.0), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+            for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+                UnitSetAIOption(UnitGroupLoopCurrent(), c_unitAIOptionUsable, false);
+                libNtve_gf_AICast(UnitGroupLoopCurrent(), OrderTargetingPoint(AbilityCommand("attack", 0), UnitGetPosition(UnitGroupClosestToPoint(UnitGroup(null, gv_pLAYER_01_USER, RegionCircle(UnitGetPosition(gv_titanicWarpPrism), 16.0), UnitFilter(0, 0, (1 << c_targetFilterMissile) | (1 << c_targetFilterCloaked), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), UnitGetPosition(gv_titanicWarpPrism)))));
+            }
+            UnitGroupLoopEnd();
+            UnitGroupLoopBegin(UnitGroup("Scout", gv_pLAYER_02_TALDARIM, RegionCircle(UnitGetPosition(gv_titanicWarpPrism), 16.0), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+            for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+                UnitSetAIOption(UnitGroupLoopCurrent(), c_unitAIOptionUsable, false);
+                libNtve_gf_AICast(UnitGroupLoopCurrent(), OrderTargetingPoint(AbilityCommand("attack", 0), UnitGetPosition(UnitGroupClosestToPoint(UnitGroup(null, gv_pLAYER_01_USER, RegionCircle(UnitGetPosition(gv_titanicWarpPrism), 16.0), UnitFilter(0, 0, (1 << c_targetFilterMissile) | (1 << c_targetFilterCloaked), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), UnitGetPosition(gv_titanicWarpPrism)))));
+            }
+            UnitGroupLoopEnd();
+            UnitGroupLoopBegin(UnitGroup("Scout", gv_pLAYER_03_MOEBIUS, RegionCircle(UnitGetPosition(gv_titanicWarpPrism), 16.0), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+            for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+                UnitSetAIOption(UnitGroupLoopCurrent(), c_unitAIOptionUsable, false);
+                libNtve_gf_AICast(UnitGroupLoopCurrent(), OrderTargetingPoint(AbilityCommand("attack", 0), UnitGetPosition(UnitGroupClosestToPoint(UnitGroup(null, gv_pLAYER_01_USER, RegionCircle(UnitGetPosition(gv_titanicWarpPrism), 16.0), UnitFilter(0, 0, (1 << c_targetFilterMissile) | (1 << c_targetFilterCloaked), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), UnitGetPosition(gv_titanicWarpPrism)))));
+            }
+            UnitGroupLoopEnd();
+        }
+        else {
+        }
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TitanicWarpPrismBehaviour_Init () {
+    gt_TitanicWarpPrismBehaviour = TriggerCreate("gt_TitanicWarpPrismBehaviour_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Set Up Titanic Warp Prism Escorts
+//--------------------------------------------------------------------------------------------------
+bool gt_SetUpTitanicWarpPrismEscorts_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    AIAttackWaveSetGatherPoint(gv_pLAYER_02_TALDARIM, UnitGetPosition(gv_titanicWarpPrism));
+    AIAttackWaveSetTargetEscort(gv_pLAYER_02_TALDARIM, libNtve_gf_ConvertUnitToUnitGroup(gv_titanicWarpPrism), 0);
+    UnitGroupLoopBegin(UnitGroup("VoidRay", gv_pLAYER_02_TALDARIM, RegionCircle(UnitGetPosition(gv_titanicWarpPrism), 12.0), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        AIAttackWaveAddEscortUnit(gv_pLAYER_02_TALDARIM, UnitGroupLoopCurrent(), gv_titanicWarpPrism, DistanceBetweenPoints(UnitGetPosition(UnitGroupLoopCurrent()), UnitGetPosition(gv_titanicWarpPrism)), AngleBetweenPoints(UnitGetPosition(gv_titanicWarpPrism), UnitGetPosition(UnitGroupLoopCurrent())));
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(UnitGroup("Scout", gv_pLAYER_02_TALDARIM, RegionCircle(UnitGetPosition(gv_titanicWarpPrism), 12.0), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        AIAttackWaveAddEscortUnit(gv_pLAYER_02_TALDARIM, UnitGroupLoopCurrent(), gv_titanicWarpPrism, DistanceBetweenPoints(UnitGetPosition(UnitGroupLoopCurrent()), UnitGetPosition(gv_titanicWarpPrism)), AngleBetweenPoints(UnitGetPosition(gv_titanicWarpPrism), UnitGetPosition(UnitGroupLoopCurrent())));
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(UnitGroup("Carrier", gv_pLAYER_02_TALDARIM, RegionCircle(UnitGetPosition(gv_titanicWarpPrism), 12.0), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        AIAttackWaveAddEscortUnit(gv_pLAYER_02_TALDARIM, UnitGroupLoopCurrent(), gv_titanicWarpPrism, DistanceBetweenPoints(UnitGetPosition(UnitGroupLoopCurrent()), UnitGetPosition(gv_titanicWarpPrism)), AngleBetweenPoints(UnitGetPosition(gv_titanicWarpPrism), UnitGetPosition(UnitGroupLoopCurrent())));
+    }
+    UnitGroupLoopEnd();
+    AIAttackWaveSend(gv_pLAYER_02_TALDARIM, 0, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_SetUpTitanicWarpPrismEscorts_Init () {
+    gt_SetUpTitanicWarpPrismEscorts = TriggerCreate("gt_SetUpTitanicWarpPrismEscorts_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Titanic Warp Prism Dies
+//--------------------------------------------------------------------------------------------------
+bool gt_TitanicWarpPrismDies_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    point lv_triggeringUnitPoint;
+
+    // Variable Initialization
+    lv_triggeringUnitPoint = UnitGetPosition(EventUnit());
+
+    // Conditions
+    if (testConds) {
+        if (!((libVCMI_gf_PlayerInCinematicModeCampaign() == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TimerPause(gv_titanicWarpPrismAchievementTimer, true);
+    TriggerExecute(gt_AchievementTitanoPrismKilledQuickly, true, false);
+    TriggerExecute(gt_ObjectiveDestroyTitanicWarpPrismComplete, true, false);
+    PingDestroy(gv_titanicWarpPrismPing);
+    UnitCreate(1, "RawSolarite", c_unitCreateIgnorePlacement, 0, lv_triggeringUnitPoint, 270.0);
+    UnitSetHeight(UnitLastCreated(), UnitTypeGetProperty("WarpPrismGiant", c_unitPropHeight), 0.0);
+    UnitBehaviorAddPlayer(UnitLastCreated(), "ObjectiveCollectionBeam", gv_pLAYER_01_USER, 1);
+    Wait(2.0, c_timeGame);
+    libVCMI_gf_DisplayMissionObjectiveRewardFloatingText(lv_triggeringUnitPoint, "PUlnar01Bonus01");
+    TriggerQueueEnter();
+    libVoiC_gf_SetAllSoundChannelVolumesCampaign(libVoiC_ge_VolumeChannelModeCampaign_Speech);
+    libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00021", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    libVoiC_gf_SetAllSoundChannelVolumesCampaign(libVoiC_ge_VolumeChannelModeCampaign_Game);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TitanicWarpPrismDies_Init () {
+    gt_TitanicWarpPrismDies = TriggerCreate("gt_TitanicWarpPrismDies_Func");
+    TriggerAddEventUnitDied(gt_TitanicWarpPrismDies, UnitRefFromVariable("gv_titanicWarpPrism"));
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Titanic Warp Prism Warp In Shields
+//--------------------------------------------------------------------------------------------------
+bool gt_TitanicWarpPrismWarpInShields_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libNtve_gf_ChangeUnitDamage(EventUnitProgressUnit(), libNtve_ge_UnitDamageTakenDealt_Damage_Take, libNtve_ge_UnitDamageChangeOption_Minimal);
+    Wait(2.0, c_timeAI);
+    libNtve_gf_ChangeUnitDamage(EventUnitProgressUnit(), libNtve_ge_UnitDamageTakenDealt_Damage_Take, libNtve_ge_UnitDamageChangeOption_Full);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TitanicWarpPrismWarpInShields_Init () {
+    gt_TitanicWarpPrismWarpInShields = TriggerCreate("gt_TitanicWarpPrismWarpInShields_Func");
+    TriggerAddEventUnitConstructProgress(gt_TitanicWarpPrismWarpInShields, UnitRefFromUnit(UnitFromId(1266)), c_unitProgressStageStart);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Start AI
+//--------------------------------------------------------------------------------------------------
+bool gt_StartAI_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    CampaignInitAI();
+    libVCMI_gf_EnableVoidCampaignAIBehaviorForAllPlayers();
+    TriggerExecute(gt_AttackWaves, true, false);
+    IntLoopBegin(1, 5);
+    for ( ; !IntLoopDone() ; IntLoopStep() ) {
+        gf_LockBullyUpgrades(IntLoopCurrent());
+    }
+    IntLoopEnd();
+    if ((libLotv_gf_DifficultyValueInt2(1, 1, 0, 0) == 1)) {
+        TriggerExecute(gt_AIUpgradesNormal, true, false);
+    }
+    else if ((libLotv_gf_DifficultyValueInt2(0, 0, 1, 1) == 1)) {
+        TriggerExecute(gt_AIUpgradesHard, true, false);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_StartAI_Init () {
+    gt_StartAI = TriggerCreate("gt_StartAI_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Attack Waves
+//--------------------------------------------------------------------------------------------------
+bool gt_AttackWaves_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    gf_AddLockAttackTarget(gv_celestialLocks[1].lv_captureRegion);
+    gf_AddLockAttackTarget(RegionFromId(32));
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(2, 2, 2, 3), "Zealot");
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(1, 1, 2, 2), "Stalker");
+    gf_SendLockAttackWave(gv_pLAYER_02_TALDARIM, libLotv_gf_DifficultyValueInt2(240, 240, 210, 180));
+    Wait(libLotv_gf_DifficultyValueInt2(240, 240, 210, 180), c_timeAI);
+    gf_AddLockAttackTarget(gv_celestialLocks[3].lv_captureRegion);
+    if ((libLotv_gf_DifficultyValueInt2(0, 0, 0, 1) == 1)) {
+        gf_AddLockAttackTarget(gv_celestialLocks[1].lv_captureRegion);
+    }
+    else {
+    }
+    gf_AddLockAttackTarget(RegionFromId(32));
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(4, 4, 4, 6), "Reaper");
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(2, 2, 2, 2), "Spectre");
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(0, 0, 1, 1), "Goliath");
+    gf_SendLockAttackWave(gv_pLAYER_03_MOEBIUS, libLotv_gf_DifficultyValueInt2(240, 240, 210, 180));
+    Wait(libLotv_gf_DifficultyValueInt2(240, 240, 210, 180), c_timeAI);
+    gf_AddLockAttackTarget(gv_celestialLocks[5].lv_captureRegion);
+    if ((libLotv_gf_DifficultyValueInt2(0, 0, 0, 1) == 1)) {
+        gf_AddLockAttackTarget(gv_celestialLocks[2].lv_captureRegion);
+    }
+    else {
+    }
+    gf_AddLockAttackTarget(gv_celestialLocks[1].lv_captureRegion);
+    gf_AddLockAttackTarget(RegionFromId(32));
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(3, 3, 3, 4), "Zealot");
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(2, 2, 2, 3), "Stalker");
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(0, 0, 1, 1), "VoidRay");
+    gf_SendLockAttackWave(gv_pLAYER_02_TALDARIM, libLotv_gf_DifficultyValueInt2(240, 240, 210, 180));
+    gf_AddLockAttackTarget(gv_celestialLocks[4].lv_captureRegion);
+    if ((libLotv_gf_DifficultyValueInt2(0, 0, 0, 1) == 1)) {
+        gf_AddLockAttackTarget(gv_celestialLocks[3].lv_captureRegion);
+    }
+    else {
+    }
+    gf_AddLockAttackTarget(gv_celestialLocks[1].lv_captureRegion);
+    if ((libLotv_gf_DifficultyValueInt2(0, 0, 0, 1) == 1)) {
+        gf_AddLockAttackTarget(RegionFromId(33));
+    }
+    else {
+    }
+    gf_AddLockAttackTarget(RegionFromId(32));
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(4, 4, 6, 6), "Reaper");
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(2, 2, 3, 3), "Spectre");
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(0, 0, 1, 1), "Raven");
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(0, 0, 0, 2), "Wraith");
+    gf_SendLockAttackWave(gv_pLAYER_03_MOEBIUS, libLotv_gf_DifficultyValueInt2(240, 240, 210, 180));
+    Wait(libLotv_gf_DifficultyValueInt2(240, 240, 210, 180), c_timeAI);
+    gf_AddLockAttackTarget(gv_celestialLocks[2].lv_captureRegion);
+    if ((libLotv_gf_DifficultyValueInt2(0, 0, 0, 1) == 1)) {
+        gf_AddLockAttackTarget(gv_celestialLocks[1].lv_captureRegion);
+    }
+    else {
+    }
+    gf_AddLockAttackTarget(RegionFromId(32));
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(3, 3, 4, 4), "Zealot");
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(3, 3, 5, 5), "Stalker");
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(1, 1, 1, 2), "Colossus");
+    gf_SendLockAttackWave(gv_pLAYER_02_TALDARIM, libLotv_gf_DifficultyValueInt2(240, 240, 210, 180));
+    gf_AddLockAttackTarget(gv_celestialLocks[3].lv_captureRegion);
+    if ((libLotv_gf_DifficultyValueInt2(0, 0, 0, 1) == 1)) {
+        gf_AddLockAttackTarget(gv_celestialLocks[1].lv_captureRegion);
+    }
+    else {
+    }
+    if ((libLotv_gf_DifficultyValueInt2(0, 0, 1, 1) == 1)) {
+        gf_AddLockAttackTarget(RegionFromId(33));
+    }
+    else {
+    }
+    gf_AddLockAttackTarget(RegionFromId(32));
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(4, 4, 5, 6), "Reaper");
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(2, 2, 3, 3), "Spectre");
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(2, 2, 2, 3), "Banshee");
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(0, 0, 1, 1), "Raven");
+    gf_SendLockAttackWave(gv_pLAYER_03_MOEBIUS, libLotv_gf_DifficultyValueInt2(240, 240, 210, 180));
+    Wait(libLotv_gf_DifficultyValueInt2(240, 240, 210, 180), c_timeAI);
+    gf_AddLockAttackTarget(gv_celestialLocks[5].lv_captureRegion);
+    gf_AddLockAttackTarget(gv_celestialLocks[2].lv_captureRegion);
+    if ((libLotv_gf_DifficultyValueInt2(0, 0, 0, 1) == 1)) {
+        gf_AddLockAttackTarget(gv_celestialLocks[1].lv_captureRegion);
+    }
+    else {
+    }
+    gf_AddLockAttackTarget(RegionFromId(32));
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(3, 3, 4, 4), "Zealot");
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(2, 2, 2, 4), "Stalker");
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(2, 2, 2, 3), "Immortal");
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(1, 1, 2, 2), "Colossus");
+    gf_SendLockAttackWave(gv_pLAYER_02_TALDARIM, libLotv_gf_DifficultyValueInt2(240, 240, 180, 180));
+    gf_AddLockAttackTarget(gv_celestialLocks[4].lv_captureRegion);
+    gf_AddLockAttackTarget(gv_celestialLocks[3].lv_captureRegion);
+    gf_AddLockAttackTarget(RegionFromId(32));
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(4, 4, 6, 6), "Reaper");
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(1, 1, 3, 3), "Goliath");
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(1, 1, 1, 2), "SiegeTank");
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(2, 2, 2, 3), "Banshee");
+    gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(0, 0, 1, 1), "Raven");
+    gf_SendLockAttackWave(gv_pLAYER_03_MOEBIUS, libLotv_gf_DifficultyValueInt2(240, 240, 180, 180));
+    Wait(libLotv_gf_DifficultyValueInt2(240, 240, 180, 180), c_timeAI);
+    while (true) {
+        gf_AddLockAttackTarget(gv_celestialLocks[3].lv_captureRegion);
+        gf_AddLockAttackTarget(RegionFromId(32));
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(4, 4, 4, 4), "Zealot");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(2, 2, 3, 4), "Stalker");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(1, 1, 2, 2), "Immortal");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(0, 0, 0, 1), "Colossus");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(1, 1, 2, 3), "VoidRay");
+        gf_SendLockAttackWave(gv_pLAYER_02_TALDARIM, libLotv_gf_DifficultyValueInt2(210, 210, 180, 180));
+        gf_AddLockAttackTarget(gv_celestialLocks[2].lv_captureRegion);
+        gf_AddLockAttackTarget(RegionFromId(33));
+        gf_AddLockAttackTarget(RegionFromId(32));
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(6, 6, 6, 8), "Reaper");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(2, 2, 3, 4), "Banshee");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(0, 0, 1, 2), "SiegeTank");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(3, 3, 3, 3), "Wraith");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(0, 0, 1, 1), "Raven");
+        gf_SendLockAttackWave(gv_pLAYER_03_MOEBIUS, libLotv_gf_DifficultyValueInt2(210, 210, 180, 180));
+        Wait(libLotv_gf_DifficultyValueInt2(210, 210, 180, 180), c_timeAI);
+        gf_AddLockAttackTarget(gv_celestialLocks[5].lv_captureRegion);
+        gf_AddLockAttackTarget(gv_celestialLocks[2].lv_captureRegion);
+        gf_AddLockAttackTarget(RegionFromId(32));
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(6, 6, 8, 10), "Zealot");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(2, 2, 3, 3), "VoidRay");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(2, 2, 2, 3), "Colossus");
+        gf_SendLockAttackWave(gv_pLAYER_02_TALDARIM, libLotv_gf_DifficultyValueInt2(210, 210, 180, 180));
+        gf_AddLockAttackTarget(gv_celestialLocks[4].lv_captureRegion);
+        gf_AddLockAttackTarget(gv_celestialLocks[1].lv_captureRegion);
+        gf_AddLockAttackTarget(RegionFromId(33));
+        gf_AddLockAttackTarget(RegionFromId(32));
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(4, 4, 6, 6), "Spectre");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(3, 3, 4, 4), "Banshee");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(1, 1, 1, 2), "Battlecruiser");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(0, 0, 1, 1), "Raven");
+        gf_SendLockAttackWave(gv_pLAYER_03_MOEBIUS, libLotv_gf_DifficultyValueInt2(210, 210, 180, 180));
+        Wait(libLotv_gf_DifficultyValueInt2(210, 210, 180, 180), c_timeAI);
+        gf_AddLockAttackTarget(gv_celestialLocks[2].lv_captureRegion);
+        gf_AddLockAttackTarget(gv_celestialLocks[3].lv_captureRegion);
+        gf_AddLockAttackTarget(RegionFromId(32));
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(3, 3, 4, 4), "Stalker");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(3, 3, 3, 3), "Immortal");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(1, 1, 1, 2), "Carrier");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(0, 0, 4, 4), "Scout");
+        gf_SendLockAttackWave(gv_pLAYER_02_TALDARIM, libLotv_gf_DifficultyValueInt2(210, 210, 180, 180));
+        gf_AddLockAttackTarget(gv_celestialLocks[4].lv_captureRegion);
+        gf_AddLockAttackTarget(gv_celestialLocks[5].lv_captureRegion);
+        gf_AddLockAttackTarget(RegionFromId(33));
+        gf_AddLockAttackTarget(RegionFromId(32));
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(8, 8, 8, 8), "Reaper");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(1, 1, 2, 3), "Goliath");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(4, 4, 6, 8), "Wraith");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(0, 0, 1, 2), "Raven");
+        gf_SendLockAttackWave(gv_pLAYER_03_MOEBIUS, libLotv_gf_DifficultyValueInt2(210, 210, 180, 180));
+        Wait(libLotv_gf_DifficultyValueInt2(210, 210, 180, 180), c_timeAI);
+        gf_AddLockAttackTarget(gv_celestialLocks[5].lv_captureRegion);
+        gf_AddLockAttackTarget(gv_celestialLocks[1].lv_captureRegion);
+        gf_AddLockAttackTarget(RegionFromId(32));
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(3, 3, 4, 4), "Zealot");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(2, 2, 2, 2), "Stalker");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(2, 2, 2, 2), "Immortal");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(1, 1, 1, 2), "Colossus");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(1, 1, 2, 3), "VoidRay");
+        gf_SendLockAttackWave(gv_pLAYER_02_TALDARIM, libLotv_gf_DifficultyValueInt2(210, 210, 180, 180));
+        gf_AddLockAttackTarget(gv_celestialLocks[4].lv_captureRegion);
+        gf_AddLockAttackTarget(gv_celestialLocks[3].lv_captureRegion);
+        gf_AddLockAttackTarget(RegionFromId(33));
+        gf_AddLockAttackTarget(RegionFromId(32));
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(3, 3, 4, 4), "Spectre");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(3, 3, 4, 4), "Banshee");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(2, 2, 3, 4), "SiegeTank");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(2, 2, 2, 4), "Wraith");
+        gf_AddLockAttackWaveUnits(libLotv_gf_DifficultyValueInt2(0, 0, 1, 1), "Raven");
+        gf_SendLockAttackWave(gv_pLAYER_03_MOEBIUS, libLotv_gf_DifficultyValueInt2(210, 210, 180, 180));
+        Wait(libLotv_gf_DifficultyValueInt2(210, 210, 180, 180), c_timeAI);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_AttackWaves_Init () {
+    gt_AttackWaves = TriggerCreate("gt_AttackWaves_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: AI Upgrades (Normal)
+//--------------------------------------------------------------------------------------------------
+bool gt_AIUpgradesNormal_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    Wait(600.0, c_timeAI);
+    PlayerGroupLoopBegin(gv_enemyPlayerGroup);
+    for ( ; !PlayerGroupLoopDone() ; PlayerGroupLoopStep() ) {
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "ProtossAirWeaponsLevel1", 1);
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "ProtossGroundWeaponsLevel1", 1);
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "TerranInfantryWeaponsLevel1", 1);
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "TerranVehicleAndShipWeaponsLevel1", 1);
+    }
+    PlayerGroupLoopEnd();
+    Wait(300.0, c_timeAI);
+    PlayerGroupLoopBegin(gv_enemyPlayerGroup);
+    for ( ; !PlayerGroupLoopDone() ; PlayerGroupLoopStep() ) {
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "ProtossAirArmorsLevel1", 1);
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "ProtossGroundArmorsLevel1", 1);
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "ProtossShieldsLevel1", 1);
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "TerranInfantryArmorsLevel1", 1);
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "TerranVehicleAndShipArmorsLevel1", 1);
+    }
+    PlayerGroupLoopEnd();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_AIUpgradesNormal_Init () {
+    gt_AIUpgradesNormal = TriggerCreate("gt_AIUpgradesNormal_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: AI Upgrades (Hard+)
+//--------------------------------------------------------------------------------------------------
+bool gt_AIUpgradesHard_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    Wait(360.0, c_timeAI);
+    PlayerGroupLoopBegin(gv_enemyPlayerGroup);
+    for ( ; !PlayerGroupLoopDone() ; PlayerGroupLoopStep() ) {
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "ProtossAirWeaponsLevel2", 1);
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "ProtossGroundWeaponsLevel2", 1);
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "TerranVehicleAndShipWeaponsLevel2", 1);
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "TerranInfantryWeaponsLevel2", 1);
+    }
+    PlayerGroupLoopEnd();
+    Wait(360.0, c_timeAI);
+    PlayerGroupLoopBegin(gv_enemyPlayerGroup);
+    for ( ; !PlayerGroupLoopDone() ; PlayerGroupLoopStep() ) {
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "ProtossAirArmorsLevel2", 1);
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "ProtossGroundArmorsLevel2", 1);
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "ProtossShieldsLevel2", 1);
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "TerranInfantryArmorsLevel2", 1);
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "TerranVehicleAndShipArmorsLevel2", 1);
+    }
+    PlayerGroupLoopEnd();
+    Wait(360.0, c_timeAI);
+    PlayerGroupLoopBegin(gv_enemyPlayerGroup);
+    for ( ; !PlayerGroupLoopDone() ; PlayerGroupLoopStep() ) {
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "ProtossAirWeaponsLevel3", 1);
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "ProtossGroundWeaponsLevel3", 1);
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "TerranVehicleAndShipWeaponsLevel3", 1);
+        TechTreeUpgradeAddLevel(PlayerGroupLoopCurrent(), "TerranInfantryWeaponsLevel3", 1);
+    }
+    PlayerGroupLoopEnd();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_AIUpgradesHard_Init () {
+    gt_AIUpgradesHard = TriggerCreate("gt_AIUpgradesHard_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: AI Give Resources
+//--------------------------------------------------------------------------------------------------
+bool gt_AIGiveResources_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((libVCMI_gf_GameIsOver() == false))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_PlayerInCinematicModeCampaign() == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    PlayerGroupLoopBegin(gv_enemyPlayerGroup);
+    for ( ; !PlayerGroupLoopDone() ; PlayerGroupLoopStep() ) {
+        PlayerModifyPropertyInt(PlayerGroupLoopCurrent(), c_playerPropMinerals, c_playerPropOperSetTo, 10000);
+        PlayerModifyPropertyInt(PlayerGroupLoopCurrent(), c_playerPropVespene, c_playerPropOperSetTo, 10000);
+    }
+    PlayerGroupLoopEnd();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_AIGiveResources_Init () {
+    gt_AIGiveResources = TriggerCreate("gt_AIGiveResources_Func");
+    TriggerAddEventTimePeriodic(gt_AIGiveResources, 10.0, c_timeAI);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Recently Sent Waves
+//--------------------------------------------------------------------------------------------------
+bool gt_RecentlySentWaves_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    gv_recentlySentAttackWaves[gv_recentlySentAttackWaveCounter] = EventPlayerWave();
+    gv_recentlySentAttackWaveCounter += 1;
+    if ((gv_recentlySentAttackWaveCounter > 7)) {
+        gv_recentlySentAttackWaveCounter = 1;
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_RecentlySentWaves_Init () {
+    gt_RecentlySentWaves = TriggerCreate("gt_RecentlySentWaves_Func");
+    TriggerAddEventPlayerAIWave(gt_RecentlySentWaves, c_playerAny);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Lock Attack Warning Q
+//--------------------------------------------------------------------------------------------------
+bool gt_LockAttackWarningQ_Func (bool testConds, bool runActions) {
+    int init_i;
+
+    int auto048E1889_ae;
+    int auto048E1889_ai;
+    int auto36B4E001_n;
+    int auto36B4E001_i;
+    int auto75D8B472_ae;
+    int auto75D8B472_ai;
+    int auto5847D65C_ae;
+    int auto5847D65C_ai;
+
+    // Variable Declarations
+    int lv_attackTargetCount;
+    region[8] lv_attackTargetList;
+    wave lv_attackWave;
+    unitgroup lv_attackWaveUnits;
+    int lv_i;
+    region lv_attackTarget;
+    bool lv_waveSent;
+
+    // Variable Initialization
+    for (init_i = 0; init_i <= 7; init_i += 1) {
+        lv_attackTargetList[init_i] = RegionFromId(28);
+    }
+    lv_attackWaveUnits = UnitGroupEmpty();
+    lv_attackTarget = RegionFromId(28);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_attackTargetCount = gv_attackTargetCount_PARAM;
+    auto048E1889_ae = lv_attackTargetCount;
+    auto048E1889_ai = 1;
+    lv_i = 1;
+    for ( ; ( (auto048E1889_ai >= 0 && lv_i <= auto048E1889_ae) || (auto048E1889_ai <= 0 && lv_i >= auto048E1889_ae) ) ; lv_i += auto048E1889_ai ) {
+        lv_attackTargetList[lv_i] = gv_attackTargetList_PARAM[lv_i];
+    }
+    lv_attackWave = gv_attackWave_PARAM;
+    gv_attackTargetCount_PARAM = 0;
+    if (((libVCMI_gf_GameIsOver() == true) || (libVCMI_gf_PlayerInCinematicModeCampaign() == true) || ((gv_lockWarningIssued == true) && (gv_baseWarningIssued == true)))) {
+        return true;
+    }
+    else {
+    }
+    auto36B4E001_n = 30;
+    for (auto36B4E001_i = 1; auto36B4E001_i <= auto36B4E001_n; auto36B4E001_i += 1) {
+        auto75D8B472_ae = 7;
+        auto75D8B472_ai = 1;
+        lv_i = 1;
+        for ( ; ( (auto75D8B472_ai >= 0 && lv_i <= auto75D8B472_ae) || (auto75D8B472_ai <= 0 && lv_i >= auto75D8B472_ae) ) ; lv_i += auto75D8B472_ai ) {
+            if ((gv_recentlySentAttackWaves[lv_i] == lv_attackWave)) {
+                lv_waveSent = true;
+                lv_attackWaveUnits = AIWaveGetUnits(lv_attackWave);
+                break;
+            }
+            else {
+            }
+        }
+        if ((lv_waveSent == true)) {
+            break;
+        }
+        else {
+            Wait(1.0, c_timeAI);
+        }
+    }
+    if (((lv_waveSent == false) || (lv_attackWaveUnits == UnitGroupEmpty()) || (lv_attackWaveUnits == null) || (libNtve_gf_UnitGroupIsDead(lv_attackWaveUnits) == true) || (libVCMI_gf_GameIsOver() == true))) {
+        return true;
+    }
+    else {
+    }
+    if ((gf_AttackRegionisValid(lv_attackTargetList[1]) == true)) {
+        lv_attackTarget = lv_attackTargetList[1];
+    }
+    else {
+        while (true) {
+            if (((libVCMI_gf_GameIsOver() == true) || (libNtve_gf_UnitGroupIsDead(lv_attackWaveUnits) == true))) {
+                return true;
+            }
+            else {
+            }
+            Wait(1.0, c_timeAI);
+            if ((lv_attackWave != AIUnitGetWave(UnitGroupUnit(lv_attackWaveUnits, 1)))) {
+                break;
+            }
+            else {
+            }
+        }
+        auto5847D65C_ae = lv_attackTargetCount;
+        auto5847D65C_ai = 1;
+        lv_i = 1;
+        for ( ; ( (auto5847D65C_ai >= 0 && lv_i <= auto5847D65C_ae) || (auto5847D65C_ai <= 0 && lv_i >= auto5847D65C_ae) ) ; lv_i += auto5847D65C_ai ) {
+            if ((gf_AttackRegionisValid(lv_attackTargetList[lv_i]) == true)) {
+                lv_attackTarget = lv_attackTargetList[lv_i];
+                break;
+            }
+            else {
+            }
+        }
+    }
+    if ((lv_attackTarget == RegionFromId(28))) {
+        return true;
+    }
+    else {
+    }
+    TriggerQueueEnter();
+    if (((libVCMI_gf_GameIsOver() == true) || (libNtve_gf_UnitGroupIsDead(lv_attackWaveUnits) == true) || (gf_AttackRegionisValid(lv_attackTarget) == false))) {
+        return true;
+    }
+    else {
+    }
+    libVoiC_gf_SetAllSoundChannelVolumesCampaign(libVoiC_ge_VolumeChannelModeCampaign_Speech);
+    if ((gv_lockWarningIssued == false) && ((lv_attackTarget == gv_celestialLocks[1].lv_captureRegion) || (lv_attackTarget == gv_celestialLocks[2].lv_captureRegion) || (lv_attackTarget == gv_celestialLocks[3].lv_captureRegion) || (lv_attackTarget == gv_celestialLocks[4].lv_captureRegion) || (lv_attackTarget == gv_celestialLocks[5].lv_captureRegion))) {
+        gv_lockWarningIssued = true;
+        libVCMI_gf_PingMinimapCampaign(PlayerGroupAll(), RegionGetCenter(lv_attackTarget), 5.0, Color(100.00, 0.00, 0.00));
+        Wait(1.0, c_timeReal);
+        libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00011", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    }
+    else {
+        if ((gv_baseWarningIssued == false) && ((lv_attackTarget == RegionFromId(32)) || (lv_attackTarget == RegionFromId(33)))) {
+            gv_baseWarningIssued = true;
+            libVCMI_gf_PingMinimapCampaign(PlayerGroupAll(), RegionGetCenter(lv_attackTarget), 5.0, Color(100.00, 0.00, 0.00));
+            Wait(1.0, c_timeReal);
+            libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00072", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+        }
+        else {
+        }
+    }
+    libVoiC_gf_SetAllSoundChannelVolumesCampaign(libVoiC_ge_VolumeChannelModeCampaign_Game);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_LockAttackWarningQ_Init () {
+    gt_LockAttackWarningQ = TriggerCreate("gt_LockAttackWarningQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Base Attack Warning Followthrough Q
+//--------------------------------------------------------------------------------------------------
+bool gt_BaseAttackWarningFollowthroughQ_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    region lv_attackTarget;
+    unitgroup lv_attackWaveUnits;
+
+    // Variable Initialization
+    lv_attackWaveUnits = UnitGroupEmpty();
+
+    // Conditions
+    if (testConds) {
+        if (!((gv_baseWarningIssued == false))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_GameIsOver() == false))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_PlayerInCinematicModeCampaign() == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_attackTarget = gv_attackTargetList_PARAM[1];
+    lv_attackWaveUnits = gv_attackWaveUnits_PARAM;
+    if ((lv_attackTarget != RegionFromId(32)) && (lv_attackTarget != RegionFromId(33))) {
+        return true;
+    }
+    else {
+    }
+    TriggerQueueEnter();
+    if (((gv_baseWarningIssued == true) || (libNtve_gf_UnitGroupIsDead(lv_attackWaveUnits) == true) || (gf_AttackRegionisValid(lv_attackTarget) == false))) {
+        return true;
+    }
+    else {
+    }
+    gv_baseWarningIssued = true;
+    if ((lv_attackTarget == RegionFromId(32))) {
+        libVCMI_gf_PingMinimapCampaign(PlayerGroupAll(), RegionGetCenter(RegionFromId(32)), 5.0, Color(100.00, 0.00, 0.00));
+    }
+    else {
+        libVCMI_gf_PingMinimapCampaign(PlayerGroupAll(), RegionGetCenter(RegionFromId(33)), 5.0, Color(100.00, 0.00, 0.00));
+    }
+    Wait(1.0, c_timeReal);
+    libVoiC_gf_SetAllSoundChannelVolumesCampaign(libVoiC_ge_VolumeChannelModeCampaign_Speech);
+    libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00072", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    libVoiC_gf_SetAllSoundChannelVolumesCampaign(libVoiC_ge_VolumeChannelModeCampaign_Game);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_BaseAttackWarningFollowthroughQ_Init () {
+    gt_BaseAttackWarningFollowthroughQ = TriggerCreate("gt_BaseAttackWarningFollowthroughQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Enemy Base Warning Q
+//--------------------------------------------------------------------------------------------------
+bool gt_EnemyBaseWarningQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_GameIsOver() == false))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_PlayerInCinematicModeCampaign() == false))) {
+            return false;
+        }
+
+        if (!((UnitGetOwner(EventUnit()) == gv_pLAYER_01_USER))) {
+            return false;
+        }
+
+        if (!((UnitTypeTestFlag(UnitGetType(EventUnit()), c_unitFlagMissile) == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    libVoiC_gf_SetAllSoundChannelVolumesCampaign(libVoiC_ge_VolumeChannelModeCampaign_Speech);
+    libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00055", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    libVoiC_gf_SetAllSoundChannelVolumesCampaign(libVoiC_ge_VolumeChannelModeCampaign_Game);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_EnemyBaseWarningQ_Init () {
+    gt_EnemyBaseWarningQ = TriggerCreate("gt_EnemyBaseWarningQ_Func");
+    TriggerAddEventUnitRegion(gt_EnemyBaseWarningQ, null, RegionFromId(27), true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Defeat Base Dead
+//--------------------------------------------------------------------------------------------------
+bool gt_DefeatBaseDead_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((libNtve_gf_PlayerInCinematicMode(gv_pLAYER_01_USER) == false))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_GameIsOver() == false))) {
+            return false;
+        }
+
+        if (!((libNtve_gf_UnitGroupIsDead(UnitGroup(null, gv_pLAYER_01_USER, null, UnitFilter((1 << c_targetFilterPreventDefeat), 0, 0, (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1)) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libVCMI_gf_GameOver(libVCMI_ge_CampaignMissionGameResultType_Defeat);
+    TriggerQueuePause(true);
+    TriggerQueueClear(c_triggerQueueRemove);
+    Wait(2.0, c_timeReal);
+    libVCMI_gf_DisplayCampaignMessage(PlayerGroupAll(), libVCMI_ge_CampaignMessageType_MissionFailed, StringExternal("Param/Value/42EA49FB"), libVCMI_ge_CampaignMessageFormatNotFormat_FormatMessage);
+    Wait(libVCMI_gv_campaignObjectiveDelay, c_timeReal);
+    TriggerExecute(gt_Defeat, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_DefeatBaseDead_Init () {
+    gt_DefeatBaseDead = TriggerCreate("gt_DefeatBaseDead_Func");
+    TriggerEnable(gt_DefeatBaseDead, false);
+    TriggerAddEventTimePeriodic(gt_DefeatBaseDead, 1.0, c_timeAI);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory - Celestial Locks Activated
+//--------------------------------------------------------------------------------------------------
+bool gt_VictoryCelestialLocksActivated_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((libVCMI_gf_GameIsOver() == false))) {
+            return false;
+        }
+
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerExecute(gt_VictorySequence, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictoryCelestialLocksActivated_Init () {
+    gt_VictoryCelestialLocksActivated = TriggerCreate("gt_VictoryCelestialLocksActivated_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory Sequence
+//--------------------------------------------------------------------------------------------------
+bool gt_VictorySequence_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libVCMI_gf_GameOver(libVCMI_ge_CampaignMissionGameResultType_Victory);
+    Wait(2.0, c_timeReal);
+    TriggerExecute(gt_ObjectiveActivateCelestialLocksComplete, true, true);
+    libVCMI_gf_RunMissionVictorySequence(gt_VictoryQ);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictorySequence_Init () {
+    gt_VictorySequence = TriggerCreate("gt_VictorySequence_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory
+//--------------------------------------------------------------------------------------------------
+bool gt_Victory_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libVoiC_gf_CampaignAwardAchievement("PUlnar01_1", gv_pLAYER_01_USER);
+    if ((libLotv_gf_DifficultyValueInt2(0, 1, 1, 1) == 1) && (gv_firstLockIndex != 0) && (gv_firstLockRecaptured == false)) {
+        libVoiC_gf_CampaignAwardAchievement("PUlnar01_3", gv_pLAYER_01_USER);
+    }
+    else {
+    }
+    VictoryPanelAddTrackedStatistic("UnitsTotalCount");
+    VictoryPanelAddTrackedStatistic("UnitsKilledCount");
+    VictoryPanelAddTrackedStatistic("UnitsLostCount");
+    VictoryPanelAddCustomStatisticLine(StringExternal("Param/Value/FA384C6D"), IntToText(gv_phoenixGravitons));
+    VictoryPanelAddCustomStatisticLine(StringExternal("Param/Value/69C248D8"), IntToText(gv_locksRecapturedByEnemy));
+    libVCMI_gf_EndCampaignMission(gv_pLAYER_01_USER, c_gameOverVictory);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Victory_Init () {
+    gt_Victory = TriggerCreate("gt_Victory_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Defeat
+//--------------------------------------------------------------------------------------------------
+bool gt_Defeat_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libVCMI_gf_EndCampaignMission(gv_pLAYER_01_USER, c_gameOverDefeat);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Defeat_Init () {
+    gt_Defeat = TriggerCreate("gt_Defeat_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory Cheat
+//--------------------------------------------------------------------------------------------------
+bool gt_VictoryCheat_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((libVCMI_gf_GameIsOver() == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libVCMI_gf_GameOver(libVCMI_ge_CampaignMissionGameResultType_Victory);
+    libVCMI_gf_RunMissionVictorySequence(gt_Victory);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictoryCheat_Init () {
+    gt_VictoryCheat = TriggerCreate("gt_VictoryCheat_Func");
+    TriggerAddEventPlayerLeft(gt_VictoryCheat, gv_pLAYER_01_USER, c_gameResultVictory);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Defeat Cheat
+//--------------------------------------------------------------------------------------------------
+bool gt_DefeatCheat_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((libVCMI_gf_GameIsOver() == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libVCMI_gf_GameOver(libVCMI_ge_CampaignMissionGameResultType_Defeat);
+    TriggerExecute(gt_Defeat, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_DefeatCheat_Init () {
+    gt_DefeatCheat = TriggerCreate("gt_DefeatCheat_Func");
+    TriggerAddEventPlayerLeft(gt_DefeatCheat, gv_pLAYER_01_USER, c_gameResultDefeat);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Stats: Phoenix Uses Graviton Beam
+//--------------------------------------------------------------------------------------------------
+bool gt_StatsPhoenixUsesGravitonBeam_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((libVCMI_gf_GameIsOver() == false))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_PlayerInCinematicModeCampaign() == false))) {
+            return false;
+        }
+
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+
+        if (!((EventPlayer() != gv_pLAYER_01_USER))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    gv_phoenixGravitons += 1;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_StatsPhoenixUsesGravitonBeam_Init () {
+    gt_StatsPhoenixUsesGravitonBeam = TriggerCreate("gt_StatsPhoenixUsesGravitonBeam_Func");
+    TriggerAddEventUnitBehaviorChange(gt_StatsPhoenixUsesGravitonBeam, null, "GravitonBeamVoidCampaign", c_unitBehaviorChangeCreate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Achievement: Titano-Prism Killed Quickly
+//--------------------------------------------------------------------------------------------------
+bool gt_AchievementTitanoPrismKilledQuickly_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((libVCMI_gf_GameIsOver() == false))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_PlayerInCinematicModeCampaign() == false))) {
+            return false;
+        }
+
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    if ((TimerGetRemaining(gv_titanicWarpPrismAchievementTimer) > 0.0)) {
+        libVoiC_gf_CampaignAwardAchievement("PUlnar01_2", 1);
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_AchievementTitanoPrismKilledQuickly_Init () {
+    gt_AchievementTitanoPrismKilledQuickly = TriggerCreate("gt_AchievementTitanoPrismKilledQuickly_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Mastery: Destroy Enemy Main Bases
+//--------------------------------------------------------------------------------------------------
+bool gt_MasteryDestroyEnemyMainBases_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!(((UnitGetOwner(EventUnit()) == gv_pLAYER_02_TALDARIM) || (UnitGetOwner(EventUnit()) == gv_pLAYER_03_MOEBIUS)))) {
+            return false;
+        }
+
+        if (!((UnitGroupCount(UnitGroup(null, gv_pLAYER_02_TALDARIM, RegionFromId(50), UnitFilter((1 << c_targetFilterStructure) | (1 << c_targetFilterPreventDefeat), 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), c_unitCountAlive) == 0))) {
+            return false;
+        }
+
+        if (!((UnitGroupCount(UnitGroup(null, gv_pLAYER_03_MOEBIUS, RegionFromId(50), UnitFilter((1 << c_targetFilterStructure) | (1 << c_targetFilterPreventDefeat), 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), c_unitCountAlive) == 0))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_GameIsOver() == false))) {
+            return false;
+        }
+
+        if (!((libVCMI_gf_PlayerInCinematicModeCampaign() == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libVoiC_gf_CampaignAwardAchievement("Mastery_Ulnar01", gv_pLAYER_01_USER);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_MasteryDestroyEnemyMainBases_Init () {
+    gt_MasteryDestroyEnemyMainBases = TriggerCreate("gt_MasteryDestroyEnemyMainBases_Func");
+    TriggerEnable(gt_MasteryDestroyEnemyMainBases, false);
+    TriggerAddEventUnitDied(gt_MasteryDestroyEnemyMainBases, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Objective - Activate Celestial Locks - Create
+//--------------------------------------------------------------------------------------------------
+bool gt_ObjectiveActivateCelestialLocksCreate_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libVCMI_gf_CreateObjectiveCampaign("PUlnar01Primary01");
+    libVCMI_gf_SetMissionObjectiveProgress("PUlnar01Primary01", gv_celestialLocksActivated);
+    gv_objectiveDestroyZergBase = ObjectiveLastCreated();
+    Wait(libVCMI_gv_campaignObjectiveDelay, c_timeReal);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ObjectiveActivateCelestialLocksCreate_Init () {
+    gt_ObjectiveActivateCelestialLocksCreate = TriggerCreate("gt_ObjectiveActivateCelestialLocksCreate_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Objective - Activate Celestial Locks - Complete
+//--------------------------------------------------------------------------------------------------
+bool gt_ObjectiveActivateCelestialLocksComplete_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    while (!((libNtve_gf_PlayerInCinematicMode(gv_pLAYER_01_USER) == false))) {
+        Wait(1.0, c_timeGame);
+    }
+    TriggerExecute(gt_ObjectiveActivateCelestialLocksCreate, true, false);
+    libVCMI_gf_ZS_SetMissionObjectiveState("PUlnar01Primary01", libVoiC_ge_MissionObjectiveState_Completed);
+    Wait(libVCMI_gv_campaignObjectiveDelay, c_timeReal);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ObjectiveActivateCelestialLocksComplete_Init () {
+    gt_ObjectiveActivateCelestialLocksComplete = TriggerCreate("gt_ObjectiveActivateCelestialLocksComplete_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Objective - Activate Celestial Locks - Update
+//--------------------------------------------------------------------------------------------------
+bool gt_ObjectiveActivateCelestialLocksUpdate_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerExecute(gt_ObjectiveActivateCelestialLocksCreate, true, false);
+    libVCMI_gf_SetMissionObjectiveProgress("PUlnar01Primary01", gv_celestialLocksActivated);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ObjectiveActivateCelestialLocksUpdate_Init () {
+    gt_ObjectiveActivateCelestialLocksUpdate = TriggerCreate("gt_ObjectiveActivateCelestialLocksUpdate_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Objective - Destroy Titanic Warp Prism - Create
+//--------------------------------------------------------------------------------------------------
+bool gt_ObjectiveDestroyTitanicWarpPrismCreate_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    while (!((libNtve_gf_PlayerInCinematicMode(gv_pLAYER_01_USER) == false))) {
+        Wait(1.0, c_timeGame);
+    }
+    libVCMI_gf_CreateObjectiveCampaign("PUlnar01Bonus01");
+    gv_objectiveRescueStalkers = ObjectiveLastCreated();
+    Wait(libVCMI_gv_campaignObjectiveDelay, c_timeReal);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ObjectiveDestroyTitanicWarpPrismCreate_Init () {
+    gt_ObjectiveDestroyTitanicWarpPrismCreate = TriggerCreate("gt_ObjectiveDestroyTitanicWarpPrismCreate_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Objective - Destroy Titanic Warp Prism - Complete
+//--------------------------------------------------------------------------------------------------
+bool gt_ObjectiveDestroyTitanicWarpPrismComplete_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerExecute(gt_ObjectiveDestroyTitanicWarpPrismCreate, true, false);
+    libVCMI_gf_ZS_SetMissionObjectiveState("PUlnar01Bonus01", libVoiC_ge_MissionObjectiveState_Completed);
+    ObjectiveSetState(gv_objectiveRescueStalkers, c_objectiveStateCompleted);
+    libVCMI_gf_SetMissionObjectiveProgress("PUlnar01Bonus01", 1);
+    Wait(libVCMI_gv_campaignObjectiveDelay, c_timeReal);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ObjectiveDestroyTitanicWarpPrismComplete_Init () {
+    gt_ObjectiveDestroyTitanicWarpPrismComplete = TriggerCreate("gt_ObjectiveDestroyTitanicWarpPrismComplete_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Q
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    TriggerExecute(gt_IntroSetup, true, true);
+    TriggerExecute(gt_IntroCinematic, true, true);
+    TriggerExecute(gt_IntroCinematicEnd, true, true);
+    TriggerExecute(gt_IntroCleanup, true, true);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroQ_Init () {
+    gt_IntroQ = TriggerCreate("gt_IntroQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Setup
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroSetup_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    CinematicFade(false, 0.0, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, false);
+    libVCMI_gf_CinematicModeCampaign(true, c_transitionDurationImmediate, true);
+    PlayerSetState(gv_pLAYER_01_USER, c_playerStateXPGain, false);
+    GameTimeOfDayPause(true);
+    UnitPauseAll(true);
+    UnitGroupLoopBegin(UnitGroup("Probe", gv_pLAYER_01_USER, RegionPlayableMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        libNtve_gf_PauseUnit(UnitGroupLoopCurrent(), false);
+    }
+    UnitGroupLoopEnd();
+    libNtve_gf_PauseUnit(gv_celestialLocks[1].lv_celestialLock, false);
+    libNtve_gf_PauseUnit(gv_celestialLocks[1].lv_progressBarDummyUnit, false);
+    UnitGroupAdd(gv_cinematicHiddenUnits, UnitFromId(35));
+    libNtve_gf_AddUnitGroupToUnitGroup(UnitGroup(null, gv_pLAYER_02_TALDARIM, RegionFromId(1), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), gv_cinematicHiddenUnits);
+    libNtve_gf_AddUnitGroupToUnitGroup(UnitGroup(null, gv_pLAYER_03_MOEBIUS, RegionFromId(10), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), gv_cinematicHiddenUnits);
+    libNtve_gf_AddUnitGroupToUnitGroup(UnitGroup(null, gv_pLAYER_02_TALDARIM, RegionFromId(49), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), gv_cinematicHiddenUnits);
+    UnitGroupLoopBegin(gv_cinematicHiddenUnits);
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        libNtve_gf_ShowHideUnit(UnitGroupLoopCurrent(), false);
+    }
+    UnitGroupLoopEnd();
+    libNtve_gf_CreateUnitsAtPoint2(1, "Stalker", 0, gv_pLAYER_01_USER, PointFromId(1683));
+    gv_introPlayerUnit = UnitLastCreated();
+    UnitGroupAdd(gv_cinematicTempUnits, UnitLastCreated());
+    UnitSetState(UnitLastCreated(), c_unitStateStatusBar, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroSetup_Init () {
+    gt_IntroSetup = TriggerCreate("gt_IntroSetup_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Cinematic
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroCinematic_Func (bool testConds, bool runActions) {
+    fixed auto0A02DFA7_at;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(38), 0.0, -1, 0.0, true);
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(57), (SoundLengthSync(SoundLink(ConversationDataGetSound("pMission_Ulnar01|Line00099", true), c_soundIndexAny)) + 2), -1, 10.0, true);
+    TriggerExecute(gt_IntroMusic, true, false);
+    libLbty_gf_OrderWorkerstoGatherNearbyResources(RegionFromId(32), gv_pLAYER_01_USER);
+    gv_introMinerals[0] = PlayerGetPropertyInt(gv_pLAYER_01_USER, c_playerPropMinerals);
+    gv_introMinerals[1] = FixedToInt(UnitGetPropertyFixed(UnitFromId(190), c_unitPropResources, c_unitPropCurrent));
+    gv_introMinerals[2] = FixedToInt(UnitGetPropertyFixed(UnitFromId(185), c_unitPropResources, c_unitPropCurrent));
+    gv_introMinerals[3] = FixedToInt(UnitGetPropertyFixed(UnitFromId(186), c_unitPropResources, c_unitPropCurrent));
+    gv_introMinerals[4] = FixedToInt(UnitGetPropertyFixed(UnitFromId(188), c_unitPropResources, c_unitPropCurrent));
+    gv_introMinerals[5] = FixedToInt(UnitGetPropertyFixed(UnitFromId(187), c_unitPropResources, c_unitPropCurrent));
+    gv_introMinerals[6] = FixedToInt(UnitGetPropertyFixed(UnitFromId(189), c_unitPropResources, c_unitPropCurrent));
+    gv_introMinerals[7] = FixedToInt(UnitGetPropertyFixed(UnitFromId(193), c_unitPropResources, c_unitPropCurrent));
+    gv_introMinerals[8] = FixedToInt(UnitGetPropertyFixed(UnitFromId(191), c_unitPropResources, c_unitPropCurrent));
+    gv_introGas[0] = PlayerGetPropertyInt(gv_pLAYER_01_USER, c_playerPropVespene);
+    gv_introGas[1] = FixedToInt(UnitGetPropertyFixed(UnitFromId(195), c_unitPropResources, c_unitPropCurrent));
+    gv_cinematicCompleted = false;
+    TriggerSkippableBegin(PlayerGroupAll(), 0, null, true, false);
+    CinematicFade(true, 2.0, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+    libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00099", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00102", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(58), (SoundLengthSync(SoundLink(ConversationDataGetSound("pMission_Ulnar01|Line00103", true), c_soundIndexAny)) - 1), -1, 10.0, true);
+    libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00103", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    libNtve_gf_SendActorMessageToUnit(gv_celestialLocks[1].lv_celestialLock, "AnimPlay Spell Birth 0 0.000000 2.000000");
+    ActorSend(libNtve_gf_MainActorofUnit(gv_celestialLocks[1].lv_celestialLock), "Signal StateGood");
+    UnitIssueOrder(gv_introPlayerUnit, OrderTargetingPoint(AbilityCommand("move", 0), PointWithOffsetPolar(PointFromId(1683), 2.0, PointGetFacing(PointFromId(1683)))), c_orderQueueReplace);
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(633), 0.0, -1, 0.0, true);
+    libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00104", c_transmissionDurationAdd, 0.0, false, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    TransmissionWait(TransmissionLastSent(), 1.0);
+    TriggerExecute(gt_IntroCapture1, true, false);
+    TransmissionWait(TransmissionLastSent(), 0.0);
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(78), 12.0, -1, 0.0, true);
+    Wait(3.0, c_timeGame);
+    libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00124", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    ActorSend(libNtve_gf_MainActorofUnit(gv_celestialLocks[3].lv_celestialLock), "Signal StateGood");
+    auto0A02DFA7_at = 0;
+    while (!((gv_celestialLocks[1].lv_state == ge_PRESET_CelestialLockState_EnemyControlled)) && auto0A02DFA7_at <= 10.0) {
+        Wait(1.0, c_timeGame);
+        auto0A02DFA7_at = auto0A02DFA7_at + 1.0;
+    }
+    Wait(2.0, c_timeGame);
+    TriggerExecute(gt_IntroCapture2, true, false);
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(110), 0.0, -1, 0.0, true);
+    libVCMI_gf_SendTransmissionCampaign(gv_introSpectreSpeaker, "pMission_Ulnar01|Line00094", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00085", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    libNtve_gf_ShowHideUnit(UnitFromId(35), true);
+    UISetFrameVisible(PlayerGroupAll(), c_syncFrameTypeStatusUI, false);
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(594), 0.0, -1, 0.0, true);
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(709), (SoundLengthSync(SoundLink(ConversationDataGetSound("pMission_Ulnar01|Line00086", true), c_soundIndexAny)) - 1), -1, 0.0, true);
+    libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00086", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    gv_cinematicCompleted = true;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroCinematic_Init () {
+    gt_IntroCinematic = TriggerCreate("gt_IntroCinematic_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Cinematic End
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroCinematicEnd_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_fadeDuration;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((gv_cinematicCompleted == true)) {
+    }
+    else {
+        lv_fadeDuration = 0.5;
+        CinematicFade(false, lv_fadeDuration, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroCinematicEnd_Init () {
+    gt_IntroCinematicEnd = TriggerCreate("gt_IntroCinematicEnd_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Cleanup
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroCleanup_Func (bool testConds, bool runActions) {
+    int auto24233BFE_ae;
+    int auto24233BFE_ai;
+
+    // Variable Declarations
+    fixed lv_fadeDuration;
+    int lv_index;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitPauseAll(false);
+    UnitGroupLoopBegin(gv_cinematicTempUnits);
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        UnitRemove(UnitGroupLoopCurrent());
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(gv_cinematicHiddenUnits);
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        libNtve_gf_ShowHideUnit(UnitGroupLoopCurrent(), true);
+    }
+    UnitGroupLoopEnd();
+    auto24233BFE_ae = 5;
+    auto24233BFE_ai = 1;
+    lv_index = 1;
+    for ( ; ( (auto24233BFE_ai >= 0 && lv_index <= auto24233BFE_ae) || (auto24233BFE_ai <= 0 && lv_index >= auto24233BFE_ae) ) ; lv_index += auto24233BFE_ai ) {
+        gv_celestialLocks[lv_index].lv_state = ge_PRESET_CelestialLockState_EnemyControlled;
+        UnitSetInfoSubTip(gv_celestialLocks[lv_index].lv_celestialLock, StringExternal("Param/Value/114D5BE8"));
+        ActorSend(libNtve_gf_MainActorofUnit(gv_celestialLocks[lv_index].lv_celestialLock), "Signal StateBad");
+    }
+    if ((gv_introMusicComplete == false)) {
+        TriggerStop(gt_IntroMusic);
+        SoundtrackStop(PlayerGroupAll(), c_soundtrackCategoryMusic, true);
+        SoundStopAllTriggerSounds(true);
+        SoundtrackPlay(PlayerGroupAll(), c_soundtrackCategoryMusic, gv_mapMusicTrack, c_soundtrackCueAny, c_soundtrackIndexAny, true);
+    }
+    else {
+    }
+    libNtve_gf_SendActorMessageToUnit(gv_celestialLocks[1].lv_celestialLock, "AnimClear Spell");
+    TriggerStop(gt_IntroCapture1);
+    TriggerStop(gt_IntroCapture2);
+    GameTimeOfDayPause(false);
+    PlayerSetState(gv_pLAYER_01_USER, c_playerStateXPGain, true);
+    UnitSetPropertyFixed(UnitFromId(190), c_unitPropResources, gv_introMinerals[1]);
+    UnitSetPropertyFixed(UnitFromId(185), c_unitPropResources, gv_introMinerals[2]);
+    UnitSetPropertyFixed(UnitFromId(186), c_unitPropResources, gv_introMinerals[3]);
+    UnitSetPropertyFixed(UnitFromId(188), c_unitPropResources, gv_introMinerals[4]);
+    UnitSetPropertyFixed(UnitFromId(187), c_unitPropResources, gv_introMinerals[5]);
+    UnitSetPropertyFixed(UnitFromId(189), c_unitPropResources, gv_introMinerals[6]);
+    UnitSetPropertyFixed(UnitFromId(193), c_unitPropResources, gv_introMinerals[7]);
+    UnitSetPropertyFixed(UnitFromId(191), c_unitPropResources, gv_introMinerals[8]);
+    PlayerModifyPropertyInt(gv_pLAYER_01_USER, c_playerPropMinerals, c_playerPropOperSetTo, gv_introMinerals[0]);
+    UnitSetPropertyFixed(UnitFromId(195), c_unitPropResources, gv_introGas[1]);
+    PlayerModifyPropertyInt(gv_pLAYER_01_USER, c_playerPropVespene, c_playerPropOperSetTo, gv_introGas[0]);
+    VisExploreArea(gv_pLAYER_01_USER, RegionEntireMap(), false, false);
+    TriggerExecute(gt_StartAI, true, false);
+    Wait(0.5, c_timeReal);
+    if ((gv_cinematicCompleted == true)) {
+        lv_fadeDuration = 1.5;
+        CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(631), lv_fadeDuration, -1, 10, true);
+        libVCMI_gf_CinematicModeCampaign(false, lv_fadeDuration, true);
+    }
+    else {
+        lv_fadeDuration = 1.0;
+        CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoDefault(), 0.0, -1, 10, false);
+        libVCMI_gf_CinematicModeCampaign(false, lv_fadeDuration, false);
+        libNtve_gf_SwooshCamera(gv_pLAYER_01_USER, ((CameraInfoGetValue(CameraInfoDefault(), c_cameraValueDistance)) + 8.0), CameraInfoGetValue(CameraInfoDefault(), c_cameraValueDistance), CameraInfoGetTarget(CameraInfoFromId(631)), lv_fadeDuration);
+        CinematicFade(true, lv_fadeDuration, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroCleanup_Init () {
+    gt_IntroCleanup = TriggerCreate("gt_IntroCleanup_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Music
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroMusic_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    string lv_soundtrack;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_soundtrack = "PUlnar01_Music_Intro";
+    SoundtrackPlay(PlayerGroupAll(), c_soundtrackCategoryMusic, lv_soundtrack, c_soundtrackCueAny, c_soundtrackIndexAny, false);
+    SoundtrackWait(lv_soundtrack);
+    gv_introMusicComplete = true;
+    SoundtrackPlay(PlayerGroupAll(), c_soundtrackCategoryMusic, gv_mapMusicTrack, c_soundtrackCueAny, c_soundtrackIndexAny, true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroMusic_Init () {
+    gt_IntroMusic = TriggerCreate("gt_IntroMusic_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Capture 1
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroCapture1_Func (bool testConds, bool runActions) {
+    int auto83DDA1B5_n;
+    int auto83DDA1B5_i;
+
+    // Variable Declarations
+    int lv_progress;
+    int lv_progressBarLabel;
+
+    // Variable Initialization
+    lv_progressBarLabel = c_invalidDialogControlId;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UISetFrameVisible(PlayerGroupAll(), c_syncFrameTypeStatusUI, true);
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, "Zealot", 0, gv_pLAYER_02_TALDARIM, PointFromId(703));
+    UnitGroupAdd(gv_cinematicTempUnits, UnitLastCreated());
+    UnitSetState(UnitLastCreated(), c_unitStateStatusBar, false);
+    UnitIssueOrder(UnitLastCreated(), OrderTargetingPoint(AbilityCommand("attack", 0), PointFromId(706)), c_orderQueueReplace);
+    UnitIssueOrder(UnitLastCreated(), OrderTargetingPoint(AbilityCommand("move", 0), PointFromId(706)), c_orderQueueAddToEnd);
+    UnitIssueOrder(UnitLastCreated(), OrderTargetingPoint(AbilityCommand("move", 4), UnitGetPosition(gv_celestialLocks[1].lv_celestialLock)), c_orderQueueAddToEnd);
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, "Zealot", 0, gv_pLAYER_02_TALDARIM, PointFromId(704));
+    UnitGroupAdd(gv_cinematicTempUnits, UnitLastCreated());
+    UnitSetState(UnitLastCreated(), c_unitStateStatusBar, false);
+    UnitIssueOrder(UnitLastCreated(), OrderTargetingPoint(AbilityCommand("attack", 0), PointFromId(707)), c_orderQueueReplace);
+    UnitIssueOrder(UnitLastCreated(), OrderTargetingPoint(AbilityCommand("move", 0), PointFromId(707)), c_orderQueueAddToEnd);
+    UnitIssueOrder(UnitLastCreated(), OrderTargetingPoint(AbilityCommand("move", 4), UnitGetPosition(gv_celestialLocks[1].lv_celestialLock)), c_orderQueueAddToEnd);
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, "Zealot", 0, gv_pLAYER_02_TALDARIM, PointFromId(705));
+    UnitGroupAdd(gv_cinematicTempUnits, UnitLastCreated());
+    UnitSetState(UnitLastCreated(), c_unitStateStatusBar, false);
+    UnitIssueOrder(UnitLastCreated(), OrderTargetingPoint(AbilityCommand("attack", 0), PointFromId(708)), c_orderQueueReplace);
+    UnitIssueOrder(UnitLastCreated(), OrderTargetingPoint(AbilityCommand("move", 0), PointFromId(708)), c_orderQueueAddToEnd);
+    UnitIssueOrder(UnitLastCreated(), OrderTargetingPoint(AbilityCommand("move", 4), UnitGetPosition(gv_celestialLocks[1].lv_celestialLock)), c_orderQueueAddToEnd);
+    while (!((UnitGroupCount(UnitGroup(null, gv_pLAYER_01_USER, gv_celestialLocks[1].lv_captureRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), c_unitCountAlive) == 0) && (UnitGroupCount(UnitGroup(null, gv_pLAYER_02_TALDARIM, gv_celestialLocks[1].lv_captureRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), c_unitCountAlive) > 0))) {
+        Wait(0.0625, c_timeGame);
+    }
+    libVCUI_gf_SetUnitProgresBarTitle(gv_celestialLocks[1].lv_progressBarDummyUnit, StringExternal("Param/Value/9CF5FA5E"));
+    libVCUI_gf_SetUnitProgressBarProgress(gv_celestialLocks[1].lv_progressBarDummyUnit, gv_lockProgressMIN);
+    libVCUI_gf_ShowHideUnitProgressBar(gv_celestialLocks[1].lv_progressBarDummyUnit, true);
+    lv_progressBarLabel = libNtve_gf_ValueFromDataTableDialogItem(true, libVCUI_gf_PU_UnitProgressBar_Dialog(gv_celestialLocks[1].lv_progressBarDummyUnit, libVCUI_ge_PU_UnitProgressBar_DialogTypes_ProgressBar_Value));
+    DialogControlSetVisible(lv_progressBarLabel, PlayerGroupAll(), false);
+    auto83DDA1B5_n = 80;
+    for (auto83DDA1B5_i = 1; auto83DDA1B5_i <= auto83DDA1B5_n; auto83DDA1B5_i += 1) {
+        lv_progress += 1;
+        libVCUI_gf_SetUnitProgressBarProgress(gv_celestialLocks[1].lv_progressBarDummyUnit, lv_progress);
+        Wait(0.0625, c_timeGame);
+    }
+    libVCUI_gf_ShowHideUnitProgressBar(gv_celestialLocks[1].lv_progressBarDummyUnit, false);
+    gv_celestialLocks[1].lv_state = ge_PRESET_CelestialLockState_EnemyControlled;
+    UnitSetInfoSubTip(gv_celestialLocks[1].lv_celestialLock, StringExternal("Param/Value/41F27332"));
+    ActorSend(libNtve_gf_MainActorofUnit(gv_celestialLocks[1].lv_celestialLock), "Signal StateBad");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroCapture1_Init () {
+    gt_IntroCapture1 = TriggerCreate("gt_IntroCapture1_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Capture 2
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroCapture2_Func (bool testConds, bool runActions) {
+    int autoCC28F444_n;
+    int autoCC28F444_i;
+
+    // Variable Declarations
+    int lv_progress;
+    int lv_progressBarLabel;
+
+    // Variable Initialization
+    lv_progressBarLabel = c_invalidDialogControlId;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, "Spectre", 0, gv_pLAYER_03_MOEBIUS, PointFromId(711));
+    UnitGroupAdd(gv_cinematicTempUnits, UnitLastCreated());
+    UnitSetState(UnitLastCreated(), c_unitStateStatusBar, false);
+    UnitIssueOrder(UnitLastCreated(), OrderTargetingPoint(AbilityCommand("move", 0), PointFromId(714)), c_orderQueueReplace);
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, "Spectre", 0, gv_pLAYER_03_MOEBIUS, PointFromId(712));
+    UnitGroupAdd(gv_cinematicTempUnits, UnitLastCreated());
+    UnitSetState(UnitLastCreated(), c_unitStateStatusBar, false);
+    gv_introSpectreSpeaker = UnitLastCreated();
+    UnitIssueOrder(UnitLastCreated(), OrderTargetingPoint(AbilityCommand("move", 0), PointFromId(715)), c_orderQueueReplace);
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, "Spectre", 0, gv_pLAYER_03_MOEBIUS, PointFromId(713));
+    UnitGroupAdd(gv_cinematicTempUnits, UnitLastCreated());
+    UnitSetState(UnitLastCreated(), c_unitStateStatusBar, false);
+    UnitIssueOrder(UnitLastCreated(), OrderTargetingPoint(AbilityCommand("move", 0), PointFromId(716)), c_orderQueueReplace);
+    while (!((UnitGroupCount(UnitGroup(null, gv_pLAYER_03_MOEBIUS, gv_celestialLocks[3].lv_captureRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), c_unitCountAlive) > 0))) {
+        Wait(0.0625, c_timeGame);
+    }
+    libVCUI_gf_SetUnitProgresBarTitle(gv_celestialLocks[3].lv_progressBarDummyUnit, StringExternal("Param/Value/A2A0C6ED"));
+    libVCUI_gf_SetUnitProgressBarProgress(gv_celestialLocks[3].lv_progressBarDummyUnit, gv_lockProgressMIN);
+    libVCUI_gf_ShowHideUnitProgressBar(gv_celestialLocks[3].lv_progressBarDummyUnit, true);
+    lv_progressBarLabel = libNtve_gf_ValueFromDataTableDialogItem(true, libVCUI_gf_PU_UnitProgressBar_Dialog(gv_celestialLocks[3].lv_progressBarDummyUnit, libVCUI_ge_PU_UnitProgressBar_DialogTypes_ProgressBar_Value));
+    DialogControlSetVisible(lv_progressBarLabel, PlayerGroupAll(), false);
+    autoCC28F444_n = 80;
+    for (autoCC28F444_i = 1; autoCC28F444_i <= autoCC28F444_n; autoCC28F444_i += 1) {
+        lv_progress += 1;
+        libVCUI_gf_SetUnitProgressBarProgress(gv_celestialLocks[3].lv_progressBarDummyUnit, lv_progress);
+        Wait(0.0625, c_timeGame);
+    }
+    libVCUI_gf_ShowHideUnitProgressBar(gv_celestialLocks[3].lv_progressBarDummyUnit, false);
+    gv_celestialLocks[3].lv_state = ge_PRESET_CelestialLockState_EnemyControlled;
+    UnitSetInfoSubTip(gv_celestialLocks[3].lv_celestialLock, StringExternal("Param/Value/A1BF198B"));
+    ActorSend(libNtve_gf_MainActorofUnit(gv_celestialLocks[3].lv_celestialLock), "Signal StateBad");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroCapture2_Init () {
+    gt_IntroCapture2 = TriggerCreate("gt_IntroCapture2_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory Q
+//--------------------------------------------------------------------------------------------------
+bool gt_VictoryQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libVCMI_gf_GameOver(libVCMI_ge_CampaignMissionGameResultType_Victory);
+    TriggerQueueEnter();
+    TriggerExecute(gt_VictorySetup, true, true);
+    TriggerExecute(gt_VictoryCinematic, true, true);
+    TriggerExecute(gt_VictoryCinematicEnd, true, true);
+    TriggerExecute(gt_VictoryCleanup, true, true);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictoryQ_Init () {
+    gt_VictoryQ = TriggerCreate("gt_VictoryQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory Setup
+//--------------------------------------------------------------------------------------------------
+bool gt_VictorySetup_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    CinematicFade(false, 1.0, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, false);
+    libVCMI_gf_CinematicModeCampaign(true, 1.0, true);
+    UnitClearSelection(gv_pLAYER_01_USER);
+    PlayerSetState(gv_pLAYER_01_USER, c_playerStateXPGain, false);
+    GameTimeOfDayPause(true);
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_01_USER, RegionFromId(39), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        UnitRemove(UnitGroupLoopCurrent());
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_02_TALDARIM, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        UnitRemove(UnitGroupLoopCurrent());
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_03_MOEBIUS, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        UnitRemove(UnitGroupLoopCurrent());
+    }
+    UnitGroupLoopEnd();
+    UnitPauseAll(true);
+    IntLoopBegin(1, 5);
+    for ( ; !IntLoopDone() ; IntLoopStep() ) {
+        gv_celestialLocks[IntLoopCurrent()].lv_state = ge_PRESET_CelestialLockState_PlayerControlled;
+        libNtve_gf_PauseUnit(gv_celestialLocks[IntLoopCurrent()].lv_celestialLock, false);
+        ActorSend(libNtve_gf_MainActorofUnit(gv_celestialLocks[IntLoopCurrent()].lv_celestialLock), "Signal StateGood");
+        libVCUI_gf_ShowHideUnitProgressBar(gv_celestialLocks[IntLoopCurrent()].lv_progressBarDummyUnit, false);
+    }
+    IntLoopEnd();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictorySetup_Init () {
+    gt_VictorySetup = TriggerCreate("gt_VictorySetup_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory Cinematic
+//--------------------------------------------------------------------------------------------------
+bool gt_VictoryCinematic_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(1373), 0.0, -1, 10, true);
+    CameraPan(gv_pLAYER_01_USER, UnitGetPosition(gv_celestialLocks[gv_victoryLock].lv_celestialLock), 0.0, -1, 10.0, false);
+    SoundtrackPlay(PlayerGroupAll(), c_soundtrackCategoryMusic, "PUlnar01_Music_Outro", c_soundtrackCueAny, c_soundtrackIndexAny, false);
+    gv_cinematicCompleted = false;
+    TriggerSkippableBegin(PlayerGroupAll(), 0, null, true, false);
+    CinematicFade(true, 1.0, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+    libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00082", c_transmissionDurationAdd, 0.0, false, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    UnitKill(gv_celestialLocks[gv_victoryLock].lv_celestialLock);
+    Wait(5.0, c_timeGame);
+    ActorSend(ActorFromDoodad(DoodadFromId(418)), "AnimBracketStart Work Stand,Work,Start Stand,Work");
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(1383), 0.0, -1, 10, true);
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(710), 8.0, -1, 10, true);
+    SoundPlayForPlayer(SoundLink("PUlnar01_VictoryDoorOpen", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    gv_victorySound = SoundLastPlayed();
+    Wait(0.5, c_timeGame);
+    SoundPlayForPlayer(SoundLink("PUlnar01_VictoryDoorOpenWhoosh", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    Wait(2.2, c_timeGame);
+    SoundPlayForPlayer(SoundLink("Event_Ulnar01_EndCine_GateOpen_A", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    Wait(4.8, c_timeGame);
+    SoundPlayForPlayer(SoundLink("Event_Ulnar01_EndCine_GateOpen_B", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    gv_victorySound = SoundLastPlayed();
+    Wait(3.8, c_timeGame);
+    SoundStop(gv_victorySound, true);
+    SoundPlayForPlayer(SoundLink("Event_Ulnar01_EndCine_GateOpen_C", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    SoundChannelSetVolume(PlayerGroupAll(), c_soundCategoryOther, 70.0, 2.0);
+    Wait(2.0, c_timeGame);
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(717), (SoundLengthSync(SoundLink(ConversationDataGetSound("pMission_Ulnar01|Line00056", true), c_soundIndexAny)) + SoundLengthSync(SoundLink(ConversationDataGetSound("pMission_Ulnar01|Line00024", true), c_soundIndexAny)) - 2), -1, 10.0, true);
+    libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00056", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    TransmissionWait(TransmissionLastSent(), 0.0);
+    libVCMI_gf_SendTransmissionCampaign(null, "pMission_Ulnar01|Line00024", c_transmissionDurationAdd, 0.0, true, libVCMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libVCMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
+    gv_cinematicCompleted = true;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictoryCinematic_Init () {
+    gt_VictoryCinematic = TriggerCreate("gt_VictoryCinematic_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory Cinematic End
+//--------------------------------------------------------------------------------------------------
+bool gt_VictoryCinematicEnd_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_fadeDuration;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((gv_cinematicCompleted == true)) {
+        lv_fadeDuration = 2.0;
+    }
+    else {
+        lv_fadeDuration = 0.5;
+    }
+    SoundStop(gv_victorySound, true);
+    SoundStopAllTriggerSounds(true);
+    SoundChannelSetVolume(PlayerGroupAll(), c_soundCategoryOther, 70.0, lv_fadeDuration);
+    CinematicFade(false, lv_fadeDuration, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictoryCinematicEnd_Init () {
+    gt_VictoryCinematicEnd = TriggerCreate("gt_VictoryCinematicEnd_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory Cleanup
+//--------------------------------------------------------------------------------------------------
+bool gt_VictoryCleanup_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libVCMI_gf_CinematicModeCampaign(false, c_transitionDurationImmediate, false);
+    TriggerExecute(gt_Victory, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictoryCleanup_Init () {
+    gt_VictoryCleanup = TriggerCreate("gt_VictoryCleanup_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger Initialization
+//--------------------------------------------------------------------------------------------------
+void InitTriggers () {
+    gt_Initialization_Init();
+    gt_Init01Technology_Init();
+    gt_Init02Players_Init();
+    gt_Init03Units_Init();
+    gt_Init04MusicSound_Init();
+    gt_Init05Environment_Init();
+    gt_Init06Difficulties_Init();
+    gt_Init07Help_Init();
+    gt_StartGameQ_Init();
+    gt_PhoenixIntroQ_Init();
+    gt_StargateSelectedCleanup_Init();
+    gt_StargateDiesCleanup_Init();
+    gt_PhoenixOrderIssued_Init();
+    gt_CelestialLockInit_Init();
+    gt_CelestialLockController_Init();
+    gt_CelestialLockDeactivatedQ_Init();
+    gt_CelestialLockCloakWarningQ_Init();
+    gt_FirstCaptureQ_Init();
+    gt_Autosave2Locks_Init();
+    gt_Autosave4Locks_Init();
+    gt_TitanicWarpPrismQ_Init();
+    gt_TitanicWarpPrismWaitTrigger_Init();
+    gt_TitanicWarpPrismProximityTrigger_Init();
+    gt_TitanicWarpPrismBehaviour_Init();
+    gt_SetUpTitanicWarpPrismEscorts_Init();
+    gt_TitanicWarpPrismDies_Init();
+    gt_TitanicWarpPrismWarpInShields_Init();
+    gt_StartAI_Init();
+    gt_AttackWaves_Init();
+    gt_AIUpgradesNormal_Init();
+    gt_AIUpgradesHard_Init();
+    gt_AIGiveResources_Init();
+    gt_RecentlySentWaves_Init();
+    gt_LockAttackWarningQ_Init();
+    gt_BaseAttackWarningFollowthroughQ_Init();
+    gt_EnemyBaseWarningQ_Init();
+    gt_DefeatBaseDead_Init();
+    gt_VictoryCelestialLocksActivated_Init();
+    gt_VictorySequence_Init();
+    gt_Victory_Init();
+    gt_Defeat_Init();
+    gt_VictoryCheat_Init();
+    gt_DefeatCheat_Init();
+    gt_StatsPhoenixUsesGravitonBeam_Init();
+    gt_AchievementTitanoPrismKilledQuickly_Init();
+    gt_MasteryDestroyEnemyMainBases_Init();
+    gt_ObjectiveActivateCelestialLocksCreate_Init();
+    gt_ObjectiveActivateCelestialLocksComplete_Init();
+    gt_ObjectiveActivateCelestialLocksUpdate_Init();
+    gt_ObjectiveDestroyTitanicWarpPrismCreate_Init();
+    gt_ObjectiveDestroyTitanicWarpPrismComplete_Init();
+    gt_IntroQ_Init();
+    gt_IntroSetup_Init();
+    gt_IntroCinematic_Init();
+    gt_IntroCinematicEnd_Init();
+    gt_IntroCleanup_Init();
+    gt_IntroMusic_Init();
+    gt_IntroCapture1_Init();
+    gt_IntroCapture2_Init();
+    gt_VictoryQ_Init();
+    gt_VictorySetup_Init();
+    gt_VictoryCinematic_Init();
+    gt_VictoryCinematicEnd_Init();
+    gt_VictoryCleanup_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Map Initialization
+//--------------------------------------------------------------------------------------------------
+void InitMap () {
+    InitLibs();
+    InitGlobals();
+    InitTriggers();
+}

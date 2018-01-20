@@ -4,7 +4,6 @@ include "TriggerLibs/GameLib"
 include "TriggerLibs/MapMechanicsLib"
 include "TriggerLibs/AILib"
 include "TriggerLibs/UILib"
-include "TriggerLibs/SupportLib"
 include "LibAREN"
 
 include "LibAMCT_h"
@@ -20,7 +19,6 @@ void libAMCT_InitLibraries () {
     libMapM_InitVariables();
     libAIAI_InitVariables();
     libUIUI_InitVariables();
-    libSprt_InitVariables();
     libAREN_InitVariables();
 }
 
@@ -56,9 +54,6 @@ void libAMCT_InitVariables () {
         libAMCT_gv_aRMSkyTempleActivateWarningTimerLevel3[init_i] = TimerCreate();
     }
     libAMCT_gv_aRMSkyTempleDefenderWithGlobes = UnitGroupEmpty();
-    libAMCT_gv_aIHeroSkyTempleSafeDangerRatio = 0.8;
-    libAMCT_gv_aIHeroSkyTempleAllyHelpRange = 16.0;
-    libAMCT_gv_aIHeroSkyTempleMinimumFleeTime = 1.0;
     libAMCT_gv_aRMSkyTempleUI_ScorePanel = c_invalidDialogControlId;
     for (init_i = 0; init_i <= 2; init_i += 1) {
         libAMCT_gv_aRMSkyTempleUI_CoreUnitStatus[init_i] = c_invalidDialogControlId;
@@ -248,6 +243,7 @@ bool auto_libAMCT_gf_ARMSkyTempleActivateTemple_TriggerFunc (bool testConds, boo
     libAMCT_gv_aRMSkyTemple[lp_templeIndex].lv_blessed = true;
     StatEventCreate("SkyTempleActivated");
     StatEventSend(StatEventLastCreated());
+    AddUnitOfInterest(libAMCT_gv_aRMSkyTemple[lp_templeIndex].lv_beacon, libAMCT_gv_aRMSkyTempleCaptureRadius_C, 0.0, "TempleBeacon", libNtve_ge_GoalTeam_Both, 0);
     libCore_gf_CreateMinimapPingStorm(PlayerGroupAll(), "StormArenaAlert", libAMCT_gf_ARMSkyTempleLocation(lp_templeIndex), Color(100.00, 100.00, 0.00), 6.0);
     SoundPlayAtPointForPlayer(SoundLink("UI_Game_Ping_LuxoriaTemple_Ready", -1), c_maxPlayers, PlayerGroupAll(), libAMCT_gf_ARMSkyTempleLocation(lp_templeIndex), 0.0, 100.0, 0.0);
     libGame_gf_CapturePointEnable(libAMCT_gv_aRMSkyTemple[lp_templeIndex].lv_beaconIndex);
@@ -626,6 +622,33 @@ void libAMCT_gf_ARMSkyTempleUpdateTempleMinimapIcon (int lp_templeIndex, int lp_
         libNtve_gf_SendActorMessageToUnit(libAMCT_gv_aRMSkyTemple[lp_templeIndex].lv_minimapIcon, "SetMinimapVisibilityAlways 1");
     }
     else {
+    }
+}
+
+void libAMCT_gf_ARMSkyTempleDisableAIGoals () {
+    // Variable Declarations
+    unitgroup lv_watchTowers;
+    unitgroup lv_healingWells;
+    unit lv_unit;
+    int lv_team;
+    int lv_temple;
+
+    // Automatic Variable Declarations
+    const int autoEAE31DA2_ae = libAMCT_gv_aRMSkyTempleMaxCount_C;
+    const int autoEAE31DA2_ai = 1;
+
+    // Variable Initialization
+    lv_watchTowers = UnitGroup("XelNagaWatchTower", c_playerAny, RegionPlayableMap(), UnitFilter(0, 0, 0, (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    lv_healingWells = UnitGroup("TownMoonwellL3", c_playerAny, RegionPlayableMap(), UnitFilter(0, 0, 0, (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+
+    // Implementation
+    RemoveUnitOfInterest(libAMCT_gv_aRMSkyTemple[1].lv_beacon, "ArenaCenterStaging", libNtve_ge_GoalTeam_Both);
+    lv_temple = 1;
+    for ( ; ( (autoEAE31DA2_ai >= 0 && lv_temple <= autoEAE31DA2_ae) || (autoEAE31DA2_ai < 0 && lv_temple >= autoEAE31DA2_ae) ) ; lv_temple += autoEAE31DA2_ai ) {
+        if ((libAMCT_gv_aRMSkyTemple[lv_temple].lv_beacon != null)) {
+            RemoveUnitOfInterest(libAMCT_gv_aRMSkyTemple[lv_temple].lv_beacon, "TempleBeacon", libNtve_ge_GoalTeam_Both);
+        }
+
     }
 }
 
@@ -1132,450 +1155,6 @@ int libAMCT_gf_ARMSkyTempleTempleIndexForDefenders (int lp_defenderAIIndex) {
 
     }
     return 0;
-}
-
-void libAMCT_gf_MMSkyTempleHeroAIDefendTempleLogic (int lp_faction) {
-    // Variable Declarations
-    int lv_playerIndex;
-    point lv_objectivePosition;
-    playergroup lv_aIAvailableToRecruit;
-    int lv_testLoopIndex;
-    int lv_teamIndex;
-    bool lv_assignAlly;
-    fixed lv_templeEval;
-    fixed lv_bestEval;
-    int lv_bestTempleIndex;
-    region lv_objectiveRegion;
-    fixed lv_objectiveEval;
-
-    // Automatic Variable Declarations
-    playergroup autoC36FD7FA_g;
-    int autoFBE2679C_ae;
-    const int autoFBE2679C_ai = 1;
-    playergroup autoB8AE39E1_g;
-
-    // Variable Initialization
-    lv_aIAvailableToRecruit = PlayerGroupEmpty();
-    lv_assignAlly = true;
-
-    // Implementation
-    lv_teamIndex = libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction);
-    if ((libAMCT_gf_MMSkyTempleHeroAIAnyTempleActive() == false)) {
-        autoB8AE39E1_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction)].lv_aIPlayers;
-        lv_playerIndex = -1;
-        while (true) {
-            	lv_playerIndex = PlayerGroupNextPlayer(autoB8AE39E1_g, lv_playerIndex);
-            	if (lv_playerIndex<0) { break; }
-            	if ((libAIAI_gv_aIHeroes[lv_playerIndex].lv_wantsToDoCustomMapLogic == true)) {
-                libAIAI_gf_HeroAILeaveCurrentObjective(lv_playerIndex);
-            }
-
-        }
-    }
-    else {
-        if ((libAIAI_gv_heroAITeamData[lv_teamIndex].lv_nextMapObjectiveConsiderTime > TimerGetElapsed(libGame_gv_gameTimer))) {
-            return ;
-        }
-        else {
-            libAIAI_gv_heroAITeamData[lv_teamIndex].lv_nextMapObjectiveConsiderTime = (TimerGetElapsed(libGame_gv_gameTimer) + libAMCT_gv_aIHeroSkyTempleConsiderFrequency);
-        }
-        autoC36FD7FA_g = libAIAI_gv_heroAITeamPlayerData[lv_teamIndex].lv_aIPlayers;
-        lv_playerIndex = -1;
-        while (true) {
-            	lv_playerIndex = PlayerGroupNextPlayer(autoC36FD7FA_g, lv_playerIndex);
-            	if (lv_playerIndex<0) { break; }
-            	if ((libAIAI_gf_HeroAIIsHigherPriority(lv_playerIndex, libAIAI_ge_HeroAIPriority_CustomMapRegular) == true) && (UnitGetPropertyFixed(libGame_gv_players[lv_playerIndex].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) > libAIAI_gv_aIHeroes[lv_playerIndex].lv_startOffensiveHealth)) {
-                PlayerGroupAdd(lv_aIAvailableToRecruit, lv_playerIndex);
-            }
-
-        }
-        while ((lv_assignAlly == true)) {
-            lv_assignAlly = false;
-            lv_bestEval = 0.0;
-            lv_bestTempleIndex = 0;
-            autoFBE2679C_ae = libAMCT_gv_aRMSkyTempleTempleCount;
-            lv_testLoopIndex = 1;
-            for ( ; ( (autoFBE2679C_ai >= 0 && lv_testLoopIndex <= autoFBE2679C_ae) || (autoFBE2679C_ai < 0 && lv_testLoopIndex >= autoFBE2679C_ae) ) ; lv_testLoopIndex += autoFBE2679C_ai ) {
-                if ((UnitIsValid(libAMCT_gv_aRMSkyTemple[lv_testLoopIndex].lv_beacon) == true) && (libAMCT_gv_aRMSkyTemple[lv_testLoopIndex].lv_blessed == true)) {
-                    lv_objectiveEval = libAMCT_gf_MMSkyTempleHeroAIEvalObjective(lp_faction, libAMCT_gv_aRMSkyTemple[lv_testLoopIndex].lv_beacon);
-                    if ((lv_objectiveEval < 1.3) && (lv_objectiveEval > lv_bestEval)) {
-                        lv_bestEval = lv_objectiveEval;
-                        lv_bestTempleIndex = lv_testLoopIndex;
-                    }
-
-                }
-
-            }
-            if ((lv_bestTempleIndex > 0)) {
-                lv_objectivePosition = UnitGetPosition(libAMCT_gv_aRMSkyTemple[lv_bestTempleIndex].lv_beacon);
-                lv_playerIndex = libAIAI_gf_HeroAIClosestPlayerToPoint(lv_aIAvailableToRecruit, lv_objectivePosition);
-                if ((lv_playerIndex > 0)) {
-                    lv_assignAlly = true;
-                    PlayerGroupRemove(lv_aIAvailableToRecruit, lv_playerIndex);
-                    libAIAI_gf_HeroAILeaveCurrentObjective(lv_playerIndex);
-                    libAIAI_gv_aIHeroes[lv_playerIndex].lv_currentLane = 0;
-                    libAMCT_gf_MMSkyTempleHeroAIChangeStateDefendObjective(lv_playerIndex, libAMCT_gv_aRMSkyTemple[lv_bestTempleIndex].lv_beacon, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-                }
-                else {
-                    break;
-                }
-            }
-
-        }
-        lv_testLoopIndex = RandomInt(1, libAMCT_gv_aRMSkyTempleTempleCount);
-        while ((PlayerGroupCount(lv_aIAvailableToRecruit) > 0)) {
-            lv_testLoopIndex += 1;
-            if ((lv_testLoopIndex > libAMCT_gv_aRMSkyTempleTempleCount)) {
-                lv_testLoopIndex = 1;
-            }
-
-            if ((UnitIsValid(libAMCT_gv_aRMSkyTemple[lv_testLoopIndex].lv_beacon) == true) && ((libAMCT_gv_aRMSkyTemple[lv_testLoopIndex].lv_blessed == true) || (UnitIsValid(libAMCT_gv_aRMSkyTemple[lv_testLoopIndex].lv_defenderArray[1]) == true))) {
-                lv_objectivePosition = UnitGetPosition(libAMCT_gv_aRMSkyTemple[lv_testLoopIndex].lv_beacon);
-                lv_playerIndex = libAIAI_gf_HeroAIClosestPlayerToPoint(lv_aIAvailableToRecruit, lv_objectivePosition);
-                if ((lv_playerIndex > 0)) {
-                    PlayerGroupRemove(lv_aIAvailableToRecruit, lv_playerIndex);
-                    libAIAI_gf_HeroAILeaveCurrentObjective(lv_playerIndex);
-                    libAIAI_gv_aIHeroes[lv_playerIndex].lv_currentLane = 0;
-                    libAMCT_gf_MMSkyTempleHeroAIChangeStateDefendObjective(lv_playerIndex, libAMCT_gv_aRMSkyTemple[lv_testLoopIndex].lv_beacon, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-                }
-                else {
-                    break;
-                }
-            }
-
-        }
-    }
-}
-
-void libAMCT_gf_MMSkyTempleHeroAIRegroupMoonwellLogic (int lp_faction) {
-    // Variable Declarations
-    int lv_playerIndex;
-
-    // Automatic Variable Declarations
-    playergroup auto62B1AF40_g;
-
-    // Variable Initialization
-
-    // Implementation
-    auto62B1AF40_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(libAIAI_gv_heroAITeamMapLogicFaction)].lv_aIPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(auto62B1AF40_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (libAIAI_gf_HeroAIIsHigherPriority(lv_playerIndex, libAIAI_ge_HeroAIPriority_CustomMapLow) == true) && (UnitGetPropertyFixed(libGame_gv_players[lv_playerIndex].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) >= libAIAI_gv_aIHeroes[lv_playerIndex].lv_startOffensiveHealth)) {
-            libAMCT_gf_MMSkyTempleHeroAIChangeToCustomState(lv_playerIndex, libAMCT_ge_MMSkyTempleHeroAIStates_MMHWMoonwellRegroup, null, libAIAI_ge_HeroAIPriority_CustomMapLow);
-        }
-
-    }
-}
-
-void libAMCT_gf_MMSkyTempleHeroAIChangeToCustomState (int lp_trigPlayer, int lp_state, unit lp_target, int lp_priority) {
-    // Automatic Variable Declarations
-    // Implementation
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentState = (lp_state);
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateTrigger = libAMCT_gt_MMSkyTempleHeroAIStateLogic;
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = lp_target;
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority = lp_priority;
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_wantsToDoCustomMapLogic = true;
-    libAIAI_gf_HeroAIChangeState(lp_trigPlayer, libAIAI_ge_HeroAIStates_HSCustomMapState);
-}
-
-void libAMCT_gf_MMSkyTempleHeroAIInitializeAI () {
-    // Automatic Variable Declarations
-    // Implementation
-    libAMCT_gv_aIHeroSkyTempleMoonwells[0] = UnitGroupClosestToPoint(libNtve_gf_UnitsInRegionWithAllianceToPlayerMatchingCondition("TownMoonwell", "TownMoonwellL2", "TownMoonwellL3", libCore_gv_cOMPUTER_TeamOrder, c_unitAllianceAlly, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), UnitGetPosition(libGame_gv_teams[libGame_gf_TeamNumberOfFaction(libGame_ge_Faction_Order)].lv_core));
-    libAMCT_gv_aIHeroSkyTempleMoonwells[1] = UnitGroupClosestToPoint(libNtve_gf_UnitsInRegionWithAllianceToPlayerMatchingCondition("TownMoonwell", "TownMoonwellL2", "TownMoonwellL3", libCore_gv_cOMPUTER_TeamChaos, c_unitAllianceAlly, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), UnitGetPosition(libGame_gv_teams[libGame_gf_TeamNumberOfFaction(libGame_ge_Faction_Chaos)].lv_core));
-}
-
-int libAMCT_gf_MMSkyTempleHeroAIMoonwellRegroup (int lp_trigPlayer) {
-    // Variable Declarations
-    unit lv_moonwell;
-    fixed lv_expectedLife;
-    order lv_order;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    lv_moonwell = libAMCT_gv_aIHeroSkyTempleMoonwells[libAIAI_gf_HeroAIGetAllyTeamIndex(lp_trigPlayer)];
-    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) <= libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth)) {
-        libAIAI_gf_HeroAIStartFleeInJungle(lp_trigPlayer);
-        return 1;
-    }
-
-    if (((UnitIsValid(lv_moonwell) == false) || ((libAIAI_gv_aIHeroObjectiveStagingEnabled[(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty)] == true) && (libAMCT_gf_MMSkyTempleHeroAIShouldFleeArea(lp_trigPlayer, UnitGetPosition(lv_moonwell), libAIAI_gv_aIHeroVisionRange, libAMCT_gv_aIHeroSkyTempleAllyHelpRange, libAMCT_gv_aIHeroSkyTempleSafeDangerRatio) == true)))) {
-        libAIAI_gf_HeroAIEnsureOrderMovePointCloseEnough(lp_trigPlayer, libGame_gv_players[lp_trigPlayer].lv_spawnPoint);
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, lv_moonwell, null, libAIAI_gv_aIHeroMeleeCombatRange, libAIAI_gv_aIHeroRangedCombatRange, false, false, false, false) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    lv_expectedLife = UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifeExpectedPercent, c_unitPropCurrent);
-    if ((lv_expectedLife <= (libAIAI_gv_aIHeroes[lp_trigPlayer].lv_startOffensiveHealth + 10.0)) && (UnitHasBehavior2(libGame_gv_players[lp_trigPlayer].lv_heroUnit, "HealingFountainCooldown") == false)) {
-        lv_order = UnitOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, 0);
-        if (((OrderGetAbilityCommand(lv_order) != AbilityCommand("FountainDrink", 0)) || (OrderGetTargetUnit(lv_order) != lv_moonwell))) {
-            UnitIssueOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, OrderTargetingUnit(AbilityCommand("FountainDrink", 0), lv_moonwell), c_orderQueueReplace);
-        }
-
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, UnitGetPosition(lv_moonwell), libAMCT_gv_aIHeroSkyTempleAllyHelpRange) == true)) {
-        return 8;
-    }
-
-    if ((UnitOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, 0) == null)) {
-        UnitIssueOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, OrderTargetingPoint(AbilityCommand("move", 0), PointWithOffsetPolar(UnitGetPosition(libAMCT_gv_aIHeroSkyTempleMoonwells[libAIAI_gf_HeroAIGetAllyTeamIndex(lp_trigPlayer)]), RandomFixed(libAIAI_gv_aIHeroMeleeCombatRange, libAIAI_gv_aIHeroRangedCombatRange), libNtve_gf_RandomAngle())), c_orderQueueReplace);
-        return 8;
-    }
-
-    return 8;
-}
-
-bool libAMCT_gf_MMSkyTempleHeroAIShouldFleeArea (int lp_trigPlayer, point lp_center, fixed lp_enemyRange, fixed lp_allyRange, fixed lp_enemyScaling) {
-    // Automatic Variable Declarations
-    // Implementation
-    if ((DistanceSquaredBetweenPoints(UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_currentHeroUnit), lp_center) < (lp_allyRange * lp_allyRange)) && ((lp_enemyScaling * libAIAI_gf_HeroAIEnemyEvalInCircle(lp_trigPlayer, lp_center, lp_enemyRange, true, false, false)) > libAIAI_gf_HeroAIAllyEvalInCircle(lp_trigPlayer, lp_center, lp_allyRange, true, false, false))) {
-        return true;
-    }
-    else {
-        return false;
-    }
-}
-
-bool libAMCT_gf_MMSkyTempleHeroAICheckLeaveObjective (int lp_trigPlayer) {
-    // Variable Declarations
-    int lv_itTempleIndex;
-
-    // Automatic Variable Declarations
-    int auto1FB82CB6_ae;
-
-    // Variable Initialization
-
-    // Implementation
-    if ((UnitIsValid(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == false)) {
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return true;
-    }
-    else {
-        auto1FB82CB6_ae = libAMCT_gv_aRMSkyTempleTempleCount;
-        lv_itTempleIndex = 1;
-        for ( ; lv_itTempleIndex <= auto1FB82CB6_ae ; lv_itTempleIndex += 1 ) {
-            if ((libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit == libAMCT_gv_aRMSkyTemple[lv_itTempleIndex].lv_beacon) && (libAMCT_gv_aRMSkyTemple[lv_itTempleIndex].lv_blessed == false) && (UnitIsValid(libAMCT_gv_aRMSkyTemple[lv_itTempleIndex].lv_defenderArray[1]) == false)) {
-                libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-                return true;
-            }
-
-        }
-    }
-    return false;
-}
-
-bool libAMCT_gf_MMSkyTempleHeroAICheckFleeObjective (int lp_trigPlayer, fixed lp_allyEvalFactor) {
-    // Variable Declarations
-    region lv_objectiveRegion;
-    fixed lv_enemyEval;
-    fixed lv_allyEval;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    lv_objectiveRegion = RegionCircle(UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libAMCT_gv_aIHeroSkyTempleObjectiveRegionDistance);
-    RegionAddCircle(lv_objectiveRegion, true, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_objectiveStagingPoint, libAMCT_gv_aIHeroSkyTempleStagingTargetingRange);
-    lv_enemyEval = libAIAI_gf_HeroAIEnemyEvalInRegion(lp_trigPlayer, lv_objectiveRegion, true, false, false);
-    lv_allyEval = (lp_allyEvalFactor * libAIAI_gf_HeroAIAllyEvalInRegion(lp_trigPlayer, lv_objectiveRegion, true, false, false));
-    return (lv_enemyEval > lv_allyEval);
-}
-
-fixed libAMCT_gf_MMSkyTempleHeroAIEvalObjective (int lp_faction, unit lp_skyTempleUnit) {
-    // Variable Declarations
-    int lv_allyTeamIndex;
-    int lv_enemyTeamIndex;
-    region lv_objectiveRegion;
-    fixed lv_enemyEval;
-    fixed lv_allyEval;
-    int lv_playerIndex;
-
-    // Automatic Variable Declarations
-    playergroup auto937D26AA_g;
-    playergroup auto5153A441_g;
-    playergroup auto2F7FF7C8_g;
-
-    // Variable Initialization
-
-    // Implementation
-    lv_allyTeamIndex = libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction);
-    lv_enemyTeamIndex = libAIAI_gf_HeroAITeamIndexOfEnemyFaction(lp_faction);
-    lv_objectiveRegion = RegionCircle(UnitGetPosition(lp_skyTempleUnit), libAMCT_gv_aIHeroSkyTempleObjectiveRegionDistance);
-    auto937D26AA_g = libAIAI_gv_heroAITeamPlayerData[lv_enemyTeamIndex].lv_players;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(auto937D26AA_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (libNtve_gf_UnitInRegion(libGame_gv_players[lv_playerIndex].lv_heroUnit, lv_objectiveRegion) == true) && ((TimerGetElapsed(libGame_gv_gameTimer) - libAIAI_gv_heroAITeamData[lv_allyTeamIndex].lv_heroTrackingData[lv_playerIndex].lv_lastSeenTime) <= libAMCT_gv_aIHeroSkyTempleObjectiveRegionLastSeenDuration) && (RegionContainsPoint(lv_objectiveRegion, libAIAI_gv_heroAITeamData[lv_allyTeamIndex].lv_heroTrackingData[lv_playerIndex].lv_lastSeenLocation) == true)) {
-            lv_enemyEval += libAIAI_gf_HeroAIHeroEval(libGame_gv_players[lv_playerIndex].lv_heroUnit);
-        }
-
-    }
-    auto5153A441_g = libAIAI_gv_heroAITeamPlayerData[lv_allyTeamIndex].lv_aIPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(auto5153A441_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (libAIAI_gv_aIHeroes[lv_playerIndex].lv_wantsToDoCustomMapLogic == true) && (libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateCurrentTargetUnit == lp_skyTempleUnit)) {
-            lv_allyEval += libAIAI_gf_HeroAIHeroEval(libGame_gv_players[lv_playerIndex].lv_heroUnit);
-        }
-
-    }
-    auto2F7FF7C8_g = libAIAI_gv_heroAITeamPlayerData[lv_allyTeamIndex].lv_humanPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(auto2F7FF7C8_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (libNtve_gf_UnitInRegion(libGame_gv_players[lv_playerIndex].lv_heroUnit, lv_objectiveRegion) == true)) {
-            lv_allyEval += libAIAI_gf_HeroAIHeroEval(libGame_gv_players[lv_playerIndex].lv_heroUnit);
-        }
-
-    }
-    if ((lv_enemyEval == 0.0)) {
-        return lv_allyEval;
-    }
-    else {
-        return (lv_allyEval / lv_enemyEval);
-    }
-}
-
-void libAMCT_gf_MMSkyTempleHeroAIChangeStateDefendObjective (int lp_trigPlayer, unit lp_objectiveUnit, int lp_priority) {
-    // Automatic Variable Declarations
-    // Implementation
-    libAIAI_gf_HeroAIChangeStateDefendObjective(lp_trigPlayer, lp_objectiveUnit, null, libAMCT_gv_aIHeroSkyTempleFarTempleDistance, libAMCT_gv_aIHeroSkyTempleNearTempleDistance, libAMCT_gv_aIHeroSkyTempleTargetingRange, libAMCT_gv_aIHeroSkyTempleInTempleDistance, null, lp_priority, libAMCT_gt_MMSkyTempleHeroAIDefendObjectiveExit, libAMCT_gt_MMSkyTempleHeroAIReturnToDefendObjective);
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_wantsToDoCustomMapLogic = true;
-    if ((libGame_gv_laneCount > 0)) {
-        libGame_gf_CalculateClosestLaneData(UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit));
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_objectiveStagingPoint = libGame_gv_closestLaneData.lv_laneData[libGame_gv_closestLaneData.lv_closestLane].lv_closestPoint;
-    }
-    else {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_objectiveStagingPoint = AIPositionAlongPath(lp_trigPlayer, UnitGetPosition(lp_objectiveUnit), libGame_gv_players[lp_trigPlayer].lv_spawnPoint, libAMCT_gv_aIHeroSkyTempleObjectiveRegionDistance, false, c_includeAllBuildings);
-    }
-}
-
-void libAMCT_gf_MMSkyTempleHeroAIChangeStateObjectiveStaging (int lp_trigPlayer) {
-    // Automatic Variable Declarations
-    // Implementation
-    libAIAI_gf_HeroAIChangeStateObjectiveStaging(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, null, libAMCT_gv_aIHeroSkyTempleFarTempleDistance, libAMCT_gv_aIHeroSkyTempleNearTempleDistance, libAMCT_gv_aIHeroSkyTempleStagingTargetingRange, libAMCT_gv_aIHeroSkyTempleInStagingDistance, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_statePriority, libAMCT_gt_MMSkyTempleHeroAIObjectiveStagingExit, libAMCT_gt_MMSkyTempleHeroAIReturnToObjectiveStaging);
-}
-
-bool libAMCT_gf_MMSkyTempleHeroAIAnyTempleActive () {
-    // Variable Declarations
-    int lv_itTempleIndex;
-
-    // Automatic Variable Declarations
-    int auto61098709_ae;
-
-    // Variable Initialization
-
-    // Implementation
-    auto61098709_ae = libAMCT_gv_aRMSkyTempleTempleCount;
-    lv_itTempleIndex = 1;
-    for ( ; lv_itTempleIndex <= auto61098709_ae ; lv_itTempleIndex += 1 ) {
-        if ((UnitIsValid(libAMCT_gv_aRMSkyTemple[lv_itTempleIndex].lv_beacon) == true) && ((libAMCT_gv_aRMSkyTemple[lv_itTempleIndex].lv_blessed == true) || (UnitIsValid(libAMCT_gv_aRMSkyTemple[lv_itTempleIndex].lv_defenderArray[1]) == true))) {
-            return true;
-        }
-
-    }
-    return false;
-}
-
-bool libAMCT_gf_MMSkyTempleHeroAIConsiderAnotherTemple (int lp_trigPlayer, unit lp_skyTempleUnit) {
-    // Variable Declarations
-    int lv_testLoopIndex;
-    fixed lv_bestEval;
-    int lv_bestTempleIndex;
-    fixed lv_objectiveEval;
-    point lv_objectivePosition;
-
-    // Automatic Variable Declarations
-    int autoAD695D0C_ae;
-    const int autoAD695D0C_ai = 1;
-
-    // Variable Initialization
-
-    // Implementation
-    autoAD695D0C_ae = libAMCT_gv_aRMSkyTempleTempleCount;
-    lv_testLoopIndex = 1;
-    for ( ; ( (autoAD695D0C_ai >= 0 && lv_testLoopIndex <= autoAD695D0C_ae) || (autoAD695D0C_ai < 0 && lv_testLoopIndex >= autoAD695D0C_ae) ) ; lv_testLoopIndex += autoAD695D0C_ai ) {
-        if ((libAMCT_gv_aRMSkyTemple[lv_testLoopIndex].lv_beacon != lp_skyTempleUnit) && (libAMCT_gv_aRMSkyTemple[lv_testLoopIndex].lv_blessed == true) && (UnitIsValid(libAMCT_gv_aRMSkyTemple[lv_testLoopIndex].lv_beacon) == true)) {
-            lv_objectiveEval = libAMCT_gf_MMSkyTempleHeroAIEvalObjective(libGame_gv_players[lp_trigPlayer].lv_faction, libAMCT_gv_aRMSkyTemple[lv_testLoopIndex].lv_beacon);
-            if ((lv_objectiveEval == 0.0)) {
-                lv_objectiveEval = (1.0 / DistanceSquaredBetweenPoints(UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_currentHeroUnit), UnitGetPosition(libAMCT_gv_aRMSkyTemple[lv_testLoopIndex].lv_beacon)));
-            }
-
-            if ((lv_objectiveEval < 1.3) && (lv_objectiveEval > lv_bestEval)) {
-                lv_bestEval = lv_objectiveEval;
-                lv_bestTempleIndex = lv_testLoopIndex;
-            }
-
-        }
-
-    }
-    if ((lv_bestTempleIndex > 0)) {
-        lv_objectivePosition = UnitGetPosition(libAMCT_gv_aRMSkyTemple[lv_bestTempleIndex].lv_beacon);
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_currentLane = 0;
-        libAMCT_gf_MMSkyTempleHeroAIChangeStateDefendObjective(lp_trigPlayer, libAMCT_gv_aRMSkyTemple[lv_bestTempleIndex].lv_beacon, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-        return true;
-    }
-
-    return false;
-}
-
-void libAMCT_gf_MMSkyTempleHeroAICheckShouldDefendPingedTemple (int lp_pingingPlayer, unit lp_pingedTemple) {
-    // Variable Declarations
-    int lv_templeIndex;
-    int lv_testLoopIndex;
-    point lv_beaconPosition;
-    int lv_playerIndex;
-
-    // Automatic Variable Declarations
-    int autoCADA4C49_ae;
-    const int autoCADA4C49_ai = 1;
-    playergroup auto17CA5200_g;
-
-    // Variable Initialization
-
-    // Implementation
-    autoCADA4C49_ae = libAMCT_gv_aRMSkyTempleTempleCount;
-    lv_testLoopIndex = 1;
-    for ( ; ( (autoCADA4C49_ai >= 0 && lv_testLoopIndex <= autoCADA4C49_ae) || (autoCADA4C49_ai < 0 && lv_testLoopIndex >= autoCADA4C49_ae) ) ; lv_testLoopIndex += autoCADA4C49_ai ) {
-        if ((libAMCT_gv_aRMSkyTemple[lv_templeIndex].lv_blessed == true) && (UnitIsValid(libAMCT_gv_aRMSkyTemple[lv_templeIndex].lv_beacon) == true) && (lp_pingedTemple == libAMCT_gv_aRMSkyTemple[lv_templeIndex].lv_temple)) {
-            lv_templeIndex = lv_testLoopIndex;
-        }
-
-    }
-    if ((lv_templeIndex == 0)) {
-        return ;
-    }
-
-    lv_beaconPosition = UnitGetPosition(libAMCT_gv_aRMSkyTemple[lv_templeIndex].lv_beacon);
-    auto17CA5200_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAIGetAllyTeamIndex(lp_pingingPlayer)].lv_aIPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(auto17CA5200_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((libAIAI_gf_HeroAIIsHigherPriority(lv_playerIndex, libAIAI_ge_HeroAIPriority_CustomMapHigh) == true) && (UnitGetPropertyFixed(libGame_gv_players[lv_playerIndex].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) > libAIAI_gv_aIHeroes[lv_playerIndex].lv_endOffensiveHealth)) {
-            libAIAI_gf_HeroAILeaveCurrentObjective(lv_playerIndex);
-            libAIAI_gv_aIHeroes[lv_playerIndex].lv_currentLane = 0;
-            libAMCT_gf_MMSkyTempleHeroAIChangeStateDefendObjective(lv_playerIndex, libAMCT_gv_aRMSkyTemple[lv_templeIndex].lv_beacon, libAIAI_ge_HeroAIPriority_CustomMapHigh);
-        }
-
-    }
 }
 
 void libAMCT_gf_MMCapturePointsUIHookupTemplePanel (int lp_TempleIndex) {
@@ -2089,10 +1668,6 @@ bool libAMCT_gt_ARMSkyTempleLevelStart_Func (bool testConds, bool runActions) {
     else {
     }
     libAIAI_gf_HeroAIRegisterAOEwithWatchTrigger("TempleGuardianMightySwingDummyPersistent", 5.0, 1.0, 0.5, true, true);
-    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_DefenderAIIssueOrdersToCreep, libAMCT_gt_ARMSkyTempleDefenderAttackLogic);
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libAMCT_gt_MMSkyTemplePingCallbackPlayerPingsCapturePoint);
-    libAIAI_gv_heroAITeamMapLogicTrigger = libAMCT_gt_MMSkyTempleHeroAITeamMapLogic;
-    libAMCT_gf_MMSkyTempleHeroAIInitializeAI();
     TriggerExecute(libAMCT_gt_ARMSkyTempleUICoreHealthInitialize, true, false);
     TriggerExecute(libAMCT_gt_MMCapturePointsUIInitialize, true, false);
     return true;
@@ -2108,12 +1683,16 @@ void libAMCT_gt_ARMSkyTempleLevelStart_Init () {
 //--------------------------------------------------------------------------------------------------
 bool libAMCT_gt_ARMSkyTempleGatesOpened_Func (bool testConds, bool runActions) {
     // Variable Declarations
+    unitgroup lv_healingWells;
     int lv_round;
+    unit lv_unit;
+    int lv_team;
 
     // Automatic Variable Declarations
     int auto388A7C0E_val;
 
     // Variable Initialization
+    lv_healingWells = UnitGroup("TownMoonwellL3", c_playerAny, RegionPlayableMap(), UnitFilter(0, 0, 0, (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
 
     // Conditions
     if (testConds) {
@@ -2129,6 +1708,7 @@ bool libAMCT_gt_ARMSkyTempleGatesOpened_Func (bool testConds, bool runActions) {
 
     lv_round = libAREN_gf_ArenaCurrentRoundIndex();
     TimerStart(libAMCT_gv_aRMSkyTempleWarningWaitTimer, (libAMCT_gv_aRMSkyTempleStartTime_C - libAMCT_gv_aRMSkyTempleWarningTime), false, c_timeGame);
+    AddUnitOfInterest(libAMCT_gv_aRMSkyTemple[1].lv_beacon, 0.0, 0.0, "ArenaCenterStaging", libNtve_ge_GoalTeam_Both, 0);
     libNtve_gf_WaitForTimer(TimerLastStarted(), 0.0, false);
     if ((TriggerIsEnabled(TriggerGetCurrent()) == false)) {
         return true;
@@ -2703,6 +2283,7 @@ bool libAMCT_gt_ARMSkyTempleCoreDiesGameOver_Func (bool testConds, bool runActio
     const fixed lv_coreAnimationWaitExplodeTime = 2.8;
     int lv_winningTeam;
     int lv_itTemple;
+    unit lv_visionBeacon;
 
     // Automatic Variable Declarations
     int autoC8BD1990_ae;
@@ -2722,6 +2303,7 @@ bool libAMCT_gt_ARMSkyTempleCoreDiesGameOver_Func (bool testConds, bool runActio
         return true;
     }
 
+    libAMCT_gf_ARMSkyTempleDisableAIGoals();
     if ((EventUnit() == libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core)) {
         lv_winningTeam = libGame_gv_teamChaosIndex_C;
     }
@@ -2752,188 +2334,6 @@ void libAMCT_gt_ARMSkyTempleCoreDiesGameOver_Init () {
     TriggerEnable(libAMCT_gt_ARMSkyTempleCoreDiesGameOver, false);
     TriggerAddEventUnitDied(libAMCT_gt_ARMSkyTempleCoreDiesGameOver, UnitRefFromVariable("libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core"));
     TriggerAddEventUnitDied(libAMCT_gt_ARMSkyTempleCoreDiesGameOver, UnitRefFromVariable("libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core"));
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMSkyTemple - HeroAI - Team Map Logic
-//--------------------------------------------------------------------------------------------------
-bool libAMCT_gt_MMSkyTempleHeroAITeamMapLogic_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libAMCT_gf_MMSkyTempleHeroAIDefendTempleLogic(libAIAI_gv_heroAITeamMapLogicFaction);
-    libAMCT_gf_MMSkyTempleHeroAIRegroupMoonwellLogic(libAIAI_gv_heroAITeamMapLogicFaction);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libAMCT_gt_MMSkyTempleHeroAITeamMapLogic_Init () {
-    libAMCT_gt_MMSkyTempleHeroAITeamMapLogic = TriggerCreate("libAMCT_gt_MMSkyTempleHeroAITeamMapLogic_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMSkyTemple - HeroAI - State Logic
-//--------------------------------------------------------------------------------------------------
-bool libAMCT_gt_MMSkyTempleHeroAIStateLogic_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    int auto40464874_val;
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    auto40464874_val = libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSMapStateCurrentState;
-    if (auto40464874_val == libAMCT_ge_MMSkyTempleHeroAIStates_MMHWMoonwellRegroup) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libAMCT_gf_MMSkyTempleHeroAIMoonwellRegroup(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else {
-    }
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libAMCT_gt_MMSkyTempleHeroAIStateLogic_Init () {
-    libAMCT_gt_MMSkyTempleHeroAIStateLogic = TriggerCreate("libAMCT_gt_MMSkyTempleHeroAIStateLogic_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMSkyTemple - HeroAI - Return To Defend Objective
-//--------------------------------------------------------------------------------------------------
-bool libAMCT_gt_MMSkyTempleHeroAIReturnToDefendObjective_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libAMCT_gf_MMSkyTempleHeroAIChangeStateDefendObjective(libAIAI_gv_heroAICustomStateCurrentPlayer, libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSMapStateCurrentTargetUnit, libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_statePriority);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libAMCT_gt_MMSkyTempleHeroAIReturnToDefendObjective_Init () {
-    libAMCT_gt_MMSkyTempleHeroAIReturnToDefendObjective = TriggerCreate("libAMCT_gt_MMSkyTempleHeroAIReturnToDefendObjective_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMSkyTemple - HeroAI - Return To Objective Staging
-//--------------------------------------------------------------------------------------------------
-bool libAMCT_gt_MMSkyTempleHeroAIReturnToObjectiveStaging_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libAMCT_gf_MMSkyTempleHeroAIChangeStateObjectiveStaging(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libAMCT_gt_MMSkyTempleHeroAIReturnToObjectiveStaging_Init () {
-    libAMCT_gt_MMSkyTempleHeroAIReturnToObjectiveStaging = TriggerCreate("libAMCT_gt_MMSkyTempleHeroAIReturnToObjectiveStaging_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMSkyTemple - HeroAI - Defend Objective Exit
-//--------------------------------------------------------------------------------------------------
-bool libAMCT_gt_MMSkyTempleHeroAIDefendObjectiveExit_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    int lv_itTempleIndex;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    if ((libAMCT_gf_MMSkyTempleHeroAICheckLeaveObjective(libAIAI_gv_heroAICustomStateCurrentPlayer) == true)) {
-        libAIAI_gv_heroAICustomStateReturnBoolean = true;
-        return true;
-    }
-
-    if ((libAIAI_gv_aIHeroObjectiveStagingEnabled[(libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_difficulty)] == true) && (DistanceBetweenPoints(UnitGetPosition(libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_currentHeroUnit), UnitGetPosition(libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSMapStateCurrentTargetUnit)) < libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_moveStartRange) && (libAMCT_gf_MMSkyTempleHeroAICheckFleeObjective(libAIAI_gv_heroAICustomStateCurrentPlayer, libAMCT_gv_aIHeroSkyTempleEvalRatioMax) == true)) {
-        libAMCT_gf_MMSkyTempleHeroAIChangeStateObjectiveStaging(libAIAI_gv_heroAICustomStateCurrentPlayer);
-        libAIAI_gv_heroAICustomStateReturnBoolean = true;
-        return true;
-    }
-
-    if (((TimerGetElapsed(libGame_gv_gameTimer) - libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_timeEnteredState) > libAMCT_gv_aIHeroSkyTempleObjectiveGiveUpTime) && (libAMCT_gf_MMSkyTempleHeroAIEvalObjective(libGame_gv_players[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_faction, libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSMapStateCurrentTargetUnit) > libAIAI_gf_HeroAIHeroEval(libGame_gv_players[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_heroUnit))) {
-        if ((libAMCT_gf_MMSkyTempleHeroAIConsiderAnotherTemple(libAIAI_gv_heroAICustomStateCurrentPlayer, libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSMapStateCurrentTargetUnit) == true)) {
-            return true;
-        }
-
-    }
-
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libAMCT_gt_MMSkyTempleHeroAIDefendObjectiveExit_Init () {
-    libAMCT_gt_MMSkyTempleHeroAIDefendObjectiveExit = TriggerCreate("libAMCT_gt_MMSkyTempleHeroAIDefendObjectiveExit_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMSkyTemple - HeroAI - Objective Staging Exit
-//--------------------------------------------------------------------------------------------------
-bool libAMCT_gt_MMSkyTempleHeroAIObjectiveStagingExit_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    if ((libAMCT_gf_MMSkyTempleHeroAICheckLeaveObjective(libAIAI_gv_heroAICustomStateCurrentPlayer) == true)) {
-        libAIAI_gv_heroAICustomStateReturnBoolean = true;
-        return true;
-    }
-
-    if ((libAMCT_gf_MMSkyTempleHeroAICheckFleeObjective(libAIAI_gv_heroAICustomStateCurrentPlayer, libAMCT_gv_aIHeroSkyTempleEvalRatioMin) == false)) {
-        libAMCT_gf_MMSkyTempleHeroAIChangeStateDefendObjective(libAIAI_gv_heroAICustomStateCurrentPlayer, libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSMapStateCurrentTargetUnit, libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_statePriority);
-        libAIAI_gv_heroAICustomStateReturnBoolean = true;
-        return true;
-    }
-
-    if (((TimerGetElapsed(libGame_gv_gameTimer) - libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_timeEnteredState) > libAMCT_gv_aIHeroSkyTempleObjectiveStagingGiveUpTime) && (libAMCT_gf_MMSkyTempleHeroAIEvalObjective(libGame_gv_players[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_faction, libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSMapStateCurrentTargetUnit) < libAMCT_gv_aIHeroSkyTempleEvalRatioMin)) {
-        if ((libAMCT_gf_MMSkyTempleHeroAIConsiderAnotherTemple(libAIAI_gv_heroAICustomStateCurrentPlayer, libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSMapStateCurrentTargetUnit) == false)) {
-            libAIAI_gf_HeroAILeaveCurrentObjective(libAIAI_gv_heroAICustomStateCurrentPlayer);
-            libAIAI_gv_heroAICustomStateReturnBoolean = true;
-        }
-
-        return true;
-    }
-
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libAMCT_gt_MMSkyTempleHeroAIObjectiveStagingExit_Init () {
-    libAMCT_gt_MMSkyTempleHeroAIObjectiveStagingExit = TriggerCreate("libAMCT_gt_MMSkyTempleHeroAIObjectiveStagingExit_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMSkyTemple Ping Callback Player Pings Capture Point
-//--------------------------------------------------------------------------------------------------
-bool libAMCT_gt_MMSkyTemplePingCallbackPlayerPingsCapturePoint_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libAMCT_gf_MMSkyTempleHeroAICheckShouldDefendPingedTemple(libUIUI_gv_ping_PingCallbackPingingPlayer, libUIUI_gv_ping_PingCallbackTargetUnit);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libAMCT_gt_MMSkyTemplePingCallbackPlayerPingsCapturePoint_Init () {
-    libAMCT_gt_MMSkyTemplePingCallbackPlayerPingsCapturePoint = TriggerCreate("libAMCT_gt_MMSkyTemplePingCallbackPlayerPingsCapturePoint_Func");
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -3291,13 +2691,6 @@ void libAMCT_InitTriggers () {
     libAMCT_gt_ARMSkyTempleDefenderAttackLogic_Init();
     libAMCT_gt_ARMSkyTempleTempleDefenderDies_Init();
     libAMCT_gt_ARMSkyTempleCoreDiesGameOver_Init();
-    libAMCT_gt_MMSkyTempleHeroAITeamMapLogic_Init();
-    libAMCT_gt_MMSkyTempleHeroAIStateLogic_Init();
-    libAMCT_gt_MMSkyTempleHeroAIReturnToDefendObjective_Init();
-    libAMCT_gt_MMSkyTempleHeroAIReturnToObjectiveStaging_Init();
-    libAMCT_gt_MMSkyTempleHeroAIDefendObjectiveExit_Init();
-    libAMCT_gt_MMSkyTempleHeroAIObjectiveStagingExit_Init();
-    libAMCT_gt_MMSkyTemplePingCallbackPlayerPingsCapturePoint_Init();
     libAMCT_gt_ARMSkyTempleUICoreHealthInitialize_Init();
     libAMCT_gt_ARMSkyTempleUICoreHealthSetCoreUnits_Init();
     libAMCT_gt_MMCapturePointsUIInitialize_Init();

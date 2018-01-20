@@ -1,0 +1,4314 @@
+//==================================================================================================
+// 
+// Generated Map Script
+// 
+// Name:   Ultralisk Evolution
+// 
+//==================================================================================================
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/LibertyLib"
+include "TriggerLibs/SwarmLib"
+include "TriggerLibs/SwarmCampaignLib"
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+void InitLibs () {
+    libNtve_InitLib();
+    libLbty_InitLib();
+    libHots_InitLib();
+    libSwaC_InitLib();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Constants
+//--------------------------------------------------------------------------------------------------
+const int gv_pLAYER_01_USER = 1;
+const int gv_pLAYER_02_DOMINION = 2;
+const int gv_pLAYER_03_DOMINION_WRECKABLE = 3;
+const int gv_pLAYER_04_CAGED_ZERG = 4;
+
+//--------------------------------------------------------------------------------------------------
+// Global Structures
+//--------------------------------------------------------------------------------------------------
+struct gs_AutoRevealDataCheckCliffLevel {
+    region[64] lv_revealedRegions;
+    region[64] lv_triggeringRegions;
+    int[64] lv_triggeringPlayers;
+    int lv_count;
+};
+
+//--------------------------------------------------------------------------------------------------
+// Global Variables
+//--------------------------------------------------------------------------------------------------
+fixed gv_gasDamage_Terran;
+bool gv_gameOver;
+bool gv_inCinematic;
+string gv_mapMusicTrack;
+unitgroup gv_noxiousUnits;
+unitgroup gv_torrasqueUnits;
+point gv_backupPoint;
+gs_AutoRevealDataCheckCliffLevel gv_autoRevealCheckCliffLevel;
+bool gv_torrasqueActive;
+bool gv_noxiousActive;
+unit gv_startingUltralisk;
+unitgroup gv_noxious;
+unit gv_containmentCell;
+unit gv_gasContainer1;
+unit gv_gasContainer2;
+unit gv_labBridge;
+unit gv_labExitBeacon;
+unitgroup gv_torrasques;
+unitgroup gv_bridgeGuards;
+unit gv_weaponsFacility;
+unit gv_cityBridge;
+unit gv_viking1;
+unit gv_viking2;
+unit gv_viking3;
+unit gv_tank;
+int gv_objectsCrushed;
+unitgroup gv_streetUnits;
+unit gv_theCar;
+int gv_objectiveEscapeTheLab;
+int gv_pingLabExit;
+int gv_objectiveSecureTheBridge;
+int gv_pingBridgeGuards;
+int gv_objectiveDestroyWeaponsFacility;
+int gv_pingWeaponsFacility;
+unitgroup gv_cinematicHiddenUnits;
+unitgroup gv_cinematicTempUnits;
+bool gv_cinematicCompleted;
+unit gv_baseDoor;
+sound gv_introStinger;
+bool gv_introEscapeOrdered;
+unit gv_introGuard;
+sound gv_uniDeathThudLargeSound;
+sound gv_doorExplodeSound;
+sound gv_ultraliskRoarSound;
+
+void InitGlobals () {
+    int init_i1;
+
+    gv_gasDamage_Terran = 5.0;
+    gv_gameOver = false;
+    gv_inCinematic = false;
+    gv_mapMusicTrack = null;
+    gv_noxiousUnits = UnitGroupEmpty();
+    gv_torrasqueUnits = UnitGroupEmpty();
+    gv_backupPoint = null;
+    init_i1 = 0;
+    while (init_i1 <= 63) {
+        gv_autoRevealCheckCliffLevel.lv_revealedRegions[init_i1] = null;
+        init_i1 = init_i1 + 1;
+    }
+    init_i1 = 0;
+    while (init_i1 <= 63) {
+        gv_autoRevealCheckCliffLevel.lv_triggeringRegions[init_i1] = null;
+        init_i1 = init_i1 + 1;
+    }
+    init_i1 = 0;
+    while (init_i1 <= 63) {
+        gv_autoRevealCheckCliffLevel.lv_triggeringPlayers[init_i1] = 0;
+        init_i1 = init_i1 + 1;
+    }
+    gv_autoRevealCheckCliffLevel.lv_count = 0;
+    gv_torrasqueActive = false;
+    gv_noxiousActive = false;
+    gv_startingUltralisk = UnitFromId(48);
+    gv_noxious = UnitGroupEmpty();
+    gv_containmentCell = UnitFromId(740);
+    gv_gasContainer1 = UnitFromId(742);
+    gv_gasContainer2 = UnitFromId(60);
+    gv_labBridge = UnitFromId(332);
+    gv_labExitBeacon = UnitFromId(6);
+    gv_torrasques = UnitGroupEmpty();
+    gv_bridgeGuards = UnitGroupEmpty();
+    gv_weaponsFacility = UnitFromId(395);
+    gv_cityBridge = UnitFromId(58);
+    gv_viking1 = null;
+    gv_viking2 = null;
+    gv_viking3 = null;
+    gv_tank = null;
+    gv_objectsCrushed = 0;
+    gv_streetUnits = UnitGroupEmpty();
+    gv_theCar = UnitFromId(703);
+    gv_objectiveEscapeTheLab = c_invalidObjectiveId;
+    gv_pingLabExit = c_invalidPingId;
+    gv_objectiveSecureTheBridge = c_invalidObjectiveId;
+    gv_pingBridgeGuards = c_invalidPingId;
+    gv_objectiveDestroyWeaponsFacility = c_invalidObjectiveId;
+    gv_pingWeaponsFacility = c_invalidPingId;
+    gv_cinematicHiddenUnits = UnitGroupEmpty();
+    gv_cinematicTempUnits = UnitGroupEmpty();
+    gv_cinematicCompleted = false;
+    gv_baseDoor = UnitFromId(69);
+    gv_introStinger = null;
+    gv_introEscapeOrdered = false;
+    gv_introGuard = null;
+    gv_uniDeathThudLargeSound = null;
+    gv_doorExplodeSound = null;
+    gv_ultraliskRoarSound = null;
+}
+
+//--------------------------------------------------------------------------------------------------
+// Global Function Declarations
+//--------------------------------------------------------------------------------------------------
+void gf_AttachModelToUnitUntilDamaged (unit lp_unit);
+void gf_AutoRevealRegionCheckCliffLevel (region lp_visibilityRegion, region lp_triggeringRegion, int lp_player);
+void gf_CreateGasCloud (point lp_location);
+void gf_Fog (point lp_location, fixed lp_delay);
+void gf_UltraliskSick (unit lp_ultralisk);
+void gf_NukeDrop (point lp_location);
+
+//--------------------------------------------------------------------------------------------------
+// Trigger Variables
+//--------------------------------------------------------------------------------------------------
+trigger gt_Initialization;
+trigger gt_Init01Technology;
+trigger gt_Init02Players;
+trigger gt_Init03Units;
+trigger gt_Init04Music;
+trigger gt_Init05Environment;
+trigger gt_Init06Difficulties;
+trigger gt_Init07Help;
+trigger gt_Stage2Torrasque;
+trigger gt_AutoRevealRegionControllerCheckCliffLevel;
+trigger gt_StartGameQ;
+trigger gt_NoxiousMusicCue;
+trigger gt_ReinforcementsAllUnitsDead;
+trigger gt_UltraliskEscaped;
+trigger gt_Room1ScientistsFlee;
+trigger gt_Room1Passed;
+trigger gt_ContainmentControlIntro;
+trigger gt_GasDamage;
+trigger gt_NoxiousMorphCatch;
+trigger gt_ContainmentControlDestroyed;
+trigger gt_GuardsFleeGas;
+trigger gt_Room2Passed;
+trigger gt_Room3Passed;
+trigger gt_LabEscaped;
+trigger gt_TransmissionScientistYell1Q;
+trigger gt_TransmissionContainmentCellIntroQ;
+trigger gt_TransmissionContainmentCellDestroyedQ;
+trigger gt_TransmissionNoxiousStrainQ;
+trigger gt_TransmissionGuardsFleeGasQ;
+trigger gt_TransmissionScientistYell2Q;
+trigger gt_TransmissionScientistYell3Q;
+trigger gt_TransmissionItBurnsQ;
+trigger gt_TransmissionScientistYell4Q;
+trigger gt_TorrasqueMusicCue;
+trigger gt_StartTorrasqueQ;
+trigger gt_DetectBreakables;
+trigger gt_TorrasqueCreatedRevived;
+trigger gt_BridgeGuardsRevealed;
+trigger gt_BridgeGuardsEngaged;
+trigger gt_TorrasqueReinforcements1;
+trigger gt_StreetUnits1;
+trigger gt_StreetUnits2;
+trigger gt_StreetUnits3;
+trigger gt_PropertyDamage;
+trigger gt_TorrasqueReinforcements2;
+trigger gt_FacilityGuards;
+trigger gt_WeaponsFacilityKilled;
+trigger gt_TransmissionUltralisksIncomingQ;
+trigger gt_TransmissionFirstNukeQ;
+trigger gt_TransmissionUltralisksInfectedQ;
+trigger gt_TransmissionUltralisksEvolvingQ;
+trigger gt_TransmissionTorrasqueStrainQ;
+trigger gt_TransmissionPressOnQ;
+trigger gt_TransmissionTorrasqueReinforcements2Q;
+trigger gt_TransmissionFirstDeathQ;
+trigger gt_TransmissionFirstRebirthQ;
+trigger gt_TransmissionUglyThingsQ;
+trigger gt_TransmissionSecondNukeQ;
+trigger gt_TransmissionThirdNukeQ;
+trigger gt_TransmissionFourthNukeQ;
+trigger gt_TransmissionPropertyDamageQ;
+trigger gt_VictoryEscapetheLabCompleted;
+trigger gt_VictoryDestroytheWeaponsFacilityCompleted;
+trigger gt_VictorySequence;
+trigger gt_Victory;
+trigger gt_Defeat;
+trigger gt_VictoryCheat;
+trigger gt_DefeatCheat;
+trigger gt_TipMissionHelpQ;
+trigger gt_AIGiveMinerals;
+trigger gt_AIGiveGas;
+trigger gt_ObjectiveEscapeTheLabCreate;
+trigger gt_ObjectiveEscapeTheLabComplete;
+trigger gt_ObjectiveEscapeTheLabFailed;
+trigger gt_ObjectiveSecuretheBridgeCreate;
+trigger gt_ObjectiveSecuretheBridgeComplete;
+trigger gt_ObjectiveSecuretheBridgeFailed;
+trigger gt_ObjectiveDestroytheWeaponsFacilityCreate;
+trigger gt_ObjectiveDestroytheWeaponsFacilityComplete;
+trigger gt_ObjectiveDestroytheWeaponsFacilityFailed;
+trigger gt_IntroNoxiousQ;
+trigger gt_IntroSetupNoxious;
+trigger gt_IntroCinematicNoxious;
+trigger gt_IntroCinematicEndNoxious;
+trigger gt_IntroCleanupNoxious;
+trigger gt_VictoryNoxiousQ;
+trigger gt_VictorySetupNoxious;
+trigger gt_VictoryMusicCueNoxious;
+trigger gt_VictoryCinematicNoxious;
+trigger gt_VictoryCinematicEndNoxious;
+trigger gt_VictoryCleanupNoxious;
+trigger gt_IntroTorrasqueQ;
+trigger gt_IntroSetupTorrasque;
+trigger gt_IntroCinematicTorrasque;
+trigger gt_IntroCinematicEndTorrasque;
+trigger gt_IntroCleanupTorrasque;
+trigger gt_VictoryTorrasqueQ;
+trigger gt_VictorySetupTorrasque;
+trigger gt_VictoryCinematicTorrasque;
+trigger gt_VictoryCinematicEndTorrasque;
+trigger gt_VictoryCleanupTorrasque;
+
+//--------------------------------------------------------------------------------------------------
+// Global Functions
+//--------------------------------------------------------------------------------------------------
+trigger auto_gf_AttachModelToUnitUntilDamaged_Trigger = null;
+unit auto_gf_AttachModelToUnitUntilDamaged_lp_unit;
+
+void gf_AttachModelToUnitUntilDamaged (unit lp_unit) {
+    auto_gf_AttachModelToUnitUntilDamaged_lp_unit = lp_unit;
+
+    if (auto_gf_AttachModelToUnitUntilDamaged_Trigger == null) {
+        auto_gf_AttachModelToUnitUntilDamaged_Trigger = TriggerCreate("auto_gf_AttachModelToUnitUntilDamaged_TriggerFunc");
+    }
+
+    TriggerExecute(auto_gf_AttachModelToUnitUntilDamaged_Trigger, false, false);
+}
+
+bool auto_gf_AttachModelToUnitUntilDamaged_TriggerFunc (bool testConds, bool runActions) {
+    unit lp_unit = auto_gf_AttachModelToUnitUntilDamaged_lp_unit;
+
+    // Implementation
+    libSwaC_gf_AttachReticleEffectAndTextTagOnUnit(2, 0, null, lp_unit, "Center");
+    while (!((UnitGetPropertyFixed(lp_unit, c_unitPropLifePercent, c_unitPropCurrent) < 100.0))) {
+        Wait(0.25, c_timeGame);
+    }
+    libNtve_gf_KillModel(libNtve_gf_ActorLastCreated());
+    return true;
+}
+
+void gf_AutoRevealRegionCheckCliffLevel (region lp_visibilityRegion, region lp_triggeringRegion, int lp_player) {
+    // Implementation
+    if ((gv_autoRevealCheckCliffLevel.lv_count >= 64)) {
+        return ;
+    }
+    else {
+    }
+    gv_autoRevealCheckCliffLevel.lv_revealedRegions[gv_autoRevealCheckCliffLevel.lv_count] = lp_visibilityRegion;
+    gv_autoRevealCheckCliffLevel.lv_triggeringRegions[gv_autoRevealCheckCliffLevel.lv_count] = lp_triggeringRegion;
+    gv_autoRevealCheckCliffLevel.lv_triggeringPlayers[gv_autoRevealCheckCliffLevel.lv_count] = lp_player;
+    gv_autoRevealCheckCliffLevel.lv_count += 1;
+    TriggerExecute(gt_AutoRevealRegionControllerCheckCliffLevel, true, false);
+}
+
+trigger auto_gf_CreateGasCloud_Trigger = null;
+point auto_gf_CreateGasCloud_lp_location;
+
+void gf_CreateGasCloud (point lp_location) {
+    auto_gf_CreateGasCloud_lp_location = lp_location;
+
+    if (auto_gf_CreateGasCloud_Trigger == null) {
+        auto_gf_CreateGasCloud_Trigger = TriggerCreate("auto_gf_CreateGasCloud_TriggerFunc");
+    }
+
+    TriggerExecute(auto_gf_CreateGasCloud_Trigger, false, false);
+}
+
+bool auto_gf_CreateGasCloud_TriggerFunc (bool testConds, bool runActions) {
+    point lp_location = auto_gf_CreateGasCloud_lp_location;
+
+    // Implementation
+    libNtve_gf_CreateModelAtPoint("PoisonGasCloud", lp_location);
+    ActorSend(libNtve_gf_ActorLastCreated(), libNtve_gf_SetOpacity(0.0, 0.0));
+    ActorSend(libNtve_gf_ActorLastCreated(), libNtve_gf_SetScale(1.3, 1.3, 1.3, 0.0));
+    ActorSend(libNtve_gf_ActorLastCreated(), libNtve_gf_SetOpacity(1.0, 5.0));
+    return true;
+}
+
+trigger auto_gf_Fog_Trigger = null;
+point auto_gf_Fog_lp_location;
+fixed auto_gf_Fog_lp_delay;
+
+void gf_Fog (point lp_location, fixed lp_delay) {
+    auto_gf_Fog_lp_location = lp_location;
+    auto_gf_Fog_lp_delay = lp_delay;
+
+    if (auto_gf_Fog_Trigger == null) {
+        auto_gf_Fog_Trigger = TriggerCreate("auto_gf_Fog_TriggerFunc");
+    }
+
+    TriggerExecute(auto_gf_Fog_Trigger, false, false);
+}
+
+bool auto_gf_Fog_TriggerFunc (bool testConds, bool runActions) {
+    point lp_location = auto_gf_Fog_lp_location;
+    fixed lp_delay = auto_gf_Fog_lp_delay;
+
+    // Implementation
+    Wait(lp_delay, c_timeGame);
+    libNtve_gf_CreateModelAtPoint("FogMist", lp_location);
+    ActorSend(libNtve_gf_ActorLastCreated(), libNtve_gf_SetScale(1.5, 1.5, 1.5, 0.0));
+    ActorSend(libNtve_gf_ActorLastCreated(), libNtve_gf_SetTintColor(Color(100.00, 50.20, 25.10), 1.5, 0.0));
+    ActorSend(libNtve_gf_ActorLastCreated(), libNtve_gf_SetOpacity(0.0, 0.0));
+    ActorSend(libNtve_gf_ActorLastCreated(), libNtve_gf_SetOpacity(1.0, 5.0));
+    return true;
+}
+
+trigger auto_gf_UltraliskSick_Trigger = null;
+unit auto_gf_UltraliskSick_lp_ultralisk;
+
+void gf_UltraliskSick (unit lp_ultralisk) {
+    auto_gf_UltraliskSick_lp_ultralisk = lp_ultralisk;
+
+    if (auto_gf_UltraliskSick_Trigger == null) {
+        auto_gf_UltraliskSick_Trigger = TriggerCreate("auto_gf_UltraliskSick_TriggerFunc");
+    }
+
+    TriggerExecute(auto_gf_UltraliskSick_Trigger, false, false);
+}
+
+bool auto_gf_UltraliskSick_TriggerFunc (bool testConds, bool runActions) {
+    unit lp_ultralisk = auto_gf_UltraliskSick_lp_ultralisk;
+
+    int auto590137F6_n;
+    int auto590137F6_i;
+
+    // Variable Declarations
+    fixed lv_hDR;
+    fixed lv_speed;
+
+    // Variable Initialization
+    lv_hDR = 0.0;
+    lv_speed = 2.9;
+
+    // Implementation
+    auto590137F6_n = 5;
+    auto590137F6_i = 1;
+    while (auto590137F6_i <= auto590137F6_n) {
+        lv_hDR += 0.2;
+        lv_speed -= 0.4;
+        libNtve_gf_SendActorMessageToUnit(lp_ultralisk, libNtve_gf_SetTintColor(Color(100.0, 50.0, 25.0), lv_hDR, 1.0));
+        Wait(0.3, c_timeGame);
+        UnitSetPropertyFixed(lp_ultralisk, c_unitPropMovementSpeed, lv_speed);
+        auto590137F6_i = auto590137F6_i + 1;
+    }
+    return true;
+}
+
+void gf_NukeDrop (point lp_location) {
+    // Implementation
+    PlayerCreateEffectPoint(gv_pLAYER_02_DOMINION, "EvoNukeDetonate", lp_location);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Initialization
+//--------------------------------------------------------------------------------------------------
+bool gt_Initialization_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libSwaC_gf_ULoadCampaignData("ZEvolutionUltralisk");
+    TriggerExecute(gt_Init01Technology, true, true);
+    libSwaC_gf_PurchaseStorymodeTech();
+    TriggerExecute(gt_Init02Players, true, true);
+    TriggerExecute(gt_Init03Units, true, true);
+    TriggerExecute(gt_Init04Music, true, true);
+    TriggerExecute(gt_Init05Environment, true, true);
+    TriggerExecute(gt_Init06Difficulties, true, true);
+    TriggerExecute(gt_Init07Help, true, true);
+    gv_torrasqueActive = false;
+    gv_noxiousActive = true;
+    TriggerExecute(gt_IntroNoxiousQ, true, true);
+    TriggerExecute(gt_StartGameQ, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Initialization_Init () {
+    gt_Initialization = TriggerCreate("gt_Initialization_Func");
+    TriggerAddEventMapInit(gt_Initialization);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 01 Technology
+//--------------------------------------------------------------------------------------------------
+bool gt_Init01Technology_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libSwaC_gf_SetTechRestrictionsCallback(TriggerGetCurrent());
+    TechTreeUpgradeAddLevel(gv_pLAYER_02_DOMINION, "SiegeTech", 1);
+    TechTreeAbilityAllow(gv_pLAYER_01_USER, AbilityCommand("UltraliskBurrowCharge", 0), false);
+    TechTreeAbilityAllow(gv_pLAYER_01_USER, AbilityCommand("UltraliskBurrowChargeNoxious", 0), false);
+    TechTreeUpgradeAddLevel(gv_pLAYER_01_USER, "HotSTorrasque", 1);
+    TechTreeAbilityAllow(gv_pLAYER_01_USER, AbilityCommand("TorrasqueChrysalis", 0), true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init01Technology_Init () {
+    gt_Init01Technology = TriggerCreate("gt_Init01Technology_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 02 Players
+//--------------------------------------------------------------------------------------------------
+bool gt_Init02Players_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libNtve_gf_SetAlliance(gv_pLAYER_01_USER, gv_pLAYER_02_DOMINION, 5);
+    libNtve_gf_SetAlliance(gv_pLAYER_01_USER, gv_pLAYER_03_DOMINION_WRECKABLE, 7);
+    libNtve_gf_SetAlliance(gv_pLAYER_01_USER, gv_pLAYER_04_CAGED_ZERG, 0);
+    libNtve_gf_SetAlliance(gv_pLAYER_02_DOMINION, gv_pLAYER_03_DOMINION_WRECKABLE, 0);
+    libNtve_gf_SetAlliance(gv_pLAYER_02_DOMINION, gv_pLAYER_04_CAGED_ZERG, 0);
+    libNtve_gf_SetAlliance(gv_pLAYER_03_DOMINION_WRECKABLE, gv_pLAYER_04_CAGED_ZERG, 7);
+    UISetFrameVisible(PlayerGroupAll(), c_syncFrameTypeResourcePanel, false);
+    PlayerModifyPropertyInt(gv_pLAYER_01_USER, c_playerPropSuppliesMade, c_playerPropOperSetTo, 200);
+    PlayerSetState(gv_pLAYER_02_DOMINION, c_playerStateFidgetingEnabled, false);
+    PlayerSetState(gv_pLAYER_03_DOMINION_WRECKABLE, c_playerStateFidgetingEnabled, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init02Players_Init () {
+    gt_Init02Players = TriggerCreate("gt_Init02Players_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 03 Units
+//--------------------------------------------------------------------------------------------------
+bool gt_Init03Units_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupLoopBegin(UnitGroup(null, c_playerAny, RegionFromId(11), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitGroupAdd(gv_noxiousUnits, UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(UnitGroup(null, c_playerAny, RegionFromId(6), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitGroupAdd(gv_torrasqueUnits, UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(UnitGroup(null, c_playerAny, RegionFromId(5), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        libNtve_gf_MakeUnitInvulnerable(UnitGroupLoopCurrent(), true);
+        UnitSetState(UnitGroupLoopCurrent(), c_unitStateHighlightable, false);
+        UnitSetState(UnitGroupLoopCurrent(), c_unitStateSelectable, false);
+        UnitSetState(UnitGroupLoopCurrent(), c_unitStateTargetable, false);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    libSwaC_gf_SetUnitInfoTextCampaign(gv_containmentCell, StringExternal("Param/Value/7E2E2334"), StringExternal("Param/Value/36E24155"), null);
+    UnitSetPropertyFixed(gv_containmentCell, c_unitPropLifeMax, 100.0);
+    UnitBehaviorAdd(gv_containmentCell, "Passive", gv_containmentCell, 1);
+    CatalogFieldValueSet(c_gameCatalogUnit, "UmojanLabGenerator", "Sight", gv_pLAYER_02_DOMINION, "0");
+    UnitGroupLoopBegin(UnitGroup("DestructibleUmojanLabPowerCell", 0, RegionFromId(27), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitSetState(UnitGroupLoopCurrent(), c_unitStateTargetable, false);
+        UnitSetState(UnitGroupLoopCurrent(), c_unitStateSelectable, false);
+        UnitSetState(UnitGroupLoopCurrent(), c_unitStateInvulnerable, true);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_04_CAGED_ZERG, RegionFromId(17), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitSetTeamColorIndex(UnitGroupLoopCurrent(), 5);
+        UnitSetState(UnitGroupLoopCurrent(), c_unitStateTargetable, false);
+        UnitSetState(UnitGroupLoopCurrent(), c_unitStateSelectable, false);
+        UnitSetState(UnitGroupLoopCurrent(), c_unitStateInvulnerable, true);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_04_CAGED_ZERG, RegionFromId(12), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitSetTeamColorIndex(UnitGroupLoopCurrent(), 5);
+        UnitSetState(UnitGroupLoopCurrent(), c_unitStateTargetable, false);
+        UnitSetState(UnitGroupLoopCurrent(), c_unitStateSelectable, false);
+        UnitSetState(UnitGroupLoopCurrent(), c_unitStateInvulnerable, true);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitSetState(gv_startingUltralisk, c_unitStateTooltipable, false);
+    libSwaC_gf_SetUnitInfoTextCampaign(gv_labExitBeacon, StringExternal("Param/Value/E618EACD"), StringExternal("Param/Value/F574C1DD"), null);
+    libNtve_gf_CreateUnitsAtPoint2(1, "SiegeTank", 0, gv_pLAYER_02_DOMINION, PointFromId(363));
+    gv_tank = UnitLastCreated();
+    libNtve_gf_CreateUnitsAtPoint2(1, "CivilianCarsUnit", 0, 0, PointFromId(493));
+    UnitSetScale(UnitLastCreated(), 70.0, 70.0, 70.0);
+    UnitGroupLoopBegin(UnitGroup("AbandonedBuilding", c_playerAny, RegionFromId(6), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitSetPropertyFixed(UnitGroupLoopCurrent(), c_unitPropLifeMax, 200.0);
+        UnitSetPropertyFixed(UnitGroupLoopCurrent(), c_unitPropLifePercent, 100.0);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitSetPropertyFixed(gv_weaponsFacility, c_unitPropLifeMax, 500.0);
+    UnitSetPropertyFixed(gv_weaponsFacility, c_unitPropLifePercent, 100.0);
+    libSwaC_gf_SetUnitInfoTextCampaign(gv_weaponsFacility, StringExternal("Param/Value/455B32E4"), StringExternal("Param/Value/EAA0DC78"), null);
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_01_USER, RegionFromId(6), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitGroupAdd(gv_torrasques, UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_02_DOMINION, RegionFromId(24), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitGroupAdd(gv_bridgeGuards, UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(UnitGroup("Bunker", gv_pLAYER_02_DOMINION, RegionFromId(24), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitCargoCreate(UnitGroupLoopCurrent(), "Firebat", 1);
+        UnitGroupAddUnitGroup(gv_bridgeGuards, UnitCargoLastCreatedGroup());
+        UnitCargoCreate(UnitGroupLoopCurrent(), "Marine", 1);
+        UnitGroupAddUnitGroup(gv_bridgeGuards, UnitCargoLastCreatedGroup());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(UnitGroup("Bunker", gv_pLAYER_02_DOMINION, RegionFromId(14), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitCargoCreate(UnitGroupLoopCurrent(), "Marine", 1);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init03Units_Init () {
+    gt_Init03Units = TriggerCreate("gt_Init03Units_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 04 Music
+//--------------------------------------------------------------------------------------------------
+bool gt_Init04Music_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    gv_mapMusicTrack = libSwaC_gf_MissionDefaultMusic();
+    SoundtrackPlay(PlayerGroupAll(), c_soundtrackCategoryMusic, gv_mapMusicTrack, c_soundtrackCueAny, c_soundtrackIndexAny, true);
+    SoundtrackPlay(PlayerGroupAll(), c_soundtrackCategoryAmbience, "Ambience_Korhal", c_soundtrackCueAny, c_soundtrackIndexAny, true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init04Music_Init () {
+    gt_Init04Music = TriggerCreate("gt_Init04Music_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 05 Environment
+//--------------------------------------------------------------------------------------------------
+bool gt_Init05Environment_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    GameTimeOfDaySet("08:00:00");
+    libNtve_gf_ShareVisionofUnit(gv_startingUltralisk, true, gv_pLAYER_01_USER);
+    gf_AutoRevealRegionCheckCliffLevel(RegionFromId(10), RegionFromId(10), gv_pLAYER_01_USER);
+    gf_AutoRevealRegionCheckCliffLevel(RegionFromId(28), RegionFromId(10), gv_pLAYER_01_USER);
+    gf_AutoRevealRegionCheckCliffLevel(RegionFromId(29), RegionFromId(10), gv_pLAYER_01_USER);
+    gf_AutoRevealRegionCheckCliffLevel(RegionFromId(45), RegionFromId(10), gv_pLAYER_01_USER);
+    gf_AutoRevealRegionCheckCliffLevel(RegionFromId(7), RegionFromId(7), gv_pLAYER_01_USER);
+    gf_AutoRevealRegionCheckCliffLevel(RegionFromId(9), RegionFromId(7), gv_pLAYER_01_USER);
+    gf_AutoRevealRegionCheckCliffLevel(RegionFromId(13), RegionFromId(13), gv_pLAYER_01_USER);
+    gf_AutoRevealRegionCheckCliffLevel(RegionFromId(4), RegionFromId(4), gv_pLAYER_01_USER);
+    gf_AutoRevealRegionCheckCliffLevel(RegionFromId(25), RegionFromId(4), gv_pLAYER_01_USER);
+    gf_AutoRevealRegionCheckCliffLevel(RegionFromId(39), RegionFromId(4), gv_pLAYER_01_USER);
+    gf_AutoRevealRegionCheckCliffLevel(RegionFromId(32), RegionFromId(32), gv_pLAYER_01_USER);
+    gf_AutoRevealRegionCheckCliffLevel(RegionFromId(33), RegionFromId(33), gv_pLAYER_01_USER);
+    gf_AutoRevealRegionCheckCliffLevel(RegionFromId(43), RegionFromId(33), gv_pLAYER_01_USER);
+    gf_AutoRevealRegionCheckCliffLevel(RegionFromId(40), RegionFromId(33), gv_pLAYER_01_USER);
+    gf_AutoRevealRegionCheckCliffLevel(RegionFromId(35), RegionFromId(33), gv_pLAYER_01_USER);
+    gf_AutoRevealRegionCheckCliffLevel(RegionFromId(36), RegionFromId(33), gv_pLAYER_01_USER);
+    libLbty_gf_AutoRevealRegion(RegionFromId(30), RegionFromId(30), gv_pLAYER_01_USER);
+    libLbty_gf_AutoRevealRegion(RegionFromId(31), RegionFromId(31), gv_pLAYER_01_USER);
+    libLbty_gf_AutoRevealRegion(RegionFromId(49), RegionFromId(49), gv_pLAYER_01_USER);
+    libLbty_gf_AutoRevealRegion(RegionFromId(50), RegionFromId(50), gv_pLAYER_01_USER);
+    libLbty_gf_AutoRevealRegion(RegionFromId(51), RegionFromId(51), gv_pLAYER_01_USER);
+    libLbty_gf_AutoRevealRegion(RegionFromId(52), RegionFromId(52), gv_pLAYER_01_USER);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init05Environment_Init () {
+    gt_Init05Environment = TriggerCreate("gt_Init05Environment_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 06 Difficulties
+//--------------------------------------------------------------------------------------------------
+bool gt_Init06Difficulties_Func (bool testConds, bool runActions) {
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init06Difficulties_Init () {
+    gt_Init06Difficulties = TriggerCreate("gt_Init06Difficulties_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 07 Help
+//--------------------------------------------------------------------------------------------------
+bool gt_Init07Help_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libSwaC_gf_AddMissionTipUserData("Noxious Strain");
+    libSwaC_gf_AddMissionTipUserData("Dominon (ZEvoUltra)");
+    libSwaC_gf_AddMissionTipUserData("Torrasque Strain");
+    libSwaC_gf_AddMissionTipUserData("Revive");
+    libSwaC_gf_AddMissionTipUserData("Reinforcements (ZEvoUltra)");
+    libSwaC_gf_AddUnitTypeToUnitHelpPanel("Ultralisk", false, gv_pLAYER_01_USER);
+    libSwaC_gf_AddUnitTypeToUnitHelpPanel("Marine", false, gv_pLAYER_01_USER);
+    libSwaC_gf_AddUnitTypeToUnitHelpPanel("Medic", false, gv_pLAYER_01_USER);
+    libSwaC_gf_AddUnitTypeToUnitHelpPanel("Firebat", false, gv_pLAYER_01_USER);
+    libSwaC_gf_AddUnitTypeToUnitHelpPanel("MengskGoliath", false, gv_pLAYER_01_USER);
+    libSwaC_gf_AddUnitTypeToUnitHelpPanel("SiegeTank", false, gv_pLAYER_01_USER);
+    libSwaC_gf_AddUnitTypeToUnitHelpPanel("VikingAssault", false, gv_pLAYER_01_USER);
+    libSwaC_gf_AddUnitTypeToUnitHelpPanel("Bunker", false, gv_pLAYER_01_USER);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init07Help_Init () {
+    gt_Init07Help = TriggerCreate("gt_Init07Help_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Stage 2 - Torrasque
+//--------------------------------------------------------------------------------------------------
+bool gt_Stage2Torrasque_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+
+        if (!((gv_inCinematic == false))) {
+            return false;
+        }
+
+        if (!((gv_noxiousActive == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerEnable(gt_LabEscaped, false);
+    if ((TriggerQueueIsEmpty() == false)) {
+        TriggerQueueClear(c_triggerQueueRetain);
+    }
+    else {
+    }
+    TriggerExecute(gt_VictoryEscapetheLabCompleted, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Stage2Torrasque_Init () {
+    gt_Stage2Torrasque = TriggerCreate("gt_Stage2Torrasque_Func");
+    TriggerAddEventChatMessage(gt_Stage2Torrasque, c_playerAny, "EVO2", true);
+    TriggerAddEventChatMessage(gt_Stage2Torrasque, c_playerAny, "s2", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Auto Reveal Region Controller - Check Cliff Level
+//--------------------------------------------------------------------------------------------------
+bool gt_AutoRevealRegionControllerCheckCliffLevel_Func (bool testConds, bool runActions) {
+    int auto0176D648_ae;
+    int auto0176D648_ai;
+
+    // Variable Declarations
+    int lv_i;
+
+    // Variable Initialization
+    lv_i = 0;
+
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    while (true) {
+        auto0176D648_ae = (gv_autoRevealCheckCliffLevel.lv_count - 1);
+        auto0176D648_ai = 1;
+        lv_i = 0;
+        while ((auto0176D648_ai >= 0 && lv_i <= auto0176D648_ae) || (auto0176D648_ai <= 0 && lv_i >= auto0176D648_ae)) {
+            if ((UnitGroupCount(UnitGroup(null, gv_autoRevealCheckCliffLevel.lv_triggeringPlayers[lv_i], gv_autoRevealCheckCliffLevel.lv_triggeringRegions[lv_i], UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), c_unitCountAlive) > 0)) {
+                VisRevealArea(gv_pLAYER_01_USER, gv_autoRevealCheckCliffLevel.lv_revealedRegions[lv_i], 1.1, true);
+            }
+            else {
+            }
+            if (lv_i == auto0176D648_ae) {
+                break;
+            }
+            lv_i = lv_i + auto0176D648_ai;
+        }
+        if ((gv_noxiousActive == false) && (gv_torrasqueActive == true)) {
+            return true;
+        }
+        else {
+        }
+        Wait(1.0, c_timeGame);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_AutoRevealRegionControllerCheckCliffLevel_Init () {
+    gt_AutoRevealRegionControllerCheckCliffLevel = TriggerCreate("gt_AutoRevealRegionControllerCheckCliffLevel_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Start Game Q
+//--------------------------------------------------------------------------------------------------
+bool gt_StartGameQ_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    gv_backupPoint = PointFromId(281);
+    UIAlertPoint("Trigger", gv_pLAYER_01_USER, StringExternal("Param/Value/34CB77DC"), null, PointFromId(281));
+    Wait(3.0, c_timeGame);
+    TriggerQueueEnter();
+    TriggerExecute(gt_ObjectiveEscapeTheLabCreate, true, true);
+    TriggerQueueExit();
+    TriggerExecute(gt_TipMissionHelpQ, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_StartGameQ_Init () {
+    gt_StartGameQ = TriggerCreate("gt_StartGameQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Noxious Music Cue
+//--------------------------------------------------------------------------------------------------
+bool gt_NoxiousMusicCue_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    SoundPlay(SoundLink("ZEvoMusicStinger", -1), PlayerGroupAll(), 100.0, 0.0);
+    SoundtrackPlay(PlayerGroupAll(), c_soundtrackCategoryMusic, "ZEvoMusicAlt", c_soundtrackCueAny, c_soundtrackIndexAny, true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_NoxiousMusicCue_Init () {
+    gt_NoxiousMusicCue = TriggerCreate("gt_NoxiousMusicCue_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Reinforcements - All Units Dead
+//--------------------------------------------------------------------------------------------------
+bool gt_ReinforcementsAllUnitsDead_Func (bool testConds, bool runActions) {
+    point auto33E29C2C_val;
+
+    // Variable Declarations
+    unitgroup lv_backupUnits;
+
+    // Variable Initialization
+    lv_backupUnits = UnitGroupEmpty();
+
+    // Conditions
+    if (testConds) {
+        if (!((gv_gameOver == false))) {
+            return false;
+        }
+
+        if (!((gv_inCinematic == false))) {
+            return false;
+        }
+
+        if (!((((gv_torrasqueActive == true) && (UnitGroupCount(UnitGroup(null, gv_pLAYER_01_USER, RegionFromId(6), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), c_unitCountAlive) == 0)) || ((gv_noxiousActive == true) && (UnitGroupCount(gv_noxious, c_unitCountAlive) == 0))))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    while (!((TriggerQueueIsEmpty() == true))) {
+        Wait(1.0, c_timeGame);
+    }
+    TriggerQueuePause(true);
+    TransmissionClearAll();
+    UISetMode(PlayerGroupAll(), c_uiModeFullscreen, 1.0);
+    Wait(1.0, c_timeReal);
+    gv_inCinematic = true;
+    libSwaC_gf_CinematicModeSwarmCampaign(true, c_transitionDurationDefault);
+    libNtve_gf_GlobalCinematicSetting(true);
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(0);
+    UnitClearSelection(gv_pLAYER_01_USER);
+    CameraPan(gv_pLAYER_01_USER, gv_backupPoint, 4.0, -1, 10.0, false);
+    auto33E29C2C_val = gv_backupPoint;
+    if (auto33E29C2C_val == PointFromId(281)) {
+        libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00054", c_transmissionDurationAdd, 0.0, false, 1, 0);
+        libNtve_gf_CreateUnitsAtPoint2(1, "UltraliskBurrowed", 0, gv_pLAYER_01_USER, gv_backupPoint);
+        UnitGroupAddUnitGroup(gv_noxious, UnitLastCreatedGroup());
+        UnitGroupAddUnitGroup(lv_backupUnits, UnitLastCreatedGroup());
+        UnitGroupIssueOrder(UnitLastCreatedGroup(), Order(AbilityCommand("BurrowUltraliskUp", 0)), c_orderQueueReplace);
+    }
+    else if (auto33E29C2C_val == PointFromId(461)) {
+        libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00054", c_transmissionDurationAdd, 0.0, false, 1, 0);
+        libNtve_gf_CreateUnitsAtPoint2(3, "HotSNoxiousBurrowed", 0, gv_pLAYER_01_USER, gv_backupPoint);
+        UnitGroupAddUnitGroup(gv_noxious, UnitLastCreatedGroup());
+        UnitGroupAddUnitGroup(lv_backupUnits, UnitLastCreatedGroup());
+        UnitGroupIssueOrder(UnitLastCreatedGroup(), Order(AbilityCommand("BurrowNoxiousUp", 0)), c_orderQueueReplace);
+    }
+    else if (auto33E29C2C_val == PointFromId(743)) {
+        libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00054", c_transmissionDurationAdd, 0.0, false, 1, 0);
+        libNtve_gf_CreateUnitsAtPoint2(3, "HotSNoxiousBurrowed", 0, gv_pLAYER_01_USER, gv_backupPoint);
+        UnitGroupAddUnitGroup(gv_noxious, UnitLastCreatedGroup());
+        UnitGroupAddUnitGroup(lv_backupUnits, UnitLastCreatedGroup());
+        UnitGroupIssueOrder(UnitLastCreatedGroup(), Order(AbilityCommand("BurrowNoxiousUp", 0)), c_orderQueueReplace);
+    }
+    else if (auto33E29C2C_val == PointFromId(744)) {
+        libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00054", c_transmissionDurationAdd, 0.0, false, 1, 0);
+        libNtve_gf_CreateUnitsAtPoint2(3, "Ultralisk", 0, gv_pLAYER_01_USER, gv_backupPoint);
+        UnitGroupAddUnitGroup(gv_torrasques, UnitLastCreatedGroup());
+        UnitGroupAddUnitGroup(lv_backupUnits, UnitLastCreatedGroup());
+        libSwaC_gf_CreateDropPod(1, gv_backupPoint, UnitLastCreatedGroup(), false, gv_pLAYER_01_USER);
+    }
+    else if (auto33E29C2C_val == PointFromId(745)) {
+        libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00054", c_transmissionDurationAdd, 0.0, false, 1, 0);
+        libNtve_gf_CreateUnitsAtPoint2(3, "HotSTorrasque", 0, gv_pLAYER_01_USER, gv_backupPoint);
+        UnitGroupAddUnitGroup(gv_torrasques, UnitLastCreatedGroup());
+        UnitGroupAddUnitGroup(lv_backupUnits, UnitLastCreatedGroup());
+        libSwaC_gf_CreateDropPod(1, gv_backupPoint, UnitLastCreatedGroup(), false, gv_pLAYER_01_USER);
+    }
+    else if (auto33E29C2C_val == PointFromId(746)) {
+        libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00054", c_transmissionDurationAdd, 0.0, false, 1, 0);
+        libNtve_gf_CreateUnitsAtPoint2(3, "HotSTorrasque", 0, gv_pLAYER_01_USER, gv_backupPoint);
+        UnitGroupAddUnitGroup(gv_torrasques, UnitLastCreatedGroup());
+        UnitGroupAddUnitGroup(lv_backupUnits, UnitLastCreatedGroup());
+        libSwaC_gf_CreateDropPod(1, gv_backupPoint, UnitLastCreatedGroup(), false, gv_pLAYER_01_USER);
+    }
+    else if (auto33E29C2C_val == PointFromId(747)) {
+        libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00054", c_transmissionDurationAdd, 0.0, false, 1, 0);
+        libNtve_gf_CreateUnitsAtPoint2(3, "HotSTorrasque", 0, gv_pLAYER_01_USER, gv_backupPoint);
+        UnitGroupAddUnitGroup(gv_torrasques, UnitLastCreatedGroup());
+        UnitGroupAddUnitGroup(lv_backupUnits, UnitLastCreatedGroup());
+        libSwaC_gf_CreateDropPod(1, gv_backupPoint, UnitLastCreatedGroup(), false, gv_pLAYER_01_USER);
+    }
+    else if (auto33E29C2C_val == PointFromId(748)) {
+        libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00054", c_transmissionDurationAdd, 0.0, false, 1, 0);
+        libNtve_gf_CreateUnitsAtPoint2(3, "HotSTorrasque", 0, gv_pLAYER_01_USER, gv_backupPoint);
+        UnitGroupAddUnitGroup(gv_torrasques, UnitLastCreatedGroup());
+        UnitGroupAddUnitGroup(lv_backupUnits, UnitLastCreatedGroup());
+        libSwaC_gf_CreateDropPod(1, PointWithOffsetPolar(gv_backupPoint, 2.0, 0.0), UnitLastCreatedGroup(), false, gv_pLAYER_01_USER);
+        libNtve_gf_CreateUnitsAtPoint2(2, "HotSTorrasque", 0, gv_pLAYER_01_USER, gv_backupPoint);
+        UnitGroupAddUnitGroup(gv_torrasques, UnitLastCreatedGroup());
+        UnitGroupAddUnitGroup(lv_backupUnits, UnitLastCreatedGroup());
+        libSwaC_gf_CreateDropPod(1, PointWithOffsetPolar(gv_backupPoint, 2.0, 120.0), UnitLastCreatedGroup(), false, gv_pLAYER_01_USER);
+        libNtve_gf_CreateUnitsAtPoint2(2, "HotSTorrasque", 0, gv_pLAYER_01_USER, gv_backupPoint);
+        UnitGroupAddUnitGroup(gv_torrasques, UnitLastCreatedGroup());
+        UnitGroupAddUnitGroup(lv_backupUnits, UnitLastCreatedGroup());
+        libSwaC_gf_CreateDropPod(1, PointWithOffsetPolar(gv_backupPoint, 2.0, 240.0), UnitLastCreatedGroup(), false, gv_pLAYER_01_USER);
+    }
+    else {
+        gv_gameOver = true;
+        TriggerQueuePause(true);
+        TriggerQueueClear(c_triggerQueueRemove);
+        Wait(2.0, c_timeReal);
+        TransmissionWait(TransmissionLastSent(), 0.0);
+        libSwaC_gf_DisplayCampaignMessage(PlayerGroupAll(), 0, StringExternal("Param/Value/72E8DE54"), 0);
+        Wait(libSwaC_gv_campaignObjectiveDelay, c_timeReal);
+        TriggerExecute(gt_Defeat, true, false);
+        return true;
+    }
+    Wait(3.0, c_timeReal);
+    TransmissionWait(TransmissionLastSent(), 0.0);
+    while (!((UnitGroupCount(UnitGroupFilter(null, c_playerAny, lv_backupUnits, UnitFilter(0, (1 << (c_targetFilterHidden - 32)), 0, 0), 0), c_unitCountAlive) == 0))) {
+        Wait(0.1, c_timeGame);
+    }
+    UnitGroupSelect(lv_backupUnits, gv_pLAYER_01_USER, true);
+    libNtve_gf_CinematicMode(false, PlayerGroupAll(), c_transitionDurationDefault);
+    libNtve_gf_GlobalCinematicSetting(false);
+    gv_inCinematic = false;
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+    TriggerQueuePause(false);
+    TriggerEnable(TriggerGetCurrent(), true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ReinforcementsAllUnitsDead_Init () {
+    gt_ReinforcementsAllUnitsDead = TriggerCreate("gt_ReinforcementsAllUnitsDead_Func");
+    TriggerAddEventTimePeriodic(gt_ReinforcementsAllUnitsDead, 1.0, c_timeGame);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Ultralisk Escaped
+//--------------------------------------------------------------------------------------------------
+bool gt_UltraliskEscaped_Func (bool testConds, bool runActions) {
+    fixed auto42541054_at;
+
+    // Variable Declarations
+    unitgroup lv_guards;
+
+    // Variable Initialization
+    lv_guards = UnitGroupEmpty();
+
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    UnitGroupClear(gv_noxious);
+    UnitClearSelection(gv_pLAYER_01_USER);
+    UnitSetOwner(gv_startingUltralisk, gv_pLAYER_04_CAGED_ZERG, false);
+    gv_startingUltralisk = EventUnitCreatedUnit();
+    UnitSelect(gv_startingUltralisk, gv_pLAYER_01_USER, true);
+    UnitGroupAdd(gv_noxious, gv_startingUltralisk);
+    UnitIssueOrder(gv_startingUltralisk, OrderTargetingPoint(AbilityCommand("attack", 0), PointFromId(20)), c_orderQueueReplace);
+    Wait(1.0, c_timeGame);
+    SoundPlay(SoundLink("HansonABChoiceAlarm", -1), PlayerGroupAll(), 100.0, 0.0);
+    TriggerExecute(gt_Room1ScientistsFlee, true, false);
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_02_DOMINION, RegionFromId(3), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitGroupAdd(lv_guards, UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitGroupIssueOrder(lv_guards, OrderTargetingPoint(AbilityCommand("attack", 0), PointFromId(720)), c_orderQueueReplace);
+    UnitGroupIssueOrder(lv_guards, OrderTargetingPoint(AbilityCommand("attack", 0), PointFromId(34)), c_orderQueueAddToEnd);
+    auto42541054_at = 0;
+    while (!((libNtve_gf_UnitGroupIsDead(lv_guards) == true)) && auto42541054_at <= 5.0) {
+        Wait(0.25, c_timeGame);
+        auto42541054_at = auto42541054_at + 0.25;
+    }
+    TriggerExecute(gt_TransmissionScientistYell1Q, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_UltraliskEscaped_Init () {
+    gt_UltraliskEscaped = TriggerCreate("gt_UltraliskEscaped_Func");
+    TriggerAddEventUnitCreated(gt_UltraliskEscaped, UnitRefFromUnit(UnitFromId(48)), "FreeUltralisk", null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Room 1 Scientists Flee
+//--------------------------------------------------------------------------------------------------
+bool gt_Room1ScientistsFlee_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    ActorSend(ActorFromDoodad(DoodadFromId(14)), "AnimPlay OpenMe Stand,Unpowered,Start");
+    UnitGroupIssueOrder(UnitGroup("Scientist", 0, RegionFromId(5), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), OrderTargetingPoint(AbilityCommand("move", 0), PointFromId(220)), c_orderQueueReplace);
+    Wait(3.0, c_timeGame);
+    ActorSend(ActorFromDoodad(DoodadFromId(14)), "AnimPlay Default Stand,Unpowered PlayForever");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Room1ScientistsFlee_Init () {
+    gt_Room1ScientistsFlee = TriggerCreate("gt_Room1ScientistsFlee_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Room 1 Passed
+//--------------------------------------------------------------------------------------------------
+bool gt_Room1Passed_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unitgroup lv_guards;
+
+    // Variable Initialization
+    lv_guards = UnitGroupEmpty();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGroupCount(UnitGroup(null, gv_pLAYER_01_USER, RegionFromId(15), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), c_unitCountAlive) > 0))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_02_DOMINION, RegionFromId(18), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitGroupAdd(lv_guards, UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitGroupIssueOrder(lv_guards, OrderTargetingUnit(AbilityCommand("attack", 0), gv_startingUltralisk), c_orderQueueReplace);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Room1Passed_Init () {
+    gt_Room1Passed = TriggerCreate("gt_Room1Passed_Func");
+    TriggerAddEventTimePeriodic(gt_Room1Passed, 0.5, c_timeGame);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Containment Control Intro
+//--------------------------------------------------------------------------------------------------
+bool gt_ContainmentControlIntro_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((UnitGroupCount(UnitGroup(null, gv_pLAYER_01_USER, RegionFromId(8), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), c_unitCountAlive) > 0))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    gf_AttachModelToUnitUntilDamaged(gv_containmentCell);
+    TriggerExecute(gt_TransmissionContainmentCellIntroQ, true, false);
+    UnitGroupLoopBegin(UnitGroup("HybridUltraliskShackled", c_playerAny, RegionFromId(27), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        libNtve_gf_ShareVisionofUnit(UnitGroupLoopCurrent(), true, gv_pLAYER_01_USER);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ContainmentControlIntro_Init () {
+    gt_ContainmentControlIntro = TriggerCreate("gt_ContainmentControlIntro_Func");
+    TriggerAddEventTimePeriodic(gt_ContainmentControlIntro, 0.5, c_timeGame);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Gas Damage
+//--------------------------------------------------------------------------------------------------
+bool gt_GasDamage_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unitgroup lv_gasUnits;
+
+    // Variable Initialization
+    lv_gasUnits = UnitGroupEmpty();
+
+    // Conditions
+    if (testConds) {
+        if (!((gv_noxiousActive == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_02_DOMINION, RegionFromId(13), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitGroupAdd(lv_gasUnits, UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_02_DOMINION, RegionFromId(4), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitGroupAdd(lv_gasUnits, UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(lv_gasUnits);
+    while (!UnitGroupLoopDone()) {
+        if ((UnitGetPropertyFixed(UnitGroupLoopCurrent(), c_unitPropLife, c_unitPropCurrent) <= gv_gasDamage_Terran)) {
+            UnitDamage(UnitGroupLoopCurrent(), "PoisonNovaDirectDamage", UnitGroupLoopCurrent(), 0.0);
+        }
+        else {
+            UnitSetPropertyFixed(UnitGroupLoopCurrent(), c_unitPropLife, (UnitGetPropertyFixed(UnitGroupLoopCurrent(), c_unitPropLife, c_unitPropCurrent) - gv_gasDamage_Terran));
+        }
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_GasDamage_Init () {
+    gt_GasDamage = TriggerCreate("gt_GasDamage_Func");
+    TriggerEnable(gt_GasDamage, false);
+    TriggerAddEventTimePeriodic(gt_GasDamage, 1.0, c_timeGame);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Noxious Morph Catch
+//--------------------------------------------------------------------------------------------------
+bool gt_NoxiousMorphCatch_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(EventUnitProgressUnit()) == "HotSNoxious"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupAdd(gv_noxious, EventUnitProgressUnit());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_NoxiousMorphCatch_Init () {
+    gt_NoxiousMorphCatch = TriggerCreate("gt_NoxiousMorphCatch_Func");
+    TriggerAddEventUnitTrainProgress(gt_NoxiousMorphCatch, null, c_unitProgressStageComplete);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Containment Control Destroyed
+//--------------------------------------------------------------------------------------------------
+bool gt_ContainmentControlDestroyed_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    gv_backupPoint = PointFromId(461);
+    TransmissionClearAll();
+    CameraShakeStart(gv_pLAYER_01_USER, c_cameraPositionTarget, c_cameraDirectionZ, 0.5, 2.0, 100.0, 2.0);
+    Wait(0.5, c_timeGame);
+    libNtve_gf_KillDoodadsInRegion(RegionFromId(13), "GateControlCables");
+    libNtve_gf_CreateExplosionAtPoint(0, 0, UnitGetPosition(EventUnit()));
+    Wait(0.5, c_timeGame);
+    libNtve_gf_CreateExplosionAtPoint(0, 0, UnitGetPosition(gv_gasContainer1));
+    Wait(0.5, c_timeGame);
+    libNtve_gf_CreateExplosionAtPoint(0, 0, UnitGetPosition(gv_gasContainer2));
+    Wait(0.5, c_timeGame);
+    UnitKill(gv_gasContainer1);
+    UnitKill(gv_gasContainer2);
+    gf_CreateGasCloud(PointFromId(251));
+    UnitGroupLoopBegin(UnitGroup("HybridUltraliskShackled", c_playerAny, RegionFromId(27), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitIssueOrder(UnitGroupLoopCurrent(), Order(AbilityCommand("FreeUltralisk", 0)), c_orderQueueReplace);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    Wait(1.0, c_timeGame);
+    TriggerExecute(gt_NoxiousMusicCue, true, false);
+    SoundPlay(SoundLink("Event_UltraliskEvo_UltralisksFreedVox", -1), PlayerGroupAll(), 100.0, 0.0);
+    Wait(1.5, c_timeGame);
+    UnitGroupLoopBegin(UnitGroup("Ultralisk", c_playerAny, RegionFromId(27), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        if ((UnitGroupLoopCurrent() != gv_startingUltralisk)) {
+            libNtve_gf_RescueUnit(UnitGroupLoopCurrent(), gv_pLAYER_01_USER, true);
+            UnitGroupAdd(gv_noxious, UnitGroupLoopCurrent());
+            UnitIssueOrder(UnitGroupLoopCurrent(), OrderTargetingPoint(AbilityCommand("move", 0), PointWithOffsetPolar(UnitGetPosition(UnitGroupLoopCurrent()), 3.0, UnitGetFacing(UnitGroupLoopCurrent()))), c_orderQueueReplace);
+        }
+        else {
+        }
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    Wait(2.0, c_timeGame);
+    UnitGroupLoopBegin(UnitGroup("Ultralisk", c_playerAny, RegionFromId(27), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        if ((UnitGroupLoopCurrent() != gv_startingUltralisk) && (UnitOrderCount(UnitGroupLoopCurrent()) == 0)) {
+            if ((UnitIsAlive(gv_startingUltralisk) == true)) {
+                UnitIssueOrder(UnitGroupLoopCurrent(), OrderTargetingPoint(AbilityCommand("move", 0), UnitGetPosition(gv_startingUltralisk)), c_orderQueueAddToEnd);
+            }
+            else {
+                UnitIssueOrder(UnitGroupLoopCurrent(), OrderTargetingPoint(AbilityCommand("move", 0), PointFromId(251)), c_orderQueueAddToEnd);
+            }
+        }
+        else {
+        }
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    Wait(1.0, c_timeGame);
+    TriggerExecute(gt_TransmissionContainmentCellDestroyedQ, true, false);
+    Wait(2.0, c_timeGame);
+    TriggerEnable(gt_ReinforcementsAllUnitsDead, false);
+    UnitGroupLoopBegin(gv_noxious);
+    while (!UnitGroupLoopDone()) {
+        libNtve_gf_MakeUnitUncommandable(UnitGroupLoopCurrent(), true);
+        UnitIssueOrder(UnitGroupLoopCurrent(), Order(AbilityCommand("stop", 0)), c_orderQueueReplace);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    Wait(2.0, c_timeGame);
+    UnitGroupLoopBegin(gv_noxious);
+    while (!UnitGroupLoopDone()) {
+        if ((UnitGetType(UnitGroupLoopCurrent()) == "UltraliskBurrowed")) {
+            libNtve_gf_ReplaceUnit(UnitGroupLoopCurrent(), "Ultralisk", 1);
+            libNtve_gf_MakeUnitUncommandable(libNtve_gf_LastReplacedUnit(), true);
+            UnitIssueOrder(libNtve_gf_LastReplacedUnit(), Order(AbilityCommand("MorphUltraliskToNoxious", 0)), c_orderQueueReplace);
+        }
+        else {
+            UnitIssueOrder(UnitGroupLoopCurrent(), Order(AbilityCommand("MorphUltraliskToNoxious", 0)), c_orderQueueReplace);
+        }
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    Wait(5.5, c_timeGame);
+    UnitGroupLoopBegin(gv_noxious);
+    while (!UnitGroupLoopDone()) {
+        libNtve_gf_MakeUnitUncommandable(UnitGroupLoopCurrent(), false);
+        UnitSelect(UnitGroupLoopCurrent(), gv_pLAYER_01_USER, true);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    TriggerEnable(gt_ReinforcementsAllUnitsDead, true);
+    libSwaC_gf_AddUnitTypeToUnitHelpPanel("HotSNoxious", false, gv_pLAYER_01_USER);
+    TriggerExecute(gt_TransmissionNoxiousStrainQ, true, true);
+    libSwaC_gf_CreateExplosionatPointAdvanced(UnitGetPosition(UnitFromId(88)), "DefaultExplosionTerranLarge", SoundLink("Event_UltraliskEvo_DoorExplodes", -1));
+    CameraShakeStart(gv_pLAYER_01_USER, c_cameraPositionTarget, c_cameraDirectionZ, 0.5, 2.0, 100.0, 1.0);
+    UnitIssueOrder(UnitFromId(88), Order(AbilityCommand("UmojanLabDoorsWideLeftLowered", 0)), c_orderQueueReplace);
+    Wait(1.0, c_timeGame);
+    gf_CreateGasCloud(PointFromId(252));
+    TriggerEnable(gt_GasDamage, true);
+    TriggerExecute(gt_GuardsFleeGas, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ContainmentControlDestroyed_Init () {
+    gt_ContainmentControlDestroyed = TriggerCreate("gt_ContainmentControlDestroyed_Func");
+    TriggerAddEventUnitDied(gt_ContainmentControlDestroyed, UnitRefFromVariable("gv_containmentCell"));
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Guards Flee Gas
+//--------------------------------------------------------------------------------------------------
+bool gt_GuardsFleeGas_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unitgroup lv_guards;
+
+    // Variable Initialization
+    lv_guards = UnitGroupEmpty();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    VisRevealArea(gv_pLAYER_01_USER, RegionFromId(4), 3.0, true);
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_02_DOMINION, RegionFromId(21), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitGroupAdd(lv_guards, UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    TriggerExecute(gt_TransmissionGuardsFleeGasQ, true, false);
+    UnitGroupIssueOrder(lv_guards, OrderTargetingPoint(AbilityCommand("move", 0), PointFromId(224)), c_orderQueueReplace);
+    UnitGroupIssueOrder(lv_guards, OrderTargetingPoint(AbilityCommand("move", 0), RegionGetCenter(RegionFromId(16))), c_orderQueueAddToEnd);
+    while (!((UnitOrderCount(UnitGroupUnit(lv_guards, 1)) == 0))) {
+        Wait(0.25, c_timeGame);
+    }
+    Wait(1.0, c_timeGame);
+    UnitGroupLoopBegin(lv_guards);
+    while (!UnitGroupLoopDone()) {
+        UnitSetFacing(UnitGroupLoopCurrent(), 225.0, 0.5);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_GuardsFleeGas_Init () {
+    gt_GuardsFleeGas = TriggerCreate("gt_GuardsFleeGas_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Room 2 Passed
+//--------------------------------------------------------------------------------------------------
+bool gt_Room2Passed_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unitgroup lv_guards;
+
+    // Variable Initialization
+    lv_guards = UnitGroupEmpty();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGroupCount(UnitGroup(null, gv_pLAYER_01_USER, RegionFromId(19), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), c_unitCountAlive) > 0))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_02_DOMINION, RegionFromId(16), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitGroupAdd(lv_guards, UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitGroupIssueOrder(lv_guards, OrderTargetingPoint(AbilityCommand("attack", 0), RegionGetCenter(RegionFromId(19))), c_orderQueueReplace);
+    while (!((libNtve_gf_UnitGroupIsDead(lv_guards) == true))) {
+        Wait(0.25, c_timeGame);
+    }
+    TriggerExecute(gt_TransmissionScientistYell2Q, true, false);
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_02_DOMINION, RegionFromId(2), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitGroupAdd(lv_guards, UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitGroupIssueOrder(lv_guards, OrderTargetingPoint(AbilityCommand("attack", 0), RegionGetCenter(RegionFromId(19))), c_orderQueueReplace);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Room2Passed_Init () {
+    gt_Room2Passed = TriggerCreate("gt_Room2Passed_Func");
+    TriggerAddEventTimePeriodic(gt_Room2Passed, 0.5, c_timeGame);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Room 3 Passed
+//--------------------------------------------------------------------------------------------------
+bool gt_Room3Passed_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unitgroup lv_guards;
+    int lv_guardCount;
+
+    // Variable Initialization
+    lv_guards = UnitGroupEmpty();
+    lv_guardCount = 0;
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGroupCount(UnitGroup(null, gv_pLAYER_01_USER, RegionFromId(26), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), c_unitCountAlive) > 0))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    gv_backupPoint = PointFromId(743);
+    TriggerExecute(gt_TransmissionScientistYell3Q, true, false);
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_02_DOMINION, RegionFromId(23), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitGroupAdd(lv_guards, UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitGroupIssueOrder(lv_guards, OrderTargetingPoint(AbilityCommand("attack", 0), RegionGetCenter(RegionFromId(26))), c_orderQueueReplace);
+    while (!((libNtve_gf_UnitGroupIsDead(lv_guards) == true))) {
+        Wait(0.25, c_timeGame);
+    }
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_02_DOMINION, RegionFromId(22), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitGroupAdd(lv_guards, UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    lv_guardCount = UnitGroupCount(lv_guards, c_unitCountAlive);
+    UnitGroupIssueOrder(lv_guards, OrderTargetingPoint(AbilityCommand("attack", 0), RegionGetCenter(RegionFromId(26))), c_orderQueueReplace);
+    while (!((UnitGroupCount(lv_guards, c_unitCountAlive) < lv_guardCount))) {
+        Wait(0.25, c_timeGame);
+    }
+    TriggerExecute(gt_TransmissionItBurnsQ, true, false);
+    while (!((libNtve_gf_UnitGroupIsDead(lv_guards) == true))) {
+        Wait(0.25, c_timeGame);
+    }
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_02_DOMINION, RegionFromId(1), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitGroupAdd(lv_guards, UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    lv_guardCount = UnitGroupCount(lv_guards, c_unitCountAlive);
+    UnitGroupIssueOrder(lv_guards, OrderTargetingPoint(AbilityCommand("attack", 0), RegionGetCenter(RegionFromId(26))), c_orderQueueReplace);
+    while (!((UnitGroupCount(lv_guards, c_unitCountAlive) < lv_guardCount))) {
+        Wait(0.25, c_timeGame);
+    }
+    TriggerExecute(gt_TransmissionScientistYell4Q, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Room3Passed_Init () {
+    gt_Room3Passed = TriggerCreate("gt_Room3Passed_Func");
+    TriggerAddEventTimePeriodic(gt_Room3Passed, 0.5, c_timeGame);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Lab Escaped
+//--------------------------------------------------------------------------------------------------
+bool gt_LabEscaped_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((UnitGroupCount(UnitGroup(null, gv_pLAYER_01_USER, RegionCircle(UnitGetPosition(gv_labExitBeacon), 2.0), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), c_unitCountAlive) > 0))) {
+            return false;
+        }
+
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerEnable(gt_GasDamage, false);
+    SoundPlay(SoundLink("UI_TerranRescueUnit", -1), PlayerGroupAll(), 100.0, 0.0);
+    UnitKill(gv_labExitBeacon);
+    PingDestroy(gv_pingLabExit);
+    UnitIssueOrder(gv_labBridge, Order(AbilityCommand("ExtendingBridgeNEWide8Out", 0)), c_orderQueueReplace);
+    Wait(2.0, c_timeGame);
+    TriggerExecute(gt_VictoryEscapetheLabCompleted, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_LabEscaped_Init () {
+    gt_LabEscaped = TriggerCreate("gt_LabEscaped_Func");
+    TriggerAddEventTimePeriodic(gt_LabEscaped, 0.5, c_timeGame);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: Scientist Yell 1 Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionScientistYell1Q_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    if ((TriggerIsEnabled(gt_VictoryEscapetheLabCompleted) == false)) {
+        return true;
+    }
+    else {
+    }
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00024", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionScientistYell1Q_Init () {
+    gt_TransmissionScientistYell1Q = TriggerCreate("gt_TransmissionScientistYell1Q_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: Containment Cell Intro Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionContainmentCellIntroQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    if ((TriggerIsEnabled(gt_VictoryEscapetheLabCompleted) == false)) {
+        return true;
+    }
+    else {
+    }
+    if ((UnitIsAlive(gv_containmentCell) == true)) {
+        libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+        libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00050", c_transmissionDurationAdd, 0.0, true, 1, 0);
+        libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+    }
+    else {
+    }
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionContainmentCellIntroQ_Init () {
+    gt_TransmissionContainmentCellIntroQ = TriggerCreate("gt_TransmissionContainmentCellIntroQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: Containment Cell Destroyed Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionContainmentCellDestroyedQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    if ((TriggerIsEnabled(gt_VictoryEscapetheLabCompleted) == false)) {
+        return true;
+    }
+    else {
+    }
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00003", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionContainmentCellDestroyedQ_Init () {
+    gt_TransmissionContainmentCellDestroyedQ = TriggerCreate("gt_TransmissionContainmentCellDestroyedQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: Noxious Strain Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionNoxiousStrainQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    if ((TriggerIsEnabled(gt_VictoryEscapetheLabCompleted) == false)) {
+        return true;
+    }
+    else {
+    }
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00022", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionNoxiousStrainQ_Init () {
+    gt_TransmissionNoxiousStrainQ = TriggerCreate("gt_TransmissionNoxiousStrainQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: Guards Flee Gas Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionGuardsFleeGasQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    if ((TriggerQueueIsEmpty() == true)) {
+        TriggerQueueEnter();
+        if ((TriggerIsEnabled(gt_VictoryEscapetheLabCompleted) == false)) {
+            return true;
+        }
+        else {
+        }
+        libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+        libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00029", c_transmissionDurationAdd, 0.0, true, 1, 0);
+        libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+        TriggerQueueExit();
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionGuardsFleeGasQ_Init () {
+    gt_TransmissionGuardsFleeGasQ = TriggerCreate("gt_TransmissionGuardsFleeGasQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: Scientist Yell 2 Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionScientistYell2Q_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    if ((TriggerQueueIsEmpty() == true)) {
+        TriggerQueueEnter();
+        if ((TriggerIsEnabled(gt_VictoryEscapetheLabCompleted) == false)) {
+            return true;
+        }
+        else {
+        }
+        libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+        libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00041", c_transmissionDurationAdd, 0.0, true, 1, 0);
+        libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+        TriggerQueueExit();
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionScientistYell2Q_Init () {
+    gt_TransmissionScientistYell2Q = TriggerCreate("gt_TransmissionScientistYell2Q_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: Scientist Yell 3 Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionScientistYell3Q_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    if ((TriggerQueueIsEmpty() == true)) {
+        TriggerQueueEnter();
+        if ((TriggerIsEnabled(gt_VictoryEscapetheLabCompleted) == false)) {
+            return true;
+        }
+        else {
+        }
+        libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+        libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00027", c_transmissionDurationAdd, 0.0, true, 1, 0);
+        libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+        TriggerQueueExit();
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionScientistYell3Q_Init () {
+    gt_TransmissionScientistYell3Q = TriggerCreate("gt_TransmissionScientistYell3Q_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: It Burns Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionItBurnsQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    if ((TriggerQueueIsEmpty() == true)) {
+        TriggerQueueEnter();
+        if ((TriggerIsEnabled(gt_VictoryEscapetheLabCompleted) == false)) {
+            return true;
+        }
+        else {
+        }
+        libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+        libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00028", c_transmissionDurationAdd, 0.0, true, 1, 0);
+        libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+        TriggerQueueExit();
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionItBurnsQ_Init () {
+    gt_TransmissionItBurnsQ = TriggerCreate("gt_TransmissionItBurnsQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: Scientist Yell 4 Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionScientistYell4Q_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    if ((TriggerQueueIsEmpty() == true)) {
+        TriggerQueueEnter();
+        if ((TriggerIsEnabled(gt_VictoryEscapetheLabCompleted) == false)) {
+            return true;
+        }
+        else {
+        }
+        libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+        libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00026", c_transmissionDurationAdd, 0.0, true, 1, 0);
+        libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+        TriggerQueueExit();
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionScientistYell4Q_Init () {
+    gt_TransmissionScientistYell4Q = TriggerCreate("gt_TransmissionScientistYell4Q_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Torrasque Music Cue
+//--------------------------------------------------------------------------------------------------
+bool gt_TorrasqueMusicCue_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    SoundPlay(SoundLink("ZEvoMusicStinger", -1), PlayerGroupAll(), 100.0, 0.0);
+    SoundtrackPlay(PlayerGroupAll(), c_soundtrackCategoryMusic, "ZEvoMusicAlt", c_soundtrackCueAny, c_soundtrackIndexAny, true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TorrasqueMusicCue_Init () {
+    gt_TorrasqueMusicCue = TriggerCreate("gt_TorrasqueMusicCue_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Start Torrasque Q
+//--------------------------------------------------------------------------------------------------
+bool gt_StartTorrasqueQ_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    ObjectiveShow(gv_objectiveEscapeTheLab, PlayerGroupAll(), false);
+    gv_torrasqueActive = true;
+    gv_noxiousActive = false;
+    TriggerExecute(gt_IntroTorrasqueQ, true, true);
+    gv_backupPoint = PointFromId(744);
+    UIAlertClear(gv_pLAYER_01_USER);
+    UIAlertPoint("Trigger", gv_pLAYER_01_USER, StringExternal("Param/Value/2E2180CC"), null, PointFromId(70));
+    TriggerExecute(gt_DetectBreakables, true, false);
+    Wait(3.0, c_timeGame);
+    TriggerQueueEnter();
+    TriggerExecute(gt_ObjectiveSecuretheBridgeCreate, true, false);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_StartTorrasqueQ_Init () {
+    gt_StartTorrasqueQ = TriggerCreate("gt_StartTorrasqueQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Detect Breakables
+//--------------------------------------------------------------------------------------------------
+bool gt_DetectBreakables_Func (bool testConds, bool runActions) {
+    unitgroup auto58DAD21C_g;
+    int auto58DAD21C_u;
+
+    // Variable Declarations
+    unit lv_unitIter;
+
+    // Variable Initialization
+    lv_unitIter = null;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    while (true) {
+        auto58DAD21C_g = gv_torrasques;
+        auto58DAD21C_u = 1;
+        while (auto58DAD21C_u <= UnitGroupCount(auto58DAD21C_g, c_unitCountAll)) {
+            lv_unitIter = UnitGroupUnit(auto58DAD21C_g, auto58DAD21C_u);
+            UnitGroupLoopBegin(UnitGroup(null, 0, RegionCircle(UnitGetPosition(lv_unitIter), 2.5), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+            while (!UnitGroupLoopDone()) {
+                if ((UnitGetPropertyFixed(UnitGroupLoopCurrent(), c_unitPropLifeMax, c_unitPropCurrent) < 150.0)) {
+                    UnitKill(UnitGroupLoopCurrent());
+                    gv_objectsCrushed += 1;
+                }
+                else {
+                }
+                UnitGroupLoopStep();
+            }
+            UnitGroupLoopEnd();
+            if (lv_unitIter == UnitGroupUnit(auto58DAD21C_g, auto58DAD21C_u)) {
+                auto58DAD21C_u = auto58DAD21C_u + 1;
+            }
+        }
+        Wait(0.25, c_timeGame);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_DetectBreakables_Init () {
+    gt_DetectBreakables = TriggerCreate("gt_DetectBreakables_Func");
+    TriggerEnable(gt_DetectBreakables, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Torrasque Created/Revived
+//--------------------------------------------------------------------------------------------------
+bool gt_TorrasqueCreatedRevived_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(EventUnitCreatedUnit()) == "HotSTorrasque"))) {
+            return false;
+        }
+
+        if (!((UnitGetOwner(EventUnitCreatedUnit()) == gv_pLAYER_01_USER))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupAdd(gv_torrasques, EventUnitCreatedUnit());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TorrasqueCreatedRevived_Init () {
+    gt_TorrasqueCreatedRevived = TriggerCreate("gt_TorrasqueCreatedRevived_Func");
+    TriggerAddEventUnitCreated(gt_TorrasqueCreatedRevived, null, null, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Bridge Guards Revealed
+//--------------------------------------------------------------------------------------------------
+bool gt_BridgeGuardsRevealed_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetOwner(EventUnit()) == gv_pLAYER_01_USER))) {
+            return false;
+        }
+
+        if (!((UnitFilterMatch(EventUnit(), 1, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)))) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerEnable(gt_BridgeGuardsEngaged, true);
+    TriggerExecute(gt_TransmissionUltralisksIncomingQ, true, false);
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_02_DOMINION, RegionFromId(24), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        libNtve_gf_ShareVisionofUnit(UnitGroupLoopCurrent(), true, gv_pLAYER_01_USER);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_BridgeGuardsRevealed_Init () {
+    gt_BridgeGuardsRevealed = TriggerCreate("gt_BridgeGuardsRevealed_Func");
+    TriggerAddEventUnitRegion(gt_BridgeGuardsRevealed, null, RegionFromId(20), true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Bridge Guards Engaged
+//--------------------------------------------------------------------------------------------------
+bool gt_BridgeGuardsEngaged_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((gv_torrasqueActive == true))) {
+            return false;
+        }
+
+        if (!((UnitGroupHasUnit(gv_bridgeGuards, EventUnit()) == true))) {
+            return false;
+        }
+
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    if ((gv_pingBridgeGuards != c_invalidPingId)) {
+        PingDestroy(gv_pingBridgeGuards);
+    }
+    else {
+    }
+    TriggerExecute(gt_TransmissionFirstNukeQ, true, true);
+    SoundPlay(SoundLink("Ghost_NukeLaunch", -1), PlayerGroupAll(), 130.0, 0.0);
+    CameraPan(gv_pLAYER_01_USER, RegionGetCenter(RegionFromId(24)), 2.0, -1, 10.0, true);
+    Wait(2.0, c_timeGame);
+    SoundStop(SoundLastPlayed(), true);
+    UnitGroupLoopBegin(gv_torrasques);
+    while (!UnitGroupLoopDone()) {
+        libNtve_gf_ChangeUnitDamage(UnitGroupLoopCurrent(), 0, 1);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    PlayerCreateEffectPoint(gv_pLAYER_02_DOMINION, "EvoNukeDetonate", RegionGetCenter(RegionFromId(24)));
+    Wait(1.25, c_timeGame);
+    gf_Fog(RegionGetCenter(RegionFromId(24)), 0);
+    gf_Fog(PointFromId(319), 0.5);
+    gf_Fog(PointFromId(320), 1.0);
+    gf_Fog(PointFromId(321), 1.5);
+    gf_Fog(PointFromId(280), 2.0);
+    while (!((libNtve_gf_UnitGroupIsDead(gv_bridgeGuards) == true))) {
+        Wait(0.25, c_timeGame);
+    }
+    TriggerExecute(gt_ObjectiveSecuretheBridgeComplete, true, false);
+    UnitGroupLoopBegin(gv_torrasques);
+    while (!UnitGroupLoopDone()) {
+        libNtve_gf_ChangeUnitDamage(UnitGroupLoopCurrent(), 0, 0);
+        gf_UltraliskSick(UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    Wait(libSwaC_gv_campaignObjectiveDelay, c_timeGame);
+    TriggerExecute(gt_TransmissionUltralisksInfectedQ, true, true);
+    TriggerExecute(gt_TransmissionUltralisksEvolvingQ, true, false);
+    UnitGroupLoopBegin(gv_torrasques);
+    while (!UnitGroupLoopDone()) {
+        libNtve_gf_MakeUnitUncommandable(UnitGroupLoopCurrent(), true);
+        UnitIssueOrder(UnitGroupLoopCurrent(), Order(AbilityCommand("stop", 0)), c_orderQueueReplace);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    Wait(2.0, c_timeGame);
+    UnitGroupLoopBegin(gv_torrasques);
+    while (!UnitGroupLoopDone()) {
+        ActorSend(libNtve_gf_MainActorofUnit(UnitGroupLoopCurrent()), libNtve_gf_SetScale(0.85, 0.85, 0.85, 0.0));
+        libNtve_gf_SendActorMessageToUnit(UnitGroupLoopCurrent(), "ClearTintColor");
+        if ((UnitGetType(UnitGroupLoopCurrent()) == "UltraliskBurrowed")) {
+            libNtve_gf_ReplaceUnit(UnitGroupLoopCurrent(), "Ultralisk", 1);
+            libNtve_gf_MakeUnitUncommandable(libNtve_gf_LastReplacedUnit(), true);
+            UnitIssueOrder(libNtve_gf_LastReplacedUnit(), Order(AbilityCommand("MorphUltraliskToTorrasque", 0)), c_orderQueueReplace);
+        }
+        else {
+            UnitIssueOrder(UnitGroupLoopCurrent(), Order(AbilityCommand("MorphUltraliskToTorrasque", 0)), c_orderQueueReplace);
+        }
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    Wait(5.5, c_timeGame);
+    UnitGroupLoopBegin(gv_torrasques);
+    while (!UnitGroupLoopDone()) {
+        libNtve_gf_MakeUnitUncommandable(UnitGroupLoopCurrent(), false);
+        UnitSetPropertyFixed(UnitGroupLoopCurrent(), c_unitPropMovementSpeed, UnitTypeGetProperty("HotSTorrasque", c_unitPropMovementSpeed));
+        UnitSelect(UnitGroupLoopCurrent(), gv_pLAYER_01_USER, true);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    libSwaC_gf_AddUnitTypeToUnitHelpPanel("HotSTorrasque", false, gv_pLAYER_01_USER);
+    TriggerExecute(gt_TransmissionTorrasqueStrainQ, true, true);
+    libSwaC_gf_CreateMissionAutosavePoint(StringExternal("Param/Value/B13E3956"));
+    gv_backupPoint = PointFromId(745);
+    TriggerExecute(gt_TorrasqueReinforcements1, true, false);
+    UnitIssueOrder(gv_cityBridge, Order(AbilityCommand("ExtendingBridgeNEWide8Out", 0)), c_orderQueueReplace);
+    VisRevealArea(gv_pLAYER_01_USER, RegionFromId(48), 5.0, false);
+    MinimapPing(PlayerGroupAll(), UnitGetPosition(gv_cityBridge), 2.0, Color(0.00, 100.00, 0.00));
+    UIAlertUnit("Trigger", gv_pLAYER_01_USER, StringExternal("Param/Value/753FFBB9"), null, gv_cityBridge);
+    TriggerExecute(gt_ObjectiveDestroytheWeaponsFacilityCreate, true, true);
+    TriggerExecute(gt_TransmissionPressOnQ, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_BridgeGuardsEngaged_Init () {
+    gt_BridgeGuardsEngaged = TriggerCreate("gt_BridgeGuardsEngaged_Func");
+    TriggerEnable(gt_BridgeGuardsEngaged, false);
+    TriggerAddEventUnitDamaged(gt_BridgeGuardsEngaged, null, c_unitDamageTypeAny, c_unitDamageEither, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Torrasque Reinforcements 1
+//--------------------------------------------------------------------------------------------------
+bool gt_TorrasqueReinforcements1_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    if ((UnitIsAlive(UnitGroupUnit(gv_torrasques, 2)) == false)) {
+        UnitCreate(1, "HotSTorrasque", 0, gv_pLAYER_01_USER, PointFromId(592), 45.0);
+        libSwaC_gf_CreateDropPod(1, gv_backupPoint, UnitLastCreatedGroup(), false, gv_pLAYER_01_USER);
+    }
+    else {
+    }
+    if ((UnitIsAlive(UnitGroupUnit(gv_torrasques, 3)) == false)) {
+        Wait(0.25, c_timeGame);
+        UnitCreate(1, "HotSTorrasque", 0, gv_pLAYER_01_USER, PointFromId(592), 45.0);
+        libSwaC_gf_CreateDropPod(1, gv_backupPoint, UnitLastCreatedGroup(), false, gv_pLAYER_01_USER);
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TorrasqueReinforcements1_Init () {
+    gt_TorrasqueReinforcements1 = TriggerCreate("gt_TorrasqueReinforcements1_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Street Units 1
+//--------------------------------------------------------------------------------------------------
+bool gt_StreetUnits1_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetOwner(EventUnit()) == gv_pLAYER_01_USER))) {
+            return false;
+        }
+
+        if (!((UnitFilterMatch(EventUnit(), 1, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)))) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerExecute(gt_TransmissionUglyThingsQ, true, false);
+    libNtve_gf_PauseUnit(gv_viking1, false);
+    libNtve_gf_ShowHideUnit(gv_viking1, true);
+    UnitSetHeight(gv_viking1, UnitGetPropertyFixed(gv_viking1, c_unitPropHeight, c_unitPropNormal), 2.0);
+    Wait(2.0, c_timeGame);
+    UnitIssueOrder(gv_viking1, Order(AbilityCommand("AssaultMode", 0)), c_orderQueueReplace);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_StreetUnits1_Init () {
+    gt_StreetUnits1 = TriggerCreate("gt_StreetUnits1_Func");
+    TriggerAddEventUnitRegion(gt_StreetUnits1, null, RegionFromId(38), true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Street Units 2
+//--------------------------------------------------------------------------------------------------
+bool gt_StreetUnits2_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_unitCount;
+
+    // Variable Initialization
+    lv_unitCount = 0;
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetOwner(EventUnit()) == gv_pLAYER_01_USER))) {
+            return false;
+        }
+
+        if (!((UnitFilterMatch(EventUnit(), 1, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)))) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    gv_backupPoint = PointFromId(746);
+    UnitGroupClear(gv_streetUnits);
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_02_DOMINION, RegionFromId(34), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitGroupAdd(gv_streetUnits, UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    lv_unitCount = UnitGroupCount(gv_streetUnits, c_unitCountAlive);
+    TriggerExecute(gt_TransmissionSecondNukeQ, true, false);
+    while (!(((lv_unitCount - UnitGroupCount(gv_streetUnits, c_unitCountAlive)) >= 2))) {
+        Wait(0.25, c_timeGame);
+    }
+    gf_NukeDrop(PointWithOffset(UnitGetPosition(UnitGroupUnit(gv_torrasques, 1)), 2.0, 0.0));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_StreetUnits2_Init () {
+    gt_StreetUnits2 = TriggerCreate("gt_StreetUnits2_Func");
+    TriggerAddEventUnitRegion(gt_StreetUnits2, null, RegionFromId(44), true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Street Units 3
+//--------------------------------------------------------------------------------------------------
+bool gt_StreetUnits3_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_unitCount;
+
+    // Variable Initialization
+    lv_unitCount = 0;
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetOwner(EventUnit()) == gv_pLAYER_01_USER))) {
+            return false;
+        }
+
+        if (!((UnitFilterMatch(EventUnit(), 1, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)))) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    gv_backupPoint = PointFromId(747);
+    TriggerExecute(gt_TransmissionThirdNukeQ, true, false);
+    UnitGroupClear(gv_streetUnits);
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_02_DOMINION, RegionFromId(46), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitGroupAdd(gv_streetUnits, UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    lv_unitCount = UnitGroupCount(gv_streetUnits, c_unitCountAlive);
+    UnitIssueOrder(gv_tank, Order(AbilityCommand("SiegeMode", 0)), c_orderQueueReplace);
+    libNtve_gf_PauseUnit(gv_viking2, false);
+    libNtve_gf_PauseUnit(gv_viking3, false);
+    libNtve_gf_ShowHideUnit(gv_viking2, true);
+    libNtve_gf_ShowHideUnit(gv_viking3, true);
+    UnitSetHeight(gv_viking2, UnitGetPropertyFixed(gv_viking2, c_unitPropHeight, c_unitPropNormal), 2.0);
+    UnitSetHeight(gv_viking3, UnitGetPropertyFixed(gv_viking3, c_unitPropHeight, c_unitPropNormal), 2.0);
+    Wait(2.0, c_timeGame);
+    UnitIssueOrder(gv_viking2, Order(AbilityCommand("AssaultMode", 0)), c_orderQueueReplace);
+    UnitIssueOrder(gv_viking3, Order(AbilityCommand("AssaultMode", 0)), c_orderQueueReplace);
+    UnitIssueOrder(gv_viking2, OrderTargetingPoint(AbilityCommand("attack", 0), UnitGetPosition(EventUnit())), c_orderQueueAddToEnd);
+    UnitIssueOrder(gv_viking3, OrderTargetingPoint(AbilityCommand("attack", 0), UnitGetPosition(EventUnit())), c_orderQueueAddToEnd);
+    Wait(1.0, c_timeGame);
+    gf_NukeDrop(PointFromId(327));
+    while (!(((lv_unitCount - UnitGroupCount(gv_streetUnits, c_unitCountAlive)) >= 1))) {
+        Wait(0.25, c_timeGame);
+    }
+    TriggerExecute(gt_TransmissionFourthNukeQ, true, false);
+    Wait(8.0, c_timeGame);
+    gf_NukeDrop(PointFromId(328));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_StreetUnits3_Init () {
+    gt_StreetUnits3 = TriggerCreate("gt_StreetUnits3_Func");
+    TriggerAddEventUnitRegion(gt_StreetUnits3, null, RegionFromId(37), true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Property Damage
+//--------------------------------------------------------------------------------------------------
+bool gt_PropertyDamage_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_owner;
+
+    // Variable Initialization
+    lv_owner = null;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerExecute(gt_TransmissionPropertyDamageQ, true, false);
+    Wait(2.0, c_timeGame);
+    TransmissionWait(TransmissionLastSent(), 2.0);
+    libNtve_gf_CreateUnitsAtPoint2(1, "Marine", 0, gv_pLAYER_02_DOMINION, PointFromId(768));
+    UnitIssueOrder(UnitLastCreated(), OrderTargetingPoint(AbilityCommand("attack", 0), UnitGetPosition(UnitGroupClosestToPoint(gv_torrasques, PointFromId(719)))), c_orderQueueReplace);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_PropertyDamage_Init () {
+    gt_PropertyDamage = TriggerCreate("gt_PropertyDamage_Func");
+    TriggerAddEventUnitDied(gt_PropertyDamage, UnitRefFromVariable("gv_theCar"));
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Torrasque Reinforcements 2
+//--------------------------------------------------------------------------------------------------
+bool gt_TorrasqueReinforcements2_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unitgroup lv_dropUnits;
+
+    // Variable Initialization
+    lv_dropUnits = UnitGroupEmpty();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetOwner(EventUnit()) == gv_pLAYER_01_USER))) {
+            return false;
+        }
+
+        if (!((UnitFilterMatch(EventUnit(), 1, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)))) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    gv_backupPoint = PointFromId(748);
+    TriggerExecute(gt_TransmissionTorrasqueReinforcements2Q, true, false);
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, "HotSTorrasque", 0, gv_pLAYER_01_USER, PointFromId(592));
+    UnitGroupAddUnitGroup(lv_dropUnits, UnitLastCreatedGroup());
+    libSwaC_gf_CreateDropPod(1, PointFromId(914), lv_dropUnits, false, gv_pLAYER_01_USER);
+    UnitGroupClear(lv_dropUnits);
+    Wait(0.5, c_timeGame);
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, "HotSTorrasque", 0, gv_pLAYER_01_USER, PointFromId(592));
+    UnitGroupAddUnitGroup(lv_dropUnits, UnitLastCreatedGroup());
+    libSwaC_gf_CreateDropPod(1, PointFromId(915), lv_dropUnits, false, gv_pLAYER_01_USER);
+    UnitGroupClear(lv_dropUnits);
+    Wait(0.5, c_timeGame);
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, "HotSTorrasque", 0, gv_pLAYER_01_USER, PointFromId(592));
+    UnitGroupAddUnitGroup(lv_dropUnits, UnitLastCreatedGroup());
+    libSwaC_gf_CreateDropPod(1, PointFromId(231), lv_dropUnits, false, gv_pLAYER_01_USER);
+    UnitGroupClear(lv_dropUnits);
+    Wait(0.5, c_timeGame);
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, "HotSTorrasque", 0, gv_pLAYER_01_USER, PointFromId(592));
+    UnitGroupAddUnitGroup(lv_dropUnits, UnitLastCreatedGroup());
+    libSwaC_gf_CreateDropPod(1, PointFromId(570), lv_dropUnits, false, gv_pLAYER_01_USER);
+    UnitGroupClear(lv_dropUnits);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TorrasqueReinforcements2_Init () {
+    gt_TorrasqueReinforcements2 = TriggerCreate("gt_TorrasqueReinforcements2_Func");
+    TriggerAddEventUnitRegion(gt_TorrasqueReinforcements2, null, RegionFromId(41), true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Facility Guards
+//--------------------------------------------------------------------------------------------------
+bool gt_FacilityGuards_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetOwner(EventUnit()) == gv_pLAYER_01_USER))) {
+            return false;
+        }
+
+        if (!((UnitFilterMatch(EventUnit(), 1, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)))) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_02_DOMINION, RegionFromId(47), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitIssueOrder(UnitGroupLoopCurrent(), OrderTargetingPoint(AbilityCommand("attack", 0), UnitGetPosition(EventUnit())), c_orderQueueReplace);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_FacilityGuards_Init () {
+    gt_FacilityGuards = TriggerCreate("gt_FacilityGuards_Func");
+    TriggerAddEventUnitRegion(gt_FacilityGuards, null, RegionFromId(47), true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Weapons Facility Killed
+//--------------------------------------------------------------------------------------------------
+bool gt_WeaponsFacilityKilled_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((gv_torrasqueActive == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerExecute(gt_VictoryDestroytheWeaponsFacilityCompleted, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_WeaponsFacilityKilled_Init () {
+    gt_WeaponsFacilityKilled = TriggerCreate("gt_WeaponsFacilityKilled_Func");
+    TriggerAddEventUnitDied(gt_WeaponsFacilityKilled, UnitRefFromVariable("gv_weaponsFacility"));
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: Ultralisks Incoming Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionUltralisksIncomingQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+    libSwaC_gf_SendTransmissionCampaign(UnitFromId(118), "zEvoMission_Ultralisk|Line00031", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionUltralisksIncomingQ_Init () {
+    gt_TransmissionUltralisksIncomingQ = TriggerCreate("gt_TransmissionUltralisksIncomingQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: First Nuke Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionFirstNukeQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00032", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00052", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00053", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionFirstNukeQ_Init () {
+    gt_TransmissionFirstNukeQ = TriggerCreate("gt_TransmissionFirstNukeQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: Ultralisks Infected Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionUltralisksInfectedQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00035", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00044", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionUltralisksInfectedQ_Init () {
+    gt_TransmissionUltralisksInfectedQ = TriggerCreate("gt_TransmissionUltralisksInfectedQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: Ultralisks Evolving Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionUltralisksEvolvingQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00036", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionUltralisksEvolvingQ_Init () {
+    gt_TransmissionUltralisksEvolvingQ = TriggerCreate("gt_TransmissionUltralisksEvolvingQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: Torrasque Strain Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionTorrasqueStrainQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00011", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionTorrasqueStrainQ_Init () {
+    gt_TransmissionTorrasqueStrainQ = TriggerCreate("gt_TransmissionTorrasqueStrainQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: Press On Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionPressOnQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00019", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionPressOnQ_Init () {
+    gt_TransmissionPressOnQ = TriggerCreate("gt_TransmissionPressOnQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: Torrasque Reinforcements 2 Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionTorrasqueReinforcements2Q_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerQueueEnter();
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00012", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionTorrasqueReinforcements2Q_Init () {
+    gt_TransmissionTorrasqueReinforcements2Q = TriggerCreate("gt_TransmissionTorrasqueReinforcements2Q_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: First Death Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionFirstDeathQ_Func (bool testConds, bool runActions) {
+    fixed auto48102237_at;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libSwaC_gf_AttachReticleEffectAndTextTagOnUnit(0, 1, null, EventUnit(), "Center");
+    TriggerQueueEnter();
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00051", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+    TriggerQueueExit();
+    auto48102237_at = 0;
+    while (!((UnitGetType(EventUnit()) != "TorrasqueChrysalis")) && auto48102237_at <= 10.0) {
+        Wait(0.25, c_timeGame);
+        auto48102237_at = auto48102237_at + 0.25;
+    }
+    libNtve_gf_KillModel(libNtve_gf_ActorLastCreated());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionFirstDeathQ_Init () {
+    gt_TransmissionFirstDeathQ = TriggerCreate("gt_TransmissionFirstDeathQ_Func");
+    TriggerAddEventUnitAbility(gt_TransmissionFirstDeathQ, null, AbilityCommand("TorrasqueChrysalis", 0), c_unitAbilStageAll, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: First Rebirth Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionFirstRebirthQ_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    TriggerExecute(gt_TorrasqueMusicCue, true, false);
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00042", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionFirstRebirthQ_Init () {
+    gt_TransmissionFirstRebirthQ = TriggerCreate("gt_TransmissionFirstRebirthQ_Func");
+    TriggerAddEventUnitBehaviorChange(gt_TransmissionFirstRebirthQ, null, "TorrasqueTimerBehavior", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: Ugly Things Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionUglyThingsQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    if ((TriggerQueueIsEmpty() == true)) {
+        SoundPlay(SoundLink("Event_EvoUltralisk_VikingVOBackground", -1), PlayerGroupAll(), 100.0, 0.0);
+        TriggerQueueEnter();
+        libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+        libSwaC_gf_SendTransmissionCampaign(gv_viking1, "zEvoMission_Ultralisk|Line00038", c_transmissionDurationAdd, 0.0, true, 1, 0);
+        libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+        TriggerQueueExit();
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionUglyThingsQ_Init () {
+    gt_TransmissionUglyThingsQ = TriggerCreate("gt_TransmissionUglyThingsQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: Second Nuke Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionSecondNukeQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00048", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionSecondNukeQ_Init () {
+    gt_TransmissionSecondNukeQ = TriggerCreate("gt_TransmissionSecondNukeQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: Third Nuke Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionThirdNukeQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    if ((TriggerQueueIsEmpty() == true)) {
+        TriggerQueueEnter();
+        libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+        libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00045", c_transmissionDurationAdd, 0.0, true, 1, 0);
+        libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+        TriggerQueueExit();
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionThirdNukeQ_Init () {
+    gt_TransmissionThirdNukeQ = TriggerCreate("gt_TransmissionThirdNukeQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: Fourth Nuke Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionFourthNukeQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    if ((TriggerQueueIsEmpty() == true)) {
+        TriggerQueueEnter();
+        libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+        libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00047", c_transmissionDurationAdd, 0.0, true, 1, 0);
+        libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+        TriggerQueueExit();
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionFourthNukeQ_Init () {
+    gt_TransmissionFourthNukeQ = TriggerCreate("gt_TransmissionFourthNukeQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transmission: Property Damage Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TransmissionPropertyDamageQ_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(1);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00043", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(2);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TransmissionPropertyDamageQ_Init () {
+    gt_TransmissionPropertyDamageQ = TriggerCreate("gt_TransmissionPropertyDamageQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory {Escape the Lab} Completed
+//--------------------------------------------------------------------------------------------------
+bool gt_VictoryEscapetheLabCompleted_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerExecute(gt_ObjectiveEscapeTheLabComplete, true, true);
+    libSwaC_gf_CreateMissionAutosavePoint(StringExternal("Param/Value/E09DC29A"));
+    TriggerExecute(gt_VictoryNoxiousQ, true, true);
+    TriggerExecute(gt_StartTorrasqueQ, true, true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictoryEscapetheLabCompleted_Init () {
+    gt_VictoryEscapetheLabCompleted = TriggerCreate("gt_VictoryEscapetheLabCompleted_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory {Destroy the Weapons Facility} Completed
+//--------------------------------------------------------------------------------------------------
+bool gt_VictoryDestroytheWeaponsFacilityCompleted_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((gv_gameOver == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerExecute(gt_VictorySequence, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictoryDestroytheWeaponsFacilityCompleted_Init () {
+    gt_VictoryDestroytheWeaponsFacilityCompleted = TriggerCreate("gt_VictoryDestroytheWeaponsFacilityCompleted_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory Sequence
+//--------------------------------------------------------------------------------------------------
+bool gt_VictorySequence_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    gv_gameOver = true;
+    Wait(2.0, c_timeReal);
+    TriggerExecute(gt_ObjectiveDestroytheWeaponsFacilityComplete, true, true);
+    libSwaC_gf_RunMissionVictorySequence(gt_VictoryTorrasqueQ);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictorySequence_Init () {
+    gt_VictorySequence = TriggerCreate("gt_VictorySequence_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory
+//--------------------------------------------------------------------------------------------------
+bool gt_Victory_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libSwaC_gf_EndCampaignMission(gv_pLAYER_01_USER, c_gameOverVictory);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Victory_Init () {
+    gt_Victory = TriggerCreate("gt_Victory_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Defeat
+//--------------------------------------------------------------------------------------------------
+bool gt_Defeat_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libSwaC_gf_EndCampaignMission(gv_pLAYER_01_USER, c_gameOverDefeat);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Defeat_Init () {
+    gt_Defeat = TriggerCreate("gt_Defeat_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory Cheat
+//--------------------------------------------------------------------------------------------------
+bool gt_VictoryCheat_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(gt_Defeat, false);
+    TriggerEnable(gt_DefeatCheat, false);
+    TriggerEnable(gt_VictoryCheat, false);
+    gv_gameOver = true;
+    libSwaC_gf_RunMissionVictorySequence(gt_Victory);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictoryCheat_Init () {
+    gt_VictoryCheat = TriggerCreate("gt_VictoryCheat_Func");
+    TriggerAddEventPlayerLeft(gt_VictoryCheat, gv_pLAYER_01_USER, c_gameResultVictory);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Defeat Cheat
+//--------------------------------------------------------------------------------------------------
+bool gt_DefeatCheat_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(gt_Victory, false);
+    TriggerEnable(gt_DefeatCheat, false);
+    TriggerEnable(gt_VictoryCheat, false);
+    gv_gameOver = true;
+    TriggerExecute(gt_Defeat, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_DefeatCheat_Init () {
+    gt_DefeatCheat = TriggerCreate("gt_DefeatCheat_Func");
+    TriggerAddEventPlayerLeft(gt_DefeatCheat, gv_pLAYER_01_USER, c_gameResultDefeat);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Tip Mission Help Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TipMissionHelpQ_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerQueueEnter();
+    libSwaC_gf_DisplayMissionTip(StringExternal("Param/Value/811BBE71"));
+    Wait(libSwaC_gv_campaignHintDelay, c_timeReal);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TipMissionHelpQ_Init () {
+    gt_TipMissionHelpQ = TriggerCreate("gt_TipMissionHelpQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: AI Give Minerals
+//--------------------------------------------------------------------------------------------------
+bool gt_AIGiveMinerals_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((PlayerGetPropertyInt(EventPlayer(), c_playerPropMinerals) < 1000))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    PlayerModifyPropertyInt(EventPlayer(), c_playerPropMinerals, c_playerPropOperSetTo, 2000);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_AIGiveMinerals_Init () {
+    gt_AIGiveMinerals = TriggerCreate("gt_AIGiveMinerals_Func");
+    TriggerAddEventPlayerPropChange(gt_AIGiveMinerals, gv_pLAYER_02_DOMINION, c_playerPropMinerals);
+    TriggerAddEventPlayerPropChange(gt_AIGiveMinerals, gv_pLAYER_03_DOMINION_WRECKABLE, c_playerPropMinerals);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: AI Give Gas
+//--------------------------------------------------------------------------------------------------
+bool gt_AIGiveGas_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((PlayerGetPropertyInt(EventPlayer(), c_playerPropVespene) < 1000))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    PlayerModifyPropertyInt(EventPlayer(), c_playerPropVespene, c_playerPropOperSetTo, 2000);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_AIGiveGas_Init () {
+    gt_AIGiveGas = TriggerCreate("gt_AIGiveGas_Func");
+    TriggerAddEventPlayerPropChange(gt_AIGiveGas, gv_pLAYER_02_DOMINION, c_playerPropVespene);
+    TriggerAddEventPlayerPropChange(gt_AIGiveGas, gv_pLAYER_03_DOMINION_WRECKABLE, c_playerPropVespene);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Objective Escape The Lab Create
+//--------------------------------------------------------------------------------------------------
+bool gt_ObjectiveEscapeTheLabCreate_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libSwaC_gf_CreateObjectiveCampaign("ZEvolutionUltraliskObjective01");
+    gv_objectiveEscapeTheLab = ObjectiveLastCreated();
+    Wait(libSwaC_gv_campaignObjectiveDelay, c_timeReal);
+    libSwaC_gf_CreateObjectivePing(true, UnitGetPosition(gv_labExitBeacon), StringExternal("Param/Value/1EB6805E"));
+    gv_pingLabExit = PingLastCreated();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ObjectiveEscapeTheLabCreate_Init () {
+    gt_ObjectiveEscapeTheLabCreate = TriggerCreate("gt_ObjectiveEscapeTheLabCreate_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Objective Escape The Lab Complete
+//--------------------------------------------------------------------------------------------------
+bool gt_ObjectiveEscapeTheLabComplete_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerExecute(gt_ObjectiveEscapeTheLabCreate, true, false);
+    libSwaC_gf_ZS_SetMissionObjectiveState("ZEvolutionUltraliskObjective01", 2);
+    Wait(libSwaC_gv_campaignObjectiveDelay, c_timeReal);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ObjectiveEscapeTheLabComplete_Init () {
+    gt_ObjectiveEscapeTheLabComplete = TriggerCreate("gt_ObjectiveEscapeTheLabComplete_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Objective Escape The Lab Failed
+//--------------------------------------------------------------------------------------------------
+bool gt_ObjectiveEscapeTheLabFailed_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerExecute(gt_ObjectiveEscapeTheLabCreate, true, false);
+    libSwaC_gf_ZS_SetMissionObjectiveState("ZEvolutionUltraliskObjective01", 3);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ObjectiveEscapeTheLabFailed_Init () {
+    gt_ObjectiveEscapeTheLabFailed = TriggerCreate("gt_ObjectiveEscapeTheLabFailed_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Objective Secure the Bridge Create
+//--------------------------------------------------------------------------------------------------
+bool gt_ObjectiveSecuretheBridgeCreate_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libSwaC_gf_CreateObjectiveCampaign("ZEvolutionUltraliskObjective02");
+    gv_objectiveSecureTheBridge = ObjectiveLastCreated();
+    Wait(libSwaC_gv_campaignObjectiveDelay, c_timeReal);
+    libSwaC_gf_CreateObjectivePing(true, RegionGetCenter(RegionFromId(24)), StringExternal("Param/Value/CC3232B5"));
+    gv_pingBridgeGuards = PingLastCreated();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ObjectiveSecuretheBridgeCreate_Init () {
+    gt_ObjectiveSecuretheBridgeCreate = TriggerCreate("gt_ObjectiveSecuretheBridgeCreate_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Objective Secure the Bridge Complete
+//--------------------------------------------------------------------------------------------------
+bool gt_ObjectiveSecuretheBridgeComplete_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerExecute(gt_ObjectiveSecuretheBridgeCreate, true, false);
+    libSwaC_gf_ZS_SetMissionObjectiveState("ZEvolutionUltraliskObjective02", 2);
+    Wait(libSwaC_gv_campaignObjectiveDelay, c_timeReal);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ObjectiveSecuretheBridgeComplete_Init () {
+    gt_ObjectiveSecuretheBridgeComplete = TriggerCreate("gt_ObjectiveSecuretheBridgeComplete_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Objective Secure the Bridge Failed
+//--------------------------------------------------------------------------------------------------
+bool gt_ObjectiveSecuretheBridgeFailed_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerExecute(gt_ObjectiveSecuretheBridgeCreate, true, false);
+    libSwaC_gf_ZS_SetMissionObjectiveState("ZEvolutionUltraliskObjective02", 3);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ObjectiveSecuretheBridgeFailed_Init () {
+    gt_ObjectiveSecuretheBridgeFailed = TriggerCreate("gt_ObjectiveSecuretheBridgeFailed_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Objective Destroy the Weapons Facility Create
+//--------------------------------------------------------------------------------------------------
+bool gt_ObjectiveDestroytheWeaponsFacilityCreate_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libSwaC_gf_CreateObjectiveCampaign("ZEvolutionUltraliskObjective03");
+    gv_objectiveDestroyWeaponsFacility = ObjectiveLastCreated();
+    Wait(libSwaC_gv_campaignObjectiveDelay, c_timeReal);
+    libSwaC_gf_CreateObjectivePing(true, UnitGetPosition(gv_weaponsFacility), StringExternal("Param/Value/88ACC05C"));
+    gv_pingWeaponsFacility = PingLastCreated();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ObjectiveDestroytheWeaponsFacilityCreate_Init () {
+    gt_ObjectiveDestroytheWeaponsFacilityCreate = TriggerCreate("gt_ObjectiveDestroytheWeaponsFacilityCreate_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Objective Destroy the Weapons Facility Complete
+//--------------------------------------------------------------------------------------------------
+bool gt_ObjectiveDestroytheWeaponsFacilityComplete_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerExecute(gt_ObjectiveDestroytheWeaponsFacilityCreate, true, false);
+    libSwaC_gf_ZS_SetMissionObjectiveState("ZEvolutionUltraliskObjective03", 2);
+    Wait(libSwaC_gv_campaignObjectiveDelay, c_timeReal);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ObjectiveDestroytheWeaponsFacilityComplete_Init () {
+    gt_ObjectiveDestroytheWeaponsFacilityComplete = TriggerCreate("gt_ObjectiveDestroytheWeaponsFacilityComplete_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Objective Destroy the Weapons Facility Failed
+//--------------------------------------------------------------------------------------------------
+bool gt_ObjectiveDestroytheWeaponsFacilityFailed_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerExecute(gt_ObjectiveDestroytheWeaponsFacilityCreate, true, false);
+    libSwaC_gf_ZS_SetMissionObjectiveState("ZEvolutionUltraliskObjective03", 3);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ObjectiveDestroytheWeaponsFacilityFailed_Init () {
+    gt_ObjectiveDestroytheWeaponsFacilityFailed = TriggerCreate("gt_ObjectiveDestroytheWeaponsFacilityFailed_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Noxious Q
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroNoxiousQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    TriggerExecute(gt_IntroSetupNoxious, true, true);
+    TriggerExecute(gt_IntroCinematicNoxious, true, true);
+    TriggerExecute(gt_IntroCinematicEndNoxious, true, true);
+    TriggerExecute(gt_IntroCleanupNoxious, true, true);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroNoxiousQ_Init () {
+    gt_IntroNoxiousQ = TriggerCreate("gt_IntroNoxiousQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Setup Noxious
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroSetupNoxious_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    gv_inCinematic = true;
+    CinematicFade(false, 0.0, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, false);
+    libSwaC_gf_CinematicModeSwarmCampaign(true, c_transitionDurationDefault);
+    libNtve_gf_GlobalCinematicSetting(true);
+    PlayerSetState(gv_pLAYER_01_USER, c_playerStateXPGain, false);
+    GameTimeOfDayPause(true);
+    RegionPlayableMapSet(RegionFromId(11));
+    UnitGroupLoopBegin(gv_torrasqueUnits);
+    while (!UnitGroupLoopDone()) {
+        libNtve_gf_ShowHideUnit(UnitGroupLoopCurrent(), false);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(gv_noxiousUnits);
+    while (!UnitGroupLoopDone()) {
+        libNtve_gf_ShowHideUnit(UnitGroupLoopCurrent(), true);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitPauseAll(true);
+    gv_cinematicHiddenUnits = UnitGroupEmpty();
+    gv_cinematicTempUnits = UnitGroupEmpty();
+    libNtve_gf_CreateUnitsAtPoint2(1, "Marine", 0, gv_pLAYER_02_DOMINION, PointFromId(20));
+    gv_introGuard = UnitLastCreated();
+    libNtve_gf_PauseUnit(gv_introGuard, true);
+    libNtve_gf_ShareVisionofUnit(gv_introGuard, true, gv_pLAYER_01_USER);
+    UnitGroupAdd(gv_noxious, gv_startingUltralisk);
+    UnitBehaviorAdd(gv_startingUltralisk, "Harmless", gv_startingUltralisk, 1);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroSetupNoxious_Init () {
+    gt_IntroSetupNoxious = TriggerCreate("gt_IntroSetupNoxious_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Cinematic Noxious
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroCinematicNoxious_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(115), 0.0, -1, 10, true);
+    gv_cinematicCompleted = false;
+    TriggerSkippableBegin(PlayerGroupAll(), 0, null, true, false);
+    Wait(2.0, c_timeGame);
+    CinematicFade(true, 2.0, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(749), (SoundLengthSync(SoundLink(ConversationDataGetSound("zEvoBriefing_Ultralisk|Line00016", true), c_soundIndexAny)) + SoundLengthSync(SoundLink(ConversationDataGetSound("zEvoBriefing_Ultralisk|Line00022", true), c_soundIndexAny)) + SoundLengthSync(SoundLink(ConversationDataGetSound("zEvoBriefing_Ultralisk|Line00017", true), c_soundIndexAny))), -1, 10.0, true);
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(0);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoBriefing_Ultralisk|Line00016", c_transmissionDurationAdd, 0.0, true, 0, 0);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoBriefing_Ultralisk|Line00022", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoBriefing_Ultralisk|Line00017", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    CinematicFade(false, 1.0, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+    SoundtrackPlay(PlayerGroupAll(), c_soundtrackCategoryAmbience, "Ambience_Castanar", c_soundtrackCueAny, c_soundtrackIndexAny, true);
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(755), 0.0, -1, 10, true);
+    CinematicFade(true, 1.0, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(770), (SoundLengthSync(SoundLink(ConversationDataGetSound("zEvoBriefing_Ultralisk|Line00027", true), c_soundIndexAny)) + SoundLengthSync(SoundLink(ConversationDataGetSound("zEvoBriefing_Ultralisk|Line00028", true), c_soundIndexAny)) - 1), -1, 10.0, true);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoBriefing_Ultralisk|Line00027", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoBriefing_Ultralisk|Line00028", c_transmissionDurationAdd, 0.0, false, 1, 0);
+    TransmissionWait(TransmissionLastSent(), 2.7);
+    libNtve_gf_PauseUnit(gv_startingUltralisk, false);
+    UnitIssueOrder(gv_startingUltralisk, Order(AbilityCommand("FreeUltralisk", 0)), c_orderQueueReplace);
+    gv_introEscapeOrdered = true;
+    TransmissionWait(TransmissionLastSent(), 0.0);
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(92), 5.0, -1, 10, true);
+    libNtve_gf_PlayAnimation(libNtve_gf_MainActorofUnit(gv_introGuard), c_animNameDefault, "Stand Victory", 0, c_animTimeDefault);
+    libSwaC_gf_SendTransmissionCampaign(gv_introGuard, "zEvoMission_Ultralisk|Line00023", c_transmissionDurationAdd, 0.0, false, 1, 0);
+    Wait(3.0, c_timeGame);
+    gv_cinematicCompleted = true;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroCinematicNoxious_Init () {
+    gt_IntroCinematicNoxious = TriggerCreate("gt_IntroCinematicNoxious_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Cinematic End Noxious
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroCinematicEndNoxious_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_fadeDuration;
+
+    // Variable Initialization
+    lv_fadeDuration = 0.0;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((gv_cinematicCompleted == true)) {
+    }
+    else {
+        lv_fadeDuration = 0.5;
+        CinematicFade(false, lv_fadeDuration, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroCinematicEndNoxious_Init () {
+    gt_IntroCinematicEndNoxious = TriggerCreate("gt_IntroCinematicEndNoxious_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Cleanup Noxious
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroCleanupNoxious_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_fadeDuration;
+
+    // Variable Initialization
+    lv_fadeDuration = 0.0;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupLoopBegin(gv_cinematicTempUnits);
+    while (!UnitGroupLoopDone()) {
+        UnitRemove(UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(gv_cinematicHiddenUnits);
+    while (!UnitGroupLoopDone()) {
+        libNtve_gf_ShowHideUnit(UnitGroupLoopCurrent(), true);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitPauseAll(false);
+    UnitRemove(gv_introGuard);
+    if ((gv_introEscapeOrdered == false)) {
+        UnitIssueOrder(gv_startingUltralisk, Order(AbilityCommand("FreeUltralisk", 0)), c_orderQueueReplace);
+    }
+    else {
+    }
+    UnitGroupLoopBegin(gv_torrasqueUnits);
+    while (!UnitGroupLoopDone()) {
+        libNtve_gf_ShowHideUnit(UnitGroupLoopCurrent(), false);
+        libNtve_gf_PauseUnit(UnitGroupLoopCurrent(), true);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    GameTimeOfDayPause(false);
+    PlayerSetState(gv_pLAYER_01_USER, c_playerStateXPGain, true);
+    VisExploreArea(gv_pLAYER_01_USER, RegionEntireMap(), false, true);
+    if ((gv_cinematicCompleted == false)) {
+        SoundtrackPlay(PlayerGroupAll(), c_soundtrackCategoryAmbience, "Ambience_Castanar", c_soundtrackCueAny, c_soundtrackIndexAny, true);
+    }
+    else {
+    }
+    if ((gv_cinematicCompleted == true)) {
+        lv_fadeDuration = 2.0;
+        libNtve_gf_CinematicMode(false, PlayerGroupAll(), lv_fadeDuration);
+        libNtve_gf_GlobalCinematicSetting(false);
+    }
+    else {
+        lv_fadeDuration = 1.0;
+        CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoDefault(), 0.0, 0.0, 10, false);
+        libNtve_gf_SwooshCamera(gv_pLAYER_01_USER, ((CameraInfoGetValue(CameraInfoDefault(), c_cameraValueDistance)) + 8.0), CameraInfoGetValue(CameraInfoDefault(), c_cameraValueDistance), CameraInfoGetTarget(CameraInfoFromId(92)), lv_fadeDuration);
+        libNtve_gf_CinematicMode(false, PlayerGroupAll(), lv_fadeDuration);
+        libNtve_gf_GlobalCinematicSetting(false);
+        CinematicFade(true, lv_fadeDuration, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, false);
+    }
+    gv_inCinematic = false;
+    Wait(lv_fadeDuration, c_timeGame);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroCleanupNoxious_Init () {
+    gt_IntroCleanupNoxious = TriggerCreate("gt_IntroCleanupNoxious_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory Noxious Q
+//--------------------------------------------------------------------------------------------------
+bool gt_VictoryNoxiousQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    TriggerExecute(gt_VictorySetupNoxious, true, true);
+    TriggerExecute(gt_VictoryCinematicNoxious, true, true);
+    TriggerExecute(gt_VictoryMusicCueNoxious, true, true);
+    TriggerExecute(gt_VictoryCinematicEndNoxious, true, true);
+    TriggerExecute(gt_VictoryCleanupNoxious, true, true);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictoryNoxiousQ_Init () {
+    gt_VictoryNoxiousQ = TriggerCreate("gt_VictoryNoxiousQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory Setup Noxious
+//--------------------------------------------------------------------------------------------------
+bool gt_VictorySetupNoxious_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    CinematicFade(false, 1.0, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, false);
+    UISetMode(PlayerGroupAll(), c_uiModeFullscreen, 1.0);
+    Wait(1.0, c_timeReal);
+    gv_inCinematic = true;
+    libSwaC_gf_CinematicModeSwarmCampaign(true, c_transitionDurationDefault);
+    libNtve_gf_GlobalCinematicSetting(true);
+    PlayerSetState(gv_pLAYER_01_USER, c_playerStateXPGain, false);
+    GameTimeOfDayPause(true);
+    RegionPlayableMapSet(RegionEntireMap());
+    SoundtrackPlay(PlayerGroupAll(), c_soundtrackCategoryAmbience, "Ambience_Korhal", c_soundtrackCueAny, c_soundtrackIndexAny, true);
+    UnitGroupLoopBegin(UnitGroup(null, c_playerAny, RegionFromId(11), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitRemove(UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_02_DOMINION, RegionFromId(14), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        libNtve_gf_ChangeUnitDamage(UnitGroupLoopCurrent(), 1, 1);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictorySetupNoxious_Init () {
+    gt_VictorySetupNoxious = TriggerCreate("gt_VictorySetupNoxious_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory Music Cue Noxious
+//--------------------------------------------------------------------------------------------------
+bool gt_VictoryMusicCueNoxious_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    SoundtrackStop(PlayerGroupAll(), c_soundtrackCategoryMusic, true);
+    SoundtrackPlay(PlayerGroupAll(), c_soundtrackCategoryMusic, "ZEvoMusicMain", c_soundtrackCueAny, c_soundtrackIndexAny, true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictoryMusicCueNoxious_Init () {
+    gt_VictoryMusicCueNoxious = TriggerCreate("gt_VictoryMusicCueNoxious_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory Cinematic Noxious
+//--------------------------------------------------------------------------------------------------
+bool gt_VictoryCinematicNoxious_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(115), 0.0, -1, 10.0, true);
+    gv_cinematicCompleted = false;
+    TriggerSkippableBegin(PlayerGroupAll(), 0, null, true, false);
+    CinematicFade(true, 1.0, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+    libNtve_gf_PlayAnimation(libNtve_gf_MainActorofUnit(gv_baseDoor), c_animNameDefault, "Stand A Start", 0, c_animTimeDefault);
+    SoundPlay(SoundLink("Uni_DeathThudLarge", -1), PlayerGroupAll(), 100.0, 0.0);
+    gv_uniDeathThudLargeSound = SoundLastPlayed();
+    CameraShake(1, "Medium", "Earthquake", 0.25, 0.25, 1.0);
+    Wait(1.5, c_timeReal);
+    libNtve_gf_PlayAnimation(libNtve_gf_MainActorofUnit(gv_baseDoor), c_animNameDefault, "Stand B Start", 0, c_animTimeDefault);
+    SoundStop(SoundLastPlayed(), false);
+    SoundPlay(SoundLink("Uni_DeathThudLarge", -1), PlayerGroupAll(), 100.0, 0.0);
+    gv_uniDeathThudLargeSound = SoundLastPlayed();
+    CameraShake(1, "Medium", "Earthquake", 0.25, 0.25, 1.0);
+    Wait(1.5, c_timeReal);
+    libNtve_gf_PlayAnimation(libNtve_gf_MainActorofUnit(gv_baseDoor), c_animNameDefault, "Stand C Start", 0, c_animTimeDefault);
+    SoundStop(SoundLastPlayed(), false);
+    SoundPlay(SoundLink("Uni_DeathThudLarge", -1), PlayerGroupAll(), 100.0, 0.0);
+    gv_uniDeathThudLargeSound = SoundLastPlayed();
+    CameraShake(1, "Medium", "Earthquake", 0.25, 0.25, 1.0);
+    gf_CreateGasCloud(PointFromId(33));
+    Wait(1.5, c_timeReal);
+    libNtve_gf_PlayAnimation(libNtve_gf_MainActorofUnit(gv_baseDoor), c_animNameDefault, "Stand D Start", c_animFlagPlayForever, c_animTimeDefault);
+    CameraShake(gv_pLAYER_01_USER, "Medium", "Earthquake", 0.5, 0.5, 2.5);
+    SoundPlay(SoundLink("Uni_DeathThudLarge", -1), PlayerGroupAll(), 100.0, 0.0);
+    gv_uniDeathThudLargeSound = SoundLastPlayed();
+    SoundPlay(SoundLink("Event_UltraliskEvo_DoorExplodes", -1), PlayerGroupAll(), 100.0, 0.0);
+    gv_doorExplodeSound = SoundLastPlayed();
+    SoundPlay(SoundLink("Event_UltraliskEvo_UltraliskRoar", -1), PlayerGroupAll(), 100.0, 0.0);
+    gv_ultraliskRoarSound = SoundLastPlayed();
+    UnitKill(gv_baseDoor);
+    libNtve_gf_CreateUnitsWithDefaultFacing(2, "HotSNoxious", 0, gv_pLAYER_01_USER, PointFromId(33));
+    libNtve_gf_CreateUnitsWithDefaultFacing(2, "HotSNoxious", 0, gv_pLAYER_01_USER, PointFromId(75));
+    UnitGroupIssueOrder(UnitGroup(null, gv_pLAYER_01_USER, RegionFromId(14), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), OrderTargetingPoint(AbilityCommand("attack", 0), PointFromId(28)), c_orderQueueReplace);
+    Wait(1.0, c_timeReal);
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(0);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00009", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    gv_cinematicCompleted = true;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictoryCinematicNoxious_Init () {
+    gt_VictoryCinematicNoxious = TriggerCreate("gt_VictoryCinematicNoxious_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory Cinematic End Noxious
+//--------------------------------------------------------------------------------------------------
+bool gt_VictoryCinematicEndNoxious_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_fadeDuration;
+
+    // Variable Initialization
+    lv_fadeDuration = 0.0;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((gv_cinematicCompleted == true)) {
+        lv_fadeDuration = 2.0;
+    }
+    else {
+        lv_fadeDuration = 0.5;
+    }
+    CinematicFade(false, lv_fadeDuration, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictoryCinematicEndNoxious_Init () {
+    gt_VictoryCinematicEndNoxious = TriggerCreate("gt_VictoryCinematicEndNoxious_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory Cleanup Noxious
+//--------------------------------------------------------------------------------------------------
+bool gt_VictoryCleanupNoxious_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_fadeDuration;
+
+    // Variable Initialization
+    lv_fadeDuration = 0.0;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    SoundStop(gv_uniDeathThudLargeSound, true);
+    SoundStop(gv_doorExplodeSound, true);
+    SoundStop(gv_ultraliskRoarSound, true);
+    UnitGroupLoopBegin(UnitGroup(null, c_playerAny, RegionFromId(14), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitRemove(UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(UnitGroup(null, c_playerAny, RegionFromId(11), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitRemove(UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictoryCleanupNoxious_Init () {
+    gt_VictoryCleanupNoxious = TriggerCreate("gt_VictoryCleanupNoxious_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Torrasque Q
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroTorrasqueQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    TriggerExecute(gt_VictoryMusicCueNoxious, true, false);
+    TriggerExecute(gt_IntroSetupTorrasque, true, true);
+    TriggerExecute(gt_IntroCinematicTorrasque, true, true);
+    TriggerExecute(gt_IntroCinematicEndTorrasque, true, true);
+    TriggerExecute(gt_IntroCleanupTorrasque, true, true);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroTorrasqueQ_Init () {
+    gt_IntroTorrasqueQ = TriggerCreate("gt_IntroTorrasqueQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Setup Torrasque
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroSetupTorrasque_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupLoopBegin(UnitGroup(null, c_playerAny, RegionFromId(6), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitGroupAdd(gv_torrasqueUnits, UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(gv_torrasqueUnits);
+    while (!UnitGroupLoopDone()) {
+        libNtve_gf_ShowHideUnit(UnitGroupLoopCurrent(), true);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitPauseAll(true);
+    gv_cinematicHiddenUnits = UnitGroupEmpty();
+    gv_cinematicTempUnits = UnitGroupEmpty();
+    GameSetLighting("KorhalCity", 0.0);
+    RegionPlayableMapSet(RegionFromId(6));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroSetupTorrasque_Init () {
+    gt_IntroSetupTorrasque = TriggerCreate("gt_IntroSetupTorrasque_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Cinematic Torrasque
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroCinematicTorrasque_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(913), 0.0, -1, 10, true);
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(19), (SoundLengthSync(SoundLink(ConversationDataGetSound("zEvoBriefing_Ultralisk|Line00005", true), c_soundIndexAny)) + 5), -1, 10.0, true);
+    gv_cinematicCompleted = false;
+    TriggerSkippableBegin(PlayerGroupAll(), 0, null, true, false);
+    CinematicFade(true, 2.0, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(0);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoBriefing_Ultralisk|Line00005", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoBriefing_Ultralisk|Line00025", c_transmissionDurationAdd, 0.0, false, 1, 0);
+    Wait(2.0, c_timeReal);
+    libSwaC_gf_AttachReticleEffectAndTextTagOnUnit(2, 0, null, gv_weaponsFacility, "Center");
+    libHots_gf_StoreActorForUnit(gv_weaponsFacility, 1, libNtve_gf_ActorLastCreated());
+    TransmissionWait(TransmissionLastSent(), 0.0);
+    libNtve_gf_KillModel(libHots_gf_ActorForUnit(gv_weaponsFacility, 1));
+    CinematicFade(false, 1.0, c_fadeStyleNormal, Color(0.00, 0.00, 0.00), 0.0, true);
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(771), 0.0, -1, 10, true);
+    CinematicFade(true, 1.0, c_fadeStyleNormal, Color(0.00, 0.00, 0.00), 0.0, true);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00030", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    gv_cinematicCompleted = true;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroCinematicTorrasque_Init () {
+    gt_IntroCinematicTorrasque = TriggerCreate("gt_IntroCinematicTorrasque_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Cinematic End Torrasque
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroCinematicEndTorrasque_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_fadeDuration;
+
+    // Variable Initialization
+    lv_fadeDuration = 0.0;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((gv_cinematicCompleted == true)) {
+        lv_fadeDuration = 2.0;
+    }
+    else {
+        lv_fadeDuration = 0.5;
+    }
+    CinematicFade(false, lv_fadeDuration, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroCinematicEndTorrasque_Init () {
+    gt_IntroCinematicEndTorrasque = TriggerCreate("gt_IntroCinematicEndTorrasque_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Cleanup Torrasque
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroCleanupTorrasque_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_fadeDuration;
+
+    // Variable Initialization
+    lv_fadeDuration = 0.0;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupLoopBegin(gv_cinematicTempUnits);
+    while (!UnitGroupLoopDone()) {
+        UnitRemove(UnitGroupLoopCurrent());
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(gv_cinematicHiddenUnits);
+    while (!UnitGroupLoopDone()) {
+        libNtve_gf_ShowHideUnit(UnitGroupLoopCurrent(), true);
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+    UnitPauseAll(false);
+    GameTimeOfDayPause(false);
+    PlayerSetState(gv_pLAYER_01_USER, c_playerStateXPGain, true);
+    libNtve_gf_KillModel(libHots_gf_ActorForUnit(gv_weaponsFacility, 1));
+    UnitClearSelection(gv_pLAYER_01_USER);
+    UnitGroupSelect(gv_torrasques, gv_pLAYER_01_USER, true);
+    libNtve_gf_CreateUnitsAtPoint2(1, "VikingFighter", 0, gv_pLAYER_02_DOMINION, PointFromId(922));
+    gv_viking1 = UnitLastCreated();
+    UnitSetPropertyFixed(gv_viking1, c_unitPropHeight, 10.0);
+    libNtve_gf_PauseUnit(gv_viking1, true);
+    libNtve_gf_ShowHideUnit(gv_viking1, false);
+    libNtve_gf_CreateUnitsAtPoint2(1, "VikingFighter", 0, gv_pLAYER_02_DOMINION, PointFromId(929));
+    gv_viking2 = UnitLastCreated();
+    UnitSetPropertyFixed(gv_viking2, c_unitPropHeight, 10.0);
+    libNtve_gf_PauseUnit(gv_viking2, true);
+    libNtve_gf_ShowHideUnit(gv_viking2, false);
+    libNtve_gf_CreateUnitsAtPoint2(1, "VikingFighter", 0, gv_pLAYER_02_DOMINION, PointFromId(930));
+    gv_viking3 = UnitLastCreated();
+    UnitSetPropertyFixed(gv_viking3, c_unitPropHeight, 10.0);
+    libNtve_gf_PauseUnit(gv_viking3, true);
+    libNtve_gf_ShowHideUnit(gv_viking3, false);
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoDefault(), 0.0, -1, 10, false);
+    if ((gv_cinematicCompleted == true)) {
+        lv_fadeDuration = 1.5;
+    }
+    else {
+        lv_fadeDuration = 1.0;
+    }
+    libNtve_gf_CinematicMode(false, PlayerGroupAll(), lv_fadeDuration);
+    libNtve_gf_GlobalCinematicSetting(false);
+    gv_inCinematic = false;
+    libNtve_gf_SwooshCamera(gv_pLAYER_01_USER, ((CameraInfoGetValue(CameraInfoDefault(), c_cameraValueDistance)) + 8.0), CameraInfoGetValue(CameraInfoDefault(), c_cameraValueDistance), CameraInfoGetTarget(CameraInfoFromId(317)), lv_fadeDuration);
+    CinematicFade(true, lv_fadeDuration, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroCleanupTorrasque_Init () {
+    gt_IntroCleanupTorrasque = TriggerCreate("gt_IntroCleanupTorrasque_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory Torrasque Q
+//--------------------------------------------------------------------------------------------------
+bool gt_VictoryTorrasqueQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    gv_gameOver = true;
+    TriggerQueueEnter();
+    TriggerExecute(gt_VictorySetupTorrasque, true, true);
+    TriggerExecute(gt_VictoryCinematicTorrasque, true, true);
+    TriggerExecute(gt_VictoryMusicCueNoxious, true, false);
+    TriggerExecute(gt_VictoryCinematicEndTorrasque, true, true);
+    TriggerExecute(gt_VictoryCleanupTorrasque, true, true);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictoryTorrasqueQ_Init () {
+    gt_VictoryTorrasqueQ = TriggerCreate("gt_VictoryTorrasqueQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory Setup Torrasque
+//--------------------------------------------------------------------------------------------------
+bool gt_VictorySetupTorrasque_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    CinematicFade(false, 1.0, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, false);
+    UISetMode(PlayerGroupAll(), c_uiModeFullscreen, 1.0);
+    Wait(1.0, c_timeReal);
+    gv_inCinematic = true;
+    libSwaC_gf_CinematicModeSwarmCampaign(true, c_transitionDurationDefault);
+    libNtve_gf_GlobalCinematicSetting(true);
+    UnitClearSelection(gv_pLAYER_01_USER);
+    PlayerSetState(gv_pLAYER_01_USER, c_playerStateXPGain, false);
+    GameTimeOfDayPause(true);
+    UnitPauseAll(true);
+    gv_cinematicHiddenUnits = UnitGroupEmpty();
+    gv_cinematicTempUnits = UnitGroupEmpty();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictorySetupTorrasque_Init () {
+    gt_VictorySetupTorrasque = TriggerCreate("gt_VictorySetupTorrasque_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory Cinematic Torrasque
+//--------------------------------------------------------------------------------------------------
+bool gt_VictoryCinematicTorrasque_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    CameraApplyInfo(gv_pLAYER_01_USER, CameraInfoFromId(52), 0.0, -1, 10.0, true);
+    gv_cinematicCompleted = false;
+    TriggerSkippableBegin(PlayerGroupAll(), 0, null, true, false);
+    CinematicFade(true, 1.0, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+    libSwaC_gf_SetAllSoundChannelVolumesCampaign(0);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00013", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    libSwaC_gf_SendTransmissionCampaign(null, "zEvoMission_Ultralisk|Line00014", c_transmissionDurationAdd, 0.0, true, 1, 0);
+    gv_cinematicCompleted = true;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictoryCinematicTorrasque_Init () {
+    gt_VictoryCinematicTorrasque = TriggerCreate("gt_VictoryCinematicTorrasque_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory Cinematic End Torrasque
+//--------------------------------------------------------------------------------------------------
+bool gt_VictoryCinematicEndTorrasque_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_fadeDuration;
+
+    // Variable Initialization
+    lv_fadeDuration = 0.0;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((gv_cinematicCompleted == true)) {
+        lv_fadeDuration = 2.0;
+    }
+    else {
+        lv_fadeDuration = 0.5;
+    }
+    CinematicFade(false, lv_fadeDuration, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictoryCinematicEndTorrasque_Init () {
+    gt_VictoryCinematicEndTorrasque = TriggerCreate("gt_VictoryCinematicEndTorrasque_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Victory Cleanup Torrasque
+//--------------------------------------------------------------------------------------------------
+bool gt_VictoryCleanupTorrasque_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerExecute(gt_Victory, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_VictoryCleanupTorrasque_Init () {
+    gt_VictoryCleanupTorrasque = TriggerCreate("gt_VictoryCleanupTorrasque_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger Initialization
+//--------------------------------------------------------------------------------------------------
+void InitTriggers () {
+    gt_Initialization_Init();
+    gt_Init01Technology_Init();
+    gt_Init02Players_Init();
+    gt_Init03Units_Init();
+    gt_Init04Music_Init();
+    gt_Init05Environment_Init();
+    gt_Init06Difficulties_Init();
+    gt_Init07Help_Init();
+    gt_Stage2Torrasque_Init();
+    gt_AutoRevealRegionControllerCheckCliffLevel_Init();
+    gt_StartGameQ_Init();
+    gt_NoxiousMusicCue_Init();
+    gt_ReinforcementsAllUnitsDead_Init();
+    gt_UltraliskEscaped_Init();
+    gt_Room1ScientistsFlee_Init();
+    gt_Room1Passed_Init();
+    gt_ContainmentControlIntro_Init();
+    gt_GasDamage_Init();
+    gt_NoxiousMorphCatch_Init();
+    gt_ContainmentControlDestroyed_Init();
+    gt_GuardsFleeGas_Init();
+    gt_Room2Passed_Init();
+    gt_Room3Passed_Init();
+    gt_LabEscaped_Init();
+    gt_TransmissionScientistYell1Q_Init();
+    gt_TransmissionContainmentCellIntroQ_Init();
+    gt_TransmissionContainmentCellDestroyedQ_Init();
+    gt_TransmissionNoxiousStrainQ_Init();
+    gt_TransmissionGuardsFleeGasQ_Init();
+    gt_TransmissionScientistYell2Q_Init();
+    gt_TransmissionScientistYell3Q_Init();
+    gt_TransmissionItBurnsQ_Init();
+    gt_TransmissionScientistYell4Q_Init();
+    gt_TorrasqueMusicCue_Init();
+    gt_StartTorrasqueQ_Init();
+    gt_DetectBreakables_Init();
+    gt_TorrasqueCreatedRevived_Init();
+    gt_BridgeGuardsRevealed_Init();
+    gt_BridgeGuardsEngaged_Init();
+    gt_TorrasqueReinforcements1_Init();
+    gt_StreetUnits1_Init();
+    gt_StreetUnits2_Init();
+    gt_StreetUnits3_Init();
+    gt_PropertyDamage_Init();
+    gt_TorrasqueReinforcements2_Init();
+    gt_FacilityGuards_Init();
+    gt_WeaponsFacilityKilled_Init();
+    gt_TransmissionUltralisksIncomingQ_Init();
+    gt_TransmissionFirstNukeQ_Init();
+    gt_TransmissionUltralisksInfectedQ_Init();
+    gt_TransmissionUltralisksEvolvingQ_Init();
+    gt_TransmissionTorrasqueStrainQ_Init();
+    gt_TransmissionPressOnQ_Init();
+    gt_TransmissionTorrasqueReinforcements2Q_Init();
+    gt_TransmissionFirstDeathQ_Init();
+    gt_TransmissionFirstRebirthQ_Init();
+    gt_TransmissionUglyThingsQ_Init();
+    gt_TransmissionSecondNukeQ_Init();
+    gt_TransmissionThirdNukeQ_Init();
+    gt_TransmissionFourthNukeQ_Init();
+    gt_TransmissionPropertyDamageQ_Init();
+    gt_VictoryEscapetheLabCompleted_Init();
+    gt_VictoryDestroytheWeaponsFacilityCompleted_Init();
+    gt_VictorySequence_Init();
+    gt_Victory_Init();
+    gt_Defeat_Init();
+    gt_VictoryCheat_Init();
+    gt_DefeatCheat_Init();
+    gt_TipMissionHelpQ_Init();
+    gt_AIGiveMinerals_Init();
+    gt_AIGiveGas_Init();
+    gt_ObjectiveEscapeTheLabCreate_Init();
+    gt_ObjectiveEscapeTheLabComplete_Init();
+    gt_ObjectiveEscapeTheLabFailed_Init();
+    gt_ObjectiveSecuretheBridgeCreate_Init();
+    gt_ObjectiveSecuretheBridgeComplete_Init();
+    gt_ObjectiveSecuretheBridgeFailed_Init();
+    gt_ObjectiveDestroytheWeaponsFacilityCreate_Init();
+    gt_ObjectiveDestroytheWeaponsFacilityComplete_Init();
+    gt_ObjectiveDestroytheWeaponsFacilityFailed_Init();
+    gt_IntroNoxiousQ_Init();
+    gt_IntroSetupNoxious_Init();
+    gt_IntroCinematicNoxious_Init();
+    gt_IntroCinematicEndNoxious_Init();
+    gt_IntroCleanupNoxious_Init();
+    gt_VictoryNoxiousQ_Init();
+    gt_VictorySetupNoxious_Init();
+    gt_VictoryMusicCueNoxious_Init();
+    gt_VictoryCinematicNoxious_Init();
+    gt_VictoryCinematicEndNoxious_Init();
+    gt_VictoryCleanupNoxious_Init();
+    gt_IntroTorrasqueQ_Init();
+    gt_IntroSetupTorrasque_Init();
+    gt_IntroCinematicTorrasque_Init();
+    gt_IntroCinematicEndTorrasque_Init();
+    gt_IntroCleanupTorrasque_Init();
+    gt_VictoryTorrasqueQ_Init();
+    gt_VictorySetupTorrasque_Init();
+    gt_VictoryCinematicTorrasque_Init();
+    gt_VictoryCinematicEndTorrasque_Init();
+    gt_VictoryCleanupTorrasque_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Map Initialization
+//--------------------------------------------------------------------------------------------------
+void InitMap () {
+    InitLibs();
+    InitGlobals();
+    InitTriggers();
+}

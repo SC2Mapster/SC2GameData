@@ -2,6 +2,7 @@ include "TriggerLibs/NativeLib"
 include "TriggerLibs/HeroesLib"
 include "TriggerLibs/GameLib"
 include "TriggerLibs/MapMechanicsLib"
+include "TriggerLibs/AILib"
 include "TriggerLibs/UILib"
 
 include "LibVLSK_h"
@@ -15,6 +16,7 @@ void libVLSK_InitLibraries () {
     libCore_InitVariables();
     libGame_InitVariables();
     libMapM_InitVariables();
+    libAIAI_InitVariables();
     libUIUI_InitVariables();
 }
 
@@ -33,15 +35,19 @@ void libVLSK_InitVariables () {
     libVLSK_gv_capturePointContestTimeGoal_C = 6.0;
     libVLSK_gv_capturePointVictoryTimeGoal_C = 52.0;
     libVLSK_gv_capturePointDecayDelayTime_C = 5.0;
+    libVLSK_gv_capturePointContestFilter_C = UnitFilter((1 << c_targetFilterHeroic), 0, (1 << c_targetFilterAir) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterBenign - 32)));
     for (init_i = 0; init_i <= libVLSK_gv_capturePointMaxCount_C; init_i += 1) {
         libVLSK_gv_capturePoints[init_i].lv_state = libVLSK_ge_OverwatchCapturePoint_State_Empty;
     }
     libVLSK_gv_capturePointCooldownTimer = TimerCreate();
     libVLSK_gv_capturePointWarningTimer = TimerCreate();
     libVLSK_gv_grantStandardCapturePointRewards = true;
+    libVLSK_gv_mMVolskayaObjectivePreviewTimer = TimerCreate();
+    libVLSK_gv_mMVolskayaObjectivePreviewDelay_C = 30.0;
     libVLSK_gv_pilotNeededTimer = TimerCreate();
     libVLSK_gv_gunnerNeededTimer = TimerCreate();
     libVLSK_gv_controlPointVisualsActorMsgRadius_C = 15.0;
+    libVLSK_gv_capturePointPlayControllingSounds = true;
     libVLSK_gv_overwatchAllyBlue_C = Color(11.37, 75.69, 89.41);
     libVLSK_gv_overwatchEnemyRed_C = Color(96.08, 23.14, 23.53);
     libVLSK_gv_overwatchNeutralYellow_C = Color(96.47, 89.41, 32.16);
@@ -80,7 +86,7 @@ void libVLSK_InitVariables () {
 
 // Presets
 // Functions
-void libVLSK_gf_InitializeOverwatchCapturePoint (region lp_region, point lp_rewardPoint, unit lp_pilotBannerSconce, unit lp_gunnerBannerSconce, string lp_minimapIconUnitType, string lp_controlIndicatorImage) {
+void libVLSK_gf_InitializeOverwatchCapturePoint (region lp_region, point lp_rewardPoint, unit lp_pilotBannerSconce, unit lp_gunnerBannerSconce, string lp_minimapIconUnitType, string lp_minimapIconPreviewUnitType, string lp_controlIndicatorImage) {
     // Automatic Variable Declarations
     // Implementation
     libVLSK_gv_capturePointCount += 1;
@@ -89,6 +95,7 @@ void libVLSK_gf_InitializeOverwatchCapturePoint (region lp_region, point lp_rewa
     libVLSK_gv_capturePoints[libVLSK_gv_capturePointCount].lv_pilotBannerSconce = lp_pilotBannerSconce;
     libVLSK_gv_capturePoints[libVLSK_gv_capturePointCount].lv_gunnerBannerSconce = lp_gunnerBannerSconce;
     libVLSK_gv_capturePoints[libVLSK_gv_capturePointCount].lv_minimapIconUnitType = lp_minimapIconUnitType;
+    libVLSK_gv_capturePoints[libVLSK_gv_capturePointCount].lv_minimapIconPreviewUnitType = lp_minimapIconPreviewUnitType;
     libVLSK_gv_capturePoints[libVLSK_gv_capturePointCount].lv_controlIndicatorImage = lp_controlIndicatorImage;
 }
 
@@ -109,17 +116,26 @@ void libVLSK_gf_EnableDisableCapturePoint (int lp_capturePointIndex, bool lp_ena
         libVLSK_gf_UpdateUIControlPointIndicatorImage();
         DialogControlSetVisible(libVLSK_gv_volskayaUI.lv_mapMechanic_Container, PlayerGroupAll(), true);
         libVLSK_gf_SendEventVolskayaPointEnabled(libVLSK_gv_capturePoints[lp_capturePointIndex].lv_region);
+        AddUnitOfInterest(libVLSK_gv_capturePoints[lp_capturePointIndex].lv_minimapIconUnit, 7.0, 0.0, "VolskayaPoint", libNtve_ge_GoalTeam_Both, 0);
         libVLSK_gv_currentCapturePoint = lp_capturePointIndex;
         libVLSK_gf_MonitorCapturePointProgressUntilComplete(lp_capturePointIndex);
     }
     else {
         libVLSK_gv_capturePoints[lp_capturePointIndex].lv_state = libVLSK_ge_OverwatchCapturePoint_State_Empty;
         libVLSK_gv_capturePoints[lp_capturePointIndex].lv_isActive = false;
-        RemovePointOfInterest(RegionGetCenter(libVLSK_gv_capturePoints[lp_capturePointIndex].lv_region), "VolskayaCapturePoint", libNtve_ge_GoalTeam_Both);
         libVLSK_gf_EnableDisableOvertimeBar(false);
         UnitKill(libVLSK_gv_capturePoints[lp_capturePointIndex].lv_minimapIconUnit);
         DialogControlSendAnimationEvent(libVLSK_gv_volskayaUI.lv_mapMechanic_Container, PlayerGroupAll(), "PlaySlideOut");
     }
+}
+
+void libVLSK_gf_CreateCapturePointPreview (int lp_capturePointIndex) {
+    // Automatic Variable Declarations
+    // Implementation
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, libVLSK_gv_capturePoints[lp_capturePointIndex].lv_minimapIconPreviewUnitType, c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Neutral, RegionGetCenter(libVLSK_gv_capturePoints[lp_capturePointIndex].lv_region));
+    libVLSK_gv_capturePoints[lp_capturePointIndex].lv_minimapIconUnit = UnitLastCreated();
+    libNtve_gf_SendActorMessageToUnit(libVLSK_gv_capturePoints[lp_capturePointIndex].lv_minimapIconUnit, "MinimapIconTintColor 255,145,113,218");
+    libNtve_gf_SendActorMessageToUnit(libVLSK_gv_capturePoints[lp_capturePointIndex].lv_minimapIconUnit, "MinimapTooltip DOCSTR_NextControlPoint");
 }
 
 void libVLSK_gf_MonitorCapturePointProgressUntilComplete (int lp_capturePointIndex) {
@@ -144,8 +160,8 @@ void libVLSK_gf_MonitorCapturePointProgressUntilComplete (int lp_capturePointInd
 
     // Implementation
     while ((libVLSK_gv_capturePoints[lp_capturePointIndex].lv_isActive == true) && (libGame_gv_gameOver == false)) {
-        lv_heroesOnPoint[libGame_gv_teamOrderIndex_C] = UnitGroupAlliance(libCore_gv_cOMPUTER_TeamOrder, c_unitAllianceAlly, libVLSK_gv_capturePoints[lp_capturePointIndex].lv_region, UnitFilter((1 << c_targetFilterHeroic), 0, (1 << c_targetFilterAir) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterHallucination - 32)) | (1 << (c_targetFilterBenign - 32))), 0);
-        lv_heroesOnPoint[libGame_gv_teamChaosIndex_C] = UnitGroupAlliance(libCore_gv_cOMPUTER_TeamChaos, c_unitAllianceAlly, libVLSK_gv_capturePoints[lp_capturePointIndex].lv_region, UnitFilter((1 << c_targetFilterHeroic), 0, (1 << c_targetFilterAir) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterHallucination - 32)) | (1 << (c_targetFilterBenign - 32))), 0);
+        lv_heroesOnPoint[libGame_gv_teamOrderIndex_C] = UnitGroupAlliance(libCore_gv_cOMPUTER_TeamOrder, c_unitAllianceAlly, libVLSK_gv_capturePoints[lp_capturePointIndex].lv_region, libVLSK_gv_capturePointContestFilter_C, 0);
+        lv_heroesOnPoint[libGame_gv_teamChaosIndex_C] = UnitGroupAlliance(libCore_gv_cOMPUTER_TeamChaos, c_unitAllianceAlly, libVLSK_gv_capturePoints[lp_capturePointIndex].lv_region, libVLSK_gv_capturePointContestFilter_C, 0);
         lv_heroesCount[libGame_gv_teamOrderIndex_C] = UnitGroupCount(lv_heroesOnPoint[libGame_gv_teamOrderIndex_C], c_unitCountAlive);
         lv_heroesCount[libGame_gv_teamChaosIndex_C] = UnitGroupCount(lv_heroesOnPoint[libGame_gv_teamChaosIndex_C], c_unitCountAlive);
         lv_team = 1;
@@ -155,7 +171,9 @@ void libVLSK_gf_MonitorCapturePointProgressUntilComplete (int lp_capturePointInd
             for (;; auto7C9F7375_u -= 1) {
                 lv_heroUnit = UnitGroupUnitFromEnd(auto7C9F7375_g, auto7C9F7375_u);
                 if (lv_heroUnit == null) { break; }
+                libGame_gf_SendMapSpecificAwardEvent(UnitGetOwner(lv_heroUnit), 0.0625, true);
                 libGame_gf_AfkResetWarningTimerForPlayer(UnitGetOwner(lv_heroUnit));
+                UnitBehaviorAdd(lv_heroUnit, "HeroGenericHeroOnCapturePoint", lv_heroUnit, 1);
             }
         }
         if ((lv_heroesCount[libGame_gv_teamOrderIndex_C] == 0) && (lv_heroesCount[libGame_gv_teamChaosIndex_C] == 0)) {
@@ -225,7 +243,10 @@ void libVLSK_gf_MonitorCapturePointProgressUntilComplete (int lp_capturePointInd
         }
         if ((libVLSK_gv_capturePoints[lp_capturePointIndex].lv_owningTeam != libCore_gv_cOMPUTER_Neutral)) {
             libVLSK_gf_AdvanceCapturePointVictoryProgress(lp_capturePointIndex);
-            libVLSK_gf_PlayControllingSoundsForTeams(libVLSK_gv_capturePoints[lp_capturePointIndex].lv_owningTeam);
+            if ((libVLSK_gv_capturePointPlayControllingSounds == true)) {
+                libVLSK_gf_PlayControllingSoundsForTeams(libVLSK_gv_capturePoints[lp_capturePointIndex].lv_owningTeam);
+            }
+
         }
         else {
             libVLSK_gf_PauseUnpauseControllingSoundsForTeam(true, libGame_gv_teamOrderIndex_C);
@@ -271,7 +292,7 @@ void libVLSK_gf_AdvanceCapturePointVictoryProgress (int lp_capturePointIndex) {
     // Automatic Variable Declarations
     // Variable Initialization
     lv_owningTeam = libVLSK_gv_capturePoints[lp_capturePointIndex].lv_owningTeam;
-    lv_enemyHeroesOnPoint = UnitGroupAlliance(libGame_gf_ComputerPlayerInTeam(libVLSK_gv_capturePoints[lp_capturePointIndex].lv_owningTeam), c_unitAllianceEnemy, libVLSK_gv_capturePoints[lp_capturePointIndex].lv_region, UnitFilter((1 << c_targetFilterHeroic), 0, (1 << c_targetFilterAir) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterHallucination - 32)) | (1 << (c_targetFilterBenign - 32))), 0);
+    lv_enemyHeroesOnPoint = UnitGroupAlliance(libGame_gf_ComputerPlayerInTeam(libVLSK_gv_capturePoints[lp_capturePointIndex].lv_owningTeam), c_unitAllianceEnemy, libVLSK_gv_capturePoints[lp_capturePointIndex].lv_region, libVLSK_gv_capturePointContestFilter_C, 0);
 
     // Implementation
     libVLSK_gv_capturePoints[lp_capturePointIndex].lv_victoryTimes[lv_owningTeam] += libVLSK_gv_capturePointCheckPeriod_C;
@@ -462,6 +483,8 @@ bool auto_libVLSK_gf_AwardGiantRobottoTeam_TriggerFunc (bool testConds, bool run
     libVLSK_gf_SendEventVolskayaGiantRobotSpawns();
     libNtve_gf_CreateUnitsWithDefaultFacing(1, "VolskayaVehicle", 0, libGame_gf_ComputerPlayerInTeam(lp_robotOwningTeam), lp_spawnPoint);
     libVLSK_gv_giantRobotUnit = UnitLastCreated();
+    AddUnitOfInterest(libVLSK_gv_giantRobotUnit, 0.0, 0.0, "KillVolskayaRobot", libAIAI_gf_ConvertIntegertoGoalTeam(libGame_gf_EnemyTeam(lp_robotOwningTeam)), 0);
+    AddUnitOfInterest(libVLSK_gv_giantRobotUnit, 6.0, 0.0, "EscortVolskayaRobot", libAIAI_gf_ConvertIntegertoGoalTeam(lp_robotOwningTeam), 0);
     TriggerAddEventUnitDied(libVLSK_gt_GiantRobotDies, UnitRefFromVariable("libVLSK_gv_giantRobotUnit"));
     TriggerEnable(libVLSK_gt_PilotEntersRobotDropBanner, true);
     TriggerEnable(libVLSK_gt_GunnerEntersRobotDropBanner, true);
@@ -971,7 +994,6 @@ bool auto_libVLSK_gf_ShowCapturePointWarningSlideoutWithPing_TriggerFunc (bool t
     lv_ping = c_invalidPingId;
 
     // Implementation
-    AddPointOfInterest(RegionGetCenter(libVLSK_gv_capturePoints[lp_point].lv_region), 8.0, 0.0, "VolskayaCapturePoint", libNtve_ge_GoalTeam_Both, 0);
     UnitRemove(libVLSK_gv_capturePoints[lp_point].lv_minimapIconUnit);
     libNtve_gf_CreateUnitsWithDefaultFacing(1, libVLSK_gv_capturePoints[lp_point].lv_minimapIconUnitType, c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Neutral, RegionGetCenter(libVLSK_gv_capturePoints[lp_point].lv_region));
     libVLSK_gv_capturePoints[lp_point].lv_minimapIconUnit = UnitLastCreated();
@@ -1153,7 +1175,7 @@ void libVLSK_gf_SetPilotPortrait (unit lp_unit) {
         DialogControlSetVisible(libVLSK_gv_volskayaUI.lv_robot_PilotPortrait, PlayerGroupAll(), false);
     }
     else {
-        libNtve_gf_SetDialogItemImage(libVLSK_gv_volskayaUI.lv_robot_PilotPortrait, libUIUI_gf_KillLogGetPortraitPathforUnit(lp_unit, true), PlayerGroupAll());
+        libNtve_gf_SetDialogItemImage(libVLSK_gv_volskayaUI.lv_robot_PilotPortrait, libUIUI_gf_KillLogGetPortraitPathforUnit(lp_unit), PlayerGroupAll());
         DialogControlSetVisible(libVLSK_gv_volskayaUI.lv_robot_PilotPortrait, PlayerGroupAll(), true);
     }
 }
@@ -1165,7 +1187,7 @@ void libVLSK_gf_SetGunnerPortrait (unit lp_unit) {
         DialogControlSetVisible(libVLSK_gv_volskayaUI.lv_robot_GunnerPortrait, PlayerGroupAll(), false);
     }
     else {
-        libNtve_gf_SetDialogItemImage(libVLSK_gv_volskayaUI.lv_robot_GunnerPortrait, libUIUI_gf_KillLogGetPortraitPathforUnit(lp_unit, true), PlayerGroupAll());
+        libNtve_gf_SetDialogItemImage(libVLSK_gv_volskayaUI.lv_robot_GunnerPortrait, libUIUI_gf_KillLogGetPortraitPathforUnit(lp_unit), PlayerGroupAll());
         DialogControlSetVisible(libVLSK_gv_volskayaUI.lv_robot_GunnerPortrait, PlayerGroupAll(), true);
     }
 }
@@ -1387,6 +1409,42 @@ void libVLSK_gf_ResetAllVOUserData () {
 
 // Triggers
 //--------------------------------------------------------------------------------------------------
+// Trigger: Volskaya Initialize Map MVP Announcer Sounds
+//--------------------------------------------------------------------------------------------------
+bool libVLSK_gt_VolskayaInitializeMapMVPAnnouncerSounds_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Automatic Variable Declarations
+    int auto8ADB8D72_ae;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto8ADB8D72_ae = libCore_gv_bALMaxEnginePlayerCount;
+    lv_player = 1;
+    for ( ; lv_player <= auto8ADB8D72_ae ; lv_player += 1 ) {
+        libGame_gv_players[lv_player].lv_lootContent.lv_loot_AnnouncerPack.lv_announcerVOLines[libCore_ge_AnnouncerVOEvents_MVP].lv_soundLink = "VolskayaA_MVP";
+        libGame_gv_players[lv_player].lv_lootContent.lv_loot_AnnouncerPack.lv_announcerVOLines[libCore_ge_AnnouncerVOEvents_MVP].lv_playAtGameEnd = true;
+        libGame_gv_players[lv_player].lv_lootContent.lv_loot_AnnouncerPack.lv_announcerVOLines[libCore_ge_AnnouncerVOEvents_MVPVoteEpic].lv_soundLink = "VolskayaA_Epic";
+        libGame_gv_players[lv_player].lv_lootContent.lv_loot_AnnouncerPack.lv_announcerVOLines[libCore_ge_AnnouncerVOEvents_MVPVoteEpic].lv_playAtGameEnd = true;
+        libGame_gv_players[lv_player].lv_lootContent.lv_loot_AnnouncerPack.lv_announcerVOLines[libCore_ge_AnnouncerVOEvents_MVPVoteLegendary].lv_soundLink = "VolskayaA_Legendary";
+        libGame_gv_players[lv_player].lv_lootContent.lv_loot_AnnouncerPack.lv_announcerVOLines[libCore_ge_AnnouncerVOEvents_MVPVoteLegendary].lv_playAtGameEnd = true;
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libVLSK_gt_VolskayaInitializeMapMVPAnnouncerSounds_Init () {
+    libVLSK_gt_VolskayaInitializeMapMVPAnnouncerSounds = TriggerCreate("libVLSK_gt_VolskayaInitializeMapMVPAnnouncerSounds_Func");
+    libCore_gf_IncludeModInitialization(libVLSK_gt_VolskayaInitializeMapMVPAnnouncerSounds);
+}
+
+//--------------------------------------------------------------------------------------------------
 // Trigger: Map Mechanic Initialization
 //--------------------------------------------------------------------------------------------------
 bool libVLSK_gt_MapMechanicInitialization_Func (bool testConds, bool runActions) {
@@ -1431,6 +1489,7 @@ bool libVLSK_gt_IncludeModInitialization_Func (bool testConds, bool runActions) 
     }
 
     libVLSK_gf_InitializeVolskayaUI();
+    libGame_gf_SendMapSpecificAwardInitializeEventwithUserData(null, "Generic Instance");
     return true;
 }
 
@@ -1450,7 +1509,6 @@ bool libVLSK_gt_CapturePointCooldownTimerExpires_Func (bool testConds, bool runA
         return true;
     }
 
-    libVLSK_gv_currentCapturePoint = libVLSK_gf_GetNextCapturePointIndex();
     TimerStart(libVLSK_gv_capturePointWarningTimer, libVLSK_gv_warningTimerDuration, false, c_timeGame);
     libVLSK_gf_SendEventVolskayaPointWarningCreated(libVLSK_gv_capturePoints[libVLSK_gv_currentCapturePoint].lv_region);
     libVLSK_gf_PlayVOControlPointWarning();
@@ -1486,6 +1544,55 @@ void libVLSK_gt_CapturePointWarningTimerExpires_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
+// Trigger: Gate Open Timer Expires
+//--------------------------------------------------------------------------------------------------
+bool libVLSK_gt_GateOpenTimerExpires_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    if ((libVLSK_gv_mechanicDisabledBySandbox == false)) {
+        libVLSK_gv_currentCapturePoint = libVLSK_gf_GetNextCapturePointIndex();
+        TimerStart(libVLSK_gv_mMVolskayaObjectivePreviewTimer, libVLSK_gv_mMVolskayaObjectivePreviewDelay_C, false, c_timeGame);
+    }
+
+    if ((libVLSK_gv_mechanicDisabledBySandbox == false)) {
+        TimerStart(libVLSK_gv_capturePointCooldownTimer, libVLSK_gv_mechanicInitialSpawnTimerDuration_C, false, c_timeGame);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libVLSK_gt_GateOpenTimerExpires_Init () {
+    libVLSK_gt_GateOpenTimerExpires = TriggerCreate("libVLSK_gt_GateOpenTimerExpires_Func");
+    TriggerAddEventTimer(libVLSK_gt_GateOpenTimerExpires, libGame_gv_openTheGatesTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MM Volskaya - Objective Preview Timer Expires
+//--------------------------------------------------------------------------------------------------
+bool libVLSK_gt_MMVolskayaObjectivePreviewTimerExpires_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libVLSK_gf_CreateCapturePointPreview(libVLSK_gv_currentCapturePoint);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libVLSK_gt_MMVolskayaObjectivePreviewTimerExpires_Init () {
+    libVLSK_gt_MMVolskayaObjectivePreviewTimerExpires = TriggerCreate("libVLSK_gt_MMVolskayaObjectivePreviewTimerExpires_Func");
+    TriggerAddEventTimer(libVLSK_gt_MMVolskayaObjectivePreviewTimerExpires, libVLSK_gv_mMVolskayaObjectivePreviewTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
 // Trigger: Giant Robot Dies
 //--------------------------------------------------------------------------------------------------
 bool libVLSK_gt_GiantRobotDies_Func (bool testConds, bool runActions) {
@@ -1503,7 +1610,6 @@ bool libVLSK_gt_GiantRobotDies_Func (bool testConds, bool runActions) {
 
     libVLSK_gf_SendEventVolskayaGiantRobotDies(lv_deathPosition, libGame_gf_TeamNumberOfPlayer(UnitGetOwner(EventUnit())));
     libMapM_gf_JungleStopHibernateCamps();
-    TimerStart(libVLSK_gv_capturePointCooldownTimer, libVLSK_gv_cooldownTimerDuration_C, false, c_timeGame);
     TriggerEnable(libVLSK_gt_PilotEntersRobotDropBanner, false);
     TriggerEnable(libVLSK_gt_GunnerEntersRobotDropBanner, false);
     TriggerEnable(libVLSK_gt_PilotNeededTimerExpires, false);
@@ -1516,6 +1622,12 @@ bool libVLSK_gt_GiantRobotDies_Func (bool testConds, bool runActions) {
     else {
         libVLSK_gf_PlayVORobotTimedOut();
     }
+    if ((libVLSK_gv_mechanicDisabledBySandbox == false)) {
+        libVLSK_gv_currentCapturePoint = libVLSK_gf_GetNextCapturePointIndex();
+        TimerStart(libVLSK_gv_mMVolskayaObjectivePreviewTimer, libVLSK_gv_mMVolskayaObjectivePreviewDelay_C, false, c_timeGame);
+        TimerStart(libVLSK_gv_capturePointCooldownTimer, libVLSK_gv_cooldownTimerDuration_C, false, c_timeGame);
+    }
+
     return true;
 }
 
@@ -1748,19 +1860,11 @@ void libVLSK_gt_GunnerEntersRobotStopGunnerReminderTimer_Init () {
 //--------------------------------------------------------------------------------------------------
 bool libVLSK_gt_SandboxDisableControlPoints_Func (bool testConds, bool runActions) {
     // Automatic Variable Declarations
-    // Conditions
-    if (testConds) {
-        if (!((libVLSK_gv_currentCapturePoint == 0))) {
-            return false;
-        }
-    }
-
     // Actions
     if (!runActions) {
         return true;
     }
 
-    TimerPause(libVLSK_gv_capturePointCooldownTimer, true);
     libVLSK_gv_mechanicDisabledBySandbox = true;
     return true;
 }
@@ -1775,19 +1879,11 @@ void libVLSK_gt_SandboxDisableControlPoints_Init () {
 //--------------------------------------------------------------------------------------------------
 bool libVLSK_gt_SandboxEnableControlPoints_Func (bool testConds, bool runActions) {
     // Automatic Variable Declarations
-    // Conditions
-    if (testConds) {
-        if (!((libVLSK_gv_currentCapturePoint == 0))) {
-            return false;
-        }
-    }
-
     // Actions
     if (!runActions) {
         return true;
     }
 
-    TimerPause(libVLSK_gv_capturePointCooldownTimer, false);
     libVLSK_gv_mechanicDisabledBySandbox = false;
     return true;
 }
@@ -1926,6 +2022,7 @@ bool libVLSK_gt_VehicleEntered_Func (bool testConds, bool runActions) {
     }
     else {
         if ((UnitGetType(libGame_gf_UseVehicleVehicleUnit()) == "VolskayaVehicleGunner")) {
+            UnitCreateEffectUnit(libMapM_gv_vehicle[libMapM_gf_GetVehicleIndexOfUnit(libGame_gf_UseVehicleVehicleUnit())].lv_unit_LinkedVehicle, "AttachedVehicle_AddTrackedUnit", libGame_gf_UseVehiclePassengerHero());
             libVLSK_gf_SetGunnerPortrait(libGame_gf_UseVehiclePassengerHero());
         }
 
@@ -1955,6 +2052,7 @@ bool libVLSK_gt_VehicleSwapped_Func (bool testConds, bool runActions) {
     }
     else {
         if ((UnitGetType(libGame_gf_VehicleSwappedNewVehicle()) == "VolskayaVehicleGunner")) {
+            UnitCreateEffectUnit(libGame_gf_VehicleSwappedOriginVehicle(), "AttachedVehicle_AddTrackedUnit", libGame_gf_VehicleSwappedPassengerHero());
             libVLSK_gf_SetGunnerPortrait(libGame_gf_VehicleSwappedPassengerHero());
             libVLSK_gf_SetPilotPortrait(null);
         }
@@ -1984,6 +2082,7 @@ bool libVLSK_gt_VehicleAbandoned_Func (bool testConds, bool runActions) {
     }
     else {
         if ((UnitGetType(libGame_gf_VehicleAbandonedVehicle()) == "VolskayaVehicleGunner")) {
+            UnitCreateEffectUnit(libMapM_gv_vehicle[libMapM_gf_GetVehicleIndexOfUnit(libGame_gf_VehicleAbandonedVehicle())].lv_unit_LinkedVehicle, "AttachedVehicle_RemoveTrackedUnit", libGame_gf_VehicleAbandonedPassengerHero());
             libVLSK_gf_SetGunnerPortrait(null);
         }
 
@@ -2266,10 +2365,13 @@ void libVLSK_gt_PlaySlideout_Init () {
 }
 
 void libVLSK_InitTriggers () {
+    libVLSK_gt_VolskayaInitializeMapMVPAnnouncerSounds_Init();
     libVLSK_gt_MapMechanicInitialization_Init();
     libVLSK_gt_IncludeModInitialization_Init();
     libVLSK_gt_CapturePointCooldownTimerExpires_Init();
     libVLSK_gt_CapturePointWarningTimerExpires_Init();
+    libVLSK_gt_GateOpenTimerExpires_Init();
+    libVLSK_gt_MMVolskayaObjectivePreviewTimerExpires_Init();
     libVLSK_gt_GiantRobotDies_Init();
     libVLSK_gt_PilotEntersRobotDropBanner_Init();
     libVLSK_gt_GunnerEntersRobotDropBanner_Init();

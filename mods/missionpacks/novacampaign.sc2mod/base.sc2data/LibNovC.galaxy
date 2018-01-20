@@ -31,6 +31,7 @@ void libNovC_InitVariables () {
 
     libNovC_InitVariables_completed = true;
 
+    libNovC_gv_resultsDialog = c_invalidDialogControlId;
     for (init_i = 0; init_i <= libNovC_gv_nCC_DebugCampaignTechEquipmentGroupCount; init_i += 1) {
         for (init_j = 0; init_j <= libNovC_gv_nCC_DebugCampaignTechEquipmentItemCount; init_j += 1) {
             libNovC_gv_nC_DebugCampaignTechEquipmentCheckBox[init_i][init_j] = c_invalidDialogControlId;
@@ -2207,6 +2208,8 @@ void libNovC_gf_NC_Initialize (string lp_map) {
     // Variable Initialization
 
     // Implementation
+    DialogControlHookupStandard(c_triggerControlTypePanel, "$parent/$parent/GameResultDialog");
+    libNovC_gv_resultsDialog = DialogControlLastCreated();
     libComC_gf_CC_CampaignBankSetName("NCampaign");
     libComC_gf_CC_ArchiveBankSetName("NArchive");
     libComC_gf_CC_StoryBankSetName("NStory");
@@ -2439,6 +2442,51 @@ string libNovC_gf_NC_ChampResAbility (string lp_champion) {
 }
 
 // Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: Time Expired
+//--------------------------------------------------------------------------------------------------
+bool libNovC_gt_TimeExpired_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    Wait(0.0625, c_timeGame);
+    DialogControlSetVisible(libNovC_gv_resultsDialog, PlayerGroupAll(), false);
+    GameSetNextMap("");
+    TriggerEnable(libNovC_gt_QuitDemo, true);
+    UIShowCustomDialog(PlayerGroupAll(), libNtve_ge_CustomDialogType_c_customDialogTypeMessage, StringExternal("Param/Value/lib_NovC_F558D81E"), null, true);
+    Wait(3.0, c_timeReal);
+    GameOver(1, c_gameOverVictory, false, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libNovC_gt_TimeExpired_Init () {
+    libNovC_gt_TimeExpired = TriggerCreate("libNovC_gt_TimeExpired_Func");
+    TriggerAddEventPlayerLeft(libNovC_gt_TimeExpired, c_playerAny, c_gameResultTie);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Quit Demo
+//--------------------------------------------------------------------------------------------------
+bool libNovC_gt_QuitDemo_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    GameOver(1, c_gameOverVictory, false, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libNovC_gt_QuitDemo_Init () {
+    libNovC_gt_QuitDemo = TriggerCreate("libNovC_gt_QuitDemo_Func");
+    TriggerEnable(libNovC_gt_QuitDemo, false);
+    TriggerAddEventCustomDialogDismissed(libNovC_gt_QuitDemo, c_playerAny, libNtve_ge_CustomDialogResult_c_customDialogResultAny);
+}
+
 //--------------------------------------------------------------------------------------------------
 // Trigger: TestUserOverrides
 //--------------------------------------------------------------------------------------------------
@@ -3964,6 +4012,8 @@ void libNovC_gt_NC_StorySimulationEnd_Init () {
 }
 
 void libNovC_InitTriggers () {
+    libNovC_gt_TimeExpired_Init();
+    libNovC_gt_QuitDemo_Init();
     libNovC_gt_TestUserOverrides_Init();
     libNovC_gt_NC_DebugCampaignTechOK_Init();
     libNovC_gt_NC_DebugCampaignTechCancel_Init();

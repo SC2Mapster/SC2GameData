@@ -453,6 +453,21 @@ bool libMSOC_gf_MMTombSpiderQueenTurnInPossible () {
     return false;
 }
 
+void libMSOC_gf_MMTombSpiderQueenEnableDisableTurnInGoals (bool lp_toggleSetting, unit lp_turnInUnit) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((lp_toggleSetting == true)) {
+        AddUnitOfInterest(lp_turnInUnit, 0.0, 0.0, "TurnInGems1", libNtve_ge_GoalTeam_Both, 0);
+        AddUnitOfInterest(lp_turnInUnit, 0.0, 0.0, "TurnInGems2", libNtve_ge_GoalTeam_Both, 0);
+        AddUnitOfInterest(lp_turnInUnit, 0.0, 0.0, "TurnInGems3", libNtve_ge_GoalTeam_Both, 0);
+    }
+    else {
+        RemoveUnitOfInterest(lp_turnInUnit, "TurnInGems1", libNtve_ge_GoalTeam_Both);
+        RemoveUnitOfInterest(lp_turnInUnit, "TurnInGems2", libNtve_ge_GoalTeam_Both);
+        RemoveUnitOfInterest(lp_turnInUnit, "TurnInGems3", libNtve_ge_GoalTeam_Both);
+    }
+}
+
 int libMSOC_gf_MMTombSpiderQueenSoulEatersCountAlive () {
     // Variable Declarations
     int lv_itSoulEater;
@@ -584,6 +599,7 @@ bool auto_libMSOC_gf_MMTombSpiderQueenSpawnSoulEaters_TriggerFunc (bool testCond
         libMSOC_gv_mMTombSpiderQueenQueensBirthing[lv_itSpawnLocation] = UnitLastCreated();
         libGame_gf_CalculateSpawnedMinionGoalPoints(UnitGetOwner(UnitLastCreated()), UnitGetPosition(UnitLastCreated()));
         libAIAI_gf_MinionAIStartMinionAI(-1, UnitLastCreated(), libGame_gv_spawnedMinionLane, libGame_gv_spawnedMinionFirstWaypointIndex, false, false, false, 0, true);
+        AddUnitOfInterest(UnitLastCreated(), 10.0, 0.0, "KillWebweaver", libAIAI_gf_ConvertIntegertoGoalTeam(lv_enemyTeam), 0);
     }
     libMSOC_gv_mMTombSpiderQueen[lv_soulEaterTeam].lv_summoning = false;
     libMSOC_gf_MMTombSpiderQueenSoulEaterLifeMonitor();
@@ -1118,465 +1134,6 @@ bool auto_libMSOC_gf_MMTombSpiderQueenSoulEaterUI_TriggerFunc (bool testConds, b
     return true;
 }
 
-void libMSOC_gf_MMTombSpiderQueenHeroAIChangeToState (int lp_trigPlayer, int lp_state, unit lp_target, int lp_priority) {
-    // Automatic Variable Declarations
-    // Implementation
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentState = (lp_state);
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateTrigger = libMSOC_gt_MMTombSpiderQueenHeroAIStateLogic;
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = lp_target;
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority = lp_priority;
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_wantsToDoCustomMapLogic = true;
-    libAIAI_gf_HeroAIChangeState(lp_trigPlayer, libAIAI_ge_HeroAIStates_HSCustomMapState);
-}
-
-int libMSOC_gf_MMTombSpiderQueenHeroAITurnInSouls (int lp_trigPlayer) {
-    // Variable Declarations
-    point lv_soulTurnInPosition;
-    region lv_areaAroundBeacon;
-    unitgroup lv_enemies;
-    unitgroup lv_enemyHeroes;
-    unitgroup lv_enemySummons;
-    unit lv_enemy;
-    order lv_heroOrder;
-
-    // Automatic Variable Declarations
-    unitgroup autoD028D789_g;
-    int autoD028D789_u;
-
-    // Variable Initialization
-    lv_enemies = UnitGroupEmpty();
-    lv_enemyHeroes = UnitGroupEmpty();
-    lv_enemySummons = UnitGroupEmpty();
-
-    // Implementation
-    if (((libMSOC_gf_MMTombSpiderQueenTurnInPossible() == false) || (libAIAI_gf_HeroAIMapMechanicStackCountForHero(lp_trigPlayer) == 0))) {
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((libMSOC_gf_MMTombSpiderQueenHeroAIShouldGiveUpOnTurningInSouls(lp_trigPlayer) == true)) {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateNextConsiderTime = (TimerGetElapsed(libGame_gv_gameTimer) + libMSOC_gv_aIHeroTombSpiderQueenTurnInInterruptedTimeout);
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    lv_soulTurnInPosition = UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
-    if ((DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit), lv_soulTurnInPosition) > libMSOC_gv_aIHeroTombSpiderQueenCloseToTurnInDistance)) {
-        if ((libAIAI_gf_HeroAIHarassInJungleLogic(lp_trigPlayer, true) == true)) {
-            return 8;
-        }
-
-    }
-    else {
-        lv_areaAroundBeacon = RegionCircle(lv_soulTurnInPosition, libMSOC_gv_aIHeroTombSpiderQueenCloseToTurnInDistance);
-        lv_enemies = UnitGroupAlliance(lp_trigPlayer, c_unitAllianceEnemy, lv_areaAroundBeacon, UnitFilter(0, 0, (1 << c_targetFilterCreep) | (1 << c_targetFilterImmuneToSkillshots) | (1 << c_targetFilterMissile) | (1 << c_targetFilterItem), (1 << (c_targetFilterStasis - 32)) | (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterInvulnerable - 32))), 0);
-        lv_enemyHeroes = UnitGroupFilter(null, c_playerAny, lv_enemies, UnitFilter((1 << c_targetFilterHeroic), 0, 0, 0), 0);
-        lv_enemySummons = UnitGroupFilter(null, c_playerAny, lv_enemies, UnitFilter(0, (1 << (c_targetFilterSummoned - 32)), 0, 0), 0);
-        autoD028D789_g = lv_enemyHeroes;
-        autoD028D789_u = UnitGroupCount(autoD028D789_g, c_unitCountAll);
-        for (;; autoD028D789_u -= 1) {
-            lv_enemy = UnitGroupUnitFromEnd(autoD028D789_g, autoD028D789_u);
-            if (lv_enemy == null) { break; }
-            if ((libNtve_gf_UnitIsVisibleToPlayer(lv_enemy, lp_trigPlayer) == false)) {
-                UnitGroupRemove(lv_enemyHeroes, lv_enemy);
-            }
-
-        }
-        if (((UnitGroupCount(lv_enemyHeroes, c_unitCountAlive) > 0) || (UnitGroupCount(lv_enemySummons, c_unitCountAlive) > 0))) {
-            libMSOC_gf_MMTombSpiderQueenHeroAIChangeToState(lp_trigPlayer, libMSOC_ge_MMTombSpiderQueenHeroAIStates_MMSoulCageTurnInSoulsDefend, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-            return 8;
-        }
-
-    }
-    libAIAI_gf_HeroAIIssueOrderToTurnInMapMechanicStack(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
-    return 8;
-}
-
-int libMSOC_gf_MMTombSpiderQueenHeroAITurnInSoulsDefend (int lp_trigPlayer) {
-    // Variable Declarations
-    point lv_soulTurnInPosition;
-    order lv_heroOrder;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if ((libMSOC_gf_MMTombSpiderQueenTurnInPossible() == false)) {
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((libMSOC_gf_MMTombSpiderQueenHeroAIShouldGiveUpOnTurningInSouls(lp_trigPlayer) == true)) {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateNextConsiderTime = (TimerGetElapsed(libGame_gv_gameTimer) + libMSOC_gv_aIHeroTombSpiderQueenTurnInInterruptedTimeout);
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    lv_soulTurnInPosition = UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
-    if ((DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit), lv_soulTurnInPosition) > libMSOC_gv_aIHeroTombSpiderQueenFarFromTurnInDistance)) {
-        libMSOC_gf_MMTombSpiderQueenHeroAIChangeToState(lp_trigPlayer, libMSOC_ge_MMTombSpiderQueenHeroAIStates_MMSoulCageTurnInSouls, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIPaceAroundLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, lv_soulTurnInPosition, libMSOC_gv_aIHeroTombSpiderQueenFarFromTurnInDistance) == true)) {
-        return 8;
-    }
-
-    libMSOC_gf_MMTombSpiderQueenHeroAIChangeToState(lp_trigPlayer, libMSOC_ge_MMTombSpiderQueenHeroAIStates_MMSoulCageTurnInSouls, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-    return 8;
-}
-
-int libMSOC_gf_MMTombSpiderQueenHeroAIPickUpSoul (int lp_trigPlayer) {
-    // Variable Declarations
-    order lv_heroOrder;
-    point lv_orderTargetPosition;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if ((libAIAI_gf_HeroAIMapMechanicStackCountForHero(lp_trigPlayer) >= libAIAI_gv_aIHeroMapMechanicStackMaximum)) {
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIShouldRetreatJungle(lp_trigPlayer) == true)) {
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    if ((UnitIsValid(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == false)) {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = libMSOC_gf_MMTombSpiderQueenHeroAISearchForNearbySoul(lp_trigPlayer);
-        if ((UnitIsValid(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) != true)) {
-            libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-            return 8;
-        }
-
-    }
-    else {
-        if ((libMSOC_gf_MMTombSpiderQueenHeroAIIsHumanAllyPickingUpSoul(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == true)) {
-            UnitIssueOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, Order(AbilityCommand("stop", 0)), c_orderQueueReplace);
-            libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-            return 8;
-        }
-
-    }
-    if ((libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hasFlyingMount == true) && (DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit), UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit)) < libAIAI_gv_aIHeroCloseEnoughDist) && (libAIAI_gf_HeroAIDismount(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    lv_heroOrder = UnitOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, 0);
-    lv_orderTargetPosition = OrderGetTargetPosition(lv_heroOrder);
-    if (((lv_heroOrder == null) || ((lv_orderTargetPosition != null) && (DistanceBetweenPoints(lv_orderTargetPosition, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit)) >= 1.0)))) {
-        UnitIssueOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, OrderTargetingPoint(AbilityCommand("move", 0), UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit)), c_orderQueueReplace);
-    }
-
-    return 8;
-}
-
-void libMSOC_gf_MMTombSpiderQueenHeroAISoulCagePinged (int lp_pingingPlayer) {
-    // Variable Declarations
-    int lv_playerIndex;
-
-    // Automatic Variable Declarations
-    playergroup auto02702808_g;
-
-    // Variable Initialization
-
-    // Implementation
-    if ((libMSOC_gf_MMTombSpiderQueenTurnInPossible() == false)) {
-        return ;
-    }
-
-    auto02702808_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAIGetAllyTeamIndex(lp_pingingPlayer)].lv_aIPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(auto02702808_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	libMSOC_gf_MMTombSpiderQueenHeroAICheckShouldTurnInSouls(lv_playerIndex, true);
-    }
-}
-
-void libMSOC_gf_MMTombSpiderQueenHeroAITurnInSoulsLogic (int lp_faction) {
-    // Variable Declarations
-    int lv_playerIndex;
-
-    // Automatic Variable Declarations
-    playergroup autoC890E27B_g;
-
-    // Variable Initialization
-
-    // Implementation
-    if ((libMSOC_gf_MMTombSpiderQueenTurnInPossible() == false)) {
-        return ;
-    }
-
-    autoC890E27B_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction)].lv_aIPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(autoC890E27B_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateNextConsiderTime <= TimerGetElapsed(libGame_gv_gameTimer))) {
-            libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateNextConsiderTime = (TimerGetElapsed(libGame_gv_gameTimer) + libMSOC_gv_aIHeroTombSpiderQueenTurnInConsiderFrequency);
-            libMSOC_gf_MMTombSpiderQueenHeroAICheckShouldTurnInSouls(lv_playerIndex, false);
-        }
-
-    }
-}
-
-void libMSOC_gf_MMTombSpiderQueenHeroAICheckShouldTurnInSouls (int lp_trigPlayer, bool lp_playerPinged) {
-    // Variable Declarations
-    int lv_soulsHolding;
-    int lv_remainingSoulsRequired;
-    int lv_immediateTurnInAmount;
-    int lv_testLoopIndex;
-    unit lv_testUnit;
-    fixed lv_testDistance;
-    unit lv_soulTurnInUnit;
-    fixed lv_bestDistance;
-    point lv_soulTurnInPosition;
-    unitgroup lv_enemyHeroes;
-    unitgroup lv_allyHeroes;
-
-    // Automatic Variable Declarations
-    const int auto99E9E474_ae = libMSOC_gv_mMTombSpiderQueenCount_C;
-    const int auto99E9E474_ai = 1;
-
-    // Variable Initialization
-    lv_bestDistance = 524287.0;
-    lv_enemyHeroes = UnitGroupEmpty();
-    lv_allyHeroes = UnitGroupEmpty();
-
-    // Implementation
-    if (((libMSOC_gf_MMTombSpiderQueenTurnInPossible() == false) || (libAIAI_gf_HeroAIIsHigherPriority(lp_trigPlayer, libAIAI_ge_HeroAIPriority_CustomMapRegular) == false) || (UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[lp_trigPlayer].lv_startOffensiveHealth))) {
-        return ;
-    }
-
-    lv_soulsHolding = libAIAI_gf_HeroAIMapMechanicStackCountForHero(lp_trigPlayer);
-    if ((lp_playerPinged == true)) {
-        if ((lv_soulsHolding == 0)) {
-            return ;
-        }
-
-    }
-    else {
-        lv_remainingSoulsRequired = (libMSOC_gv_mMTombSpiderQueenActivationAmountRequired[libGame_gf_TeamNumberOfPlayer(lp_trigPlayer)] - libMSOC_gv_mMTombSpiderQueenSoulsTotal[libGame_gf_TeamNumberOfPlayer(lp_trigPlayer)]);
-        if ((libAIAI_gf_HeroAITeamHasHumanPlayers(libGame_gv_players[lp_trigPlayer].lv_faction) == true)) {
-            lv_immediateTurnInAmount = libMSOC_gv_aIHeroTombSpiderQueenImmediateTurnInAmountWithHuman;
-        }
-        else {
-            lv_immediateTurnInAmount = libMSOC_gv_aIHeroTombSpiderQueenImmediateTurnInAmountWithAllAI;
-        }
-        if ((lv_soulsHolding < lv_remainingSoulsRequired) && (lv_soulsHolding < lv_immediateTurnInAmount) && (!(((lv_soulsHolding > 0) && (libAIAI_gf_HeroAIMapMechanicStackCountForTeam(libGame_gv_players[lp_trigPlayer].lv_faction) >= lv_remainingSoulsRequired))))) {
-            return ;
-        }
-
-    }
-    lv_testLoopIndex = 1;
-    for ( ; ( (auto99E9E474_ai >= 0 && lv_testLoopIndex <= auto99E9E474_ae) || (auto99E9E474_ai < 0 && lv_testLoopIndex >= auto99E9E474_ae) ) ; lv_testLoopIndex += auto99E9E474_ai ) {
-        if ((UnitIsValid(libMSOC_gv_mMTombSpiderQueen[lv_testLoopIndex].lv_units) == true) && (UnitBehaviorEnabled(libMSOC_gv_mMTombSpiderQueen[lv_testLoopIndex].lv_units, "MacguffinActivated") == true)) {
-            lv_testDistance = DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit), UnitGetPosition(libMSOC_gv_mMTombSpiderQueen[lv_testLoopIndex].lv_units));
-            if ((lv_testDistance < lv_bestDistance)) {
-                lv_bestDistance = lv_testDistance;
-                lv_soulTurnInUnit = libMSOC_gv_mMTombSpiderQueen[lv_testLoopIndex].lv_units;
-            }
-
-        }
-
-    }
-    lv_soulTurnInPosition = UnitGetPosition(lv_soulTurnInUnit);
-    lv_enemyHeroes = UnitGroupAlliance(lp_trigPlayer, c_unitAllianceEnemy, RegionCircle(lv_soulTurnInPosition, libMSOC_gv_aIHeroTombSpiderQueenFarFromTurnInDistance), libCore_gv_filtersHeroic, 0);
-    lv_allyHeroes = UnitGroupAlliance(lp_trigPlayer, c_unitAllianceAlly, RegionCircle(lv_soulTurnInPosition, libMSOC_gv_aIHeroTombSpiderQueenFarFromTurnInDistance), libCore_gv_filtersHeroic, 0);
-    if ((UnitGroupCount(lv_enemyHeroes, c_unitCountAlive) < (UnitGroupCount(lv_allyHeroes, c_unitCountAlive) + 2))) {
-        libMSOC_gf_MMTombSpiderQueenHeroAIChangeToState(lp_trigPlayer, libMSOC_ge_MMTombSpiderQueenHeroAIStates_MMSoulCageTurnInSouls, lv_soulTurnInUnit, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-    }
-
-}
-
-bool libMSOC_gf_MMTombSpiderQueenHeroAIShouldGiveUpOnTurningInSouls (int lp_trigPlayer) {
-    // Variable Declarations
-    point lv_beaconPosition;
-    unitgroup lv_enemyHeroes;
-    unitgroup lv_allyHeroes;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-    lv_enemyHeroes = UnitGroupEmpty();
-    lv_allyHeroes = UnitGroupEmpty();
-
-    // Implementation
-    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[lp_trigPlayer].lv_endOffensiveHealth)) {
-        return true;
-    }
-
-    lv_beaconPosition = UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
-    lv_enemyHeroes = UnitGroupAlliance(lp_trigPlayer, c_unitAllianceEnemy, RegionCircle(lv_beaconPosition, libMSOC_gv_aIHeroTombSpiderQueenFarFromTurnInDistance), libCore_gv_filtersHeroic, 0);
-    lv_allyHeroes = UnitGroupAlliance(lp_trigPlayer, c_unitAllianceAlly, RegionCircle(lv_beaconPosition, libMSOC_gv_aIHeroTombSpiderQueenFarFromTurnInDistance), libCore_gv_filtersHeroic, 0);
-    if ((UnitGroupCount(lv_enemyHeroes, c_unitCountAlive) >= (UnitGroupCount(lv_allyHeroes, c_unitCountAlive) + 2))) {
-        return true;
-    }
-
-    return false;
-}
-
-void libMSOC_gf_MMTombSpiderQueenHeroAIPickUpSoulsLogic (int lp_faction) {
-    // Variable Declarations
-    int lv_playerIndex;
-    unit lv_soul;
-
-    // Automatic Variable Declarations
-    playergroup autoA4D1697C_g;
-
-    // Variable Initialization
-
-    // Implementation
-    autoA4D1697C_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction)].lv_aIPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(autoA4D1697C_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((UnitGetPropertyFixed(libGame_gv_players[lv_playerIndex].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) > libAIAI_gv_aIHeroes[lv_playerIndex].lv_endOffensiveHealth) && (libAIAI_gf_HeroAIShouldRetreatJungle(lv_playerIndex) == false) && (libAIAI_gf_HeroAIMapMechanicStackCountForHero(lv_playerIndex) < libAIAI_gv_aIHeroMapMechanicStackMaximum)) {
-            lv_soul = libMSOC_gf_MMTombSpiderQueenHeroAISearchForNearbySoul(lv_playerIndex);
-            if ((UnitIsValid(lv_soul) == true) && (libAIAI_gf_HeroAIIsHigherPriority(lv_playerIndex, libAIAI_ge_HeroAIPriority_CustomMapHigh) == true)) {
-                libMSOC_gf_MMTombSpiderQueenHeroAIChangeToState(lv_playerIndex, libMSOC_ge_MMTombSpiderQueenHeroAIStates_MMSoulCagePickUpSoul, lv_soul, libAIAI_ge_HeroAIPriority_CustomMapHigh);
-                UnitIssueOrder(libGame_gv_players[lv_playerIndex].lv_heroUnit, OrderTargetingPoint(AbilityCommand("move", 0), UnitGetPosition(lv_soul)), c_orderQueueReplace);
-            }
-
-        }
-
-    }
-}
-
-unit libMSOC_gf_MMTombSpiderQueenHeroAISearchForNearbySoul (int lp_trigPlayer) {
-    // Variable Declarations
-    point lv_heroPosition;
-    region lv_nearbyRegion;
-    unitgroup lv_nearbySouls;
-    unit lv_soul;
-    region lv_enemyRegion;
-    unitgroup lv_enemyHeroes;
-    fixed lv_distance;
-    fixed lv_pathDist;
-    unit lv_bestSoul;
-    fixed lv_bestSoulDistance;
-
-    // Automatic Variable Declarations
-    unitgroup auto17351707_g;
-    int auto17351707_u;
-
-    // Variable Initialization
-    lv_nearbySouls = UnitGroupEmpty();
-    lv_enemyHeroes = UnitGroupEmpty();
-    lv_bestSoulDistance = 524287.0;
-
-    // Implementation
-    lv_heroPosition = UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit);
-    lv_nearbyRegion = RegionCircle(lv_heroPosition, libMSOC_gv_aIHeroTombSpiderQueenSoulSearchRadius);
-    lv_nearbySouls = libNtve_gf_UnitsInRegionWithAllianceToPlayerMatchingCondition("ItemSoulPickup", "ItemSoulPickupFive", "ItemSoulPickupTwenty", lp_trigPlayer, c_unitAllianceAlly, lv_nearbyRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
-    auto17351707_g = lv_nearbySouls;
-    auto17351707_u = UnitGroupCount(auto17351707_g, c_unitCountAll);
-    for (;; auto17351707_u -= 1) {
-        lv_soul = UnitGroupUnitFromEnd(auto17351707_g, auto17351707_u);
-        if (lv_soul == null) { break; }
-        if ((libMSOC_gf_MMTombSpiderQueenHeroAIIsAllyPickingUpSoul(lp_trigPlayer, lv_soul) == true)) {
-            continue;
-        }
-
-        lv_enemyRegion = RegionEmpty();
-        RegionAddRegion(lv_enemyRegion, RegionCircle(UnitGetPosition(lv_soul), libMSOC_gv_aIHeroTombSpiderQueenSoulEnemyNearbyDist));
-        RegionAddRegion(lv_enemyRegion, RegionCircle(lv_heroPosition, libMSOC_gv_aIHeroTombSpiderQueenSoulEnemyNearbyDist));
-        lv_enemyHeroes = UnitGroupAlliance(lp_trigPlayer, c_unitAllianceEnemy, lv_enemyRegion, libCore_gv_filtersHeroic, 0);
-        if ((UnitGroupCount(lv_enemyHeroes, c_unitCountAlive) > 1)) {
-            continue;
-        }
-
-        lv_distance = DistanceBetweenPoints(lv_heroPosition, UnitGetPosition(lv_soul));
-        if ((lv_distance < lv_bestSoulDistance)) {
-            lv_pathDist = AIPathingCostUnit(libGame_gv_players[lp_trigPlayer].lv_heroUnit, UnitGetPosition(lv_soul), c_includeAllBuildings);
-            if ((lv_pathDist >= 0.0) && (lv_pathDist < (lv_distance * 3.0))) {
-                lv_bestSoul = lv_soul;
-                lv_bestSoulDistance = lv_distance;
-            }
-
-        }
-
-    }
-    return lv_bestSoul;
-}
-
-bool libMSOC_gf_MMTombSpiderQueenHeroAIIsAllyPickingUpSoul (int lp_trigPlayer, unit lp_soul) {
-    // Variable Declarations
-    int lv_playerIndex;
-    fixed lv_ourDistancetoSoul;
-    fixed lv_playerDistancetoSoul;
-
-    // Automatic Variable Declarations
-    int autoD9655FFA_ae;
-
-    // Variable Initialization
-
-    // Implementation
-    lv_ourDistancetoSoul = DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit), UnitGetPosition(lp_soul));
-    autoD9655FFA_ae = libCore_gv_bALMaxPlayers;
-    lv_playerIndex = 1;
-    for ( ; lv_playerIndex <= autoD9655FFA_ae ; lv_playerIndex += 1 ) {
-        if ((lp_trigPlayer != lv_playerIndex) && (libGame_gv_players[lp_trigPlayer].lv_faction == libGame_gv_players[lv_playerIndex].lv_faction) && (UnitIsAlive(libGame_gv_players[lv_playerIndex].lv_heroUnit) == true)) {
-            if ((libAIAI_gf_HeroAIIsPlayerActive(lv_playerIndex, 2) == true)) {
-                if ((libAIAI_gv_aIHeroes[lv_playerIndex].lv_heroState == libAIAI_ge_HeroAIStates_HSCustomMapState) && (libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateCurrentTargetUnit == lp_soul)) {
-                    return true;
-                }
-
-            }
-            else {
-                lv_playerDistancetoSoul = DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lv_playerIndex].lv_heroUnit), UnitGetPosition(lp_soul));
-                if ((lv_playerDistancetoSoul < libMSOC_gv_aIHeroTombSpiderQueenSoulHumanNearbyDist) && (lv_playerDistancetoSoul < (lv_ourDistancetoSoul + 3.0))) {
-                    return true;
-                }
-
-            }
-        }
-
-    }
-    return false;
-}
-
-bool libMSOC_gf_MMTombSpiderQueenHeroAIIsHumanAllyPickingUpSoul (int lp_trigPlayer, unit lp_soul) {
-    // Variable Declarations
-    int lv_playerIndex;
-
-    // Automatic Variable Declarations
-    int auto853AC2EC_ae;
-
-    // Variable Initialization
-
-    // Implementation
-    auto853AC2EC_ae = libCore_gv_bALMaxPlayers;
-    lv_playerIndex = 1;
-    for ( ; lv_playerIndex <= auto853AC2EC_ae ; lv_playerIndex += 1 ) {
-        if ((lp_trigPlayer != lv_playerIndex) && (libGame_gv_players[lp_trigPlayer].lv_faction == libGame_gv_players[lv_playerIndex].lv_faction) && (libAIAI_gf_HeroAIIsPlayerActive(lv_playerIndex, 1) == true) && (UnitAbilityExists(libGame_gv_players[lv_playerIndex].lv_heroUnit, "move") == true) && (DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lv_playerIndex].lv_heroUnit), UnitGetPosition(lp_soul)) < libMSOC_gv_aIHeroTombSpiderQueenSoulHumanNearbyDist)) {
-            return true;
-        }
-
-    }
-    return false;
-}
-
 trigger auto_libMSOC_gf_MMTombSpiderQueenTransmissionSoulCageActivatedQ_Trigger = null;
 int auto_libMSOC_gf_MMTombSpiderQueenTransmissionSoulCageActivatedQ_lp_team;
 
@@ -1803,8 +1360,6 @@ bool libMSOC_gt_MMTombSpiderQueenInit_Func (bool testConds, bool runActions) {
     libMSOC_gv_mMTombSpiderQueenActivationAmountRequired[1] = libMSOC_gv_mMTombSpiderQueenActivationAmountStart_C;
     libMSOC_gv_mMTombSpiderQueenActivationAmountRequired[2] = libMSOC_gv_mMTombSpiderQueenActivationAmountStart_C;
     libGame_gf_SendMapSpecificAwardInitializeEventwithUserData(null, "Generic Instance");
-    libAIAI_gv_heroAITeamMapLogicTrigger = libMSOC_gt_MMTombSpiderQueenHeroAITeamMapLogic;
-    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_HeroAIFollowerNearbyMapObjective, libMSOC_gt_MMTombSpiderQueenHeroAIFollowerShouldTurnInSouls);
     return true;
 }
 
@@ -1825,9 +1380,7 @@ bool libMSOC_gt_MMTombSpiderQueenPingDataInit_Func (bool testConds, bool runActi
     }
 
     libUIUI_gf_PingCreateNewPingTarget("SoulCage", false, null, StringExternal("Param/Value/lib_MSOC_C95A8663"), StringExternal("Param/Value/lib_MSOC_C20D0E3E"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libMSOC_gt_MMTombSpiderQueenPingCallbackPlayerPingsSoulCageTurnIn);
     libUIUI_gf_PingCreateNewPingTarget("SoulEater", false, null, StringExternal("Param/Value/lib_MSOC_CF793840"), StringExternal("Param/Value/lib_MSOC_3E9A7A69"), SoundLink("UI_Game_Ping_Help", -1), SoundLink("UI_Game_Ping_Attack", -1));
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libUIUI_gt_PingCallbackPlayerPingsLanerBossMinion);
     return true;
 }
 
@@ -1927,6 +1480,7 @@ bool libMSOC_gt_MMTombSpiderQueenGateOpen_Func (bool testConds, bool runActions)
     for ( ; ( (auto1216C5EB_ai >= 0 && lv_itSoulCage <= auto1216C5EB_ae) || (auto1216C5EB_ai < 0 && lv_itSoulCage >= auto1216C5EB_ae) ) ; lv_itSoulCage += auto1216C5EB_ai ) {
         UnitBehaviorAdd(libMSOC_gv_mMTombSpiderQueen[lv_itSoulCage].lv_units, "MacguffinActivated", libMSOC_gv_mMTombSpiderQueen[lv_itSoulCage].lv_units, 1);
         UnitSetState(libMSOC_gv_mMTombSpiderQueen[lv_itSoulCage].lv_units, c_unitStateHighlightable, true);
+        libMSOC_gf_MMTombSpiderQueenEnableDisableTurnInGoals(true, libMSOC_gv_mMTombSpiderQueen[lv_itSoulCage].lv_units);
     }
     libMSOC_gf_MMTombSpiderQueenTransmissionSoulCageActivatedQ(0);
     lv_itSoulCage = 1;
@@ -2175,6 +1729,39 @@ void libMSOC_gt_MMTombSpiderQueenSpawnSoulsHeroDies_Init () {
     libMSOC_gt_MMTombSpiderQueenSpawnSoulsHeroDies = TriggerCreate("libMSOC_gt_MMTombSpiderQueenSpawnSoulsHeroDies_Func");
     TriggerEnable(libMSOC_gt_MMTombSpiderQueenSpawnSoulsHeroDies, false);
     libGame_gf_HeroKilled(libMSOC_gt_MMTombSpiderQueenSpawnSoulsHeroDies);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMTombSpiderQueen Soul Spawned
+//--------------------------------------------------------------------------------------------------
+bool libMSOC_gt_MMTombSpiderQueenSoulSpawned_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_gemUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_gemUnit = EventUnit();
+
+    // Conditions
+    if (testConds) {
+        if (!(((UnitGetType(lv_gemUnit) == "ItemSoulPickup") || (UnitGetType(lv_gemUnit) == "ItemSoulPickupFive") || (UnitGetType(lv_gemUnit) == "ItemSoulPickupTwenty")))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    AIAddCollectable(lv_gemUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMSOC_gt_MMTombSpiderQueenSoulSpawned_Init () {
+    libMSOC_gt_MMTombSpiderQueenSoulSpawned = TriggerCreate("libMSOC_gt_MMTombSpiderQueenSoulSpawned_Func");
+    TriggerAddEventUnitRegion(libMSOC_gt_MMTombSpiderQueenSoulSpawned, null, RegionPlayableMap(), true);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -2431,6 +2018,7 @@ bool libMSOC_gt_MMTombSpiderQueenHandInSouls_Func (bool testConds, bool runActio
         UnitBehaviorRemove(libMSOC_gv_mMTombSpiderQueen[lv_itSoulCage].lv_units, "MacguffinActivated", 1);
         UnitSetState(libMSOC_gv_mMTombSpiderQueen[lv_itSoulCage].lv_units, c_unitStateTargetable, false);
         UnitSetState(libMSOC_gv_mMTombSpiderQueen[lv_itSoulCage].lv_units, c_unitStateHighlightable, false);
+        libMSOC_gf_MMTombSpiderQueenEnableDisableTurnInGoals(false, libMSOC_gv_mMTombSpiderQueen[lv_itSoulCage].lv_units);
     }
     return true;
 }
@@ -2761,6 +2349,7 @@ bool libMSOC_gt_MMTombSpiderQueenSoulEatersareDead_Func (bool testConds, bool ru
                     }
 
                 }
+                libMSOC_gf_MMTombSpiderQueenEnableDisableTurnInGoals(true, libMSOC_gv_mMTombSpiderQueen[lv_itSoulCage].lv_units);
             }
             break;
         }
@@ -2982,131 +2571,6 @@ bool libMSOC_gt_MMTombSpiderQueenUIHandler_Func (bool testConds, bool runActions
 //--------------------------------------------------------------------------------------------------
 void libMSOC_gt_MMTombSpiderQueenUIHandler_Init () {
     libMSOC_gt_MMTombSpiderQueenUIHandler = TriggerCreate("libMSOC_gt_MMTombSpiderQueenUIHandler_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMTombSpiderQueen - HeroAI - Team Map Logic
-//--------------------------------------------------------------------------------------------------
-bool libMSOC_gt_MMTombSpiderQueenHeroAITeamMapLogic_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libMSOC_gf_MMTombSpiderQueenHeroAITurnInSoulsLogic(libAIAI_gv_heroAITeamMapLogicFaction);
-    libMSOC_gf_MMTombSpiderQueenHeroAIPickUpSoulsLogic(libAIAI_gv_heroAITeamMapLogicFaction);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libMSOC_gt_MMTombSpiderQueenHeroAITeamMapLogic_Init () {
-    libMSOC_gt_MMTombSpiderQueenHeroAITeamMapLogic = TriggerCreate("libMSOC_gt_MMTombSpiderQueenHeroAITeamMapLogic_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMTombSpiderQueen - HeroAI - State Logic
-//--------------------------------------------------------------------------------------------------
-bool libMSOC_gt_MMTombSpiderQueenHeroAIStateLogic_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    int auto2535096A_val;
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    auto2535096A_val = libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSMapStateCurrentState;
-    if (auto2535096A_val == libMSOC_ge_MMTombSpiderQueenHeroAIStates_MMSoulCageTurnInSouls) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libMSOC_gf_MMTombSpiderQueenHeroAITurnInSouls(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else if (auto2535096A_val == libMSOC_ge_MMTombSpiderQueenHeroAIStates_MMSoulCageTurnInSoulsDefend) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libMSOC_gf_MMTombSpiderQueenHeroAITurnInSoulsDefend(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else if (auto2535096A_val == libMSOC_ge_MMTombSpiderQueenHeroAIStates_MMSoulCagePickUpSoul) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libMSOC_gf_MMTombSpiderQueenHeroAIPickUpSoul(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else {
-    }
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libMSOC_gt_MMTombSpiderQueenHeroAIStateLogic_Init () {
-    libMSOC_gt_MMTombSpiderQueenHeroAIStateLogic = TriggerCreate("libMSOC_gt_MMTombSpiderQueenHeroAIStateLogic_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMTombSpiderQueen - HeroAI - Follower Should Turn In Souls
-//--------------------------------------------------------------------------------------------------
-bool libMSOC_gt_MMTombSpiderQueenHeroAIFollowerShouldTurnInSouls_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    int lv_testLoopIndex;
-    unit lv_testUnit;
-    fixed lv_testDistance;
-    unit lv_soulTurnInUnit;
-    fixed lv_bestDistance;
-    point lv_soulTurnInPosition;
-
-    // Automatic Variable Declarations
-    const int autoD513090C_ae = libMSOC_gv_mMTombSpiderQueenCount_C;
-    const int autoD513090C_ai = 1;
-
-    // Variable Initialization
-    lv_bestDistance = 524287.0;
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    if (((libMSOC_gf_MMTombSpiderQueenTurnInPossible() == false) || (libAIAI_gf_HeroAIMapMechanicStackCountForHero(libCore_gv_segTriggerPlayer) == 0) || (UnitOrder(libGame_gv_players[libCore_gv_segTriggerPlayer].lv_heroUnit, 0) != null))) {
-        return true;
-    }
-
-    lv_testLoopIndex = 1;
-    for ( ; ( (autoD513090C_ai >= 0 && lv_testLoopIndex <= autoD513090C_ae) || (autoD513090C_ai < 0 && lv_testLoopIndex >= autoD513090C_ae) ) ; lv_testLoopIndex += autoD513090C_ai ) {
-        if ((UnitIsValid(libMSOC_gv_mMTombSpiderQueen[lv_testLoopIndex].lv_units) == true) && (UnitBehaviorEnabled(libMSOC_gv_mMTombSpiderQueen[lv_testLoopIndex].lv_units, "MacguffinActivated") == true)) {
-            lv_testDistance = DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[libCore_gv_segTriggerPlayer].lv_heroUnit), UnitGetPosition(libMSOC_gv_mMTombSpiderQueen[lv_testLoopIndex].lv_units));
-            if ((lv_testDistance < lv_bestDistance)) {
-                lv_bestDistance = lv_testDistance;
-                lv_soulTurnInUnit = libMSOC_gv_mMTombSpiderQueen[lv_testLoopIndex].lv_units;
-            }
-
-        }
-
-    }
-    lv_soulTurnInPosition = UnitGetPosition(lv_soulTurnInUnit);
-    if ((DistanceBetweenPoints(UnitGetPosition(libAIAI_gf_HeroAIGetUnitToFollow(libCore_gv_segTriggerPlayer)), UnitGetPosition(lv_soulTurnInUnit)) < libAIAI_gv_aIHeroFollowerNearbyDistance)) {
-        libMSOC_gf_MMTombSpiderQueenHeroAIChangeToState(libCore_gv_segTriggerPlayer, libMSOC_ge_MMTombSpiderQueenHeroAIStates_MMSoulCageTurnInSouls, lv_soulTurnInUnit, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-        libAIAI_gv_heroAIFollowerNearbyMapObjectiveFound = true;
-    }
-
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libMSOC_gt_MMTombSpiderQueenHeroAIFollowerShouldTurnInSouls_Init () {
-    libMSOC_gt_MMTombSpiderQueenHeroAIFollowerShouldTurnInSouls = TriggerCreate("libMSOC_gt_MMTombSpiderQueenHeroAIFollowerShouldTurnInSouls_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMTombSpiderQueen Ping Callback Player Pings Soul Cage Turn In
-//--------------------------------------------------------------------------------------------------
-bool libMSOC_gt_MMTombSpiderQueenPingCallbackPlayerPingsSoulCageTurnIn_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libMSOC_gf_MMTombSpiderQueenHeroAISoulCagePinged(libUIUI_gv_ping_PingCallbackPingingPlayer);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libMSOC_gt_MMTombSpiderQueenPingCallbackPlayerPingsSoulCageTurnIn_Init () {
-    libMSOC_gt_MMTombSpiderQueenPingCallbackPlayerPingsSoulCageTurnIn = TriggerCreate("libMSOC_gt_MMTombSpiderQueenPingCallbackPlayerPingsSoulCageTurnIn_Func");
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -3559,6 +3023,7 @@ void libMSOC_InitTriggers () {
     libMSOC_gt_MMTombSpiderQueenSpawnSoulsCarrierDies_Init();
     libMSOC_gt_MMTombSpiderQueenSpawnSoulsNPCMindControlled_Init();
     libMSOC_gt_MMTombSpiderQueenSpawnSoulsHeroDies_Init();
+    libMSOC_gt_MMTombSpiderQueenSoulSpawned_Init();
     libMSOC_gt_MMTombSpiderQueenSoulPickUp_Init();
     libMSOC_gt_MMTombSpiderQueenSoulStacksChange_Init();
     libMSOC_gt_MMTombSpiderQueenHandInSouls_Init();
@@ -3572,10 +3037,6 @@ void libMSOC_InitTriggers () {
     libMSOC_gt_MMTombSpiderQueenScalingTimer_Init();
     libMSOC_gt_MMTombSpiderQueenUIModInitialize_Init();
     libMSOC_gt_MMTombSpiderQueenUIHandler_Init();
-    libMSOC_gt_MMTombSpiderQueenHeroAITeamMapLogic_Init();
-    libMSOC_gt_MMTombSpiderQueenHeroAIStateLogic_Init();
-    libMSOC_gt_MMTombSpiderQueenHeroAIFollowerShouldTurnInSouls_Init();
-    libMSOC_gt_MMTombSpiderQueenPingCallbackPlayerPingsSoulCageTurnIn_Init();
     libMSOC_gt_MMTombSpiderQueenHarrisonJonesProcced_Init();
     libMSOC_gt_HarrisonJonesVictory_Init();
     libMSOC_gt_MMTombSpiderQueenDisableEvent_Init();

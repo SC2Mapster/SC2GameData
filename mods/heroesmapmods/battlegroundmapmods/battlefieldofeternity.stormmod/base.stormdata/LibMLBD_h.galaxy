@@ -20,14 +20,10 @@ const int libMLBD_ge_MMBOEUIModes_Warning = 1;
 const int libMLBD_ge_MMBOEUIModes_Duel = 2;
 const int libMLBD_ge_MMBOEUIModes_PushingPrep = 3;
 const int libMLBD_ge_MMBOEUIModes_Pushing = 4;
-const int libMLBD_ge_MMBOEHeroAIStates_MMBossDuelAttackBoss = 0;
-const int libMLBD_ge_MMBOEHeroAIStates_MMBossDuelDefendBoss = 1;
-const int libMLBD_ge_MMBOEHeroAIStates_MMBossDuelAttackSiegeBoss = 2;
-const int libMLBD_ge_MMBOEHeroAIStates_MMBossDuelSuportSiegeBoss = 3;
 
 // Constants
 const string libMLBD_gv_mMBoEMechanicName_C = "BattlefieldOfEternity";
-const fixed libMLBD_gv_mMBossDuelInitialDelay_C = 105.0;
+const fixed libMLBD_gv_mMBossDuelInitialDelay_C = 180.0;
 const fixed libMLBD_gv_mMBossDuelWarningDelayLong_C = 30.0;
 const fixed libMLBD_gv_mMBossDuelEventCooldown_C = 105.0;
 const fixed libMLBD_gv_mMBossDuelLaningPrepDelay_C = 15.0;
@@ -43,13 +39,6 @@ const int libMLBD_gv_mMBOEExplosionsLanerTargetMax = 3;
 const fixed libMLBD_gv_mMBOEExplosionsMaxRange = 8.5;
 const fixed libMLBD_gv_mMBOEExplosionsMinRange = 6.0;
 const fixed libMLBD_gv_mMBOEExplosionsMinDistanceApart = 3.5;
-const fixed libMLBD_gv_aIHeroBossDuelConsiderFrequency = 10.0;
-const fixed libMLBD_gv_aIHeroBossDuelStayInLaneTime = 10.0;
-const fixed libMLBD_gv_aIHeroBossDuelVeryCloseDistance = 8.0;
-const fixed libMLBD_gv_aIHeroBossNearDistance = 12.0;
-const fixed libMLBD_gv_aIHeroBossFarDistance = 16.0;
-const fixed libMLBD_gv_aIHeroBossRecruitDistance = 200.0;
-const fixed libMLBD_gv_aIHeroBossPingRecruitDistance = 200.0;
 
 // Structures
 struct libMLBD_gs_MMBOEPanel {
@@ -97,13 +86,16 @@ bool libMLBD_gv_mMBOESuppressExplosions;
 int[libCore_gv_bALMaxTeams + 1] libMLBD_gv_mMBOELastBossAttackers;
 unit libMLBD_gv_mMBOEMiddleBannerSconce;
 int libMLBD_gv_mMBOEEventStage;
+unit[libCore_gv_bALMaxTeams + 1] libMLBD_gv_mMBOEDuelPreviewUnits;
+string[libCore_gv_bALMaxTeams + 1] libMLBD_gv_mMBOEDuelPreviewUnitTypes;
+fixed libMLBD_gv_mMBOEDuelPreviewDelay;
 int libMLBD_gv_mMBOELaningPathLine;
 bool libMLBD_gv_mMBOELaningPathLineCreated;
 point libMLBD_gv_mMBOELaningRallyPoint;
 int[libCore_gv_bALMaxTeams + 1] libMLBD_gv_mMBOELaningBossPing;
 unitgroup libMLBD_gv_mMBOEOrderMiddleStructures;
 unitgroup libMLBD_gv_mMBOEChaosMiddleStructures;
-int libMLBD_gv_mMBOE_AICustomUnitValue;
+int[libCore_gv_bALMaxTeams + 1] libMLBD_gv_mMBOE_AICustomUnitValue;
 int libMLBD_gv_mMBOE_BossLanerPathCurrentIndex;
 int libMLBD_gv_mMBOE_BossLanerPathIndexMax;
 region libMLBD_gv_mMBOEHeavenRegion;
@@ -113,6 +105,7 @@ string[libCore_gv_bALMaxEnginePlayerCount + 1] libMLBD_gv_mMUnderworldAmbience;
 libMLBD_gs_MMBOEPanel libMLBD_gv_mMBOEPanel;
 unit libMLBD_gv_mMBOEUIBossLaningSpawningUnit;
 bool libMLBD_gv_mMBOEDebugUsed;
+bool libMLBD_gv_mMBOEShowBossPositions;
 fixed libMLBD_gv_mMBOEXPValue;
 
 // Function Declarations
@@ -123,6 +116,7 @@ int libMLBD_gf_MMBOEHHPlayer (int lp_team);
 void libMLBD_gf_MMBOEDuelWarningStart ();
 int libMLBD_gf_MMBOEOppositePair (int lp_pairIndex);
 void libMLBD_gf_MMBOECalculateNewSpawnLocations (int lp_stage);
+void libMLBD_gf_MMBOEDuelPreviewSetup (bool lp_showImmediately);
 void libMLBD_gf_MMBOEDuelStart ();
 string libMLBD_gf_MMBOEBossPingModel (int lp_team);
 void libMLBD_gf_MMBOESpawnBoss (int lp_team, point lp_location);
@@ -162,25 +156,6 @@ void libMLBD_gf_MMBOETransmissionBossPushingQ (int lp_winningTeam);
 void libMLBD_gf_MMBOETransmissionBossRetreatedQ (int lp_winningTeam);
 void libMLBD_gf_MMBOEExplosionsLogic (int lp_maxTargets, string lp_explosionEffect, unit lp_castingUnit);
 void libMLBD_gf_MMBOEAwardBossXP (unit lp_bossUnit, fixed lp_killedUnitXPAward);
-void libMLBD_gf_MMBOEHeroAIChangeToState (int lp_trigPlayer, int lp_state, int lp_targetIndex, unit lp_targetUnit, int lp_priority);
-int libMLBD_gf_MMBOEHeroAIAttackBoss (int lp_trigPlayer);
-int libMLBD_gf_MMBOEHeroAIDefendBoss (int lp_trigPlayer);
-int libMLBD_gf_MMBOEHeroAIAttackSiegeBoss (int lp_trigPlayer);
-int libMLBD_gf_MMBOEHeroAISupportSiegeBoss (int lp_trigPlayer);
-bool libMLBD_gf_MMBOEHeroAITooManyorTooFewEnemyHeroesAtBoss (int lp_trigPlayer, point lp_templePosition, int lp_minEnemiesRequired);
-int libMLBD_gf_MMBOEHeroAIGetNumberofAllieswithTarget (unit lp_targetUnit, int lp_faction);
-bool libMLBD_gf_MMBOEHeroAIAvailableToAttackBoss (int lp_trigPlayer);
-bool libMLBD_gf_MMBOEHeroAIShouldAttackBossLogic (int lp_trigPlayer);
-bool libMLBD_gf_MMBOEHeroAIShouldGiveUpOnAttackingOrDefendingBoss (int lp_trigPlayer);
-void libMLBD_gf_MMBOEHeroAIExitAttackingorDefendingBoss (int lp_trigPlayer);
-bool libMLBD_gf_MMBOEHeroAIAvailableToDefendBoss (int lp_trigPlayer);
-void libMLBD_gf_MMBOEHeroAIShouldDefendBossLogic (int lp_trigPlayer);
-bool libMLBD_gf_MMBOEHeroAIAvailableToAttackSiegeBoss (int lp_trigPlayer);
-bool libMLBD_gf_MMBOEHeroAIShouldAttackSiegeBossLogic (int lp_trigPlayer);
-bool libMLBD_gf_MMBOEHeroAIShouldGiveUpOnAttackingOrSupportingSiegeBoss (int lp_trigPlayer);
-bool libMLBD_gf_MMBOEHeroAIAvailableToSupportSiegeBoss (int lp_trigPlayer);
-void libMLBD_gf_MMBOEHeroAIShouldSupportSiegeBossLogic (int lp_trigPlayer);
-void libMLBD_gf_MMBOEHeroAICheckShouldAttackorDefendPingedBoss (int lp_pingingPlayer, unit lp_pingedTemple);
 
 // Trigger Declarations
 trigger libMLBD_gt_MMBOEInit;
@@ -205,13 +180,11 @@ trigger libMLBD_gt_MMBOEDebugStartImmediately;
 trigger libMLBD_gt_MMBOEDebugPlayCutscene;
 trigger libMLBD_gt_MMBOEDebugTransmission;
 trigger libMLBD_gt_MMBOEDebugDisableEvent;
+trigger libMLBD_gt_MMBOEDebugShowBossPositions;
 trigger libMLBD_gt_MMBOEDuelBossReacquireAttackTarget;
 trigger libMLBD_gt_MMBOEDuelBossVoidPrisonReacquireAttackTarget;
 trigger libMLBD_gt_MMBOEDemonicExplosionsAbilityUsed;
 trigger libMLBD_gt_MMBOEAngelicExplosionsAbilityUsed;
-trigger libMLBD_gt_MMBOEHeroAITeamMapLogic;
-trigger libMLBD_gt_MMBOEHeroAIStateLogic;
-trigger libMLBD_gt_MMBOEPingCallbackPlayerPingsBoss;
 
 // Library Initialization
 void libMLBD_InitVariables ();

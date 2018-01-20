@@ -1,4 +1,5 @@
 include "TriggerLibs/HeroesLib"
+include "TriggerLibs/MapMechanicsLib"
 
 //--------------------------------------------------------------------------------------------------
 // Library: Haunted Mines
@@ -14,7 +15,9 @@ const int libMHtM_ge_MMHMUnderworldState_BossSummoned = 3;
 
 // Constants
 const string libMHtM_gv_mMUnderworldMechanicName_C = "HauntedMinesRework";
-const fixed libMHtM_gv_mMUnderworldStartTime_C = 90.0;
+const int libMHtM_gv_sapperCampType_C = libMapM_ge_JungleCampMercTypes_SiegeCamp1;
+const int libMHtM_gv_siegeGiantCampType_C = libMapM_ge_JungleCampMercTypes_SiegeCamp2;
+const fixed libMHtM_gv_mMUnderworldStartTime_C = 150.0;
 const fixed libMHtM_gv_mMUnderworldEventCooldown_C = 90.0;
 const fixed libMHtM_gv_mMUnderworldPrepDuration_C = 30.0;
 const fixed libMHtM_gv_mMUnderworldOpenDuration_C = 180.0;
@@ -64,13 +67,16 @@ int[3] libMHtM_gv_mMUnderworldSkullCollected;
 bool libMHtM_gv_mMUnderworldOpened;
 unitgroup libMHtM_gv_mMUnderworldGatesAbove;
 unitgroup libMHtM_gv_mMUnderworldGatesBelow;
+point[5] libMHtM_gv_gatesAbovePositions;
+point[5] libMHtM_gv_gatesBelowPositions;
+unit[5] libMHtM_gv_gatesAbove;
+unit[5] libMHtM_gv_gatesBelow;
 string[libMHtM_gv_mMUnderworldTeleportingUnitTypeCount_C + 1] libMHtM_gv_mMUnderworldTeleportingUnitTypes;
 int[libCore_gv_bALMaxEnginePlayerCount + 1] libMHtM_gv_mMUnderworldEnterGateIndex;
 unit[libCore_gv_bALMaxPlayers + 1] libMHtM_gv_mMUnderworldCurrentHole;
 int[libCore_gv_bALMaxEnginePlayerCount + 1] libMHtM_gv_mMUnderworldPlayerPlane;
 libMHtM_gs_UnderworldMinionGroup[31] libMHtM_gv_mMUnderworldMinionGroups;
 int libMHtM_gv_mMUnderworldMinionGroupCount;
-unit[31] libMHtM_gv_mMUnderworldMinionGroupIcon;
 int libMHtM_gv_mMUnderworldSkullTotal;
 unit libMHtM_gv_mMUnderworldBoss;
 unit libMHtM_gv_mMUnderworldBossIconUnit;
@@ -78,10 +84,7 @@ region libMHtM_gv_mMUnderworldBossRegion;
 point libMHtM_gv_mMUnderworldBossLocation;
 int libMHtM_gv_mMUnderworldBossSkullDroppedIndex;
 int libMHtM_gv_mMUnderworldBossGlobeDroppedIndex;
-unit libMHtM_gv_mMUnderworldBossIconTeamColor;
 unit libMHtM_gv_mMUnderworldBossIconTeamColor2;
-unit libMHtM_gv_mMUnderworldBossIconNoTeamColor;
-unitgroup libMHtM_gv_mMUnderworldSkulls;
 bool libMHtM_gv_mMHM_OrderBossGoesTopLane;
 point libMHtM_gv_mMHM_OrderTopBossSpawn;
 point libMHtM_gv_mMHM_OrderBotBossSpawn;
@@ -107,14 +110,17 @@ fixed libMHtM_gv_mMUnderworldMineSnapshotStartTime_C;
 void libMHtM_gf_MMHMInitializeHauntedMinesMechanics ();
 void libMHtM_gf_MMHMInitializeHauntedMinesMercData ();
 void libMHtM_gf_MMUnderworldPrepare ();
+unit libMHtM_gf_MMUnderworldPlayerHeroUnit (int lp_player);
 unit libMHtM_gf_MMUnderworldUndergroundLadder (unit lp_gate);
 unit libMHtM_gf_MMUnderworldGroundHole (unit lp_gate);
 point libMHtM_gf_MMUnderworldGateEnteringSpawnPoint (unit lp_gate);
 unit libMHtM_gf_MMUnderworldGroundHoleVision (unit lp_hole);
 unit libMHtM_gf_MMUnderworldGroundHoleCamera (unit lp_hole);
+string libMHtM_gf_GetOrderDataTableValueString (unit lp_unit);
 region libMHtM_gf_HauntedMinePlayableRegion (int lp_plane);
 void libMHtM_gf_MMUnderworldChangePlaneForUnit (unit lp_heroUnit, int lp_groundPlane);
 void libMHtM_gf_MMUnderworldUpdateHeroUnitLighting (unit lp_heroUnit);
+void libMHtM_gf_MMHMEnableDisableAIPortalsforMines (bool lp_toggleSetting);
 int libMHtM_gf_MMUnderworldBossSkullDropCount ();
 int libMHtM_gf_MMUnderworldMineMinionGroupIndex (unit lp_minion);
 int libMHtM_gf_MMUnderworldSkullCollected ();
@@ -140,8 +146,6 @@ void libMHtM_gf_MMUnderworldTransmissionUnderworldClearedQ ();
 void libMHtM_gf_MMUnderworldTransmissionGolemSummonedQ (int lp_strongerTeam);
 void libMHtM_gf_MMUnderworldTransmissionGolemRevivedQ (int lp_strongerTeam);
 void libMHtM_gf_MMUnderworldTransmissionGolemDefeatedQ ();
-unit libMHtM_gf_MMUnderworldPlayerHeroUnit (int lp_player);
-unitgroup libMHtM_gf_MMUnderworldPlayerHeroUnitGroup (int lp_player);
 
 // Trigger Declarations
 trigger libMHtM_gt_MMHMMapMechanicInitialized;
@@ -162,9 +166,7 @@ trigger libMHtM_gt_MMHMSummonedBossPingVisibility;
 trigger libMHtM_gt_MMHMSummonedBossDies;
 trigger libMHtM_gt_AbathurMines;
 trigger libMHtM_gt_MMHMPlayerMovesCamera;
-trigger libMHtM_gt_MMHMUntargetableAcrossPlane;
 trigger libMHtM_gt_MMHMPeriodicallyRevealHoleToTeam;
-trigger libMHtM_gt_MMHMEOMIncrementSkullCount;
 trigger libMHtM_gt_MMHMDisableEvent;
 trigger libMHtM_gt_MMHMDebugStartEvent;
 trigger libMHtM_gt_MMHMDebugUnderworldClear;
@@ -175,7 +177,7 @@ trigger libMHtM_gt_MMHMDebugSpawnSkulls;
 trigger libMHtM_gt_MMHMMineScalingSnapshot;
 trigger libMHtM_gt_MMHMUnderworldObjectiveUIHandler;
 trigger libMHtM_gt_MMHMSummonedBossUIBar;
-trigger libMHtM_gt_MMHMHeroAITeamMapLogic;
+trigger libMHtM_gt_MMHMEOMIncrementSkullCount;
 
 // Library Initialization
 void libMHtM_InitVariables ();

@@ -61,10 +61,6 @@ void libAMGT_InitVariables () {
     for (init_i1 = 0; init_i1 <= libCore_gv_bALMaxTeams; init_i1 += 1) {
         libAMGT_gv_aRMGardenPanel.lv_progressNotificationLabel[init_i1] = c_invalidDialogControlId;
     }
-    libAMGT_gv_nearbySeedRange = 7.0;
-    libAMGT_gv_safeDangerRatio = 0.8;
-    libAMGT_gv_allyHelpRange = 16.0;
-    libAMGT_gv_minimumFleeTime = 1.0;
 }
 
 // Presets
@@ -533,6 +529,7 @@ bool auto_libAMGT_gf_ARMGardenSpawnMinionGroupSingle_TriggerFunc (bool testConds
         UnitSetState(UnitLastCreated(), c_unitStateInvulnerable, true);
         UnitSetState(UnitLastCreated(), c_unitStateStatusBar, false);
         UnitSetState(UnitLastCreated(), c_unitStateTargetable, false);
+        AddUnitOfInterest(UnitLastCreated(), 0.0, 0.0, "KillShambler", libNtve_ge_GoalTeam_Both, 0);
     }
     Wait(2.0, c_timeGame);
     autoA68113C3_g = libAMGT_gv_aRMGardenMinionGroup[lp_groupIndex].lv_units;
@@ -730,6 +727,7 @@ bool auto_libAMGT_gf_ARMGardenSpawnTerrorsSingle_TriggerFunc (bool testConds, bo
     libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "SetMinimapVisibilityAlways 1");
     libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "MinimapIconScale 0.700000");
     libAIAI_gf_StartDefenderAI(libNtve_gf_ConvertUnitToUnitGroup(UnitLastCreated()), libAMGT_gv_aRMGardenTerrors[lp_index].lv_area, null, false);
+    AddUnitOfInterest(UnitLastCreated(), 0.0, 0.0, "KillGardenTerror", libNtve_ge_GoalTeam_Both, 0);
     Wait(10.0, c_timeGame);
     PingDestroy(lv_ping1);
     PingDestroy(lv_ping2);
@@ -1264,519 +1262,6 @@ void libAMGT_gf_ARMGardenShowTeamProgressAnnouncement (int lp_team, int lp_seeds
     DialogControlSendAnimationEvent(libAMGT_gv_aRMGardenPanel.lv_progressNotification[lp_team], GameAttributePlayersForTeam(libGame_gf_EnemyTeam(lp_team)), "ShowEnemyNotification");
 }
 
-void libAMGT_gf_ARMGardenHeroAIChangeToState (int lp_trigPlayer, int lp_state, unit lp_target, int lp_priority) {
-    // Automatic Variable Declarations
-    // Implementation
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentState = (lp_state);
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateTrigger = libAMGT_gt_ARMGardenHeroAIStateLogic;
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = lp_target;
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority = lp_priority;
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_wantsToDoCustomMapLogic = true;
-    libAIAI_gf_HeroAIChangeState(lp_trigPlayer, libAIAI_ge_HeroAIStates_HSCustomMapState);
-}
-
-void libAMGT_gf_ARMGardenHeroAIInitializeAI () {
-    // Automatic Variable Declarations
-    // Implementation
-    libAMGT_gv_moonwells[0] = UnitGroupClosestToPoint(libNtve_gf_UnitsInRegionWithAllianceToPlayerMatchingCondition("TownMoonwell", "TownMoonwellL2", "TownMoonwellL3", libCore_gv_cOMPUTER_TeamOrder, c_unitAllianceAlly, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), UnitGetPosition(libGame_gv_teams[libGame_gf_TeamNumberOfFaction(libGame_ge_Faction_Order)].lv_core));
-    libAMGT_gv_moonwells[1] = UnitGroupClosestToPoint(libNtve_gf_UnitsInRegionWithAllianceToPlayerMatchingCondition("TownMoonwell", "TownMoonwellL2", "TownMoonwellL3", libCore_gv_cOMPUTER_TeamChaos, c_unitAllianceAlly, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), UnitGetPosition(libGame_gv_teams[libGame_gf_TeamNumberOfFaction(libGame_ge_Faction_Chaos)].lv_core));
-}
-
-int libAMGT_gf_ARMGardenHeroAIKillShamblers (int lp_trigPlayer) {
-    // Automatic Variable Declarations
-    // Implementation
-    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) <= libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth)) {
-        libAIAI_gf_HeroAIStartFleeInJungle(lp_trigPlayer);
-        return 1;
-    }
-
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = libAMGT_gf_ARMGardenHeroAIChooseTargetShambler(lp_trigPlayer);
-    if ((UnitIsAlive(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == false)) {
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroObjectiveStagingEnabled[(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty)] == true) && (libAMGT_gf_ARMGardenHeroAIShouldFleeArea(lp_trigPlayer, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libAIAI_gv_aIHeroVisionRange, libAMGT_gv_allyHelpRange, libAMGT_gv_safeDangerRatio) == true)) {
-        libAMGT_gf_ARMGardenHeroAIChangeToState(lp_trigPlayer, libAMGT_ge_ARMGardenHeroAIStates_MMHWFleeShamblers, null, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority);
-        return 8;
-    }
-
-    if ((libAMGT_gf_ARMGardenHeroAIPickupNearbySeed(lp_trigPlayer, RegionCircle(UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_currentHeroUnit), libAMGT_gv_nearbySeedRange), false) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, null, libAIAI_gv_aIHeroRangedCombatRange, libAIAI_gv_aIHeroVisionRange, false, false, false, true) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libAIAI_gv_aIHeroVisionRange) == true)) {
-        return 8;
-    }
-
-    libAIAI_gf_HeroAIEnsureOrderAttackUnit(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
-    return 8;
-}
-
-int libAMGT_gf_ARMGardenHeroAIFleeShamblers (int lp_trigPlayer) {
-    // Automatic Variable Declarations
-    // Implementation
-    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) <= libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth)) {
-        libAIAI_gf_HeroAIStartFleeInJungle(lp_trigPlayer);
-        return 1;
-    }
-
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = libAMGT_gf_ARMGardenHeroAIChooseTargetShambler(lp_trigPlayer);
-    if ((UnitIsAlive(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == false)) {
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if (((libAIAI_gf_HeroAITimeInCurrentState(lp_trigPlayer) < libAMGT_gv_minimumFleeTime) || (libAMGT_gf_ARMGardenHeroAIShouldFleeArea(lp_trigPlayer, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libAIAI_gv_aIHeroVisionRange, libAMGT_gv_allyHelpRange, libAMGT_gv_safeDangerRatio) == true))) {
-        if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, null, libGame_gv_players[lp_trigPlayer].lv_spawnPoint, libAIAI_gv_aIHeroCloseEnoughDist, libAIAI_gv_aIHeroCloseEnoughDist, true, true, false, true) == true)) {
-        }
-
-    }
-    else {
-        libAMGT_gf_ARMGardenHeroAIChangeToState(lp_trigPlayer, libAMGT_ge_ARMGardenHeroAIStates_MMHWKillShamblers, null, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority);
-    }
-    return 8;
-}
-
-int libAMGT_gf_ARMGardenHeroAIKillTerror (int lp_trigPlayer) {
-    // Automatic Variable Declarations
-    // Implementation
-    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) <= libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth)) {
-        libAIAI_gf_HeroAIStartFleeInJungle(lp_trigPlayer);
-        return 1;
-    }
-
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = libAMGT_gf_ARMGardenHeroAIChooseTargetTerror(libGame_gv_players[lp_trigPlayer].lv_faction);
-    if ((UnitIsAlive(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePingedTargetUnit) == true) && (libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit != libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePingedTargetUnit)) {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePingedTargetUnit;
-    }
-
-    if ((UnitIsAlive(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == false)) {
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroObjectiveStagingEnabled[(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty)] == true) && (libAMGT_gf_ARMGardenHeroAIShouldFleeArea(lp_trigPlayer, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libAIAI_gv_aIHeroVisionRange, libAMGT_gv_allyHelpRange, libAMGT_gv_safeDangerRatio) == true)) {
-        libAMGT_gf_ARMGardenHeroAIChangeToState(lp_trigPlayer, libAMGT_ge_ARMGardenHeroAIStates_MMHWFleeTerror, null, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority);
-        return 8;
-    }
-
-    if ((libAMGT_gf_ARMGardenHeroAIPickupNearbySeed(lp_trigPlayer, RegionCircle(UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_currentHeroUnit), libAMGT_gv_nearbySeedRange), false) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, null, libAIAI_gv_aIHeroRangedCombatRange, libAIAI_gv_aIHeroVisionRange, false, false, false, true) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libAIAI_gv_aIHeroVisionRange) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroes[lp_trigPlayer].lv_nextOffensiveSpellCheckTime <= TimerGetElapsed(libGame_gv_gameTimer)) && (libNtve_gf_UnitIsVisibleToPlayer(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, lp_trigPlayer) == true) && (libAIAI_gf_HeroAIRandomlyCastAbilityOnTarget(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == true)) {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_focusHeroTimeout = (TimerGetElapsed(libGame_gv_gameTimer) + libAIAI_gv_aIHeroFocusHeroMaxChaseTime);
-        return 8;
-    }
-
-    libAIAI_gf_HeroAIEnsureOrderAttackUnit(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
-    return 8;
-}
-
-int libAMGT_gf_ARMGardenHeroAIFleeTerror (int lp_trigPlayer) {
-    // Automatic Variable Declarations
-    // Implementation
-    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) <= libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth)) {
-        libAIAI_gf_HeroAIStartFleeInJungle(lp_trigPlayer);
-        return 1;
-    }
-
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = libAMGT_gf_ARMGardenHeroAIChooseTargetTerror(libGame_gv_players[lp_trigPlayer].lv_faction);
-    if ((UnitIsAlive(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePingedTargetUnit) == true) && (libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit != libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePingedTargetUnit)) {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePingedTargetUnit;
-    }
-
-    if ((UnitIsAlive(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == false)) {
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if (((libAIAI_gf_HeroAITimeInCurrentState(lp_trigPlayer) < libAMGT_gv_minimumFleeTime) || (libAMGT_gf_ARMGardenHeroAIShouldFleeArea(lp_trigPlayer, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libAIAI_gv_aIHeroVisionRange, libAMGT_gv_allyHelpRange, libAMGT_gv_safeDangerRatio) == true))) {
-        if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, null, libGame_gv_players[lp_trigPlayer].lv_spawnPoint, libAIAI_gv_aIHeroCloseEnoughDist, libAIAI_gv_aIHeroCloseEnoughDist, true, true, false, true) == true)) {
-        }
-
-    }
-    else {
-        libAMGT_gf_ARMGardenHeroAIChangeToState(lp_trigPlayer, libAMGT_ge_ARMGardenHeroAIStates_MMHWKillTerror, null, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority);
-    }
-    return 8;
-}
-
-int libAMGT_gf_ARMGardenHeroAIPickupSeed (int lp_trigPlayer) {
-    // Variable Declarations
-    unit lv_seed;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) <= libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth)) {
-        libAIAI_gf_HeroAIStartFleeInJungle(lp_trigPlayer);
-        return 1;
-    }
-
-    lv_seed = libAMGT_gf_ARMGardenHeroAIChooseSeed(lp_trigPlayer, RegionEntireMap(), false);
-    if ((UnitIsValid(lv_seed) == false)) {
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroObjectiveStagingEnabled[(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty)] == true) && (libAMGT_gf_ARMGardenHeroAIShouldFleeArea(lp_trigPlayer, UnitGetPosition(lv_seed), libAIAI_gv_aIHeroVisionRange, libAMGT_gv_allyHelpRange, libAMGT_gv_safeDangerRatio) == true)) {
-        libAIAI_gf_HeroAIEnsureOrderMovePointCloseEnough(lp_trigPlayer, libGame_gv_players[lp_trigPlayer].lv_spawnPoint);
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, lv_seed, null, libAIAI_gv_aIHeroRangedCombatRange, libAIAI_gv_aIHeroVisionRange, false, false, false, true) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, UnitGetPosition(lv_seed), libAIAI_gv_aIHeroVisionRange) == true)) {
-        return 8;
-    }
-
-    libAIAI_gf_HeroAIEnsureOrderMoveUnit(lp_trigPlayer, lv_seed);
-    return 8;
-}
-
-int libAMGT_gf_ARMGardenHeroAIMoonwellRegroup (int lp_trigPlayer) {
-    // Variable Declarations
-    unit lv_moonwell;
-    fixed lv_expectedLife;
-    order lv_order;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    lv_moonwell = libAMGT_gv_moonwells[libAIAI_gf_HeroAIGetAllyTeamIndex(lp_trigPlayer)];
-    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) <= libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth)) {
-        libAIAI_gf_HeroAIStartFleeInJungle(lp_trigPlayer);
-        return 1;
-    }
-
-    if (((UnitIsValid(lv_moonwell) == false) || ((libAIAI_gv_aIHeroObjectiveStagingEnabled[(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty)] == true) && (libAMGT_gf_ARMGardenHeroAIShouldFleeArea(lp_trigPlayer, UnitGetPosition(lv_moonwell), libAIAI_gv_aIHeroVisionRange, libAMGT_gv_allyHelpRange, libAMGT_gv_safeDangerRatio) == true)))) {
-        libAIAI_gf_HeroAIEnsureOrderMovePointCloseEnough(lp_trigPlayer, libGame_gv_players[lp_trigPlayer].lv_spawnPoint);
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, lv_moonwell, null, libAIAI_gv_aIHeroMeleeCombatRange, libAIAI_gv_aIHeroRangedCombatRange, false, false, false, true) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    lv_expectedLife = UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifeExpectedPercent, c_unitPropCurrent);
-    if ((lv_expectedLife <= (libAIAI_gv_aIHeroes[lp_trigPlayer].lv_startOffensiveHealth + 10.0)) && (UnitHasBehavior2(libGame_gv_players[lp_trigPlayer].lv_heroUnit, "HealingFountainCooldown") == false)) {
-        lv_order = UnitOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, 0);
-        if (((OrderGetAbilityCommand(lv_order) != AbilityCommand("FountainDrink", 0)) || (OrderGetTargetUnit(lv_order) != lv_moonwell))) {
-            UnitIssueOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, OrderTargetingUnit(AbilityCommand("FountainDrink", 0), lv_moonwell), c_orderQueueReplace);
-        }
-
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, UnitGetPosition(lv_moonwell), libAMGT_gv_allyHelpRange) == true)) {
-        return 8;
-    }
-
-    if ((UnitOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, 0) == null)) {
-        UnitIssueOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, OrderTargetingPoint(AbilityCommand("move", 0), PointWithOffsetPolar(UnitGetPosition(libAMGT_gv_moonwells[libAIAI_gf_HeroAIGetAllyTeamIndex(lp_trigPlayer)]), RandomFixed(libAIAI_gv_aIHeroMeleeCombatRange, libAIAI_gv_aIHeroRangedCombatRange), libNtve_gf_RandomAngle())), c_orderQueueReplace);
-        return 8;
-    }
-
-    return 8;
-}
-
-bool libAMGT_gf_ARMGardenHeroAIShamblersAlive () {
-    // Variable Declarations
-    int lv_itMinionGroupIndex;
-    unit lv_enemy;
-
-    // Automatic Variable Declarations
-    int autoAB0DF887_ae;
-    const int autoAB0DF887_ai = 1;
-    unitgroup auto43A86494_g;
-    int auto43A86494_u;
-
-    // Variable Initialization
-
-    // Implementation
-    autoAB0DF887_ae = libAMGT_gv_aRMGardenMinionGroupCount;
-    lv_itMinionGroupIndex = 1;
-    for ( ; ( (autoAB0DF887_ai >= 0 && lv_itMinionGroupIndex <= autoAB0DF887_ae) || (autoAB0DF887_ai < 0 && lv_itMinionGroupIndex >= autoAB0DF887_ae) ) ; lv_itMinionGroupIndex += autoAB0DF887_ai ) {
-        auto43A86494_g = libAMGT_gv_aRMGardenMinionGroup[lv_itMinionGroupIndex].lv_units;
-        auto43A86494_u = UnitGroupCount(auto43A86494_g, c_unitCountAll);
-        for (;; auto43A86494_u -= 1) {
-            lv_enemy = UnitGroupUnitFromEnd(auto43A86494_g, auto43A86494_u);
-            if (lv_enemy == null) { break; }
-            if ((UnitIsAlive(lv_enemy) == true)) {
-                return true;
-            }
-
-        }
-    }
-    return false;
-}
-
-unit libAMGT_gf_ARMGardenHeroAIChooseTargetShambler (int lp_trigPlayer) {
-    // Variable Declarations
-    int lv_itMinionGroupIndex;
-    unit lv_enemy;
-    fixed lv_targetEval;
-    unit lv_bestTarget;
-    fixed lv_bestTargetEval;
-
-    // Automatic Variable Declarations
-    int auto640D0DE0_ae;
-    const int auto640D0DE0_ai = 1;
-    unitgroup auto3B44FAC9_g;
-    int auto3B44FAC9_u;
-
-    // Variable Initialization
-    lv_bestTargetEval = 524287.0;
-
-    // Implementation
-    auto640D0DE0_ae = libAMGT_gv_aRMGardenMinionGroupCount;
-    lv_itMinionGroupIndex = 1;
-    for ( ; ( (auto640D0DE0_ai >= 0 && lv_itMinionGroupIndex <= auto640D0DE0_ae) || (auto640D0DE0_ai < 0 && lv_itMinionGroupIndex >= auto640D0DE0_ae) ) ; lv_itMinionGroupIndex += auto640D0DE0_ai ) {
-        auto3B44FAC9_g = libAMGT_gv_aRMGardenMinionGroup[lv_itMinionGroupIndex].lv_units;
-        auto3B44FAC9_u = UnitGroupCount(auto3B44FAC9_g, c_unitCountAll);
-        for (;; auto3B44FAC9_u -= 1) {
-            lv_enemy = UnitGroupUnitFromEnd(auto3B44FAC9_g, auto3B44FAC9_u);
-            if (lv_enemy == null) { break; }
-            if ((UnitIsAlive(lv_enemy) == true) && ((libNtve_gf_UnitIsInvulnerable(lv_enemy) == false) || (libNtve_gf_UnitIsVisibleToPlayer(lv_enemy, lp_trigPlayer) == false))) {
-                lv_targetEval = libAIAI_gf_HeroAIEvaluateTarget(lp_trigPlayer, lv_enemy, libAIAI_gv_aIHeroChangeTargetDistanceWeight);
-                if ((lv_targetEval < lv_bestTargetEval)) {
-                    lv_bestTarget = lv_enemy;
-                    lv_bestTargetEval = lv_targetEval;
-                }
-
-            }
-
-        }
-    }
-    return lv_bestTarget;
-}
-
-unit libAMGT_gf_ARMGardenHeroAIChooseTargetTerror (int lp_faction) {
-    // Variable Declarations
-    int lv_itGroup;
-    int lv_playerIndex;
-    fixed lv_targetEval;
-    unit lv_bestTarget;
-    fixed lv_bestTargetEval;
-
-    // Automatic Variable Declarations
-    int auto64B90CE9_ae;
-    const int auto64B90CE9_ai = 1;
-    playergroup autoC20A6D9D_g;
-    playergroup autoD3C7ADB2_g;
-
-    // Variable Initialization
-    lv_bestTargetEval = 524287.0;
-
-    // Implementation
-    auto64B90CE9_ae = libAMGT_gv_aRMGardenTerrorCount;
-    lv_itGroup = 1;
-    for ( ; ( (auto64B90CE9_ai >= 0 && lv_itGroup <= auto64B90CE9_ae) || (auto64B90CE9_ai < 0 && lv_itGroup >= auto64B90CE9_ae) ) ; lv_itGroup += auto64B90CE9_ai ) {
-        if ((UnitIsAlive(libAMGT_gv_aRMGardenTerrors[lv_itGroup].lv_terror) == true)) {
-            lv_targetEval = 0.0;
-            autoC20A6D9D_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction)].lv_aIPlayers;
-            lv_playerIndex = -1;
-            while (true) {
-                	lv_playerIndex = PlayerGroupNextPlayer(autoC20A6D9D_g, lv_playerIndex);
-                	if (lv_playerIndex<0) { break; }
-                	if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (UnitGetPropertyFixed(libGame_gv_players[lv_playerIndex].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) >= libAIAI_gv_aIHeroes[lv_playerIndex].lv_returnToSpawnHealth)) {
-                    lv_targetEval += DistanceSquaredBetweenPoints(UnitGetPosition(libAIAI_gv_aIHeroes[lv_playerIndex].lv_currentHeroUnit), libAMGT_gv_aRMGardenTerrors[lv_itGroup].lv_position);
-                }
-
-                if ((lv_targetEval < lv_bestTargetEval)) {
-                    lv_bestTarget = libAMGT_gv_aRMGardenTerrors[lv_itGroup].lv_terror;
-                    lv_bestTargetEval = lv_targetEval;
-                }
-
-            }
-            autoD3C7ADB2_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction)].lv_humanPlayers;
-            lv_playerIndex = -1;
-            while (true) {
-                	lv_playerIndex = PlayerGroupNextPlayer(autoD3C7ADB2_g, lv_playerIndex);
-                	if (lv_playerIndex<0) { break; }
-                	if ((libGame_gv_players[lv_playerIndex].lv_isDead == false)) {
-                    lv_targetEval += (5.0 * DistanceSquaredBetweenPoints(UnitGetPosition(libGame_gv_players[lv_playerIndex].lv_heroUnit), libAMGT_gv_aRMGardenTerrors[lv_itGroup].lv_position));
-                }
-
-                if ((lv_targetEval < lv_bestTargetEval)) {
-                    lv_bestTarget = libAMGT_gv_aRMGardenTerrors[lv_itGroup].lv_terror;
-                    lv_bestTargetEval = lv_targetEval;
-                }
-
-            }
-        }
-
-    }
-    return lv_bestTarget;
-}
-
-unit libAMGT_gf_ARMGardenHeroAIChooseSeed (int lp_trigPlayer, region lp_searchRegion, bool lp_ignoreAllies) {
-    // Variable Declarations
-    unitgroup lv_nearbySeeds;
-    unitgroup lv_nearbyGlobes;
-    unit lv_seed;
-    fixed lv_seedDistance;
-    unit lv_bestSeed;
-    fixed lv_bestSeedDistance;
-
-    // Automatic Variable Declarations
-    unitgroup auto42FCF05C_g;
-    int auto42FCF05C_u;
-
-    // Variable Initialization
-    lv_nearbySeeds = UnitGroupEmpty();
-    lv_nearbyGlobes = UnitGroupEmpty();
-    lv_bestSeedDistance = 524287.0;
-
-    // Implementation
-    lv_nearbySeeds = UnitGroup("ItemSeedPickup", c_playerAny, lp_searchRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
-    lv_nearbyGlobes = UnitGroup("RegenGlobeNeutral", c_playerAny, lp_searchRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
-    UnitGroupAddUnitGroup(lv_nearbySeeds, lv_nearbyGlobes);
-    auto42FCF05C_g = lv_nearbySeeds;
-    auto42FCF05C_u = UnitGroupCount(auto42FCF05C_g, c_unitCountAll);
-    for (;; auto42FCF05C_u -= 1) {
-        lv_seed = UnitGroupUnitFromEnd(auto42FCF05C_g, auto42FCF05C_u);
-        if (lv_seed == null) { break; }
-        if ((lp_ignoreAllies == false) && (libAMGT_gf_ARMGardenHeroAIIsAllyPickingUpSeed(lp_trigPlayer, lv_seed) == true)) {
-            continue;
-        }
-
-        lv_seedDistance = DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit), UnitGetPosition(lv_seed));
-        if ((lv_seedDistance < lv_bestSeedDistance)) {
-            lv_bestSeed = lv_seed;
-            lv_bestSeedDistance = lv_seedDistance;
-        }
-
-    }
-    return lv_bestSeed;
-}
-
-bool libAMGT_gf_ARMGardenHeroAIIsAllyPickingUpSeed (int lp_trigPlayer, unit lp_doubloon) {
-    // Variable Declarations
-    point lv_directionToSeed;
-    point lv_directionOfOrder;
-    int lv_playerIndex;
-    fixed lv_ourDistanceSqtoSeed;
-    fixed lv_playerDistanceSqtoSeed;
-
-    // Automatic Variable Declarations
-    int auto1D55564B_ae;
-
-    // Variable Initialization
-
-    // Implementation
-    lv_ourDistanceSqtoSeed = DistanceSquaredBetweenPoints(UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit), UnitGetPosition(lp_doubloon));
-    auto1D55564B_ae = libCore_gv_bALMaxPlayers;
-    lv_playerIndex = 1;
-    for ( ; lv_playerIndex <= auto1D55564B_ae ; lv_playerIndex += 1 ) {
-        if ((libGame_gv_players[lp_trigPlayer].lv_faction == libGame_gv_players[lv_playerIndex].lv_faction) && (lp_trigPlayer != lv_playerIndex) && (libGame_gv_players[lv_playerIndex].lv_isDead == false)) {
-            lv_playerDistanceSqtoSeed = DistanceSquaredBetweenPoints(UnitGetPosition(libGame_gv_players[lv_playerIndex].lv_heroUnit), UnitGetPosition(lp_doubloon));
-            if ((libAIAI_gf_HeroAIIsPlayerActive(lv_playerIndex, 2) == true)) {
-                lv_directionToSeed = AIGetDirection(UnitGetPosition(libGame_gv_players[lv_playerIndex].lv_heroUnit), UnitGetPosition(lp_doubloon));
-                lv_directionOfOrder = AIGetDirection(UnitGetPosition(libGame_gv_players[lv_playerIndex].lv_heroUnit), OrderGetTargetPosition(UnitOrder(libGame_gv_players[lv_playerIndex].lv_heroUnit, 0)));
-                if ((lv_playerDistanceSqtoSeed < lv_ourDistanceSqtoSeed) && ((UnitOrder(libGame_gv_players[lv_playerIndex].lv_heroUnit, 0) == null) || (libNtve_gf_PointDotProduct2D(lv_directionToSeed, lv_directionOfOrder) >= Cos(30.0)))) {
-                    return true;
-                }
-
-            }
-            else {
-                if ((lv_playerDistanceSqtoSeed < (lv_ourDistanceSqtoSeed + 3.0))) {
-                    return true;
-                }
-
-            }
-        }
-
-    }
-    return false;
-}
-
-bool libAMGT_gf_ARMGardenHeroAIPickupNearbySeed (int lp_trigPlayer, region lp_searchRegion, bool lp_ignoreAllies) {
-    // Variable Declarations
-    unit lv_seed;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    lv_seed = libAMGT_gf_ARMGardenHeroAIChooseSeed(lp_trigPlayer, lp_searchRegion, lp_ignoreAllies);
-    if ((UnitIsValid(lv_seed) == true)) {
-        libAIAI_gf_HeroAIEnsureOrderMovePoint(lp_trigPlayer, UnitGetPosition(lv_seed));
-        return true;
-    }
-    else {
-        return false;
-    }
-}
-
-bool libAMGT_gf_ARMGardenHeroAIShouldFleeArea (int lp_trigPlayer, point lp_center, fixed lp_enemyRange, fixed lp_allyRange, fixed lp_enemyScaling) {
-    // Automatic Variable Declarations
-    // Implementation
-    if ((DistanceSquaredBetweenPoints(UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_currentHeroUnit), lp_center) < (lp_allyRange * lp_allyRange)) && ((lp_enemyScaling * libAIAI_gf_HeroAIEnemyEvalInCircle(lp_trigPlayer, lp_center, lp_enemyRange, true, false, false)) > libAIAI_gf_HeroAIAllyEvalInCircle(lp_trigPlayer, lp_center, lp_allyRange, true, false, false))) {
-        return true;
-    }
-    else {
-        return false;
-    }
-}
-
-void libAMGT_gf_ARMGardenHeroAINightBossPinged (int lp_pingingPlayer, unit lp_targetNightBoss) {
-    // Variable Declarations
-    int lv_playerIndex;
-
-    // Automatic Variable Declarations
-    playergroup autoABF5412E_g;
-
-    // Variable Initialization
-
-    // Implementation
-    if (((UnitIsValid(lp_targetNightBoss) == false) || (UnitGetType(lp_targetNightBoss) != "JunglePlantHorror"))) {
-        return ;
-    }
-
-    autoABF5412E_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAIGetAllyTeamIndex(lp_pingingPlayer)].lv_aIPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(autoABF5412E_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	libAMGT_gf_ARMGardenHeroAIChangeToState(lv_playerIndex, libAMGT_ge_ARMGardenHeroAIStates_MMHWKillTerror, lp_targetNightBoss, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-    }
-}
-
 // Triggers
 //--------------------------------------------------------------------------------------------------
 // Trigger: ARM<Garden> Set Round Order
@@ -1832,11 +1317,8 @@ bool libAMGT_gt_ARMGardenInitialization_Func (bool testConds, bool runActions) {
         libNtve_gf_MakeUnitInvulnerable(lv_monster, true);
     }
     libAREN_gv_showCoreStatusBars = false;
-    libAIAI_gv_heroAITeamMapLogicTrigger = libAMGT_gt_ARMGardenHeroAITeamMapLogic;
-    libAIAI_gf_HeroAIRegisterAOEwithWatchTrigger("LignifyInitialLaunchSet", 3.0, 4.0, 0.0, false, false);
     libUIUI_gf_PingCreateNewPingTarget("Shambler", false, null, StringExternal("Param/Value/lib_AMGT_494F7434"), StringExternal("Param/Value/lib_AMGT_CE401EFB"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
     libUIUI_gf_PingCreateNewPingTarget("JunglePlantHorror", false, null, StringExternal("Param/Value/lib_AMGT_11C87D71"), StringExternal("Param/Value/lib_AMGT_DDB7993C"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libAMGT_gt_ARMGardenHeroAITerrorPingCallback);
     return true;
 }
 
@@ -1855,6 +1337,7 @@ bool libAMGT_gt_ARMGardenLevelStart_Func (bool testConds, bool runActions) {
     int lv_itTempleIndex;
     int lv_itPlayer;
     int lv_itTeam;
+    unit lv_unit;
 
     // Automatic Variable Declarations
     int autoE21D1462_val;
@@ -1887,7 +1370,6 @@ bool libAMGT_gt_ARMGardenLevelStart_Func (bool testConds, bool runActions) {
     TriggerEnable(libAMGT_gt_ARMGardenSeedPickup, true);
     TriggerEnable(libAMGT_gt_ARMGardenMinionDies, true);
     TriggerEnable(libAMGT_gt_ARMGardenTerrorDies, true);
-    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_DefenderAIIssueOrdersToCreep, libAMGT_gt_ARMGardenGardenTerrorDefenderSpells);
     autoE21D1462_val = libAMGT_gf_ARMGardenCurrentLevel();
     if (autoE21D1462_val == libAMGT_ge_ARMGardenLevel_Level1) {
         libAMGT_gv_aRMGardenL1MinionSpawnSide = RandomInt(1, 2);
@@ -1909,7 +1391,6 @@ bool libAMGT_gt_ARMGardenLevelStart_Func (bool testConds, bool runActions) {
     libAMGT_gf_MapMechanicsGardenOfTerrorSetSeedCountForTeam(2, 0);
     libAMGT_gf_MapMechanicsGardenOfTerrorSetSeedCountForTeam(libGame_gv_teamOrderIndex_C, libAMGT_gv_aRMGardenTeamSeedsCollected[libGame_gv_teamOrderIndex_C]);
     libAMGT_gf_MapMechanicsGardenOfTerrorSetSeedCountForTeam(libGame_gv_teamChaosIndex_C, libAMGT_gv_aRMGardenTeamSeedsCollected[libGame_gv_teamChaosIndex_C]);
-    libAMGT_gf_ARMGardenHeroAIInitializeAI();
     return true;
 }
 
@@ -1922,8 +1403,13 @@ void libAMGT_gt_ARMGardenLevelStart_Init () {
 // Trigger: ARM<Garden> Gates Opened
 //--------------------------------------------------------------------------------------------------
 bool libAMGT_gt_ARMGardenGatesOpened_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_moonwell;
+
     // Automatic Variable Declarations
     int auto2006B483_val;
+
+    // Variable Initialization
 
     // Conditions
     if (testConds) {
@@ -1992,6 +1478,7 @@ bool libAMGT_gt_ARMGardenSeedDropped_Func (bool testConds, bool runActions) {
 
     lv_seed = EventUnitCreatedUnit();
     SoundPlayAtPointForPlayer(SoundLink("UI_SeedPickup_Drop", -1), c_maxPlayers, PlayerGroupAll(), UnitGetPosition(EventUnitCreatedUnit()), 0.0, 100.0, 0.5);
+    AIAddCollectable(lv_seed);
     while (true) {
         if ((UnitIsAlive(lv_seed) == false)) {
             return true;
@@ -2360,214 +1847,6 @@ void libAMGT_gt_ARMGardenPanelInit_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: ARM<Garden> Garden Terror Defender Spells
-//--------------------------------------------------------------------------------------------------
-bool libAMGT_gt_ARMGardenGardenTerrorDefenderSpells_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    unit lv_creepUnit;
-    int lv_defenderAIIndex;
-    unit lv_currentOrderTarget;
-    int lv_graveGolemBindingRootsValidTargets;
-    unitgroup lv_enemyGroup;
-
-    // Automatic Variable Declarations
-    unitgroup auto2E94ADDB_g;
-    int auto2E94ADDB_u;
-    unit auto2E94ADDB_var;
-
-    // Variable Initialization
-    lv_creepUnit = libCore_gv_segTriggerUnit;
-    lv_defenderAIIndex = libCore_gv_segTriggerIndex;
-    lv_enemyGroup = UnitGroupEmpty();
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    if ((libAIAI_gf_DefendersAreFighting(lv_defenderAIIndex) == true) && ((libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_fightStartTime + libAIAI_gv_aIDefenderMinTimeBeforeCasting) < TimerGetElapsed(libGame_gv_gameTimer))) {
-        if ((UnitGetCooldown(lv_creepUnit, "Abil/PlantHorrorPoisonBulbs") <= 0.0) && (UnitGroupCount(UnitGroup(null, c_playerAny, RegionCircle(UnitGetPosition(lv_creepUnit), 5.0), UnitFilter((1 << c_targetFilterHeroic) | (1 << c_targetFilterVisible), 0, (1 << c_targetFilterPlayer) | (1 << c_targetFilterAlly) | (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), c_unitCountAlive) > 1)) {
-            UnitIssueOrder(lv_creepUnit, Order(AbilityCommand("UnderworldBossStun", 0)), c_orderQueueReplace);
-            libAIAI_gv_defenderAICreepNeedsNewOrder = false;
-        }
-        else {
-            lv_enemyGroup = libNtve_gf_UnitsInRegionWithAllianceToPlayerMatchingCondition(null, "", "", UnitGetOwner(lv_creepUnit), c_unitAllianceEnemy, RegionCircle(UnitGetPosition(lv_creepUnit), 8.0), UnitFilter((1 << c_targetFilterHeroic) | (1 << c_targetFilterVisible), 0, (1 << c_targetFilterPlayer) | (1 << c_targetFilterAlly) | (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
-            if ((UnitGetCooldown(lv_creepUnit, "Abil/UnderworldBossRoots") <= 0.0) && (UnitGroupCount(lv_enemyGroup, c_unitCountAlive) > 1)) {
-                auto2E94ADDB_g = lv_enemyGroup;
-                auto2E94ADDB_u = UnitGroupCount(auto2E94ADDB_g, c_unitCountAll);
-                for (;; auto2E94ADDB_u -= 1) {
-                    auto2E94ADDB_var = UnitGroupUnitFromEnd(auto2E94ADDB_g, auto2E94ADDB_u);
-                    if (auto2E94ADDB_var == null) { break; }
-                    if ((auto2E94ADDB_var != lv_currentOrderTarget) && (DistanceBetweenPoints(UnitGetPosition(auto2E94ADDB_var), UnitGetPosition(lv_creepUnit)) >= 2.0)) {
-                        lv_graveGolemBindingRootsValidTargets += 1;
-                    }
-
-                }
-                if ((lv_graveGolemBindingRootsValidTargets >= 1)) {
-                    UnitIssueOrder(lv_creepUnit, OrderTargetingPoint(AbilityCommand("UnderworldBossRoots", 0), UnitGetPosition(libMapM_gf_JungleGetRandomEnemyHeroInRangeOfMinionWithMinimumRangeRequirements(lv_creepUnit, UnitGetPosition(lv_creepUnit), 0.0, 8.0, lv_currentOrderTarget))), c_orderQueueReplace);
-                    UnitAddCooldown(lv_creepUnit, "Abil/UnderworldBossRoots", 1.5);
-                    libAIAI_gv_defenderAICreepNeedsNewOrder = false;
-                }
-                else {
-                    UnitAddCooldown(lv_creepUnit, "Abil/UnderworldBossRoots", 0.5);
-                }
-            }
-
-        }
-    }
-
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libAMGT_gt_ARMGardenGardenTerrorDefenderSpells_Init () {
-    libAMGT_gt_ARMGardenGardenTerrorDefenderSpells = TriggerCreate("libAMGT_gt_ARMGardenGardenTerrorDefenderSpells_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: ARM<Garden> HeroAI - Team Map Logic
-//--------------------------------------------------------------------------------------------------
-bool libAMGT_gt_ARMGardenHeroAITeamMapLogic_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    int lv_itMinionGroupIndex;
-    int lv_itGroup;
-    int lv_playerIndex;
-    unit lv_target;
-
-    // Automatic Variable Declarations
-    playergroup auto0BE53832_g;
-    playergroup auto9F2FA1F2_g;
-    playergroup autoBB2FCAC1_g;
-    playergroup auto426AEE45_g;
-
-    // Variable Initialization
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    auto0BE53832_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(libAIAI_gv_heroAITeamMapLogicFaction)].lv_aIPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(auto0BE53832_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (libAIAI_gf_HeroAIIsHigherPriority(lv_playerIndex, libAIAI_ge_HeroAIPriority_CustomMapHigh) == true) && (UnitGetPropertyFixed(libGame_gv_players[lv_playerIndex].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) >= libAIAI_gv_aIHeroes[lv_playerIndex].lv_startOffensiveHealth) && ((libAIAI_gv_aIHeroes[lv_playerIndex].lv_heroState != libAIAI_ge_HeroAIStates_HSCustomMapState) || (libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateCurrentState != libAMGT_ge_ARMGardenHeroAIStates_MMHWKillTerror) || (UnitIsAlive(libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateCurrentTargetUnit) == false) || (UnitGetPropertyFixed(libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateCurrentTargetUnit, c_unitPropLifePercent, c_unitPropCurrent) >= 33.0))) {
-            lv_target = libAMGT_gf_ARMGardenHeroAIChooseTargetShambler(lv_playerIndex);
-            if ((lv_target != null)) {
-                libAMGT_gf_ARMGardenHeroAIChangeToState(lv_playerIndex, libAMGT_ge_ARMGardenHeroAIStates_MMHWKillShamblers, lv_target, libAIAI_ge_HeroAIPriority_CustomMapHigh);
-            }
-
-        }
-
-    }
-    lv_target = libAMGT_gf_ARMGardenHeroAIChooseTargetTerror(libAIAI_gv_heroAITeamMapLogicFaction);
-    if ((lv_target != null)) {
-        auto9F2FA1F2_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(libAIAI_gv_heroAITeamMapLogicFaction)].lv_aIPlayers;
-        lv_playerIndex = -1;
-        while (true) {
-            	lv_playerIndex = PlayerGroupNextPlayer(auto9F2FA1F2_g, lv_playerIndex);
-            	if (lv_playerIndex<0) { break; }
-            	if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (libAIAI_gf_HeroAIIsHigherPriority(lv_playerIndex, libAIAI_ge_HeroAIPriority_CustomMapRegular) == true) && (UnitGetPropertyFixed(libGame_gv_players[lv_playerIndex].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) >= libAIAI_gv_aIHeroes[lv_playerIndex].lv_startOffensiveHealth)) {
-                libAMGT_gf_ARMGardenHeroAIChangeToState(lv_playerIndex, libAMGT_ge_ARMGardenHeroAIStates_MMHWKillTerror, lv_target, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-            }
-
-        }
-    }
-
-    autoBB2FCAC1_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(libAIAI_gv_heroAITeamMapLogicFaction)].lv_aIPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(autoBB2FCAC1_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (libAIAI_gf_HeroAIIsHigherPriority(lv_playerIndex, libAIAI_ge_HeroAIPriority_CustomMapLow) == true) && (UnitGetPropertyFixed(libGame_gv_players[lv_playerIndex].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) >= libAIAI_gv_aIHeroes[lv_playerIndex].lv_startOffensiveHealth)) {
-            lv_target = libAMGT_gf_ARMGardenHeroAIChooseSeed(lv_playerIndex, RegionEntireMap(), false);
-            if ((lv_target != null)) {
-                libAMGT_gf_ARMGardenHeroAIChangeToState(lv_playerIndex, libAMGT_ge_ARMGardenHeroAIStates_MMHWPickupSeed, lv_target, libAIAI_ge_HeroAIPriority_CustomMapLow);
-            }
-
-        }
-
-    }
-    auto426AEE45_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(libAIAI_gv_heroAITeamMapLogicFaction)].lv_aIPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(auto426AEE45_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (libAIAI_gf_HeroAIIsHigherPriority(lv_playerIndex, libAIAI_ge_HeroAIPriority_CustomMapLow) == true) && (UnitGetPropertyFixed(libGame_gv_players[lv_playerIndex].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) >= libAIAI_gv_aIHeroes[lv_playerIndex].lv_startOffensiveHealth)) {
-            libAMGT_gf_ARMGardenHeroAIChangeToState(lv_playerIndex, libAMGT_ge_ARMGardenHeroAIStates_MMHWMoonwellRegroup, null, libAIAI_ge_HeroAIPriority_CustomMapLow);
-        }
-
-    }
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libAMGT_gt_ARMGardenHeroAITeamMapLogic_Init () {
-    libAMGT_gt_ARMGardenHeroAITeamMapLogic = TriggerCreate("libAMGT_gt_ARMGardenHeroAITeamMapLogic_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: ARM<Garden> HeroAI - State Logic
-//--------------------------------------------------------------------------------------------------
-bool libAMGT_gt_ARMGardenHeroAIStateLogic_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    int autoCA89E224_val;
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    autoCA89E224_val = libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSMapStateCurrentState;
-    if (autoCA89E224_val == libAMGT_ge_ARMGardenHeroAIStates_MMHWKillShamblers) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libAMGT_gf_ARMGardenHeroAIKillShamblers(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else if (autoCA89E224_val == libAMGT_ge_ARMGardenHeroAIStates_MMHWFleeShamblers) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libAMGT_gf_ARMGardenHeroAIFleeShamblers(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else if (autoCA89E224_val == libAMGT_ge_ARMGardenHeroAIStates_MMHWKillTerror) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libAMGT_gf_ARMGardenHeroAIKillTerror(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else if (autoCA89E224_val == libAMGT_ge_ARMGardenHeroAIStates_MMHWFleeTerror) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libAMGT_gf_ARMGardenHeroAIFleeTerror(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else if (autoCA89E224_val == libAMGT_ge_ARMGardenHeroAIStates_MMHWPickupSeed) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libAMGT_gf_ARMGardenHeroAIPickupSeed(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else if (autoCA89E224_val == libAMGT_ge_ARMGardenHeroAIStates_MMHWMoonwellRegroup) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libAMGT_gf_ARMGardenHeroAIMoonwellRegroup(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else {
-    }
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libAMGT_gt_ARMGardenHeroAIStateLogic_Init () {
-    libAMGT_gt_ARMGardenHeroAIStateLogic = TriggerCreate("libAMGT_gt_ARMGardenHeroAIStateLogic_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: ARM<Garden> HeroAI - Terror Ping Callback
-//--------------------------------------------------------------------------------------------------
-bool libAMGT_gt_ARMGardenHeroAITerrorPingCallback_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libAMGT_gf_ARMGardenHeroAINightBossPinged(libUIUI_gv_ping_PingCallbackPingingPlayer, libUIUI_gv_ping_PingCallbackTargetUnit);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libAMGT_gt_ARMGardenHeroAITerrorPingCallback_Init () {
-    libAMGT_gt_ARMGardenHeroAITerrorPingCallback = TriggerCreate("libAMGT_gt_ARMGardenHeroAITerrorPingCallback_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
 // Trigger: ARM<Garden> DisableEvent
 //--------------------------------------------------------------------------------------------------
 bool libAMGT_gt_ARMGardenDisableEvent_Func (bool testConds, bool runActions) {
@@ -2607,10 +1886,6 @@ void libAMGT_InitTriggers () {
     libAMGT_gt_ARMGardenMinionDies_Init();
     libAMGT_gt_ARMGardenTerrorDies_Init();
     libAMGT_gt_ARMGardenPanelInit_Init();
-    libAMGT_gt_ARMGardenGardenTerrorDefenderSpells_Init();
-    libAMGT_gt_ARMGardenHeroAITeamMapLogic_Init();
-    libAMGT_gt_ARMGardenHeroAIStateLogic_Init();
-    libAMGT_gt_ARMGardenHeroAITerrorPingCallback_Init();
     libAMGT_gt_ARMGardenDisableEvent_Init();
 }
 

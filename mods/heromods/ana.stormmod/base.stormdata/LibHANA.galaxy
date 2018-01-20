@@ -44,6 +44,7 @@ void libHANA_gf_HeroAnaIncrementHeroCountFunction () {
         TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusOverlayOff, true);
         TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusActivate, true);
         TriggerEnable(libHANA_gt_HeroAnaConcentratedDoses, true);
+        TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusRadiusTargeter, true);
         TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusPresearchTargeter, true);
         TriggerEnable(libHANA_gt_HeroAnaNanoBoostGenderHitCheck, true);
         libHANA_gv_hero_Ana_HealingDart_ConcentratedDoses_PoisonDotStr = CatalogFieldValueGet(c_gameCatalogBehavior, "AnaBasicAttackPoisonTraitDotDamageToken", "TokenId", c_playerAny);
@@ -67,6 +68,7 @@ void libHANA_gf_HeroAnaDecrementHeroCountFunction () {
         TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusOverlayOff, false);
         TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusActivate, false);
         TriggerEnable(libHANA_gt_HeroAnaConcentratedDoses, false);
+        TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusRadiusTargeter, false);
         TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusPresearchTargeter, false);
         TriggerEnable(libHANA_gt_HeroAnaNanoBoostGenderHitCheck, false);
         libHANA_gv_hero_Ana_HealingDart_ConcentratedDoses_PoisonDotStr = "";
@@ -82,7 +84,7 @@ string libHANA_gf_GetPortraitPathforEyeOfHorus (unit lp_unit) {
         return "Assets\\Textures\\ui_targetportrait_structure.dds";
     }
     else {
-        return libUIUI_gf_KillLogGetPortraitPathforUnit(lp_unit, true);
+        return libUIUI_gf_KillLogGetPortraitPathforUnit(lp_unit);
     }
 }
 
@@ -271,25 +273,86 @@ void libHANA_gt_HeroAnaEyeOfHorusPresearchTargeter_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Ana - Eye Of Horus Radius Targeter
+//--------------------------------------------------------------------------------------------------
+bool libHANA_gt_HeroAnaEyeOfHorusRadiusTargeter_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_eyeOfHorusDistance;
+    fixed lv_eyeOfHorusAdjustedDistance;
+    point lv_eyeOfHorusPoint;
+    point lv_eyeOfHorusPointAdjusted;
+    unit lv_anaUnit;
+    point lv_posOfAna;
+    unit lv_targetUnit;
+    point lv_posOfTargetUnit;
+    fixed lv_targetRadius;
+    fixed lv_targetImpactDistance;
+    fixed lv_eyeOfHorusPositionAdjustmentFactor;
+    fixed lv_eyeOfHorusPositionWallAdjustment;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_anaUnit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_posOfAna = UnitGetPosition(lv_anaUnit);
+    lv_targetUnit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_posOfTargetUnit = UnitGetPosition(lv_targetUnit);
+    lv_eyeOfHorusPositionAdjustmentFactor = 0.8;
+    lv_eyeOfHorusPositionWallAdjustment = 1.0;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_eyeOfHorusDistance = DistanceBetweenPoints(lv_posOfAna, lv_posOfTargetUnit);
+    lv_targetRadius = CatalogFieldValueGetAsFixed(c_gameCatalogUnit, UnitGetType(lv_targetUnit), "Radius", c_playerAny);
+    lv_eyeOfHorusPoint = PointWithOffsetPolar(lv_posOfAna, lv_eyeOfHorusDistance, UnitGetFacing(lv_anaUnit));
+    lv_targetImpactDistance = DistanceBetweenPoints(lv_posOfTargetUnit, lv_eyeOfHorusPoint);
+    if (((UnitHasBehavior2(lv_targetUnit, "TownGateBehavior") == true) || (UnitHasBehavior2(lv_targetUnit, "TownWallBehavior") == true))) {
+        lv_eyeOfHorusAdjustedDistance = (lv_eyeOfHorusDistance-lv_eyeOfHorusPositionWallAdjustment);
+    }
+    else {
+        lv_eyeOfHorusAdjustedDistance = (lv_eyeOfHorusDistance-(lv_targetRadius-(lv_targetImpactDistance*lv_eyeOfHorusPositionAdjustmentFactor)));
+    }
+    lv_eyeOfHorusPointAdjusted = PointWithOffsetPolar(lv_posOfAna, lv_eyeOfHorusAdjustedDistance, UnitGetFacing(lv_anaUnit));
+    UnitCreateEffectPoint(lv_anaUnit, "AnaEyeOfHorusRadiusTargetHitDummyImpact", lv_eyeOfHorusPointAdjusted);
+    if ((libGame_gf_TeamNumberOfPlayer(UnitGetOwner(lv_anaUnit)) == libGame_gf_TeamNumberOfPlayer(UnitGetOwner(lv_targetUnit)))) {
+        UnitCreateEffectPoint(lv_anaUnit, "AnaEyeOfHorusRadiusTargetHitDummyImpactAlly", lv_eyeOfHorusPointAdjusted);
+    }
+    else {
+        UnitCreateEffectPoint(lv_anaUnit, "AnaEyeOfHorusRadiusTargetHitDummyImpactEnemy", lv_eyeOfHorusPointAdjusted);
+    }
+    UnitCreateEffectPoint(lv_anaUnit, "AnaEyeOfHorusBallisticAdvantageSearch", lv_eyeOfHorusPointAdjusted);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHANA_gt_HeroAnaEyeOfHorusRadiusTargeter_Init () {
+    libHANA_gt_HeroAnaEyeOfHorusRadiusTargeter = TriggerCreate("libHANA_gt_HeroAnaEyeOfHorusRadiusTargeter_Func");
+    TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusRadiusTargeter, false);
+    TriggerAddEventPlayerEffectUsed(libHANA_gt_HeroAnaEyeOfHorusRadiusTargeter, c_playerAny, "AnaEyeOfHorusRadiusTargetHitDummyTriggerImpactCreatePersistent");
+}
+
+//--------------------------------------------------------------------------------------------------
 // Trigger: Hero - Ana - Eye Of Horus Activate
 //--------------------------------------------------------------------------------------------------
 bool libHANA_gt_HeroAnaEyeOfHorusActivate_Func (bool testConds, bool runActions) {
     // Variable Declarations
-    unit lv_chen;
+    unit lv_ana;
     int lv_player;
 
     // Automatic Variable Declarations
     // Variable Initialization
-    lv_chen = EventPlayerEffectUsedUnit(c_effectUnitCaster);
-    lv_player = UnitGetOwner(lv_chen);
+    lv_ana = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_player = UnitGetOwner(lv_ana);
 
     // Conditions
     if (testConds) {
-        if (!((UnitHasBehavior2(lv_chen, "AnaEyeOfHorus") == true))) {
+        if (!((UnitHasBehavior2(lv_ana, "AnaEyeOfHorus") == true))) {
             return false;
         }
 
-        if (!((UnitIsAlive(lv_chen) == true))) {
+        if (!((UnitIsAlive(lv_ana) == true))) {
             return false;
         }
     }
@@ -376,7 +439,6 @@ bool libHANA_gt_HeroAnaConcentratedDoses_Func (bool testConds, bool runActions) 
     int lv_dosagesActive;
 
     // Automatic Variable Declarations
-    playergroup autoBE940F56_g;
     unitgroup autoA6DE93B0_g;
     int autoA6DE93B0_u;
 
@@ -396,25 +458,12 @@ bool libHANA_gt_HeroAnaConcentratedDoses_Func (bool testConds, bool runActions) 
         return true;
     }
 
-    autoBE940F56_g = libGame_gf_EnemyPlayerGroupOfPlayer(lv_anaPlayer);
-    lv_itPlayer = -1;
-    while (true) {
-        	lv_itPlayer = PlayerGroupNextPlayer(autoBE940F56_g, lv_itPlayer);
-        	if (lv_itPlayer<0) { break; }
-        	if ((TechTreeBehaviorCount(lv_itPlayer, "AnaBasicAttackPoisonTraitDotDamageToken", c_techCountCompleteOnly) >= 1)) {
-            autoA6DE93B0_g = UnitGroupFilterPlayer(libGame_gv_players[lv_itPlayer].lv_heroUnitGroup, lv_itPlayer, 0);
-            autoA6DE93B0_u = UnitGroupCount(autoA6DE93B0_g, c_unitCountAll);
-            for (;; autoA6DE93B0_u -= 1) {
-                lv_itUnit = UnitGroupUnitFromEnd(autoA6DE93B0_g, autoA6DE93B0_u);
-                if (lv_itUnit == null) { break; }
-                if ((UnitHasBehavior2(lv_itUnit, "AnaBasicAttackPoisonTraitDotDamageToken") == true)) {
-                    lv_dosagesActive += 1;
-                    lv_dosagesActive += FixedToInt(UnitGetTokenCount(lv_itUnit, libHANA_gv_hero_Ana_HealingDart_ConcentratedDoses_PoisonDotStr));
-                }
-
-            }
-        }
-
+    autoA6DE93B0_g = UnitGetTrackedUnitGroup(lv_anaUnit, "AnaHealingDartConcentratedDosesPlayerTracker");
+    autoA6DE93B0_u = UnitGroupCount(autoA6DE93B0_g, c_unitCountAll);
+    for (;; autoA6DE93B0_u -= 1) {
+        lv_itUnit = UnitGroupUnitFromEnd(autoA6DE93B0_g, autoA6DE93B0_u);
+        if (lv_itUnit == null) { break; }
+        lv_dosagesActive += (FixedToInt(UnitGetTokenCount(lv_itUnit, libHANA_gv_hero_Ana_HealingDart_ConcentratedDoses_PoisonDotStr)) + 1);
     }
     UnitSetTokenCount(lv_anaUnit, libHANA_gv_hero_Ana_HealingDart_ConcentratedDoses_TokenCounterStr, lv_dosagesActive, lv_anaUnit);
     return true;
@@ -467,6 +516,7 @@ void libHANA_InitTriggers () {
     libHANA_gt_HeroAnaNanoBoostGenderHitCheck_Init();
     libHANA_gt_HeroAnaNanoBoostCDR_Init();
     libHANA_gt_HeroAnaEyeOfHorusPresearchTargeter_Init();
+    libHANA_gt_HeroAnaEyeOfHorusRadiusTargeter_Init();
     libHANA_gt_HeroAnaEyeOfHorusActivate_Init();
     libHANA_gt_HeroAnaEyeOfHorusOverlayOn_Init();
     libHANA_gt_HeroAnaEyeOfHorusOverlayOff_Init();

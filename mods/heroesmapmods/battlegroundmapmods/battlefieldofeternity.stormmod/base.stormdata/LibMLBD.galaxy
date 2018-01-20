@@ -38,7 +38,7 @@ void libMLBD_InitVariables () {
 
     libMLBD_InitVariables_completed = true;
 
-    libMLBD_gv_mMBossDuelWarningDelay = 15.0;
+    libMLBD_gv_mMBossDuelWarningDelay = 30.0;
     for (init_i = 0; init_i <= libCore_gv_bALMaxTeams; init_i += 1) {
         libMLBD_gv_mMBOEBossPing[init_i] = c_invalidPingId;
     }
@@ -48,6 +48,7 @@ void libMLBD_InitVariables () {
     libMLBD_gv_mMBOEEventCooldownTimer = TimerCreate();
     libMLBD_gv_mMBOEEventLongWarningTimeTimer = TimerCreate();
     libMLBD_gv_mMBOEEventStage = libMLBD_ge_MMBOEEventStage_Idle;
+    libMLBD_gv_mMBOEDuelPreviewDelay = 30.0;
     for (init_i = 0; init_i <= libCore_gv_bALMaxTeams; init_i += 1) {
         libMLBD_gv_mMBOELaningBossPing[init_i] = c_invalidPingId;
     }
@@ -208,13 +209,11 @@ bool auto_libMLBD_gf_MMBOEDuelWarningStart_TriggerFunc (bool testConds, bool run
         return true;
     }
 
-    libMLBD_gv_mMBOETimes += 1;
     StatEventCreate("Boss Duel Started");
     StatEventAddDataInt(StatEventLastCreated(), "Boss Duel Number", libMLBD_gv_mMBOETimes);
     StatEventSend(StatEventLastCreated());
     libMLBD_gv_mMBOEEventStage = libMLBD_ge_MMBOEEventStage_Warning;
     libMLBD_gf_MMBOETransmissionDuelWarningQ();
-    libMLBD_gf_MMBOECalculateNewSpawnLocations(1);
     TimerStart(libMLBD_gv_mMBOEEventWarningTimer, libMLBD_gv_mMBossDuelWarningDelay, false, c_timeGame);
     SoundPlayForPlayer(SoundLink("UI_Game_BoE_Immortals_Spawning", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
     SoundtrackPlay(PlayerGroupAll(), c_soundtrackCategoryMusic, "MX_Event_BoE_Immortal_Spawn", c_soundtrackCueAny, c_soundtrackIndexAny, false);
@@ -252,60 +251,82 @@ int libMLBD_gf_MMBOEOppositePair (int lp_pairIndex) {
 
 void libMLBD_gf_MMBOECalculateNewSpawnLocations (int lp_stage) {
     // Variable Declarations
-    playergroup lv_shufflePlayerGroup;
-    playergroup lv_shufflePlayerGroupBak;
-    int lv_itPair;
-    int lv_indexPair;
-    int lv_badLocation1;
-    int lv_badLocation2;
+    string lv_patternName;
 
     // Automatic Variable Declarations
-    int auto39019F7A_val;
-    int auto7FDA7895_ae;
-    const int auto7FDA7895_ai = 1;
-    int autoEEFD5B1F_ae;
-    const int autoEEFD5B1F_ai = 1;
+    int auto7AEAFEA5_val;
+
+    // Variable Initialization
+    lv_patternName = "";
+
+    // Implementation
+    if ((lp_stage == 1)) {
+        libMLBD_gv_mMBOETimes += 1;
+        if ((libMLBD_gv_mMBOETimes == 1)) {
+            libMLBD_gv_mMBOEBossSpawnLocationIndexes[lp_stage] = (3);
+        }
+        else {
+            libMLBD_gv_mMBOEBossSpawnLocationIndexes[lp_stage] = RandomInt(1, 4);
+        }
+    }
+    else {
+        if ((libMLBD_gv_mMBOETimes == 1)) {
+            libMLBD_gv_mMBOEBossSpawnLocationIndexes[lp_stage] = (2);
+        }
+        else {
+            libMLBD_gv_mMBOEBossSpawnLocationIndexes[lp_stage] = 0;
+            while (((libMLBD_gv_mMBOEBossSpawnLocationIndexes[lp_stage] == 0) || (libMLBD_gv_mMBOEBossSpawnLocationIndexes[lp_stage] == libMLBD_gv_mMBOEBossSpawnLocationIndexes[1]))) {
+                libMLBD_gv_mMBOEBossSpawnLocationIndexes[lp_stage] = RandomInt(1, 4);
+            }
+        }
+    }
+    if ((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true) && (libMLBD_gv_mMBOEShowBossPositions == true)) {
+        auto7AEAFEA5_val = libMLBD_gv_mMBOEBossSpawnLocationIndexes[lp_stage];
+        if (auto7AEAFEA5_val == (1)) {
+            lv_patternName = "North vs South";
+        }
+        else if (auto7AEAFEA5_val == (3)) {
+            lv_patternName = "South vs North";
+        }
+        else if (auto7AEAFEA5_val == (2)) {
+            lv_patternName = "East vs West";
+        }
+        else if (auto7AEAFEA5_val == (4)) {
+            lv_patternName = "West vs East";
+        }
+        else {
+        }
+        TextExpressionSetToken("Param/Expression/lib_MLBD_3E8AF8D7", "A", IntToText(libMLBD_gv_mMBOETimes));
+        TextExpressionSetToken("Param/Expression/lib_MLBD_3E8AF8D7", "B", IntToText(lp_stage));
+        TextExpressionSetToken("Param/Expression/lib_MLBD_3E8AF8D7", "D", IntToText(libMLBD_gv_mMBOEBossSpawnLocationIndexes[lp_stage]));
+        TextExpressionSetToken("Param/Expression/lib_MLBD_3E8AF8D7", "C", StringToText(lv_patternName));
+        TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_MLBD_3E8AF8D7"), true);
+    }
+
+}
+
+void libMLBD_gf_MMBOEDuelPreviewSetup (bool lp_showImmediately) {
+    // Variable Declarations
+    playergroup lv_shufflePlayerGroup;
+    int lv_itPair;
+
+    // Automatic Variable Declarations
+    const int autoE4FB82FE_ae = 2;
+    const int autoE4FB82FE_ai = 1;
 
     // Variable Initialization
     lv_shufflePlayerGroup = PlayerGroupEmpty();
-    lv_shufflePlayerGroupBak = PlayerGroupEmpty();
 
     // Implementation
-    auto39019F7A_val = lp_stage;
-    if (auto39019F7A_val == 1) {
-        auto7FDA7895_ae = libMLBD_gv_mMBOEBossSpawnLocationPairCount;
-        lv_itPair = 1;
-        for ( ; ( (auto7FDA7895_ai >= 0 && lv_itPair <= auto7FDA7895_ae) || (auto7FDA7895_ai < 0 && lv_itPair >= auto7FDA7895_ae) ) ; lv_itPair += auto7FDA7895_ai ) {
-            PlayerGroupAdd(lv_shufflePlayerGroup, lv_itPair);
-        }
-        if ((libMLBD_gv_mMBOETimes == 1)) {
-            PlayerGroupRemove(lv_shufflePlayerGroup, (2));
-            PlayerGroupRemove(lv_shufflePlayerGroup, (4));
-        }
-        else if (true) {
-            PlayerGroupRemove(lv_shufflePlayerGroup, libMLBD_gv_mMBOEBossSpawnLocationIndexes[1]);
-        }
-        lv_indexPair = RandomInt(1, PlayerGroupCount(lv_shufflePlayerGroup));
-        libMLBD_gv_mMBOEBossSpawnLocationIndexes[1] = PlayerGroupPlayer(lv_shufflePlayerGroup, lv_indexPair);
+    if ((lp_showImmediately == false)) {
+        Wait(libMLBD_gv_mMBOEDuelPreviewDelay, c_timeGame);
     }
-    else if (auto39019F7A_val == 2) {
-        autoEEFD5B1F_ae = libMLBD_gv_mMBOEBossSpawnLocationPairCount;
-        lv_itPair = 1;
-        for ( ; ( (autoEEFD5B1F_ai >= 0 && lv_itPair <= autoEEFD5B1F_ae) || (autoEEFD5B1F_ai < 0 && lv_itPair >= autoEEFD5B1F_ae) ) ; lv_itPair += autoEEFD5B1F_ai ) {
-            PlayerGroupAdd(lv_shufflePlayerGroup, lv_itPair);
-        }
-        PlayerGroupRemove(lv_shufflePlayerGroup, libMLBD_gv_mMBOEBossSpawnLocationIndexes[1]);
-        if ((libMLBD_gv_mMBOETimes == 1)) {
-            PlayerGroupRemove(lv_shufflePlayerGroup, libMLBD_gf_MMBOEOppositePair(libMLBD_gv_mMBOEBossSpawnLocationIndexes[1]));
-            PlayerGroupRemove(lv_shufflePlayerGroup, (4));
-        }
-        else if ((libMLBD_gv_mMBOETimes == 2)) {
-            PlayerGroupRemove(lv_shufflePlayerGroup, libMLBD_gv_mMBOEBossSpawnLocationIndexes[2]);
-        }
-        lv_indexPair = RandomInt(1, PlayerGroupCount(lv_shufflePlayerGroup));
-        libMLBD_gv_mMBOEBossSpawnLocationIndexes[2] = PlayerGroupPlayer(lv_shufflePlayerGroup, lv_indexPair);
-    }
-    else {
+
+    lv_itPair = 1;
+    for ( ; ( (autoE4FB82FE_ai >= 0 && lv_itPair <= autoE4FB82FE_ae) || (autoE4FB82FE_ai < 0 && lv_itPair >= autoE4FB82FE_ae) ) ; lv_itPair += autoE4FB82FE_ai ) {
+        libNtve_gf_UnitCreateFacingPoint(1, libMLBD_gv_mMBOEDuelPreviewUnitTypes[lv_itPair], c_unitCreateIgnorePlacement, libMLBD_gf_MMBOEHHPlayer(lv_itPair), libMLBD_gv_mMBOEBossSpawnLocationPair[libMLBD_gv_mMBOEBossSpawnLocationIndexes[1]][lv_itPair], libMLBD_gv_mMBOEBossSpawnLocationCenter);
+        libMLBD_gv_mMBOEDuelPreviewUnits[lv_itPair] = UnitLastCreated();
+        ActorSend(libNtve_gf_MainActorofUnit(libMLBD_gv_mMBOEDuelPreviewUnits[lv_itPair]), "MinimapIconTintColor 255,145,113,218");
     }
 }
 
@@ -330,10 +351,14 @@ void libMLBD_gf_MMBOEDuelStart () {
     const int auto401FEBBD_ai = 1;
     const int auto04E43398_ae = 2;
     const int auto04E43398_ai = 1;
+    const int auto201AC20F_ae = libCore_gv_bALMaxTeams;
+    const int auto201AC20F_ai = 1;
     const int auto24425270_ae = 2;
     const int auto24425270_ai = 1;
     const int auto585A3BD6_ae = 2;
     const int auto585A3BD6_ai = 1;
+    const int auto90D82851_ae = libCore_gv_bALMaxTeams;
+    const int auto90D82851_ai = 1;
     const int auto51DC48E5_ae = 2;
     const int auto51DC48E5_ai = 1;
     const int auto6B716F16_ae = 2;
@@ -357,6 +382,7 @@ void libMLBD_gf_MMBOEDuelStart () {
     lv_itTeam = 1;
     for ( ; ( (auto401FEBBD_ai >= 0 && lv_itTeam <= auto401FEBBD_ae) || (auto401FEBBD_ai < 0 && lv_itTeam >= auto401FEBBD_ae) ) ; lv_itTeam += auto401FEBBD_ai ) {
         libMLBD_gf_MMBOESpawnBoss(lv_itTeam, libMLBD_gv_mMBOEBossSpawnLocationPair[libMLBD_gv_mMBOEBossSpawnLocationIndexes[1]][lv_itTeam]);
+        UnitRemove(libMLBD_gv_mMBOEDuelPreviewUnits[lv_itTeam]);
     }
     Wait(1.5, c_timeGame);
     UnitBehaviorRemove(libMLBD_gv_mMBOEBosses[1], "BossDuelJungleLandingBehavior", 1);
@@ -378,6 +404,11 @@ void libMLBD_gf_MMBOEDuelStart () {
     lv_itTeam = 1;
     for ( ; ( (auto04E43398_ai >= 0 && lv_itTeam <= auto04E43398_ae) || (auto04E43398_ai < 0 && lv_itTeam >= auto04E43398_ae) ) ; lv_itTeam += auto04E43398_ai ) {
         UnitIssueOrder(libMLBD_gv_mMBOEBosses[lv_itTeam], Order(AbilityCommand("stop", 0)), c_orderQueueReplace);
+    }
+    lv_itTeam = 1;
+    for ( ; ( (auto201AC20F_ai >= 0 && lv_itTeam <= auto201AC20F_ae) || (auto201AC20F_ai < 0 && lv_itTeam >= auto201AC20F_ae) ) ; lv_itTeam += auto201AC20F_ai ) {
+        RemoveUnitOfInterest(libMLBD_gv_mMBOEBosses[lv_itTeam], "DefendImmortal", libAIAI_gf_ConvertIntegertoGoalTeam(lv_itTeam));
+        RemoveUnitOfInterest(libMLBD_gv_mMBOEBosses[lv_itTeam], "KillEnemyImmortal", libAIAI_gf_ConvertIntegertoGoalTeam(libGame_gf_EnemyTeam(lv_itTeam)));
     }
     UnitBehaviorAdd(libMLBD_gv_mMBOEBosses[1], "BossDuelTransitionBehavior", libMLBD_gv_mMBOEBosses[1], 1);
     UnitBehaviorAdd(libMLBD_gv_mMBOEBosses[2], "BossDuelTransitionBehavior", libMLBD_gv_mMBOEBosses[2], 1);
@@ -407,6 +438,11 @@ void libMLBD_gf_MMBOEDuelStart () {
     Wait(0.5, c_timeGame);
     SoundtrackPlay(PlayerGroupAll(), c_soundtrackCategoryMusic, "MX_Event_BoE_Immortal_Mid", c_soundtrackCueAny, c_soundtrackIndexAny, false);
     libMLBD_gf_MMBOEPlayCutscene(libMLBD_ge_MMBOEBossCutsceneType_EventStart, libMLBD_gv_mMBOEBossSpawnLocationCenter);
+    lv_itTeam = 1;
+    for ( ; ( (auto90D82851_ai >= 0 && lv_itTeam <= auto90D82851_ae) || (auto90D82851_ai < 0 && lv_itTeam >= auto90D82851_ae) ) ; lv_itTeam += auto90D82851_ai ) {
+        AddUnitOfInterest(libMLBD_gv_mMBOEBosses[lv_itTeam], 10.0, 3.0, "DefendImmortal", libAIAI_gf_ConvertIntegertoGoalTeam(lv_itTeam), 0);
+        AddUnitOfInterest(libMLBD_gv_mMBOEBosses[lv_itTeam], 10.0, 3.0, "KillEnemyImmortal", libAIAI_gf_ConvertIntegertoGoalTeam(libGame_gf_EnemyTeam(lv_itTeam)), 0);
+    }
     Wait(3.0, c_timeGame);
     lv_itTeam = 1;
     for ( ; ( (auto51DC48E5_ai >= 0 && lv_itTeam <= auto51DC48E5_ae) || (auto51DC48E5_ai < 0 && lv_itTeam >= auto51DC48E5_ae) ) ; lv_itTeam += auto51DC48E5_ai ) {
@@ -476,6 +512,8 @@ void libMLBD_gf_MMBOESpawnBoss (int lp_team, point lp_location) {
     libNtve_gf_AttachModelToUnitInheritVisibility(libMLBD_gv_mMBOEBosses[lp_team], "HitTestFuzzy_Cyliner", "Ref_Origin");
     ActorSend(libNtve_gf_ActorLastCreated(), "SetScale 2.700000,2.700000,4.500000");
     libGame_gf_UpdateScalingForUnit(UnitLastCreated(), libGame_gv_scalingTicks, 0);
+    AddUnitOfInterest(UnitLastCreated(), 10.0, 0.0, "DefendImmortal", libAIAI_gf_ConvertIntegertoGoalTeam(lp_team), 0);
+    AddUnitOfInterest(UnitLastCreated(), 10.0, 0.0, "KillEnemyImmortal", libAIAI_gf_ConvertIntegertoGoalTeam(libGame_gf_EnemyTeam(lp_team)), 0);
     auto1E1DB312_val = lp_team;
     if (auto1E1DB312_val == libGame_gv_teamOrderIndex_C) {
         libCore_gf_CreateMinimapPingStormWithPlayerId(PlayerGroupAll(), "ImmortalAngel", UnitGetPosition(libMLBD_gv_mMBOEBosses[lp_team]), ColorWithAlpha(0,0,0,0), -1, libCore_gv_cOMPUTER_TeamOrder);
@@ -502,10 +540,7 @@ void libMLBD_gf_MMBOEDuelEnd () {
     int lv_losingTeam;
     point lv_targetLoc;
     int lv_itTeam;
-    int lv_itLaneWP;
-    actor[3] lv_invulnerableModel;
     point lv_pos;
-    fixed lv_distance;
     fixed lv_hPPercent;
     fixed lv_shieldMax;
     fixed lv_shieldPercent;
@@ -521,10 +556,10 @@ void libMLBD_gf_MMBOEDuelEnd () {
     const int autoCC89F577_ai = 1;
 
     // Variable Initialization
+    lv_losingTeam = libGame_gf_EnemyTeam(libMLBD_gv_mMBOEEventWinningTeam);
 
     // Implementation
     libMLBD_gv_mMBOESuppressExplosions = true;
-    lv_losingTeam = libGame_gf_EnemyTeam(libMLBD_gv_mMBOEEventWinningTeam);
     TriggerEnable(libMLBD_gt_MMBOEDuelDurationTimer, false);
     TriggerEnable(libMLBD_gt_MMBOEBossTakesDamage, false);
     SoundPlayForPlayer(SoundLink("UI_Game_BoE_Immortal_Defeated_Friendly", -1), c_maxPlayers, libGame_gf_PlayersOnTeamHeroes(lv_losingTeam, false), 100.0, 0.0);
@@ -561,12 +596,12 @@ void libMLBD_gf_MMBOEDuelEnd () {
     lv_pos = libMLBD_gv_mMBOEBossSpawnLocationCenter;
     UnitCreate(1, libMLBD_gv_mMBOEBossLaningUnitTypes[libMLBD_gv_mMBOEEventWinningTeam], c_unitCreateIgnorePlacement, libGame_gf_ComputerPlayerInTeam(libMLBD_gv_mMBOEEventWinningTeam), lv_pos, 270.0);
     libMLBD_gv_mMBOEBossesLaning = UnitLastCreated();
-    libNtve_gf_ShowHideUnit(UnitLastCreated(), false);
-    libNtve_gf_PauseUnit(UnitLastCreated(), true);
-    libNtve_gf_MakeUnitInvulnerable(UnitLastCreated(), true);
-    UnitSetState(UnitLastCreated(), c_unitStateTargetable, false);
-    UnitBehaviorAdd(UnitLastCreated(), "BossLanerPreparingBehavior", UnitLastCreated(), 1);
-    libAIAI_gf_MinionAIUnhookUnitFromMinionAI(UnitLastCreated());
+    libNtve_gf_ShowHideUnit(libMLBD_gv_mMBOEBossesLaning, false);
+    libNtve_gf_PauseUnit(libMLBD_gv_mMBOEBossesLaning, true);
+    libNtve_gf_MakeUnitInvulnerable(libMLBD_gv_mMBOEBossesLaning, true);
+    UnitSetState(libMLBD_gv_mMBOEBossesLaning, c_unitStateTargetable, false);
+    UnitBehaviorAdd(libMLBD_gv_mMBOEBossesLaning, "BossLanerPreparingBehavior", libMLBD_gv_mMBOEBossesLaning, 1);
+    libAIAI_gf_MinionAIUnhookUnitFromMinionAI(libMLBD_gv_mMBOEBossesLaning);
     libGame_gf_UpdateScalingForUnit(libMLBD_gv_mMBOEBossesLaning, libGame_gv_scalingTicks, 0);
     lv_hPPercent = UnitGetPropertyFixed(libMLBD_gv_mMBOEBosses[libMLBD_gv_mMBOEEventWinningTeam], c_unitPropLifePercent, c_unitPropCurrent);
     lv_shieldMax = (UnitGetPropertyFixed(libMLBD_gv_mMBOEBossesLaning, c_unitPropLifeMax, c_unitPropCurrent) * libMLBD_gv_bALBossDuelLaningShieldScale);
@@ -1081,28 +1116,21 @@ bool auto_libMLBD_gf_MMBOECreateFlyerPathLine_TriggerFunc (bool testConds, bool 
     int init_i;
 
     // Variable Declarations
-    int lv_itIndex;
-    int lv_lane;
-    int lv_itLaneWP;
     int lv_losingTeam;
-    point lv_nextWayPoint;
-    point lv_currentWayPoint;
-    int lv_itLineIndex;
     const string lv_lineTextureFly_C = "Assets\\Textures\\storm_waypointline.dds";
-    const string lv_lineTextureWalk_C = "Assets\\Textures\\storm_waypointline.dds";
     unit lv_flyPathingLineUnit;
     int[4] lv_flyPathingTargetPing;
 
     // Automatic Variable Declarations
     // Variable Initialization
+    lv_losingTeam = libGame_gf_EnemyTeam(libMLBD_gv_mMBOEEventWinningTeam);
     for (init_i = 0; init_i <= 3; init_i += 1) {
         lv_flyPathingTargetPing[init_i] = c_invalidPingId;
     }
 
     // Implementation
-    lv_losingTeam = libGame_gf_EnemyTeam(libMLBD_gv_mMBOEEventWinningTeam);
     if ((lp_fly == true)) {
-        libNtve_gf_CreatePingFacingAngleWithType(libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], "PingObjective", libMLBD_gv_mMBOELaningRallyPoint, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, 270.0, -1, -1);
+        libNtve_gf_CreatePingFacingAngleWithType(PlayerGroupSingle(libCore_gv_oBSERVER_ObserverUIPlayer), "PingObjective", libMLBD_gv_mMBOELaningRallyPoint, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, 270.0, -1, -1);
         lv_flyPathingTargetPing[0] = PingLastCreated();
         PingSetScale(PingLastCreated(), 0.6);
         libNtve_gf_CreatePingFacingAngleWithType(libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamOrderIndex_C, true), "PingObjective", libMLBD_gv_mMBOELaningRallyPoint, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, 270.0, -1, -1);
@@ -1199,7 +1227,17 @@ bool auto_libMLBD_gf_MMBOECreateGroundPathLine_TriggerFunc (bool testConds, bool
         if ((libMLBD_gv_mMBOE_BossLanerPathCurrentIndex < libMLBD_gv_mMBOE_BossLanerPathIndexMax)) {
             PathSetWayPointIndexStart(libMLBD_gv_mMBOELaningPathLine, libMLBD_gv_mMBOE_BossLanerPathCurrentIndex);
         }
-
+        else if ((libMLBD_gv_mMBOE_BossLanerPathCurrentIndex >= libMLBD_gv_mMBOE_BossLanerPathIndexMax)) {
+            PathDestroy(libMLBD_gv_mMBOELaningPathLine);
+            PathCreateForUnit(PlayerGroupAll(), lp_unit);
+            libMLBD_gv_mMBOELaningPathLine = PathLastCreated();
+            PathSetLineTexture(libMLBD_gv_mMBOELaningPathLine, c_pathLocationMinimap, "Assets\\Textures\\storm_waypointline.dds");
+            PathSetVisible(libMLBD_gv_mMBOELaningPathLine, c_pathLocationWorld, false);
+            PathSetLineWidth(libMLBD_gv_mMBOELaningPathLine, c_pathLocationMinimap, 15.0);
+            PathSetLineTileLength(libMLBD_gv_mMBOELaningPathLine, c_pathLocationMinimap, 30.0);
+            PathSetOwnerPlayerId(libMLBD_gv_mMBOELaningPathLine, UnitGetOwner(lp_unit));
+            PathSetDestinationUnit(libMLBD_gv_mMBOELaningPathLine, libGame_gv_teams[libAIAI_gf_MinionAIGetTeamToAttackForMinion(lp_unit)].lv_core);
+        }
         return true;
     }
     else {
@@ -1242,9 +1280,9 @@ void libMLBD_gf_MMBOESpawnLaningBoss (int lp_team, point lp_location) {
 
     // Automatic Variable Declarations
     // Variable Initialization
+    lv_enemyTeam = libGame_gf_EnemyTeam(lp_team);
 
     // Implementation
-    lv_enemyTeam = libGame_gf_EnemyTeam(lp_team);
     UnitCreateEffectPoint(libMLBD_gv_mMBOEBossesLaning, "BossDuelLanerImmortalLaunchUnit", libMLBD_gv_mMBOELaningRallyPoint);
     if ((UnitGetType(libMLBD_gv_mMBOEBossesLaning) == "BossDuelLanerHeaven")) {
         libSond_gf_SoundtrackApplyNewDefaultSoundtrackForPlayerGroup("MX_Event_BoE_Immortal_Heaven_In_Lane", PlayerGroupAll());
@@ -1257,9 +1295,11 @@ void libMLBD_gf_MMBOESpawnLaningBoss (int lp_team, point lp_location) {
     }
     libNtve_gf_MakeUnitInvulnerable(libMLBD_gv_mMBOEBossesLaning, false);
     UnitSetState(libMLBD_gv_mMBOEBossesLaning, c_unitStateTargetable, true);
-    UnitSetCustomValue(libMLBD_gv_mMBOEBossesLaning, libCore_gf_CustomValueIndex(libCore_ge_CustomValueIndexes_MercLanerGroupIndex), IntToFixed(libMLBD_gv_mMBOE_AICustomUnitValue));
+    UnitSetCustomValue(libMLBD_gv_mMBOEBossesLaning, libCore_gf_CustomValueIndex(libCore_ge_CustomValueIndexes_MercLanerGroupIndex), IntToFixed(libMLBD_gv_mMBOE_AICustomUnitValue[lp_team]));
     libNtve_gf_AttachModelToUnitInheritVisibility(libMLBD_gv_mMBOEBossesLaning, "HitTestFuzzy_Cyliner", "Ref_Origin");
     ActorSend(libNtve_gf_ActorLastCreated(), "SetScale 2.700000,2.700000,4.500000");
+    AddUnitOfInterest(libMLBD_gv_mMBOEBossesLaning, 10.0, 0.0, "DefendImmortalLaner", libAIAI_gf_ConvertIntegertoGoalTeam(lp_team), 0);
+    AddUnitOfInterest(libMLBD_gv_mMBOEBossesLaning, 10.0, 0.0, "KillEnemyImmortalLaner", libAIAI_gf_ConvertIntegertoGoalTeam(libGame_gf_EnemyTeam(lp_team)), 0);
     libGame_gf_CalculateSpawnedMinionGoalPoints(UnitGetOwner(libMLBD_gv_mMBOEBossesLaning), libMLBD_gv_mMBOELaningRallyPoint);
     libAIAI_gf_MinionAIStartMinionAI(-1, libMLBD_gv_mMBOEBossesLaning, libGame_gv_spawnedMinionLane, libGame_gv_spawnedMinionFirstWaypointIndex, true, true, false, 0, true);
     libMLBD_gf_MMBOECreateGroundPathLine(libMLBD_gv_mMBOEBossesLaning, true);
@@ -2399,662 +2439,18 @@ void libMLBD_gf_MMBOEAwardBossXP (unit lp_bossUnit, fixed lp_killedUnitXPAward) 
     }
 }
 
-void libMLBD_gf_MMBOEHeroAIChangeToState (int lp_trigPlayer, int lp_state, int lp_targetIndex, unit lp_targetUnit, int lp_priority) {
-    // Automatic Variable Declarations
-    // Implementation
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentState = (lp_state);
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateTrigger = libMLBD_gt_MMBOEHeroAIStateLogic;
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = lp_targetUnit;
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetIndex = lp_targetIndex;
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority = lp_priority;
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_wantsToDoCustomMapLogic = true;
-    libAIAI_gf_HeroAIChangeState(lp_trigPlayer, libAIAI_ge_HeroAIStates_HSCustomMapState);
-}
-
-int libMLBD_gf_MMBOEHeroAIAttackBoss (int lp_trigPlayer) {
-    // Variable Declarations
-    point lv_bossPosition;
-    order lv_heroOrder;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority = libAIAI_ge_HeroAIPriority_CustomMapRegular;
-    if ((libMLBD_gf_MMBOEHeroAIShouldGiveUpOnAttackingOrDefendingBoss(lp_trigPlayer) == true)) {
-        libMLBD_gf_MMBOEHeroAIExitAttackingorDefendingBoss(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIHarassInJungleLogic(lp_trigPlayer, true) == true)) {
-        return 8;
-    }
-
-    lv_bossPosition = UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
-    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, null, lv_bossPosition, libMLBD_gv_aIHeroBossNearDistance, libMLBD_gv_aIHeroBossFarDistance, false, false, false, true) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, lv_bossPosition, libMLBD_gv_aIHeroBossNearDistance) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroes[lp_trigPlayer].lv_nextOffensiveSpellCheckTime <= TimerGetElapsed(libGame_gv_gameTimer)) && (libAIAI_gf_HeroAIRandomlyCastAbilityOnTarget(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == true)) {
-        return 8;
-    }
-
-    lv_heroOrder = UnitOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, 0);
-    if ((libNtve_gf_UnitIsInvulnerable(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == true)) {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority = libAIAI_ge_HeroAIPriority_CustomMapLow;
-        if ((DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit), libMLBD_gv_mMBOEBossSpawnLocationCenter) > libMLBD_gv_aIHeroBossDuelVeryCloseDistance)) {
-            libAIAI_gf_HeroAIEnsureOrderAttackPoint(lp_trigPlayer, libMLBD_gv_mMBOEBossSpawnLocationCenter);
-        }
-
-    }
-    else {
-        libAIAI_gf_HeroAIEnsureOrderAttackUnit(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
-    }
-    return 8;
-}
-
-int libMLBD_gf_MMBOEHeroAIDefendBoss (int lp_trigPlayer) {
-    // Variable Declarations
-    point lv_bossPosition;
-    order lv_heroOrder;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority = libAIAI_ge_HeroAIPriority_CustomMapRegular;
-    if ((libMLBD_gf_MMBOEHeroAIShouldGiveUpOnAttackingOrDefendingBoss(lp_trigPlayer) == true)) {
-        libMLBD_gf_MMBOEHeroAIExitAttackingorDefendingBoss(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIHarassInJungleLogic(lp_trigPlayer, true) == true)) {
-        return 8;
-    }
-
-    lv_bossPosition = UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
-    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, null, lv_bossPosition, libMLBD_gv_aIHeroBossNearDistance, libMLBD_gv_aIHeroBossFarDistance, false, false, false, true) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, lv_bossPosition, libMLBD_gv_aIHeroBossNearDistance) == true)) {
-        return 8;
-    }
-
-    lv_heroOrder = UnitOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, 0);
-    if ((libNtve_gf_UnitIsInvulnerable(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == true)) {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority = libAIAI_ge_HeroAIPriority_CustomMapLow;
-        if ((DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit), libMLBD_gv_mMBOEBossSpawnLocationCenter) > libMLBD_gv_aIHeroBossDuelVeryCloseDistance)) {
-            libAIAI_gf_HeroAIEnsureOrderAttackPoint(lp_trigPlayer, libMLBD_gv_mMBOEBossSpawnLocationCenter);
-        }
-
-    }
-    else {
-        if ((DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit), lv_bossPosition) >= libMLBD_gv_aIHeroBossDuelVeryCloseDistance)) {
-            libAIAI_gf_HeroAIEnsureOrderMovePoint(lp_trigPlayer, lv_bossPosition);
-        }
-
-    }
-    return 8;
-}
-
-int libMLBD_gf_MMBOEHeroAIAttackSiegeBoss (int lp_trigPlayer) {
-    // Variable Declarations
-    point lv_bossPosition;
-    order lv_heroOrder;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if ((libMLBD_gf_MMBOEHeroAIShouldGiveUpOnAttackingOrSupportingSiegeBoss(lp_trigPlayer) == true)) {
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIHarassInJungleLogic(lp_trigPlayer, true) == true)) {
-        return 8;
-    }
-
-    lv_bossPosition = UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
-    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, null, lv_bossPosition, libMLBD_gv_aIHeroBossNearDistance, libMLBD_gv_aIHeroBossFarDistance, false, false, false, true) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, lv_bossPosition, libMLBD_gv_aIHeroBossNearDistance) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroes[lp_trigPlayer].lv_nextOffensiveSpellCheckTime <= TimerGetElapsed(libGame_gv_gameTimer)) && (libAIAI_gf_HeroAIRandomlyCastAbilityOnTarget(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == true)) {
-        return 8;
-    }
-
-    libAIAI_gf_HeroAIEnsureOrderAttackUnit(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
-    return 8;
-}
-
-int libMLBD_gf_MMBOEHeroAISupportSiegeBoss (int lp_trigPlayer) {
-    // Variable Declarations
-    point lv_bossPosition;
-    order lv_heroOrder;
-    order lv_bossOrder;
-    point lv_point;
-    int lv_tries;
-
-    // Automatic Variable Declarations
-    const int auto011FF279_ae = 10;
-    const int auto011FF279_ai = 1;
-
-    // Variable Initialization
-
-    // Implementation
-    if ((libMLBD_gf_MMBOEHeroAIShouldGiveUpOnAttackingOrSupportingSiegeBoss(lp_trigPlayer) == true)) {
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIHarassInJungleLogic(lp_trigPlayer, true) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, null, lv_bossPosition, libMLBD_gv_aIHeroBossDuelVeryCloseDistance, libMLBD_gv_aIHeroBossNearDistance, false, false, false, true) == true)) {
-        return 8;
-    }
-
-    lv_bossPosition = UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
-    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, lv_bossPosition, libMLBD_gv_aIHeroBossNearDistance) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAILaneChangeTarget(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    lv_heroOrder = UnitOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, 0);
-    lv_bossOrder = UnitOrder(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, 0);
-    if ((lv_heroOrder == null) && (lv_bossOrder != null) && (OrderGetTargetUnit(lv_bossOrder) != null)) {
-        UnitIssueOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, OrderTargetingUnit(AbilityCommand("attack", 0), OrderGetTargetUnit(lv_bossOrder)), c_orderQueueReplace);
-        return 8;
-    }
-
-    if ((lv_heroOrder == null) && (libAIAI_gv_aIHeroes[lp_trigPlayer].lv_nextWaitingRepositionTime < TimerGetElapsed(libGame_gv_gameTimer))) {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_nextWaitingRepositionTime = (TimerGetElapsed(libGame_gv_gameTimer) + RandomFixed(1.0, 4.0));
-        lv_tries = 1;
-        for ( ; ( (auto011FF279_ai >= 0 && lv_tries <= auto011FF279_ae) || (auto011FF279_ai < 0 && lv_tries >= auto011FF279_ae) ) ; lv_tries += auto011FF279_ai ) {
-            lv_point = PointWithOffsetPolar(lv_bossPosition, RandomFixed(3.0, libMLBD_gv_aIHeroBossDuelVeryCloseDistance), RandomFixed(0.0, 360.0));
-            if ((PointPathingPassable(lv_point) == true)) {
-                break;
-            }
-
-        }
-        UnitIssueOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, OrderTargetingPoint(AbilityCommand("move", 0), lv_point), c_orderQueueReplace);
-    }
-
-    return 8;
-}
-
-bool libMLBD_gf_MMBOEHeroAITooManyorTooFewEnemyHeroesAtBoss (int lp_trigPlayer, point lp_templePosition, int lp_minEnemiesRequired) {
-    // Variable Declarations
-    unitgroup lv_enemyHeroes;
-    unitgroup lv_allyHeroes;
-    unit lv_allyHero;
-    int lv_allyOwner;
-
-    // Automatic Variable Declarations
-    unitgroup auto20DDFEB1_g;
-    int auto20DDFEB1_u;
-
-    // Variable Initialization
-    lv_enemyHeroes = UnitGroupEmpty();
-    lv_allyHeroes = UnitGroupEmpty();
-
-    // Implementation
-    lv_enemyHeroes = UnitGroupAlliance(lp_trigPlayer, c_unitAllianceEnemy, RegionCircle(lp_templePosition, libMLBD_gv_aIHeroBossNearDistance), libCore_gv_filtersHeroic, 0);
-    lv_allyHeroes = UnitGroupAlliance(lp_trigPlayer, c_unitAllianceAlly, RegionCircle(lp_templePosition, libMLBD_gv_aIHeroBossRecruitDistance), libCore_gv_filtersHeroic, 0);
-    auto20DDFEB1_g = lv_allyHeroes;
-    auto20DDFEB1_u = UnitGroupCount(auto20DDFEB1_g, c_unitCountAll);
-    for (;; auto20DDFEB1_u -= 1) {
-        lv_allyHero = UnitGroupUnitFromEnd(auto20DDFEB1_g, auto20DDFEB1_u);
-        if (lv_allyHero == null) { break; }
-        lv_allyOwner = UnitGetOwner(lv_allyHero);
-        if ((UnitGetPropertyFixed(libGame_gv_players[lv_allyOwner].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[lp_trigPlayer].lv_endOffensiveHealth)) {
-            UnitGroupRemove(lv_allyHeroes, lv_allyHero);
-        }
-
-    }
-    if ((UnitGroupCount(lv_enemyHeroes, c_unitCountAlive) >= (UnitGroupCount(lv_allyHeroes, c_unitCountAlive) + 2))) {
-        return true;
-    }
-
-    if ((UnitGroupCount(lv_enemyHeroes, c_unitCountAlive) < lp_minEnemiesRequired)) {
-        return true;
-    }
-
-    return false;
-}
-
-int libMLBD_gf_MMBOEHeroAIGetNumberofAllieswithTarget (unit lp_targetUnit, int lp_faction) {
-    // Variable Declarations
-    int lv_playerIndex;
-    int lv_count;
-
-    // Automatic Variable Declarations
-    playergroup autoBA5C4C0C_g;
-    playergroup auto1816BB71_g;
-
-    // Variable Initialization
-
-    // Implementation
-    autoBA5C4C0C_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction)].lv_aIPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(autoBA5C4C0C_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((libAIAI_gv_aIHeroes[lv_playerIndex].lv_wantsToDoCustomMapLogic == true)) {
-            lv_count += 1;
-        }
-
-    }
-    auto1816BB71_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction)].lv_humanPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(auto1816BB71_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lv_playerIndex].lv_heroUnit), UnitGetPosition(lp_targetUnit)) < libMLBD_gv_aIHeroBossFarDistance)) {
-            lv_count += 1;
-        }
-
-    }
-    return lv_count;
-}
-
-bool libMLBD_gf_MMBOEHeroAIAvailableToAttackBoss (int lp_trigPlayer) {
-    // Automatic Variable Declarations
-    // Implementation
-    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[lp_trigPlayer].lv_startOffensiveHealth)) {
-        return false;
-    }
-
-    return true;
-}
-
-bool libMLBD_gf_MMBOEHeroAIShouldAttackBossLogic (int lp_trigPlayer) {
-    // Variable Declarations
-    int lv_enemyTeamIndex;
-    unit lv_bossUnit;
-    point lv_bossPosition;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if ((libMLBD_gf_MMBOEHeroAIAvailableToAttackBoss(lp_trigPlayer) == false)) {
-        return false;
-    }
-
-    lv_enemyTeamIndex = libGame_gf_EnemyTeamNumberOfPlayer(lp_trigPlayer);
-    lv_bossUnit = libMLBD_gv_mMBOEBosses[lv_enemyTeamIndex];
-    if ((UnitIsValid(lv_bossUnit) == false)) {
-        return false;
-    }
-
-    lv_bossPosition = UnitGetPosition(lv_bossUnit);
-    if ((libMLBD_gf_MMBOEHeroAITooManyorTooFewEnemyHeroesAtBoss(lp_trigPlayer, lv_bossPosition, 0) == true)) {
-        return false;
-    }
-
-    if ((libMLBD_gf_MMBOEHeroAIGetNumberofAllieswithTarget(lv_bossUnit, libGame_gv_players[lp_trigPlayer].lv_faction) >= libAIAI_gv_aIHeroMaxObjectiveCaptureAIHeroes[(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty)])) {
-        return false;
-    }
-
-    libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-    libMLBD_gf_MMBOEHeroAIChangeToState(lp_trigPlayer, libMLBD_ge_MMBOEHeroAIStates_MMBossDuelAttackBoss, lv_enemyTeamIndex, lv_bossUnit, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-    return true;
-}
-
-bool libMLBD_gf_MMBOEHeroAIShouldGiveUpOnAttackingOrDefendingBoss (int lp_trigPlayer) {
-    // Variable Declarations
-    point lv_bossPosition;
-    unitgroup lv_enemyHeroes;
-    unitgroup lv_allyHeroes;
-    unit lv_allyHero;
-    int lv_allyOwner;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-    lv_enemyHeroes = UnitGroupEmpty();
-    lv_allyHeroes = UnitGroupEmpty();
-
-    // Implementation
-    if ((UnitIsAlive(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == false)) {
-        return true;
-    }
-
-    if ((libMLBD_gv_mMBOEEventStage != libMLBD_ge_MMBOEEventStage_Duel1) && (libMLBD_gv_mMBOEEventStage != libMLBD_ge_MMBOEEventStage_Duel2)) {
-        return true;
-    }
-
-    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth)) {
-        return true;
-    }
-
-    lv_bossPosition = UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
-    if ((libMLBD_gf_MMBOEHeroAITooManyorTooFewEnemyHeroesAtBoss(lp_trigPlayer, lv_bossPosition, 0) == true)) {
-        return true;
-    }
-
-    return false;
-}
-
-void libMLBD_gf_MMBOEHeroAIExitAttackingorDefendingBoss (int lp_trigPlayer) {
-    // Automatic Variable Declarations
-    // Implementation
-    libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-    if ((libMLBD_gv_mMBOEEventStage == libMLBD_ge_MMBOEEventStage_PushingPrep)) {
-        if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) <= libAIAI_gv_aIHeroes[lp_trigPlayer].lv_startOffensiveHealth)) {
-            libAIAI_gv_aIHeroes[lp_trigPlayer].lv_wantsToGoHome = true;
-            libAIAI_gv_aIHeroes[lp_trigPlayer].lv_wantsToWaitInSpawn = true;
-        }
-        else {
-            libGame_gf_CalculateClosestLaneData(libMLBD_gv_mMBOELaningRallyPoint);
-            libAIAI_gf_HeroAIStartReturnToLane(lp_trigPlayer, libGame_gv_closestLaneData.lv_closestLane);
-            libAIAI_gv_aIHeroes[lp_trigPlayer].lv_nextChangeLanesConsiderTime = (TimerGetElapsed(libGame_gv_gameTimer) + libMLBD_gv_aIHeroBossDuelStayInLaneTime);
-        }
-    }
-
-}
-
-bool libMLBD_gf_MMBOEHeroAIAvailableToDefendBoss (int lp_trigPlayer) {
-    // Automatic Variable Declarations
-    // Implementation
-    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[lp_trigPlayer].lv_startOffensiveHealth)) {
-        return false;
-    }
-
-    return true;
-}
-
-void libMLBD_gf_MMBOEHeroAIShouldDefendBossLogic (int lp_trigPlayer) {
-    // Variable Declarations
-    int lv_teamIndex;
-    unit lv_bossUnit;
-    point lv_bossPosition;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if ((libMLBD_gf_MMBOEHeroAIAvailableToDefendBoss(lp_trigPlayer) == false)) {
-        return ;
-    }
-
-    lv_teamIndex = libGame_gf_TeamNumberOfPlayer(lp_trigPlayer);
-    lv_bossUnit = libMLBD_gv_mMBOEBosses[lv_teamIndex];
-    if ((UnitIsValid(lv_bossUnit) == false)) {
-        return ;
-    }
-
-    lv_bossPosition = UnitGetPosition(lv_bossUnit);
-    if ((libMLBD_gf_MMBOEHeroAITooManyorTooFewEnemyHeroesAtBoss(lp_trigPlayer, lv_bossPosition, 1) == true)) {
-        return ;
-    }
-
-    if ((libMLBD_gf_MMBOEHeroAIGetNumberofAllieswithTarget(lv_bossUnit, libGame_gv_players[lp_trigPlayer].lv_faction) >= libAIAI_gv_aIHeroMaxObjectiveCaptureAIHeroes[(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty)])) {
-        return ;
-    }
-
-    libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-    libMLBD_gf_MMBOEHeroAIChangeToState(lp_trigPlayer, libMLBD_ge_MMBOEHeroAIStates_MMBossDuelDefendBoss, lv_teamIndex, lv_bossUnit, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-}
-
-bool libMLBD_gf_MMBOEHeroAIAvailableToAttackSiegeBoss (int lp_trigPlayer) {
-    // Automatic Variable Declarations
-    // Implementation
-    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[lp_trigPlayer].lv_startOffensiveHealth)) {
-        return false;
-    }
-
-    return true;
-}
-
-bool libMLBD_gf_MMBOEHeroAIShouldAttackSiegeBossLogic (int lp_trigPlayer) {
-    // Variable Declarations
-    int lv_enemyTeamIndex;
-    unit lv_bossUnit;
-    point lv_bossPosition;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if (((libMLBD_gv_mMBOEEventStage != libMLBD_ge_MMBOEEventStage_Pushing) || (libMLBD_gf_MMBOEHeroAIAvailableToAttackSiegeBoss(lp_trigPlayer) == false))) {
-        return false;
-    }
-
-    lv_enemyTeamIndex = libGame_gf_EnemyTeamNumberOfPlayer(lp_trigPlayer);
-    lv_bossUnit = libMLBD_gv_mMBOEBossesLaning;
-    if ((UnitIsValid(lv_bossUnit) == false)) {
-        return false;
-    }
-
-    if ((libMLBD_gv_mMBOEEventWinningTeam != lv_enemyTeamIndex)) {
-        return false;
-    }
-
-    lv_bossPosition = UnitGetPosition(lv_bossUnit);
-    if ((libMLBD_gf_MMBOEHeroAITooManyorTooFewEnemyHeroesAtBoss(lp_trigPlayer, lv_bossPosition, 0) == true)) {
-        return false;
-    }
-
-    if ((libMLBD_gf_MMBOEHeroAIGetNumberofAllieswithTarget(lv_bossUnit, libGame_gv_players[lp_trigPlayer].lv_faction) >= libAIAI_gv_aIHeroMaxObjectiveCaptureAIHeroes[(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty)])) {
-        return false;
-    }
-
-    libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-    libMLBD_gf_MMBOEHeroAIChangeToState(lp_trigPlayer, libMLBD_ge_MMBOEHeroAIStates_MMBossDuelAttackSiegeBoss, lv_enemyTeamIndex, lv_bossUnit, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-    return true;
-}
-
-bool libMLBD_gf_MMBOEHeroAIShouldGiveUpOnAttackingOrSupportingSiegeBoss (int lp_trigPlayer) {
-    // Variable Declarations
-    point lv_bossPosition;
-    unitgroup lv_enemyHeroes;
-    unitgroup lv_allyHeroes;
-    unit lv_allyHero;
-    int lv_allyOwner;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-    lv_enemyHeroes = UnitGroupEmpty();
-    lv_allyHeroes = UnitGroupEmpty();
-
-    // Implementation
-    if ((UnitIsAlive(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == false)) {
-        return true;
-    }
-
-    if ((libMLBD_gv_mMBOEEventStage != libMLBD_ge_MMBOEEventStage_PushingPrep) && (libMLBD_gv_mMBOEEventStage != libMLBD_ge_MMBOEEventStage_Pushing)) {
-        return true;
-    }
-
-    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth)) {
-        return true;
-    }
-
-    lv_bossPosition = UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
-    if ((libMLBD_gf_MMBOEHeroAITooManyorTooFewEnemyHeroesAtBoss(lp_trigPlayer, lv_bossPosition, 0) == true)) {
-        return true;
-    }
-
-    return false;
-}
-
-bool libMLBD_gf_MMBOEHeroAIAvailableToSupportSiegeBoss (int lp_trigPlayer) {
-    // Automatic Variable Declarations
-    // Implementation
-    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[lp_trigPlayer].lv_startOffensiveHealth)) {
-        return false;
-    }
-
-    return true;
-}
-
-void libMLBD_gf_MMBOEHeroAIShouldSupportSiegeBossLogic (int lp_trigPlayer) {
-    // Variable Declarations
-    int lv_teamIndex;
-    unit lv_bossUnit;
-    point lv_bossPosition;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if (((libMLBD_gv_mMBOEEventStage != libMLBD_ge_MMBOEEventStage_Pushing) || (libMLBD_gf_MMBOEHeroAIAvailableToSupportSiegeBoss(lp_trigPlayer) == false))) {
-        return ;
-    }
-
-    lv_teamIndex = libGame_gf_TeamNumberOfPlayer(lp_trigPlayer);
-    lv_bossUnit = libMLBD_gv_mMBOEBossesLaning;
-    if ((UnitIsValid(lv_bossUnit) == false)) {
-        return ;
-    }
-
-    if ((libMLBD_gv_mMBOEEventWinningTeam != lv_teamIndex)) {
-        return ;
-    }
-
-    lv_bossPosition = UnitGetPosition(lv_bossUnit);
-    if ((libMLBD_gf_MMBOEHeroAITooManyorTooFewEnemyHeroesAtBoss(lp_trigPlayer, lv_bossPosition, 0) == true)) {
-        return ;
-    }
-
-    if ((libMLBD_gf_MMBOEHeroAIGetNumberofAllieswithTarget(lv_bossUnit, libGame_gv_players[lp_trigPlayer].lv_faction) >= libAIAI_gv_aIHeroMaxObjectiveCaptureAIHeroes[(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty)])) {
-        return ;
-    }
-
-    libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-    libMLBD_gf_MMBOEHeroAIChangeToState(lp_trigPlayer, libMLBD_ge_MMBOEHeroAIStates_MMBossDuelSuportSiegeBoss, lv_teamIndex, lv_bossUnit, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-}
-
-void libMLBD_gf_MMBOEHeroAICheckShouldAttackorDefendPingedBoss (int lp_pingingPlayer, unit lp_pingedTemple) {
-    // Variable Declarations
-    int lv_BossIndex;
-    point lv_beaconPosition;
-    int lv_playerIndex;
-    bool lv_bossIsLaning;
-
-    // Automatic Variable Declarations
-    playergroup auto1EE5C850_g;
-    playergroup auto9B5C8049_g;
-    playergroup autoFBD770D0_g;
-    playergroup autoE83C7667_g;
-
-    // Variable Initialization
-
-    // Implementation
-    if ((UnitIsValid(lp_pingedTemple) == true) && ((libAIAI_gf_HeroAIGetCurrentPriority(lv_playerIndex)) <= libAIAI_ge_HeroAIPriority_CustomMapRegular)) {
-        lv_beaconPosition = UnitGetPosition(lp_pingedTemple);
-        if ((libMLBD_gf_MMBOEHeroAITooManyorTooFewEnemyHeroesAtBoss(lp_pingingPlayer, lv_beaconPosition, 0) == true)) {
-            return ;
-        }
-
-        if ((libMLBD_gv_mMBOEBosses[libGame_gv_teamOrderIndex_C] == lp_pingedTemple)) {
-            lv_BossIndex = libGame_gv_teamOrderIndex_C;
-        }
-        else {
-            if ((libMLBD_gv_mMBOEBosses[libGame_gv_teamChaosIndex_C] == lp_pingedTemple)) {
-                lv_BossIndex = libGame_gv_teamChaosIndex_C;
-            }
-            else {
-                lv_BossIndex = libMLBD_gv_mMBOEEventWinningTeam;
-                lv_bossIsLaning = true;
-            }
-        }
-        if ((lv_bossIsLaning == true)) {
-            if ((libGame_gf_EnemyTeamNumberOfPlayer(lp_pingingPlayer) == lv_BossIndex)) {
-                auto9B5C8049_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAIGetAllyTeamIndex(lp_pingingPlayer)].lv_aIPlayers;
-                lv_playerIndex = -1;
-                while (true) {
-                    	lv_playerIndex = PlayerGroupNextPlayer(auto9B5C8049_g, lv_playerIndex);
-                    	if (lv_playerIndex<0) { break; }
-                    	if ((DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lv_playerIndex].lv_heroUnit), lv_beaconPosition) <= libMLBD_gv_aIHeroBossPingRecruitDistance) && (libMLBD_gf_MMBOEHeroAIAvailableToAttackSiegeBoss(lv_playerIndex) == true)) {
-                        libMLBD_gf_MMBOEHeroAIChangeToState(lv_playerIndex, libMLBD_ge_MMBOEHeroAIStates_MMBossDuelAttackSiegeBoss, lv_BossIndex, lp_pingedTemple, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-                    }
-
-                }
-            }
-            else {
-                auto1EE5C850_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAIGetAllyTeamIndex(lp_pingingPlayer)].lv_aIPlayers;
-                lv_playerIndex = -1;
-                while (true) {
-                    	lv_playerIndex = PlayerGroupNextPlayer(auto1EE5C850_g, lv_playerIndex);
-                    	if (lv_playerIndex<0) { break; }
-                    	if ((DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lv_playerIndex].lv_heroUnit), lv_beaconPosition) <= libMLBD_gv_aIHeroBossPingRecruitDistance) && (libMLBD_gf_MMBOEHeroAIAvailableToSupportSiegeBoss(lv_playerIndex) == true)) {
-                        libMLBD_gf_MMBOEHeroAIChangeToState(lv_playerIndex, libMLBD_ge_MMBOEHeroAIStates_MMBossDuelSuportSiegeBoss, lv_BossIndex, lp_pingedTemple, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-                    }
-
-                }
-            }
-        }
-        else {
-            if ((libGame_gf_EnemyTeamNumberOfPlayer(lp_pingingPlayer) == lv_BossIndex)) {
-                autoE83C7667_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAIGetAllyTeamIndex(lp_pingingPlayer)].lv_aIPlayers;
-                lv_playerIndex = -1;
-                while (true) {
-                    	lv_playerIndex = PlayerGroupNextPlayer(autoE83C7667_g, lv_playerIndex);
-                    	if (lv_playerIndex<0) { break; }
-                    	if ((DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lv_playerIndex].lv_heroUnit), lv_beaconPosition) <= libMLBD_gv_aIHeroBossPingRecruitDistance) && (libMLBD_gf_MMBOEHeroAIAvailableToAttackBoss(lv_playerIndex) == true)) {
-                        libMLBD_gf_MMBOEHeroAIChangeToState(lv_playerIndex, libMLBD_ge_MMBOEHeroAIStates_MMBossDuelAttackBoss, lv_BossIndex, lp_pingedTemple, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-                    }
-
-                }
-            }
-            else {
-                autoFBD770D0_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAIGetAllyTeamIndex(lp_pingingPlayer)].lv_aIPlayers;
-                lv_playerIndex = -1;
-                while (true) {
-                    	lv_playerIndex = PlayerGroupNextPlayer(autoFBD770D0_g, lv_playerIndex);
-                    	if (lv_playerIndex<0) { break; }
-                    	if ((DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lv_playerIndex].lv_heroUnit), lv_beaconPosition) <= libMLBD_gv_aIHeroBossPingRecruitDistance) && (libMLBD_gf_MMBOEHeroAIAvailableToDefendBoss(lv_playerIndex) == true)) {
-                        libMLBD_gf_MMBOEHeroAIChangeToState(lv_playerIndex, libMLBD_ge_MMBOEHeroAIStates_MMBossDuelDefendBoss, lv_BossIndex, lp_pingedTemple, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-                    }
-
-                }
-            }
-        }
-    }
-
-}
-
 // Triggers
 //--------------------------------------------------------------------------------------------------
 // Trigger: MMBOE Init
 //--------------------------------------------------------------------------------------------------
 bool libMLBD_gt_MMBOEInit_Func (bool testConds, bool runActions) {
     // Variable Declarations
-    int lv_itPlayer;
+    int lv_i;
 
     // Automatic Variable Declarations
+    const int auto7BB84B07_ae = libGame_gv_teamChaosIndex_C;
+    const int auto7BB84B07_ai = 1;
+
     // Variable Initialization
 
     // Conditions
@@ -3076,10 +2472,11 @@ bool libMLBD_gt_MMBOEInit_Func (bool testConds, bool runActions) {
     TriggerEnable(libMLBD_gt_MMBOEDebugPlayCutscene, true);
     TriggerEnable(libMLBD_gt_MMBOEDebugTransmission, true);
     libMLBD_gv_mMBOEBossUnitTypes[libGame_gv_teamOrderIndex_C] = "BossDuelBossHeaven";
+    libMLBD_gv_mMBOEDuelPreviewUnitTypes[libGame_gv_teamOrderIndex_C] = "BossDuelBossPreviewUnitHeaven";
     libMLBD_gv_mMBOEBossUnitTypes[libGame_gv_teamChaosIndex_C] = "BossDuelBossHell";
+    libMLBD_gv_mMBOEDuelPreviewUnitTypes[libGame_gv_teamChaosIndex_C] = "BossDuelBossPreviewUnitHell";
     libMLBD_gv_mMBOEBossLaningUnitTypes[libGame_gv_teamOrderIndex_C] = "BossDuelLanerHeaven";
     libMLBD_gv_mMBOEBossLaningUnitTypes[libGame_gv_teamChaosIndex_C] = "BossDuelLanerHell";
-    libAIAI_gv_heroAITeamMapLogicTrigger = libMLBD_gt_MMBOEHeroAITeamMapLogic;
     libGame_gf_SendMapSpecificAwardInitializeEventwithUserData(null, "Generic Instance");
     libAIAI_gf_HeroAIRegisterAOEwithWatchTrigger("AngelicExplosionsCreatePersistent", 2.0, 2.0, 0.0, false, true);
     libAIAI_gf_HeroAIRegisterAOEwithWatchTrigger("AngelicCleaveCreatePersistent", 4.6, 2.0, 0.0, false, true);
@@ -3087,7 +2484,10 @@ bool libMLBD_gt_MMBOEInit_Func (bool testConds, bool runActions) {
     libAIAI_gf_HeroAIRegisterAOEwithWatchTrigger("DemonicCleaveCreatePersistent", 4.6, 2.0, 0.0, false, true);
     libGame_gv_players[13].lv_portraitIcon = "Assets\\Textures\\storm_ui_ingame_hero_icon_towerking_red.dds";
     libGame_gv_players[14].lv_portraitIcon = "Assets\\Textures\\storm_ui_ingame_hero_icon_towerking_red.dds";
-    libMLBD_gv_mMBOE_AICustomUnitValue = libMapM_gf_RegisterMapMechanicAIUnitCustomValue();
+    lv_i = libGame_gv_teamOrderIndex_C;
+    for ( ; ( (auto7BB84B07_ai >= 0 && lv_i <= auto7BB84B07_ae) || (auto7BB84B07_ai < 0 && lv_i >= auto7BB84B07_ae) ) ; lv_i += auto7BB84B07_ai ) {
+        libMLBD_gv_mMBOE_AICustomUnitValue[lv_i] = libMapM_gf_RegisterMapMechanicAIUnitCustomValue();
+    }
     return true;
 }
 
@@ -3108,13 +2508,9 @@ bool libMLBD_gt_MMBOEPingDataInit_Func (bool testConds, bool runActions) {
     }
 
     libUIUI_gf_PingCreateNewPingTarget("BossDuelBossHeaven", false, null, StringExternal("Param/Value/lib_MLBD_ADE4A0FD"), StringExternal("Param/Value/lib_MLBD_9C86025E"), SoundLink("UI_Game_Ping_Help", -1), SoundLink("UI_Game_Ping_Attack", -1));
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libMLBD_gt_MMBOEPingCallbackPlayerPingsBoss);
     libUIUI_gf_PingCreateNewPingTarget("BossDuelBossHell", false, null, StringExternal("Param/Value/lib_MLBD_3BE2982A"), StringExternal("Param/Value/lib_MLBD_3A0088FB"), SoundLink("UI_Game_Ping_Help", -1), SoundLink("UI_Game_Ping_Attack", -1));
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libMLBD_gt_MMBOEPingCallbackPlayerPingsBoss);
     libUIUI_gf_PingCreateNewPingTarget("BossDuelLanerHeaven", false, null, StringExternal("Param/Value/lib_MLBD_032CE5B4"), StringExternal("Param/Value/lib_MLBD_5ECFFC14"), SoundLink("UI_Game_Ping_Help", -1), SoundLink("UI_Game_Ping_Attack", -1));
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libMLBD_gt_MMBOEPingCallbackPlayerPingsBoss);
     libUIUI_gf_PingCreateNewPingTarget("BossDuelLanerHell", false, null, StringExternal("Param/Value/lib_MLBD_6133D494"), StringExternal("Param/Value/lib_MLBD_5C55EB20"), SoundLink("UI_Game_Ping_Help", -1), SoundLink("UI_Game_Ping_Attack", -1));
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libMLBD_gt_MMBOEPingCallbackPlayerPingsBoss);
     return true;
 }
 
@@ -3139,8 +2535,9 @@ bool libMLBD_gt_MMBOEGatesOpened_Func (bool testConds, bool runActions) {
         return true;
     }
 
-    TimerStart(libMLBD_gv_mMBOEEventLongWarningTimeTimer, 600.0, false, c_timeGame);
     TimerStart(libMLBD_gv_mMBOEEventInitDelayTimer, (libMLBD_gv_mMBossDuelInitialDelay_C - libMLBD_gv_mMBossDuelWarningDelay), false, c_timeGame);
+    libMLBD_gf_MMBOECalculateNewSpawnLocations(1);
+    libMLBD_gf_MMBOEDuelPreviewSetup(false);
     libNtve_gf_WaitForTimer(TimerLastStarted(), 0.0, false);
     if ((TriggerIsEnabled(TriggerGetCurrent()) == false)) {
         return true;
@@ -3293,9 +2690,13 @@ void libMLBD_gt_MMBOEBossTakesDamage_Init () {
 //--------------------------------------------------------------------------------------------------
 bool libMLBD_gt_MMBOEBossDied_Func (bool testConds, bool runActions) {
     // Variable Declarations
+    int lv_team;
     unit lv_winningUnit;
 
     // Automatic Variable Declarations
+    const int autoD1DA67FE_ae = libCore_gv_bALMaxTeams;
+    const int autoD1DA67FE_ai = 1;
+
     // Variable Initialization
 
     // Actions
@@ -3322,6 +2723,11 @@ bool libMLBD_gt_MMBOEBossDied_Func (bool testConds, bool runActions) {
     UnitBehaviorAdd(libMLBD_gv_mMBOEBosses[1], "BossDuelDuelCompleteBehavior", libMLBD_gv_mMBOEBosses[1], 1);
     UnitBehaviorAdd(libMLBD_gv_mMBOEBosses[2], "BossDuelDuelCompleteBehavior", libMLBD_gv_mMBOEBosses[2], 1);
     libMLBD_gf_MMBOEUISetBossHP();
+    lv_team = 1;
+    for ( ; ( (autoD1DA67FE_ai >= 0 && lv_team <= autoD1DA67FE_ae) || (autoD1DA67FE_ai < 0 && lv_team >= autoD1DA67FE_ae) ) ; lv_team += autoD1DA67FE_ai ) {
+        RemoveUnitOfInterest(libMLBD_gv_mMBOEBosses[lv_team], "DefendImmortal", libAIAI_gf_ConvertIntegertoGoalTeam(lv_team));
+        RemoveUnitOfInterest(libMLBD_gv_mMBOEBosses[lv_team], "KillEnemyImmortal", libAIAI_gf_ConvertIntegertoGoalTeam(libGame_gf_EnemyTeam(lv_team)));
+    }
     libMLBD_gf_MMBOEDuelEnd();
     return true;
 }
@@ -3438,7 +2844,6 @@ void libMLBD_gt_MMBOEBossFightPing_Init () {
 //--------------------------------------------------------------------------------------------------
 bool libMLBD_gt_MMBOEBossLaningKilled_Func (bool testConds, bool runActions) {
     // Variable Declarations
-    int lv_itStatue;
     int lv_winningTeam;
 
     // Automatic Variable Declarations
@@ -3463,8 +2868,6 @@ bool libMLBD_gt_MMBOEBossLaningKilled_Func (bool testConds, bool runActions) {
     libSond_gf_SoundtrackPlayMapSoundtrackAsDefaultSoundtrackForAllPlayers();
     libMLBD_gf_MMBOEAwardBossXP(libMLBD_gv_mMBOEBossesLaning, libMLBD_gv_mMBOEXPValue);
     PathDestroy(libMLBD_gv_mMBOELaningPathLine);
-    PathDestroy(libMLBD_gv_mMBOELaningPathLine);
-    PathDestroy(libMLBD_gv_mMBOELaningPathLine);
     PingDestroy(libMLBD_gv_mMBOELaningBossPing[0]);
     PingDestroy(libMLBD_gv_mMBOELaningBossPing[1]);
     PingDestroy(libMLBD_gv_mMBOELaningBossPing[2]);
@@ -3478,6 +2881,8 @@ bool libMLBD_gt_MMBOEBossLaningKilled_Func (bool testConds, bool runActions) {
     TimerStart(libMLBD_gv_mMBOEEventCooldownTimer, (libMLBD_gv_mMBossDuelEventCooldown_C - libMLBD_gv_mMBossDuelWarningDelay), false, c_timeGame);
     Wait(1.5, c_timeGame);
     libMLBD_gf_MMBOETransmissionBossRetreatedQ(lv_winningTeam);
+    libMLBD_gf_MMBOECalculateNewSpawnLocations(1);
+    libMLBD_gf_MMBOEDuelPreviewSetup(false);
     libNtve_gf_WaitForTimer(TimerLastStarted(), 0.0, false);
     if ((libMLBD_gv_mMBOEDebugUsed == false)) {
         libMLBD_gf_MMBOEDuelWarningStart();
@@ -3907,6 +3312,39 @@ void libMLBD_gt_MMBOEDebugDisableEvent_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
+// Trigger: MMBOE Debug - Show Boss Positions
+//--------------------------------------------------------------------------------------------------
+bool libMLBD_gt_MMBOEDebugShowBossPositions_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libMLBD_gv_mMBOEShowBossPositions = !(libMLBD_gv_mMBOEShowBossPositions);
+    if ((libMLBD_gv_mMBOEShowBossPositions == true)) {
+        TriggerDebugOutput(1, StringExternal("Param/Value/lib_MLBD_DBF39AC2"), true);
+    }
+    else {
+        TriggerDebugOutput(1, StringExternal("Param/Value/lib_MLBD_1BFFF0B9"), true);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMLBD_gt_MMBOEDebugShowBossPositions_Init () {
+    libMLBD_gt_MMBOEDebugShowBossPositions = TriggerCreate("libMLBD_gt_MMBOEDebugShowBossPositions_Func");
+    TriggerAddEventChatMessage(libMLBD_gt_MMBOEDebugShowBossPositions, c_playerAny, "showpos", true);
+}
+
+//--------------------------------------------------------------------------------------------------
 // Trigger: MMBOE - Duel Boss Reacquire Attack Target
 //--------------------------------------------------------------------------------------------------
 bool libMLBD_gt_MMBOEDuelBossReacquireAttackTarget_Func (bool testConds, bool runActions) {
@@ -4044,114 +3482,6 @@ void libMLBD_gt_MMBOEAngelicExplosionsAbilityUsed_Init () {
     TriggerAddEventPlayerEffectUsed(libMLBD_gt_MMBOEAngelicExplosionsAbilityUsed, c_playerAny, "AngelicExplosionsDummySet");
 }
 
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMBOE - HeroAI - Team Map Logic
-//--------------------------------------------------------------------------------------------------
-bool libMLBD_gt_MMBOEHeroAITeamMapLogic_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    int lv_playerIndex;
-
-    // Automatic Variable Declarations
-    playergroup autoC3C904CC_g;
-
-    // Variable Initialization
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    autoC3C904CC_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(libAIAI_gv_heroAITeamMapLogicFaction)].lv_aIPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(autoC3C904CC_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateNextConsiderTime > TimerGetElapsed(libGame_gv_gameTimer))) {
-            return true;
-        }
-
-        libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateNextConsiderTime = (TimerGetElapsed(libGame_gv_gameTimer) + (RandomFixed(0.0, 1.0) + libAIAI_gv_aIHeroObeliskRecaptureDelay[(libAIAI_gv_aIHeroes[lv_playerIndex].lv_difficulty)]));
-        if ((libAIAI_gf_HeroAIIsHigherPriority(lv_playerIndex, libAIAI_ge_HeroAIPriority_CustomMapRegular) == true)) {
-            if (((libMLBD_gv_mMBOEEventStage == libMLBD_ge_MMBOEEventStage_Duel1) || (libMLBD_gv_mMBOEEventStage == libMLBD_ge_MMBOEEventStage_Duel2))) {
-                if ((libMLBD_gf_MMBOEHeroAIShouldAttackBossLogic(lv_playerIndex) == false)) {
-                    libMLBD_gf_MMBOEHeroAIShouldDefendBossLogic(lv_playerIndex);
-                }
-
-            }
-            else {
-                if (((libMLBD_gv_mMBOEEventStage == libMLBD_ge_MMBOEEventStage_PushingPrep) || (libMLBD_gv_mMBOEEventStage == libMLBD_ge_MMBOEEventStage_Pushing))) {
-                    if ((libMLBD_gf_MMBOEHeroAIShouldAttackSiegeBossLogic(lv_playerIndex) == false)) {
-                        libMLBD_gf_MMBOEHeroAIShouldSupportSiegeBossLogic(lv_playerIndex);
-                    }
-
-                }
-
-            }
-        }
-
-    }
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libMLBD_gt_MMBOEHeroAITeamMapLogic_Init () {
-    libMLBD_gt_MMBOEHeroAITeamMapLogic = TriggerCreate("libMLBD_gt_MMBOEHeroAITeamMapLogic_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMBOE - HeroAI - State Logic
-//--------------------------------------------------------------------------------------------------
-bool libMLBD_gt_MMBOEHeroAIStateLogic_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    int autoF99490D6_val;
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    autoF99490D6_val = libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSMapStateCurrentState;
-    if (autoF99490D6_val == libMLBD_ge_MMBOEHeroAIStates_MMBossDuelAttackBoss) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libMLBD_gf_MMBOEHeroAIAttackBoss(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else if (autoF99490D6_val == libMLBD_ge_MMBOEHeroAIStates_MMBossDuelDefendBoss) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libMLBD_gf_MMBOEHeroAIDefendBoss(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else if (autoF99490D6_val == libMLBD_ge_MMBOEHeroAIStates_MMBossDuelAttackSiegeBoss) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libMLBD_gf_MMBOEHeroAIAttackSiegeBoss(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else if (autoF99490D6_val == libMLBD_ge_MMBOEHeroAIStates_MMBossDuelSuportSiegeBoss) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libMLBD_gf_MMBOEHeroAISupportSiegeBoss(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else {
-    }
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libMLBD_gt_MMBOEHeroAIStateLogic_Init () {
-    libMLBD_gt_MMBOEHeroAIStateLogic = TriggerCreate("libMLBD_gt_MMBOEHeroAIStateLogic_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMBOE Ping Callback Player Pings Boss
-//--------------------------------------------------------------------------------------------------
-bool libMLBD_gt_MMBOEPingCallbackPlayerPingsBoss_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libMLBD_gf_MMBOEHeroAICheckShouldAttackorDefendPingedBoss(libUIUI_gv_ping_PingCallbackPingingPlayer, libUIUI_gv_ping_PingCallbackTargetUnit);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libMLBD_gt_MMBOEPingCallbackPlayerPingsBoss_Init () {
-    libMLBD_gt_MMBOEPingCallbackPlayerPingsBoss = TriggerCreate("libMLBD_gt_MMBOEPingCallbackPlayerPingsBoss_Func");
-}
-
 void libMLBD_InitTriggers () {
     libMLBD_gt_MMBOEInit_Init();
     libMLBD_gt_MMBOEPingDataInit_Init();
@@ -4175,13 +3505,11 @@ void libMLBD_InitTriggers () {
     libMLBD_gt_MMBOEDebugPlayCutscene_Init();
     libMLBD_gt_MMBOEDebugTransmission_Init();
     libMLBD_gt_MMBOEDebugDisableEvent_Init();
+    libMLBD_gt_MMBOEDebugShowBossPositions_Init();
     libMLBD_gt_MMBOEDuelBossReacquireAttackTarget_Init();
     libMLBD_gt_MMBOEDuelBossVoidPrisonReacquireAttackTarget_Init();
     libMLBD_gt_MMBOEDemonicExplosionsAbilityUsed_Init();
     libMLBD_gt_MMBOEAngelicExplosionsAbilityUsed_Init();
-    libMLBD_gt_MMBOEHeroAITeamMapLogic_Init();
-    libMLBD_gt_MMBOEHeroAIStateLogic_Init();
-    libMLBD_gt_MMBOEPingCallbackPlayerPingsBoss_Init();
 }
 
 //--------------------------------------------------------------------------------------------------

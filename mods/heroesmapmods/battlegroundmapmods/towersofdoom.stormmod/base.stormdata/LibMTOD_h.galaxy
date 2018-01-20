@@ -13,7 +13,8 @@ const string libMTOD_gv_mMToDMechanicName_C = "TowersOfDoom";
 const fixed libMTOD_gv_mMToDCoreShots_C = 1.0;
 const int libMTOD_gv_mMToDScoringAltarMaxCount_C = 4;
 const fixed libMTOD_gv_mMToDScoringAltarAnimTime_C = 4.0;
-const fixed libMTOD_gv_mMToDScoringEventDelay_C = 110.0;
+const fixed libMTOD_gv_mMToDScoringEventDelay_C = 180.0;
+const fixed libMTOD_gv_mMToDAltarRespawnDelay_C = 110.0;
 const fixed libMTOD_gv_mMToDScoringAltarWarningTime_C = 30.0;
 const int libMTOD_gv_mMToDScoringAltarMaxConfigs_C = 6;
 const fixed libMTOD_gv_mMToDScoringAltarRevealArea_C = 4.5;
@@ -34,29 +35,11 @@ const int libMTOD_gv_mMToDCannonRangeThreshold = 15;
 const fixed libMTOD_gv_mMToDWaygateRevealArea_C = 5.0;
 const int libMTOD_gv_mMFieldofSlaughterWaygateMaxCount_C = 1;
 const fixed libMTOD_gv_mMToDSpiritHealerVOCooldown = 6.0;
-const fixed libMTOD_gv_mMToDHeroAIStagingTargetingRange = 10.0;
-const fixed libMTOD_gv_mMToDHeroAIStagingGuardRange = 7.0;
-const fixed libMTOD_gv_mMToDHeroAINearTownDistance = 14.0;
-const fixed libMTOD_gv_mMToDHeroAIFarTownDistance = 19.0;
-const fixed libMTOD_gv_mMToDHeroAITownGuardRange = 7.0;
-const fixed libMTOD_gv_mMToDHeroAITownTargetingRange = 14.0;
-const fixed libMTOD_gv_mMToDHeroAIGuardTownEvalAllyFactor = 1.0;
-const fixed libMTOD_gv_mMToDHeroAIReclaimTownFleeEvalAllyFactor = 1.1;
-const fixed libMTOD_gv_mMToDHeroAIReclaimTownAttackEvalAllyFactor = 0.8;
-const fixed libMTOD_gv_mMToDHeroAIAltarWarningTime = 20.0;
-const fixed libMTOD_gv_mMToDHeroAIAltarRegionDistance = 25.0;
-const fixed libMTOD_gv_mMToDHeroAIAltarRegionLastSeenDuration = 10.0;
-const fixed libMTOD_gv_mMToDHeroAIAltarStagingGiveUpTime = 5.0;
-const fixed libMTOD_gv_mMToDHeroAIFocusHeroFailTime = 6.0;
-const fixed libMTOD_gv_mMToDHeroAIGuardTownNoCombatTime = 10.0;
-const fixed libMTOD_gv_mMToDHeroAIAltarEvalRatioMin = 1.2;
-const fixed libMTOD_gv_mMToDHeroAIAltarEvalRatioMax = 1.3;
 
 // Structures
 struct libMTOD_gs_MMToDScoringAltar {
     unit lv_unit;
     bool lv_active;
-    bool lv_willActivateSoon;
 };
 
 struct libMTOD_gs_MMFieldOfSlaughterTown2 {
@@ -123,6 +106,7 @@ struct libMTOD_gs_MMToDPanelEntries {
 unitgroup libMTOD_gv_mMToDOrderBases;
 unitgroup libMTOD_gv_mMToDChaosBases;
 bool libMTOD_gv_mMToDSixTownEventActive;
+bool libMTOD_gv_mMToDFirstEventSpawned;
 timer libMTOD_gv_mMToDScoringAltarTimer;
 libMTOD_gs_MMToDScoringAltar[libMTOD_gv_mMToDScoringAltarMaxCount_C + 1] libMTOD_gv_mMToDScoringAltars;
 revealer[libMTOD_gv_mMToDScoringAltarMaxCount_C + 1] libMTOD_gv_mMToDScoringAltarOrderRevealers;
@@ -132,6 +116,9 @@ playergroup libMTOD_gv_mMToDScoringAltarRemainingConfigs;
 playergroup libMTOD_gv_mMToDScoringAltarRemainingConfigsThreeAltarEvent;
 int libMTOD_gv_mMToDScoringAltarsActive;
 int libMTOD_gv_mMToDEventNumber;
+int libMTOD_gv_mMToDEventCurrentPointGroup;
+timer libMTOD_gv_mMToDObjectivePreviewTimer;
+fixed libMTOD_gv_mMToDObjectivePreviewDelay_C;
 timer libMTOD_gv_mMToDPhaseTwoTimer;
 fixed libMTOD_gv_mMToDSixCapDelay_C;
 timer libMTOD_gv_mMToDSixCapTimer;
@@ -153,10 +140,12 @@ bool libMTOD_gv_mMToDPhaseTwoCheatUsed;
 bool libMTOD_gv_mMToDMapEventDisabled;
 
 // Function Declarations
+void libMTOD_gf_MMToDInitMercs ();
 void libMTOD_gf_MMToDUpdateTownState (unit lp_base, int lp_computerPlayer, int lp_stateChange);
 void libMTOD_gf_MMToDUpdatePotentialShotsLabels ();
 void libMTOD_gf_MMTodAddScoringAltarData (unit lp_altarUnit, int lp_pointNumber);
 void libMTOD_gf_MMToDTurnOnOffScoringAltar (bool lp_onOff, int lp_altarIndex);
+void libMTOD_gf_MMToDDefineNextAltarsandCreatePreviews ();
 void libMTOD_gf_MMToDAltarFireCannons (int lp_teamScored);
 void libMTOD_gf_MMToDSixCapFireCannons ();
 void libMTOD_gf_MMTodAddTownData (unitgroup lp_buildingUnitGroup, int lp_townNumber, text lp_townName);
@@ -184,38 +173,18 @@ void libMTOD_gf_MMToDUIDisplayCaptureNotification (int lp_teamThatCapturedTown, 
 void libMTOD_gf_MMToDUIDisplayTowerUpgradeUI ();
 void libMTOD_gf_MMToDUIDisplayRavenNecroNotifications (text lp_text, int lp_team, playergroup lp_players);
 void libMTOD_gf_MMToDShowHideTownOwnershipUI (bool lp_showHide, int lp_townNumber, int lp_owningTeam);
-int libMTOD_gf_MMToDHeroAIChooseAnotherLane (int lp_currentLane);
-void libMTOD_gf_MMToDHeroAIGuardTownLogic (int lp_faction);
-void libMTOD_gf_MMToDHeroAIChangeStateGuardTown (int lp_trigPlayer, point lp_objectivePoint, int lp_priority);
-bool libMTOD_gf_MMToDHeroAICheckFleeGuardTown (int lp_trigPlayer, fixed lp_allyEvalFactor);
-int libMTOD_gf_MMToDHeroAIGetNumOtherAIGuardingTown (int lp_trigPlayer);
-void libMTOD_gf_MMToDHeroAIReclaimTownLogic (int lp_faction);
-void libMTOD_gf_MMToDHeroAIChangeStateReclaimTown (int lp_trigPlayer, unit lp_objectiveUnit, int lp_priority);
-void libMTOD_gf_MMToDHeroAIChangeStateReclaimTownStaging (int lp_trigPlayer);
-bool libMTOD_gf_MMToDHeroAICheckLeaveReclaimTown (int lp_trigPlayer);
-bool libMTOD_gf_MMToDHeroAICheckFleeReclaimTown (int lp_trigPlayer, fixed lp_allyEvalFactor);
-int libMTOD_gf_MMToDHeroAIGetNumAIDoingReclaimTownOrAltar (int lp_teamIndex);
-void libMTOD_gf_MMToDHeroAIAltarLogic (int lp_faction);
-int libMTOD_gf_MMToDHeroAIGetNumAIDoingAltar (int lp_teamIndex);
-fixed libMTOD_gf_MMToDHeroAIEvalAltar (int lp_faction, unit lp_altarUnit);
-bool libMTOD_gf_MMToDHeroAICheckLeaveCaptureAltar (int lp_trigPlayer);
-bool libMTOD_gf_MMToDHeroAICheckFleeCaptureAltar (int lp_trigPlayer, fixed lp_allyEvalFactor);
-void libMTOD_gf_MMToDHeroAIChangeStateCaptureAltar (int lp_trigPlayer, unit lp_objectiveUnit, int lp_priority);
-void libMTOD_gf_MMToDHeroAIChangeStateAltarStaging (int lp_trigPlayer);
-bool libMTOD_gf_MMToDHeroAIConsiderAnotherAltar (int lp_trigPlayer, unit lp_currentAltarUnit);
-void libMTOD_gf_MMToDHeroAICheckShouldCapturePingedAltar (int lp_pingingPlayer, unit lp_pingedTemple);
 
 // Trigger Declarations
 trigger libMTOD_gt_IncludeToD;
 trigger libMTOD_gt_MMToDInit;
 trigger libMTOD_gt_MMToDPingDataInit;
-trigger libMTOD_gt_MMToDInitMercs;
 trigger libMTOD_gt_MMToDInitializeScoringAltars;
 trigger libMTOD_gt_MMToDGateOpen;
 trigger libMTOD_gt_MMToDArchwayAnims;
 trigger libMTOD_gt_MMToDMinimapHealthMonitor;
 trigger libMTOD_gt_MMToDFastSpawnMinions;
 trigger libMTOD_gt_MMToDScoringAltarTimerTrigger;
+trigger libMTOD_gt_MMToDObjectivePreviewTimerExpires;
 trigger libMTOD_gt_MMToDScoringAltarCaptured;
 trigger libMTOD_gt_MMToDStartPhaseTwoTimer;
 trigger libMTOD_gt_MMToDL2FortMorphsIntoL3Keep;
@@ -252,19 +221,6 @@ trigger libMTOD_gt_MMToDDebugChaosCannons;
 trigger libMTOD_gt_MMToDDebugBossCannons;
 trigger libMTOD_gt_MMToDDebugWarningOn;
 trigger libMTOD_gt_MMToDDebugAltarsOn;
-trigger libMTOD_gt_MMToDHeroAIChooseLane;
-trigger libMTOD_gt_MMToDHeroAITeamMapLogic;
-trigger libMTOD_gt_MMToDHeroAIReturnToGuardTown;
-trigger libMTOD_gt_MMToDHeroAIGuardTownExit;
-trigger libMTOD_gt_MMToDHeroAIReturnToReclaimTown;
-trigger libMTOD_gt_MMToDHeroAIReclaimTownExit;
-trigger libMTOD_gt_MMToDHeroAIReturnToReclaimTownStaging;
-trigger libMTOD_gt_MMToDHeroAIReclaimTownStagingExit;
-trigger libMTOD_gt_MMToDHeroAIReturnToCaptureAltar;
-trigger libMTOD_gt_MMToDHeroAIReturnToCaptureAltarStaging;
-trigger libMTOD_gt_MMToDHeroAICaptureAltarExit;
-trigger libMTOD_gt_MMToDHeroAICaptureAltarStagingExit;
-trigger libMTOD_gt_MMToDHeroAIPingCallbackPlayerPingsAltar;
 
 // Library Initialization
 void libMTOD_InitVariables ();

@@ -2,7 +2,6 @@ include "TriggerLibs/NativeLib"
 include "TriggerLibs/HeroesLib"
 include "TriggerLibs/GameLib"
 include "TriggerLibs/MapMechanicsLib"
-include "TriggerLibs/AILib"
 include "TriggerLibs/UILib"
 include "TriggerLibs/SoundLib"
 
@@ -17,7 +16,6 @@ void libBBAY_InitLibraries () {
     libCore_InitVariables();
     libGame_InitVariables();
     libMapM_InitVariables();
-    libAIAI_InitVariables();
     libUIUI_InitVariables();
     libSond_InitVariables();
 }
@@ -44,7 +42,6 @@ void libBBAY_InitVariables () {
     libBBAY_gv_mMBBCannonballsTreasureChestIsFirstChest = true;
     libBBAY_gv_mMBBMapMechanicsBlackheartsBayChestsSpawnedFrameTimer = TimerCreate();
     libBBAY_gv_mMBBMapMechanicsBlackheartsBayCurrentMode = libBBAY_ge_MMBBMapMechanicsBlackheartsBayModes_Doubloons;
-    libBBAY_gv_heroAITreasureChests = UnitGroupEmpty();
 }
 
 // Presets
@@ -141,8 +138,6 @@ void libBBAY_gf_MMBBCannonballsSetHeroCannonballsCount (int lp_player, unit lp_h
     int lv_tempCount;
 
     // Automatic Variable Declarations
-    const int auto821FDA32_ae = libCore_gv_bALMaxPlayers;
-    const int auto821FDA32_ai = 1;
     unitgroup autoBB909C5C_g;
     int autoBB909C5C_u;
 
@@ -155,13 +150,6 @@ void libBBAY_gf_MMBBCannonballsSetHeroCannonballsCount (int lp_player, unit lp_h
         UnitBehaviorAdd(lp_heroUnit, "MapMechanicStack", lp_heroUnit, lp_count);
     }
 
-    lv_itPlayer = 1;
-    for ( ; ( (auto821FDA32_ai >= 0 && lv_itPlayer <= auto821FDA32_ae) || (auto821FDA32_ai < 0 && lv_itPlayer >= auto821FDA32_ae) ) ; lv_itPlayer += auto821FDA32_ai ) {
-        if ((libUIUI_gv_uITargetInfoPanelCurrentTargetForPlayer[lv_itPlayer] == lp_heroUnit)) {
-            libUIUI_gf_UITargetInfoPanelUpdateMapMechanicTextForPlayer(IntToText(lp_count), lv_itPlayer);
-        }
-
-    }
     autoBB909C5C_g = libGame_gv_players[lp_player].lv_heroUnitGroup;
     autoBB909C5C_u = UnitGroupCount(autoBB909C5C_g, c_unitCountAll);
     for (;; autoBB909C5C_u -= 1) {
@@ -221,7 +209,6 @@ void libBBAY_gf_MMBBCannonballsGhostShipWakeUp (int lp_team, bool lp_new) {
     libBBAY_gv_mMBBCannonballsTransmissionFiringIndex = 0;
     libBBAY_gv_mMBBCannonballsTransmissionFiringRandomness = RandomInt(4, 9);
     TriggerExecute(libBBAY_gt_MMBBCannonballsShootingStart, true, false);
-    libBBAY_gf_MMBBHeroAIGhostShipShootingStarts(lv_computerPlayer);
     libBBAY_gf_MMBBCannonballsBattleshipBehavior();
     TimerPause(libBBAY_gv_mMBBCannonballsTreasureChestTimer, true);
     Wait(5.0, c_timeGame);
@@ -232,6 +219,7 @@ void libBBAY_gf_MMBBCannonballsGhostShipWakeUp (int lp_team, bool lp_new) {
 void libBBAY_gf_MMBBCannonballsDisableBeacon () {
     // Automatic Variable Declarations
     // Implementation
+    libBBAY_gf_MMBBEnableDisableBlackheartInteractGoals(false, libBBAY_gv_mMBBCannonballsGhostShipCaptain);
     UnitBehaviorRemove(libBBAY_gv_mMBBCannonballsGhostShipBeacon, "MacguffinActivated", 1);
     UnitBehaviorRemove(libBBAY_gv_mMBBCannonballsGhostShipCaptain, "MacguffinActivated", 1);
     libNtve_gf_SendActorMessageToGameRegion(libBBAY_gv_mMBBCannonballsGhostShipPlayerDetectorRegion, "Signal ReturnToShip");
@@ -407,12 +395,12 @@ bool auto_libBBAY_gf_MMBBCannonballsBattleshipBehavior_TriggerFunc (bool testCon
             libNtve_gf_ShowHideUnit(libBBAY_gv_mMBBCannonballsGhostShipBeacon, true);
             libNtve_gf_ShowHideUnit(libBBAY_gv_mMBBCannonballsGhostShipCaptain, true);
             libNtve_gf_SendActorMessageToGameRegion(libBBAY_gv_mMBBCannonballsGhostShipPlayerDetectorRegion, "Signal LeaveShip");
+            libBBAY_gf_MMBBEnableDisableBlackheartInteractGoals(true, libBBAY_gv_mMBBCannonballsGhostShipCaptain);
             libBBAY_gf_MMBBCannonballsSubmitReqIncrease(lv_shipTeam);
             TriggerExecute(libBBAY_gt_MMBBCannonballsOpenChestUponRespawn, true, false);
             MinimapPing(PlayerGroupAll(), UnitGetPosition(libBBAY_gv_mMBBCannonballsGhostShipBeacon), 4.0, Color(100.00, 100.00, 0.00));
             ActorCreate(ActorScopeFromUnit(libBBAY_gv_mMBBCannonballsGhostShipBeacon), "UI_Game_Ping_GhostShip_Ready", null, null, null);
             TriggerExecute(libBBAY_gt_MMBBCannonballsShootingEnd, true, false);
-            TriggerExecute(libBBAY_gt_MMBBHeroAIGhostShipShootingEnds, true, false);
             TimerPause(libBBAY_gv_mMBBCannonballsTreasureChestTimer, false);
             return true;
         }
@@ -652,6 +640,21 @@ void libBBAY_gf_MMBBCannonballsBattleshipShootingShakingCamera (point lp_targetL
     }
 }
 
+void libBBAY_gf_MMBBEnableDisableBlackheartInteractGoals (bool lp_toggle, unit lp_blackheartUnit) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((lp_toggle == true)) {
+        AddUnitOfInterest(lp_blackheartUnit, 0.0, 0.0, "TurnInDoubloons1", libNtve_ge_GoalTeam_Both, 0);
+        AddUnitOfInterest(lp_blackheartUnit, 0.0, 0.0, "TurnInDoubloons2", libNtve_ge_GoalTeam_Both, 0);
+        AddUnitOfInterest(lp_blackheartUnit, 0.0, 0.0, "TurnInDoubloons3", libNtve_ge_GoalTeam_Both, 0);
+    }
+    else {
+        RemoveUnitOfInterest(lp_blackheartUnit, "TurnInDoubloons1", libNtve_ge_GoalTeam_Both);
+        RemoveUnitOfInterest(lp_blackheartUnit, "TurnInDoubloons2", libNtve_ge_GoalTeam_Both);
+        RemoveUnitOfInterest(lp_blackheartUnit, "TurnInDoubloons3", libNtve_ge_GoalTeam_Both);
+    }
+}
+
 text libBBAY_gf_MMBBCannonballsTreasureSetTextTagHelp () {
     // Automatic Variable Declarations
     // Implementation
@@ -674,7 +677,7 @@ void libBBAY_gf_MMBBCannonballsTreasureTheFirstTimer () {
 void libBBAY_gf_MMBBCannonballsTreasureStartTimer () {
     // Automatic Variable Declarations
     // Implementation
-    TimerStart(libBBAY_gv_mMBBCannonballsTreasureChestTimer, RandomFixed(libBBAY_gv_mMBBCannonballsTreasureChestTimerMin_C, libBBAY_gv_mMBBCannonballsTreasureChestTimerMax_C), false, c_timeGame);
+    TimerStart(libBBAY_gv_mMBBCannonballsTreasureChestTimer, libBBAY_gv_mMBBCannonballsTreasureChestTimerMid_C2, false, c_timeGame);
 }
 
 void libBBAY_gf_MMBBMapMechanicsBlackheartsBayShowHidePanel (bool lp_showHide) {
@@ -820,802 +823,6 @@ void libBBAY_gf_MMBBCannonballsObjectiveUIUpdateText () {
     // Implementation
     libBBAY_gf_MMBBMapMechanicsBlackheartsBaySetDoubloonCountForTeam(libBBAY_gf_MMBBCannonballsTeamCannonballsCount(libGame_gv_teamOrderIndex_C), libBBAY_gf_MMBBCannonballsPirateShipCost(libGame_gv_teamOrderIndex_C), libGame_gv_teamOrderIndex_C);
     libBBAY_gf_MMBBMapMechanicsBlackheartsBaySetDoubloonCountForTeam(libBBAY_gf_MMBBCannonballsTeamCannonballsCount(libGame_gv_teamChaosIndex_C), libBBAY_gf_MMBBCannonballsPirateShipCost(libGame_gv_teamChaosIndex_C), libGame_gv_teamChaosIndex_C);
-}
-
-void libBBAY_gf_MMBBHeroAIGhostShipShowsUp (unit lp_ship) {
-    // Automatic Variable Declarations
-    // Implementation
-    libBBAY_gv_heroAIGhostShipStatus.lv_beaconUnit = lp_ship;
-    libBBAY_gv_heroAIGhostShipStatus.lv_beaconStatus = libBBAY_ge_MMBBHeroAIGhostShipBeaconStatus_Open;
-    libBBAY_gv_heroAIGhostShipStatus.lv_doubloonsTurnedIn[libGame_gv_teamOrderIndex_C] = 0;
-    libBBAY_gv_heroAIGhostShipStatus.lv_doubloonsTurnedIn[libGame_gv_teamChaosIndex_C] = 0;
-}
-
-void libBBAY_gf_MMBBHeroAIGhostShipShootingStarts (int lp_player) {
-    // Automatic Variable Declarations
-    // Implementation
-    libBBAY_gv_heroAIGhostShipStatus.lv_beaconStatus = libBBAY_ge_MMBBHeroAIGhostShipBeaconStatus_Closed;
-    if ((libGame_gv_players[lp_player].lv_faction == libGame_ge_Faction_Order)) {
-        libBBAY_gv_heroAIGhostShipStatus.lv_doubloonsTurnedIn[libGame_gv_teamOrderIndex_C] = 0;
-    }
-    else {
-        libBBAY_gv_heroAIGhostShipStatus.lv_doubloonsTurnedIn[libGame_gv_teamChaosIndex_C] = 0;
-    }
-}
-
-trigger auto_libBBAY_gf_MMBBHeroAIDoubloonsTurnedIn_Trigger = null;
-int auto_libBBAY_gf_MMBBHeroAIDoubloonsTurnedIn_lp_player;
-int auto_libBBAY_gf_MMBBHeroAIDoubloonsTurnedIn_lp_count;
-
-void libBBAY_gf_MMBBHeroAIDoubloonsTurnedIn (int lp_player, int lp_count) {
-    auto_libBBAY_gf_MMBBHeroAIDoubloonsTurnedIn_lp_player = lp_player;
-    auto_libBBAY_gf_MMBBHeroAIDoubloonsTurnedIn_lp_count = lp_count;
-
-    if (auto_libBBAY_gf_MMBBHeroAIDoubloonsTurnedIn_Trigger == null) {
-        auto_libBBAY_gf_MMBBHeroAIDoubloonsTurnedIn_Trigger = TriggerCreate("auto_libBBAY_gf_MMBBHeroAIDoubloonsTurnedIn_TriggerFunc");
-    }
-
-    TriggerExecute(auto_libBBAY_gf_MMBBHeroAIDoubloonsTurnedIn_Trigger, false, false);
-}
-
-bool auto_libBBAY_gf_MMBBHeroAIDoubloonsTurnedIn_TriggerFunc (bool testConds, bool runActions) {
-    int lp_player = auto_libBBAY_gf_MMBBHeroAIDoubloonsTurnedIn_lp_player;
-    int lp_count = auto_libBBAY_gf_MMBBHeroAIDoubloonsTurnedIn_lp_count;
-
-    // Automatic Variable Declarations
-    // Implementation
-    if ((libGame_gv_players[lp_player].lv_faction == libGame_ge_Faction_Order)) {
-        libBBAY_gv_heroAIGhostShipStatus.lv_doubloonsTurnedIn[libGame_gv_teamOrderIndex_C] += lp_count;
-    }
-    else {
-        libBBAY_gv_heroAIGhostShipStatus.lv_doubloonsTurnedIn[libGame_gv_teamChaosIndex_C] += lp_count;
-    }
-    return true;
-}
-
-void libBBAY_gf_MMBBHeroAITreasureChestsSpawns (unit lp_treasureChest) {
-    // Automatic Variable Declarations
-    // Implementation
-    UnitGroupAdd(libBBAY_gv_heroAITreasureChests, lp_treasureChest);
-    libAIAI_gv_heroAITeamData[(0)].lv_nextMapMechanicConsiderTime = (TimerGetElapsed(libGame_gv_gameTimer) + libBBAY_gv_aIMMBBHeroAttackChestConsiderDelay);
-    libAIAI_gv_heroAITeamData[(1)].lv_nextMapMechanicConsiderTime = (TimerGetElapsed(libGame_gv_gameTimer) + libBBAY_gv_aIMMBBHeroAttackChestConsiderDelay);
-}
-
-void libBBAY_gf_MMBBHeroAIGhostShipBeaconPinged (int lp_pingingPlayer) {
-    // Variable Declarations
-    int lv_playerIndex;
-
-    // Automatic Variable Declarations
-    playergroup auto11DFDE38_g;
-
-    // Variable Initialization
-
-    // Implementation
-    if ((libBBAY_gv_heroAIGhostShipStatus.lv_beaconStatus == libBBAY_ge_MMBBHeroAIGhostShipBeaconStatus_Closed)) {
-        return ;
-    }
-
-    auto11DFDE38_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAIGetAllyTeamIndex(lp_pingingPlayer)].lv_aIPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(auto11DFDE38_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((libBBAY_gf_MMBBHeroAIShouldTurnInDoubloons(lv_playerIndex, true) == true)) {
-            libBBAY_gf_MMBBHeroAIStartMovingToTurnInDoubloons(lv_playerIndex);
-        }
-
-    }
-}
-
-void libBBAY_gf_MMBBHeroAITurnInDoubloonsLogic (int lp_faction) {
-    // Variable Declarations
-    int lv_playerIndex;
-    point lv_ghostShipBeaconPosition;
-
-    // Automatic Variable Declarations
-    playergroup autoE575D831_g;
-
-    // Variable Initialization
-
-    // Implementation
-    if ((libBBAY_gv_heroAIGhostShipStatus.lv_beaconStatus == libBBAY_ge_MMBBHeroAIGhostShipBeaconStatus_Closed)) {
-        return ;
-    }
-
-    autoE575D831_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction)].lv_aIPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(autoE575D831_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateNextConsiderTime <= TimerGetElapsed(libGame_gv_gameTimer))) {
-            libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateNextConsiderTime = (TimerGetElapsed(libGame_gv_gameTimer) + libBBAY_gv_aIMMBBHeroTurnInDoubloonsConsiderFrequency);
-            if ((libBBAY_gf_MMBBHeroAIShouldTurnInDoubloons(lv_playerIndex, false) == true)) {
-                libBBAY_gf_MMBBHeroAIStartMovingToTurnInDoubloons(lv_playerIndex);
-            }
-
-        }
-
-    }
-}
-
-bool libBBAY_gf_MMBBHeroAIShouldTurnInDoubloons (int lp_trigPlayer, bool lp_playerPinged) {
-    // Variable Declarations
-    int lv_pirateShipCost;
-    int lv_doubloonsHolding;
-    int lv_doubloonsTurnedIn;
-    int lv_doubloonsNeededToFillBeacon;
-    point lv_ghostShipBeaconPosition;
-    unitgroup lv_enemies;
-    unitgroup lv_enemyHeroes;
-    unitgroup lv_allies;
-    unitgroup lv_allyHeroes;
-    int lv_immediateTurnInAmount;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-    lv_enemies = UnitGroupEmpty();
-    lv_enemyHeroes = UnitGroupEmpty();
-    lv_allies = UnitGroupEmpty();
-    lv_allyHeroes = UnitGroupEmpty();
-
-    // Implementation
-    if (((libBBAY_gv_heroAIGhostShipStatus.lv_beaconStatus == libBBAY_ge_MMBBHeroAIGhostShipBeaconStatus_Closed) || (libAIAI_gf_HeroAIIsHigherPriority(lp_trigPlayer, libAIAI_ge_HeroAIPriority_CustomMapRegular) == false))) {
-        return false;
-    }
-
-    lv_doubloonsHolding = libAIAI_gf_HeroAIMapMechanicStackCountForHero(lp_trigPlayer);
-    lv_ghostShipBeaconPosition = UnitGetPosition(libBBAY_gv_heroAIGhostShipStatus.lv_beaconUnit);
-    if ((lp_playerPinged == true)) {
-        if ((lv_doubloonsHolding == 0)) {
-            return false;
-        }
-
-    }
-    else {
-        if ((libGame_gv_players[lp_trigPlayer].lv_faction == libGame_ge_Faction_Order)) {
-            lv_pirateShipCost = libBBAY_gf_MMBBCannonballsPirateShipCost(libGame_gv_teamOrderIndex_C);
-            lv_doubloonsTurnedIn = libBBAY_gv_heroAIGhostShipStatus.lv_doubloonsTurnedIn[libGame_gv_teamOrderIndex_C];
-        }
-        else {
-            lv_pirateShipCost = libBBAY_gf_MMBBCannonballsPirateShipCost(libGame_gv_teamChaosIndex_C);
-            lv_doubloonsTurnedIn = libBBAY_gv_heroAIGhostShipStatus.lv_doubloonsTurnedIn[libGame_gv_teamChaosIndex_C];
-        }
-        lv_doubloonsNeededToFillBeacon = (lv_pirateShipCost - lv_doubloonsTurnedIn);
-        if ((libAIAI_gf_HeroAITeamHasHumanPlayers(libGame_gv_players[lp_trigPlayer].lv_faction) == true)) {
-            lv_immediateTurnInAmount = libBBAY_gv_aIMMBBHeroWantToTurnInDoubloonsAmountHumanTeam;
-        }
-        else {
-            lv_immediateTurnInAmount = libBBAY_gv_aIMMBBHeroWantToTurnInDoubloonsAmountAllAITeam;
-        }
-        if ((DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit), lv_ghostShipBeaconPosition) > libBBAY_gv_aIMMBBHeroWalkDirectlyToGhostShipBeaconDistance)) {
-            lv_immediateTurnInAmount += 2;
-        }
-
-        if ((lv_doubloonsHolding < lv_doubloonsNeededToFillBeacon) && (lv_doubloonsHolding < lv_immediateTurnInAmount) && (!(((lv_doubloonsHolding > 0) && (libAIAI_gf_HeroAIMapMechanicStackCountForTeam(libGame_gv_players[lp_trigPlayer].lv_faction) >= lv_doubloonsNeededToFillBeacon))))) {
-            return false;
-        }
-
-    }
-    lv_enemies = UnitGroupAlliance(lp_trigPlayer, c_unitAllianceEnemy, RegionCircle(lv_ghostShipBeaconPosition, libBBAY_gv_aIMMBBHeroFarFromGhostShipBeaconDistance), UnitFilter(0, 0, (1 << c_targetFilterCreep) | (1 << c_targetFilterImmuneToSkillshots) | (1 << c_targetFilterMissile) | (1 << c_targetFilterItem), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
-    lv_enemyHeroes = UnitGroupFilter(null, c_playerAny, lv_enemies, UnitFilter((1 << c_targetFilterHeroic), 0, 0, 0), 0);
-    lv_allies = UnitGroupAlliance(lp_trigPlayer, c_unitAllianceAlly, RegionCircle(lv_ghostShipBeaconPosition, libBBAY_gv_aIMMBBHeroFarFromGhostShipBeaconDistance), UnitFilter(0, 0, (1 << c_targetFilterCreep) | (1 << c_targetFilterImmuneToSkillshots) | (1 << c_targetFilterMissile) | (1 << c_targetFilterItem), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
-    lv_allyHeroes = UnitGroupFilter(null, c_playerAny, lv_allies, UnitFilter((1 << c_targetFilterHeroic), 0, 0, 0), 0);
-    if ((UnitGroupCount(lv_enemyHeroes, c_unitCountAlive) >= (UnitGroupCount(lv_allyHeroes, c_unitCountAlive) + 2))) {
-        return false;
-    }
-
-    return true;
-}
-
-bool libBBAY_gf_MMBBHeroAIShouldGiveUpOnTurningInDoubloons (int lp_trigPlayer) {
-    // Variable Declarations
-    point lv_beaconPosition;
-    unitgroup lv_enemies;
-    unitgroup lv_enemyHeroes;
-    unitgroup lv_allies;
-    unitgroup lv_allyHeroes;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-    lv_enemies = UnitGroupEmpty();
-    lv_enemyHeroes = UnitGroupEmpty();
-    lv_allies = UnitGroupEmpty();
-    lv_allyHeroes = UnitGroupEmpty();
-
-    // Implementation
-    if ((libBBAY_gv_heroAIGhostShipStatus.lv_beaconStatus == libBBAY_ge_MMBBHeroAIGhostShipBeaconStatus_Closed)) {
-        return true;
-    }
-
-    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[lp_trigPlayer].lv_endOffensiveHealth)) {
-        return true;
-    }
-
-    lv_beaconPosition = UnitGetPosition(libBBAY_gv_heroAIGhostShipStatus.lv_beaconUnit);
-    lv_enemies = UnitGroupAlliance(lp_trigPlayer, c_unitAllianceEnemy, RegionCircle(lv_beaconPosition, libBBAY_gv_aIMMBBHeroFarFromGhostShipBeaconDistance), UnitFilter(0, 0, (1 << c_targetFilterCreep) | (1 << c_targetFilterImmuneToSkillshots) | (1 << c_targetFilterMissile) | (1 << c_targetFilterItem), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
-    lv_enemyHeroes = UnitGroupFilter(null, c_playerAny, lv_enemies, UnitFilter((1 << c_targetFilterHeroic), 0, 0, 0), 0);
-    lv_allies = UnitGroupAlliance(lp_trigPlayer, c_unitAllianceAlly, RegionCircle(lv_beaconPosition, (libBBAY_gv_aIMMBBHeroFarFromGhostShipBeaconDistance * 2.0)), UnitFilter(0, 0, (1 << c_targetFilterCreep) | (1 << c_targetFilterImmuneToSkillshots) | (1 << c_targetFilterMissile) | (1 << c_targetFilterItem), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
-    lv_allyHeroes = UnitGroupFilter(null, c_playerAny, lv_allies, UnitFilter((1 << c_targetFilterHeroic), 0, 0, 0), 0);
-    if ((UnitGroupCount(lv_enemyHeroes, c_unitCountAlive) >= (UnitGroupCount(lv_allyHeroes, c_unitCountAlive) + 2))) {
-        return true;
-    }
-
-    return false;
-}
-
-void libBBAY_gf_MMBBHeroAIStartMovingToTurnInDoubloons (int lp_trigPlayer) {
-    // Automatic Variable Declarations
-    // Implementation
-    libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) >= libAIAI_gv_aIHeroes[lp_trigPlayer].lv_startOffensiveHealth)) {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_currentLane = 0;
-        libBBAY_gf_MMBBHeroAIChangeToState(lp_trigPlayer, libBBAY_ge_MMBBHeroAIStates_MMBlackheartsBayTurnInDoubloons, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-    }
-    else {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_wantsToGoHome = true;
-    }
-}
-
-void libBBAY_gf_MMBBHeroAIPickUpDoubloonsLogic (int lp_faction) {
-    // Variable Declarations
-    int lv_playerIndex;
-    unit lv_doubloon;
-
-    // Automatic Variable Declarations
-    playergroup autoB5D9C91F_g;
-
-    // Variable Initialization
-
-    // Implementation
-    autoB5D9C91F_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction)].lv_aIPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(autoB5D9C91F_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((UnitGetPropertyFixed(libGame_gv_players[lv_playerIndex].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) > libAIAI_gv_aIHeroes[lv_playerIndex].lv_endOffensiveHealth) && (libAIAI_gf_HeroAIMapMechanicStackCountForHero(lv_playerIndex) < libAIAI_gv_aIHeroMapMechanicStackMaximum)) {
-            lv_doubloon = libBBAY_gf_MMBBHeroAISearchForNearbyDoubloon(lv_playerIndex);
-            if ((UnitIsValid(lv_doubloon) == true) && (libAIAI_gf_HeroAIIsHigherPriority(lv_playerIndex, libAIAI_ge_HeroAIPriority_CustomMapVital) == true)) {
-                libBBAY_gf_MMBBHeroAIChangeToState(lv_playerIndex, libBBAY_ge_MMBBHeroAIStates_MMBlackheartsBayPickUpDoubloon, libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateCurrentTargetUnit, libAIAI_ge_HeroAIPriority_CustomMapVital);
-                libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateCurrentTargetUnit = lv_doubloon;
-                HeroAIUnitIssueOrder(libGame_gv_players[lv_playerIndex].lv_heroUnit, OrderTargetingPoint(AbilityCommand("move", 0), UnitGetPosition(libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateCurrentTargetUnit)), c_orderQueueReplace);
-            }
-
-        }
-
-    }
-}
-
-unit libBBAY_gf_MMBBHeroAISearchForNearbyDoubloon (int lp_trigPlayer) {
-    // Variable Declarations
-    point lv_heroPosition;
-    region lv_nearbyRegion;
-    unitgroup lv_nearbyDoubloons;
-    unit lv_doubloon;
-    region lv_enemyRegion;
-    unitgroup lv_enemyHeroes;
-    fixed lv_distance;
-    fixed lv_pathDist;
-    unit lv_bestDoubloon;
-    fixed lv_bestDoubloonDistance;
-
-    // Automatic Variable Declarations
-    unitgroup auto2D705404_g;
-    int auto2D705404_u;
-
-    // Variable Initialization
-    lv_nearbyDoubloons = UnitGroupEmpty();
-    lv_enemyHeroes = UnitGroupEmpty();
-    lv_bestDoubloonDistance = 524287.0;
-
-    // Implementation
-    lv_heroPosition = UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit);
-    lv_nearbyRegion = RegionCircle(lv_heroPosition, libBBAY_gv_aIMMBBHeroDoubloonSearchRadius);
-    lv_nearbyDoubloons = UnitGroup("ItemCannonball", c_playerAny, lv_nearbyRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
-    auto2D705404_g = lv_nearbyDoubloons;
-    auto2D705404_u = UnitGroupCount(auto2D705404_g, c_unitCountAll);
-    for (;; auto2D705404_u -= 1) {
-        lv_doubloon = UnitGroupUnitFromEnd(auto2D705404_g, auto2D705404_u);
-        if (lv_doubloon == null) { break; }
-        if ((libBBAY_gf_MMBBHeroAIIsAllyPickingUpDoubloon(lp_trigPlayer, lv_doubloon) == true)) {
-            continue;
-        }
-
-        lv_enemyRegion = RegionEmpty();
-        RegionAddRegion(lv_enemyRegion, RegionCircle(UnitGetPosition(lv_doubloon), libBBAY_gv_aIMMBBHeroDoubloonCloseToEnemyDistance));
-        RegionAddRegion(lv_enemyRegion, RegionCircle(lv_heroPosition, libBBAY_gv_aIMMBBHeroDoubloonCloseToEnemyDistance));
-        lv_enemyHeroes = UnitGroupAlliance(lp_trigPlayer, c_unitAllianceEnemy, lv_enemyRegion, libCore_gv_filtersHeroic, 0);
-        if ((UnitGroupCount(lv_enemyHeroes, c_unitCountAlive) > 0)) {
-            continue;
-        }
-
-        lv_distance = DistanceBetweenPoints(lv_heroPosition, UnitGetPosition(lv_doubloon));
-        if ((lv_distance < lv_bestDoubloonDistance)) {
-            lv_pathDist = AIPathingCostUnit(libGame_gv_players[lp_trigPlayer].lv_heroUnit, UnitGetPosition(lv_doubloon), c_includeAllBuildings);
-            if ((lv_pathDist >= 0.0) && (lv_pathDist < (lv_distance * 3.0))) {
-                lv_bestDoubloon = lv_doubloon;
-                lv_bestDoubloonDistance = lv_distance;
-            }
-
-        }
-
-    }
-    return lv_bestDoubloon;
-}
-
-bool libBBAY_gf_MMBBHeroAIIsAllyPickingUpDoubloon (int lp_trigPlayer, unit lp_doubloon) {
-    // Variable Declarations
-    int lv_playerIndex;
-    fixed lv_ourDistancetoDoubloon;
-    fixed lv_playerDistancetoDoubloon;
-
-    // Automatic Variable Declarations
-    int autoF0715D69_ae;
-
-    // Variable Initialization
-
-    // Implementation
-    lv_ourDistancetoDoubloon = DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit), UnitGetPosition(lp_doubloon));
-    autoF0715D69_ae = libCore_gv_bALMaxPlayers;
-    lv_playerIndex = 1;
-    for ( ; lv_playerIndex <= autoF0715D69_ae ; lv_playerIndex += 1 ) {
-        if ((lp_trigPlayer != lv_playerIndex) && (libGame_gv_players[lp_trigPlayer].lv_faction == libGame_gv_players[lv_playerIndex].lv_faction) && (UnitIsAlive(libGame_gv_players[lv_playerIndex].lv_heroUnit) == true)) {
-            if ((libAIAI_gf_HeroAIIsPlayerActive(lv_playerIndex, 2) == true)) {
-                if ((libAIAI_gv_aIHeroes[lv_playerIndex].lv_heroState == libAIAI_ge_HeroAIStates_HSCustomMapState) && (libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateCurrentTargetUnit == lp_doubloon)) {
-                    return true;
-                }
-
-            }
-            else {
-                lv_playerDistancetoDoubloon = DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lv_playerIndex].lv_heroUnit), UnitGetPosition(lp_doubloon));
-                if ((lv_playerDistancetoDoubloon < libBBAY_gv_aIMMBBHeroNearDoubloonDistance) && (lv_playerDistancetoDoubloon < (lv_ourDistancetoDoubloon + 3.0))) {
-                    return true;
-                }
-
-            }
-        }
-
-    }
-    return false;
-}
-
-bool libBBAY_gf_MMBBHeroAIIsHumanAllyPickingUpDoubloon (int lp_trigPlayer, unit lp_doubloon) {
-    // Variable Declarations
-    int lv_playerIndex;
-
-    // Automatic Variable Declarations
-    int autoB030AB7C_ae;
-
-    // Variable Initialization
-
-    // Implementation
-    autoB030AB7C_ae = libCore_gv_bALMaxPlayers;
-    lv_playerIndex = 1;
-    for ( ; lv_playerIndex <= autoB030AB7C_ae ; lv_playerIndex += 1 ) {
-        if ((lp_trigPlayer != lv_playerIndex) && (libGame_gv_players[lp_trigPlayer].lv_faction == libGame_gv_players[lv_playerIndex].lv_faction) && (libAIAI_gf_HeroAIIsPlayerActive(lv_playerIndex, 1) == true) && (UnitAbilityExists(libGame_gv_players[lv_playerIndex].lv_heroUnit, "move") == true) && (DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lv_playerIndex].lv_heroUnit), UnitGetPosition(lp_doubloon)) < libBBAY_gv_aIMMBBHeroNearDoubloonDistance)) {
-            return true;
-        }
-
-    }
-    return false;
-}
-
-void libBBAY_gf_MMBBHeroAITreasureChestPinged (int lp_pingingPlayer, unit lp_pingedChest) {
-    // Variable Declarations
-    int lv_playerIndex;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if ((UnitIsValid(lp_pingedChest) == true)) {
-        libBBAY_gf_MMBBHeroAIRecruitTeamforTreasureChest(libAIAI_gf_HeroAIGetAllyTeamIndex(lp_pingingPlayer), lp_pingedChest, true);
-    }
-
-}
-
-void libBBAY_gf_MMBBHeroAIAttackTreasureChestLogic (int lp_faction) {
-    // Variable Declarations
-    int lv_playerIndex;
-    int lv_teamIndex;
-    unit lv_treasureChest;
-
-    // Automatic Variable Declarations
-    unitgroup auto59A7CEF7_g;
-    int auto59A7CEF7_u;
-
-    // Variable Initialization
-
-    // Implementation
-    if ((lp_faction == libGame_ge_Faction_Order)) {
-        lv_teamIndex = (0);
-    }
-    else {
-        lv_teamIndex = (1);
-    }
-    if ((libAIAI_gv_heroAITeamData[lv_teamIndex].lv_nextMapMechanicConsiderTime > TimerGetElapsed(libGame_gv_gameTimer))) {
-        return ;
-    }
-
-    auto59A7CEF7_g = libBBAY_gv_heroAITreasureChests;
-    auto59A7CEF7_u = UnitGroupCount(auto59A7CEF7_g, c_unitCountAll);
-    for (;; auto59A7CEF7_u -= 1) {
-        lv_treasureChest = UnitGroupUnitFromEnd(auto59A7CEF7_g, auto59A7CEF7_u);
-        if (lv_treasureChest == null) { break; }
-        if ((UnitIsValid(lv_treasureChest) == true)) {
-            libBBAY_gf_MMBBHeroAIRecruitTeamforTreasureChest(lv_teamIndex, lv_treasureChest, false);
-        }
-
-    }
-}
-
-void libBBAY_gf_MMBBHeroAIRecruitTeamforTreasureChest (int lp_teamIndex, unit lp_treasureChest, bool lp_wasPinged) {
-    // Variable Declarations
-    int lv_playerIndex;
-
-    // Automatic Variable Declarations
-    playergroup auto321898A1_g;
-
-    // Variable Initialization
-
-    // Implementation
-    auto321898A1_g = libAIAI_gv_heroAITeamPlayerData[lp_teamIndex].lv_aIPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(auto321898A1_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((libBBAY_gf_MMBBHeroAIShouldAttackTreasureChest(lv_playerIndex, lp_treasureChest, lp_wasPinged) == true)) {
-            libAIAI_gf_HeroAILeaveCurrentObjective(lv_playerIndex);
-            libAIAI_gv_aIHeroes[lv_playerIndex].lv_currentLane = 0;
-            libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateCurrentTargetUnit = lp_treasureChest;
-            libBBAY_gf_MMBBHeroAIChangeToState(lv_playerIndex, libBBAY_ge_MMBBHeroAIStates_MMBlackheartsBayTreasureChestMoveToChest, libAIAI_gv_aIHeroes[lv_playerIndex].lv_hSMapStateCurrentTargetUnit, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-        }
-
-    }
-}
-
-bool libBBAY_gf_MMBBHeroAIShouldAttackTreasureChest (int lp_trigPlayer, unit lp_treasureChest, bool lp_wasPinged) {
-    // Variable Declarations
-    fixed lv_allyEval;
-    fixed lv_enemyEval;
-    int lv_priority;
-    fixed lv_testDistance;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if ((lp_wasPinged == true)) {
-        lv_testDistance = libBBAY_gv_aIMMBBHeroTreasureChestPingedRecruitDistance;
-    }
-    else {
-        lv_testDistance = libBBAY_gv_aIMMBBHeroTreasureChestRecruitDistance;
-    }
-    if (((DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit), UnitGetPosition(lp_treasureChest)) > lv_testDistance) || (libAIAI_gf_HeroAIIsHigherPriority(lp_trigPlayer, libAIAI_ge_HeroAIPriority_CustomMapLow) == false))) {
-        return false;
-    }
-
-    lv_allyEval = libAIAI_gf_HeroAIAllyEvalInCircle(lp_trigPlayer, UnitGetPosition(lp_treasureChest), libBBAY_gv_aIMMBBHeroFarFromTreasureChestDistance, true, false, false);
-    lv_enemyEval = libAIAI_gf_HeroAIEnemyEvalInCircle(lp_trigPlayer, UnitGetPosition(lp_treasureChest), libBBAY_gv_aIMMBBHeroFarFromTreasureChestDistance, true, false, false);
-    if ((lv_enemyEval > lv_allyEval)) {
-        return false;
-    }
-
-    return true;
-}
-
-bool libBBAY_gf_MMBBHeroAIShouldGiveUpOnTreasureChest (int lp_trigPlayer) {
-    // Variable Declarations
-    fixed lv_allyEval;
-    fixed lv_enemyEval;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if (((UnitIsValid(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == false) || (UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[lp_trigPlayer].lv_endOffensiveHealth))) {
-        return true;
-    }
-
-    lv_allyEval = libAIAI_gf_HeroAIAllyEvalInCircle(lp_trigPlayer, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libBBAY_gv_aIMMBBHeroTreasureChestRecruitDistance, true, false, false);
-    lv_enemyEval = libAIAI_gf_HeroAIEnemyEvalInCircle(lp_trigPlayer, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libBBAY_gv_aIMMBBHeroFarFromTreasureChestDistance, true, false, false);
-    if ((lv_enemyEval > (lv_allyEval + 100.0))) {
-        return true;
-    }
-
-    return false;
-}
-
-void libBBAY_gf_MMBBHeroAIChangeToState (int lp_trigPlayer, int lp_state, unit lp_target, int lp_priority) {
-    // Automatic Variable Declarations
-    // Implementation
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentState = (lp_state);
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateTrigger = libBBAY_gt_MMBlackheartsBayHeroAIStateLogic;
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = lp_target;
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority = lp_priority;
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_wantsToDoCustomMapLogic = true;
-    libAIAI_gf_HeroAIChangeState(lp_trigPlayer, libAIAI_ge_HeroAIStates_HSCustomMapState);
-}
-
-int libBBAY_gf_MMBBHeroAIPickUpDoubloon (int lp_trigPlayer) {
-    // Variable Declarations
-    order lv_heroOrder;
-    point lv_orderTargetPosition;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if ((libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hasFlyingMount == true) && (libAIAI_gf_HeroAIDismount(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIMapMechanicStackCountForHero(lp_trigPlayer) >= libAIAI_gv_aIHeroMapMechanicStackMaximum)) {
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((UnitIsValid(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == false)) {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = libBBAY_gf_MMBBHeroAISearchForNearbyDoubloon(lp_trigPlayer);
-        if ((UnitIsValid(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == true)) {
-            HeroAIUnitIssueOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, OrderTargetingPoint(AbilityCommand("move", 0), UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit)), c_orderQueueReplace);
-            return 8;
-        }
-        else {
-            libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-            return 8;
-        }
-    }
-    else {
-        if ((libAIAI_gf_HeroAINumberofEnemyHeroesNearLocation(lp_trigPlayer, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libBBAY_gv_aIMMBBHeroNearDoubloonDistance) == 0) && (libBBAY_gf_MMBBHeroAIIsHumanAllyPickingUpDoubloon(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == true)) {
-            HeroAIUnitIssueOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, Order(AbilityCommand("stop", 0)), c_orderQueueReplace);
-            libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-            return 8;
-        }
-
-    }
-    if ((UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth)) {
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    lv_heroOrder = UnitOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, 0);
-    lv_orderTargetPosition = OrderGetTargetPosition(lv_heroOrder);
-    if (((lv_heroOrder == null) || ((lv_orderTargetPosition != null) && (DistanceBetweenPoints(lv_orderTargetPosition, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit)) >= 1.0)))) {
-        HeroAIUnitIssueOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, OrderTargetingPoint(AbilityCommand("move", 0), UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit)), c_orderQueueReplace);
-    }
-
-    return 8;
-}
-
-int libBBAY_gf_MMBBHeroAITurnInDoubloons (int lp_trigPlayer) {
-    // Variable Declarations
-    int lv_pirateShipCost;
-    int lv_doubloonsTurnedIn;
-    point lv_ghostShipBeaconPosition;
-    region lv_areaAroundBeacon;
-    unitgroup lv_enemies;
-    unitgroup lv_enemyHeroes;
-    unitgroup lv_enemySummons;
-    unit lv_enemy;
-    order lv_heroOrder;
-
-    // Automatic Variable Declarations
-    unitgroup auto1371B197_g;
-    int auto1371B197_u;
-
-    // Variable Initialization
-    lv_enemies = UnitGroupEmpty();
-    lv_enemyHeroes = UnitGroupEmpty();
-    lv_enemySummons = UnitGroupEmpty();
-
-    // Implementation
-    if ((libBBAY_gf_MMBBHeroAIShouldGiveUpOnTurningInDoubloons(lp_trigPlayer) == true)) {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateNextConsiderTime = (TimerGetElapsed(libGame_gv_gameTimer) + libBBAY_gv_aIMMBBHeroTurnInDoubloonsInterruptedTimeout);
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_wantsToDoCustomMapLogic = false;
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((libGame_gv_players[lp_trigPlayer].lv_faction == libGame_ge_Faction_Order)) {
-        lv_pirateShipCost = libBBAY_gf_MMBBCannonballsPirateShipCost(libGame_gv_teamOrderIndex_C);
-        lv_doubloonsTurnedIn = libBBAY_gv_heroAIGhostShipStatus.lv_doubloonsTurnedIn[libGame_gv_teamOrderIndex_C];
-    }
-    else {
-        lv_pirateShipCost = libBBAY_gf_MMBBCannonballsPirateShipCost(libGame_gv_teamChaosIndex_C);
-        lv_doubloonsTurnedIn = libBBAY_gv_heroAIGhostShipStatus.lv_doubloonsTurnedIn[libGame_gv_teamChaosIndex_C];
-    }
-    if (((lv_doubloonsTurnedIn >= lv_pirateShipCost) || (libAIAI_gf_HeroAIMapMechanicStackCountForHero(lp_trigPlayer) == 0))) {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_wantsToDoCustomMapLogic = false;
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    lv_ghostShipBeaconPosition = UnitGetPosition(libBBAY_gv_heroAIGhostShipStatus.lv_beaconUnit);
-    if ((DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit), lv_ghostShipBeaconPosition) > libBBAY_gv_aIMMBBHeroCloseToGhostShipBeaconDistance)) {
-        if ((libAIAI_gf_HeroAIHarassInJungleLogic(lp_trigPlayer, true) == true)) {
-            return 8;
-        }
-
-    }
-    else {
-        lv_areaAroundBeacon = RegionCircle(lv_ghostShipBeaconPosition, libBBAY_gv_aIMMBBHeroCloseToGhostShipBeaconDistance);
-        lv_enemies = UnitGroupAlliance(lp_trigPlayer, c_unitAllianceEnemy, lv_areaAroundBeacon, UnitFilter(0, 0, (1 << c_targetFilterCreep) | (1 << c_targetFilterImmuneToSkillshots) | (1 << c_targetFilterMissile) | (1 << c_targetFilterItem), (1 << (c_targetFilterStasis - 32)) | (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterInvulnerable - 32))), 0);
-        lv_enemyHeroes = UnitGroupFilter(null, c_playerAny, lv_enemies, UnitFilter((1 << c_targetFilterHeroic), 0, 0, 0), 0);
-        lv_enemySummons = UnitGroupFilter(null, c_playerAny, lv_enemies, UnitFilter(0, (1 << (c_targetFilterSummoned - 32)), 0, 0), 0);
-        auto1371B197_g = lv_enemyHeroes;
-        auto1371B197_u = UnitGroupCount(auto1371B197_g, c_unitCountAll);
-        for (;; auto1371B197_u -= 1) {
-            lv_enemy = UnitGroupUnitFromEnd(auto1371B197_g, auto1371B197_u);
-            if (lv_enemy == null) { break; }
-            if ((libNtve_gf_UnitIsVisibleToPlayer(lv_enemy, lp_trigPlayer) == false)) {
-                UnitGroupRemove(lv_enemyHeroes, lv_enemy);
-            }
-
-        }
-        if (((UnitGroupCount(lv_enemyHeroes, c_unitCountAlive) > 0) || (UnitGroupCount(lv_enemySummons, c_unitCountAlive) > 0))) {
-            libBBAY_gf_MMBBHeroAIChangeToState(lp_trigPlayer, libBBAY_ge_MMBBHeroAIStates_MMBlackheartsBayTurnInDoubloonsDefend, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-            return 8;
-        }
-
-    }
-    libAIAI_gf_HeroAIIssueOrderToTurnInMapMechanicStack(lp_trigPlayer, libBBAY_gv_heroAIGhostShipStatus.lv_beaconUnit);
-    return 8;
-}
-
-int libBBAY_gf_MMBBHeroAITurnInDoubloonsDefend (int lp_trigPlayer) {
-    // Variable Declarations
-    point lv_ghostShipBeaconPosition;
-    order lv_heroOrder;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if ((libBBAY_gf_MMBBHeroAIShouldGiveUpOnTurningInDoubloons(lp_trigPlayer) == true)) {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateNextConsiderTime = (TimerGetElapsed(libGame_gv_gameTimer) + libBBAY_gv_aIMMBBHeroTurnInDoubloonsInterruptedTimeout);
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_wantsToDoCustomMapLogic = false;
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((libBBAY_gv_heroAIGhostShipStatus.lv_beaconStatus == libBBAY_ge_MMBBHeroAIGhostShipBeaconStatus_Closed)) {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_wantsToDoCustomMapLogic = false;
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    lv_ghostShipBeaconPosition = UnitGetPosition(libBBAY_gv_heroAIGhostShipStatus.lv_beaconUnit);
-    if ((DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit), lv_ghostShipBeaconPosition) > libBBAY_gv_aIMMBBHeroFarFromGhostShipBeaconDistance)) {
-        libBBAY_gf_MMBBHeroAIChangeToState(lp_trigPlayer, libBBAY_ge_MMBBHeroAIStates_MMBlackheartsBayTurnInDoubloons, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIPaceAroundLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, lv_ghostShipBeaconPosition, libBBAY_gv_aIMMBBHeroFarFromGhostShipBeaconDistance) == true)) {
-        return 8;
-    }
-
-    libBBAY_gf_MMBBHeroAIChangeToState(lp_trigPlayer, libBBAY_ge_MMBBHeroAIStates_MMBlackheartsBayTurnInDoubloons, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-    return 8;
-}
-
-int libBBAY_gf_MMBBHeroAITreasureChestMoveToChest (int lp_trigPlayer) {
-    // Variable Declarations
-    fixed lv_distanceToChest;
-    order lv_heroOrder;
-    point lv_orderTargetPosition;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if ((libBBAY_gf_MMBBHeroAIShouldGiveUpOnTreasureChest(lp_trigPlayer) == true)) {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = null;
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    lv_distanceToChest = DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lp_trigPlayer].lv_heroUnit), UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit));
-    if ((lv_distanceToChest > libBBAY_gv_aIMMBBHeroFarFromTreasureChestDistance)) {
-        if ((libAIAI_gf_HeroAIHarassInJungleLogic(lp_trigPlayer, true) == true)) {
-            return 8;
-        }
-
-    }
-    else {
-        if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libBBAY_gv_aIMMBBHeroCloseToTreasureChestDistance) == true)) {
-            libBBAY_gf_MMBBHeroAIChangeToState(lp_trigPlayer, libBBAY_ge_MMBBHeroAIStates_MMBlackheartsBayTreasureChestDefend, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-            return 8;
-        }
-
-    }
-    if ((lv_distanceToChest < libBBAY_gv_aIMMBBHeroStandNearTreasureChestDistance)) {
-        libBBAY_gf_MMBBHeroAIChangeToState(lp_trigPlayer, libBBAY_ge_MMBBHeroAIStates_MMBlackheartsBayTreasureChestAttackChest, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-        return 8;
-    }
-
-    lv_heroOrder = UnitOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, 0);
-    lv_orderTargetPosition = OrderGetTargetPosition(lv_heroOrder);
-    if (((lv_heroOrder == null) || ((lv_orderTargetPosition != null) && (DistanceBetweenPoints(lv_orderTargetPosition, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit)) >= libAIAI_gv_aIHeroCloseEnoughDist)))) {
-        HeroAIUnitIssueOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, OrderTargetingPoint(AbilityCommand("move", 0), UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit)), c_orderQueueReplace);
-    }
-
-    return 8;
-}
-
-int libBBAY_gf_MMBBHeroAITreasureChestAttackChest (int lp_trigPlayer) {
-    // Variable Declarations
-    order lv_heroOrder;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if ((libBBAY_gf_MMBBHeroAIShouldGiveUpOnTreasureChest(lp_trigPlayer) == true)) {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = null;
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libBBAY_gv_aIMMBBHeroCloseToTreasureChestDistance) == true)) {
-        libBBAY_gf_MMBBHeroAIChangeToState(lp_trigPlayer, libBBAY_ge_MMBBHeroAIStates_MMBlackheartsBayTreasureChestDefend, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hasFlyingMount == true) && (libAIAI_gf_HeroAIDismount(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    lv_heroOrder = UnitOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, 0);
-    if (((lv_heroOrder == null) || (OrderGetAbilityCommand(lv_heroOrder) != libAIAI_gv_aIHeroes[lp_trigPlayer].lv_attackAbility) || (OrderGetTargetUnit(lv_heroOrder) != libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit))) {
-        HeroAIUnitIssueOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, OrderTargetingUnit(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_attackAbility, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), c_orderQueueReplace);
-    }
-
-    return 8;
-}
-
-int libBBAY_gf_MMBBHeroAITreasureChestDefend (int lp_trigPlayer) {
-    // Automatic Variable Declarations
-    // Implementation
-    if ((libBBAY_gf_MMBBHeroAIShouldGiveUpOnTreasureChest(lp_trigPlayer) == true)) {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = null;
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIPaceAroundLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libBBAY_gv_aIMMBBHeroFarFromTreasureChestDistance) == true)) {
-        return 8;
-    }
-
-    libBBAY_gf_MMBBHeroAIChangeToState(lp_trigPlayer, libBBAY_ge_MMBBHeroAIStates_MMBlackheartsBayTreasureChestMoveToChest, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-    return 8;
 }
 
 trigger auto_libBBAY_gf_MMBBCannonballsTransmissionSpawningQ_Trigger = null;
@@ -1888,7 +1095,6 @@ bool libBBAY_gt_MMBBCannonballsInit_Func (bool testConds, bool runActions) {
     TriggerEnable(libBBAY_gt_MMBBCannonballsTreasureSpawnChests, true);
     TriggerEnable(libBBAY_gt_MMBBCannonballsTreasureChestAttacked, true);
     TriggerEnable(libBBAY_gt_MMBBCannonballsDoubloonDropped, true);
-    libAIAI_gv_heroAITeamMapLogicTrigger = libBBAY_gt_MMBBCannonballsHeroAITeamMapLogic;
     libGame_gf_SendMapSpecificAwardInitializeEventwithUserData(null, "Generic Instance");
     if ((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true)) {
         TriggerEnable(libBBAY_gt_MMBB_DebugTriggerBombard, true);
@@ -1897,7 +1103,6 @@ bool libBBAY_gt_MMBBCannonballsInit_Func (bool testConds, bool runActions) {
     }
 
     ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal MM1Off");
-    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_HeroAIFollowerNearbyMapObjective, libBBAY_gt_MMBBHeroAIFollowerShouldTurnInDoubloons);
     return true;
 }
 
@@ -1919,13 +1124,9 @@ bool libBBAY_gt_MMBBPingDataInit_Func (bool testConds, bool runActions) {
 
     libUIUI_gf_PingCreateNewPingTarget("SkeletalPirate", false, StringExternal("Param/Value/lib_BBAY_F5794C73"), StringExternal("Param/Value/lib_BBAY_98CA5C7B"), StringExternal("Param/Value/lib_BBAY_7869C103"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
     libUIUI_gf_PingSetHumanAISourceHeroVOForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libCore_ge_HeroVOEvents_PingAttackMercCamp, libCore_ge_HeroVOEvents_AIMercCapture);
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libUIUI_gt_PingCallbackPlayerPingsMercCamp);
     libUIUI_gf_PingCreateNewPingTarget("DocksPirateCaptain", false, null, StringExternal("Param/Value/lib_BBAY_D5F96755"), StringExternal("Param/Value/lib_BBAY_39CE66C0"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libBBAY_gt_MMBBPingCallbackPlayerPingsDoubloonTurnIn);
     libUIUI_gf_PingCreateNewPingTarget("GhostShipBeacon", false, StringExternal("Param/Value/lib_BBAY_E96AAF2C"), StringExternal("Param/Value/lib_BBAY_C4389169"), StringExternal("Param/Value/lib_BBAY_28E15DC2"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libBBAY_gt_MMBBPingCallbackPlayerPingsDoubloonTurnIn);
     libUIUI_gf_PingCreateNewPingTarget("DocksTreasureChest", false, StringExternal("Param/Value/lib_BBAY_50ADFB20"), StringExternal("Param/Value/lib_BBAY_79D4F467"), StringExternal("Param/Value/lib_BBAY_94CF5DC1"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libBBAY_gt_MMBBPingCallbackPlayerPingsTreasureChest);
     return true;
 }
 
@@ -1992,7 +1193,6 @@ bool libBBAY_gt_MMBBCannonballsHeroMapMechanicStatusSetup_Func (bool testConds, 
 
     TriggerEnable(TriggerGetCurrent(), false);
     lv_tooltip = StringExternal("Param/Value/lib_BBAY_C73DD94D");
-    libUIUI_gf_UITargetInfoPanelSetUpMapMechanicInfo("@UI/HUD_Icon_TeamMapMechanic_Doubloon_Small", lv_tooltip);
     return true;
 }
 
@@ -2096,6 +1296,33 @@ void libBBAY_gt_MMBBCannonballsHeroRespawns_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonball Created
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballCreated_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(EventUnit()) == "ItemCannonball"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    AIAddCollectable(EventUnit());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballCreated_Init () {
+    libBBAY_gt_MMBBCannonballCreated = TriggerCreate("libBBAY_gt_MMBBCannonballCreated_Func");
+    TriggerAddEventUnitRegion(libBBAY_gt_MMBBCannonballCreated, null, RegionPlayableMap(), true);
+}
+
+//--------------------------------------------------------------------------------------------------
 // Trigger: MMBB Cannonballs Gates Are Open Complete
 //--------------------------------------------------------------------------------------------------
 bool libBBAY_gt_MMBBCannonballsGatesAreOpenComplete_Func (bool testConds, bool runActions) {
@@ -2159,6 +1386,7 @@ bool libBBAY_gt_MMBBCannonballsEventStart_Func (bool testConds, bool runActions)
     Wait(4.0, c_timeGame);
     UnitCreate(1, "DocksPirateCaptain", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Neutral, PointWithOffset(libBBAY_gv_mMBBCannonballsGhostShipBeaconLoc, -0.85, 1.0), PointGetFacing(libBBAY_gv_mMBBCannonballsGhostShipBeaconLoc));
     libBBAY_gv_mMBBCannonballsGhostShipCaptain = UnitLastCreated();
+    libBBAY_gf_MMBBEnableDisableBlackheartInteractGoals(true, UnitLastCreated());
     Wait(1.0, c_timeGame);
     UnitCreate(1, "GhostShipBeacon", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Neutral, PointWithOffset(libBBAY_gv_mMBBCannonballsGhostShipBeaconLoc, 0.75, -0.25), PointGetFacing(libBBAY_gv_mMBBCannonballsGhostShipBeaconLoc));
     libBBAY_gv_mMBBCannonballsGhostShipBeacon = UnitLastCreated();
@@ -2168,7 +1396,6 @@ bool libBBAY_gt_MMBBCannonballsEventStart_Func (bool testConds, bool runActions)
     ActorCreate(ActorScopeFromUnit(libBBAY_gv_mMBBCannonballsGhostShip), "UI_Game_Ping_GhostShip_Ready", null, null, null);
     libBBAY_gv_mMBBCannonballsGhostShipPlayerDetectorRegion = RegionCircle(UnitGetPosition(libBBAY_gv_mMBBCannonballsGhostShipBeacon), 10.0);
     TriggerExecute(libBBAY_gt_MMBBCannonballsObjectiveUIHandler, true, false);
-    libBBAY_gf_MMBBHeroAIGhostShipShowsUp(libBBAY_gv_mMBBCannonballsGhostShipBeacon);
     Wait(2.0, c_timeGame);
     libUIUI_gf_AttachHelpButtonToUnit(libBBAY_gv_mMBBCannonballsGhostShipBeacon, libMapM_gt_MMHelpbuttonClicked, StringExternal("Param/Value/lib_BBAY_77B41D1D"), 70, 275);
     auto4072345A_g = libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer];
@@ -2238,6 +1465,7 @@ bool libBBAY_gt_MMBBCannonballsHeroPickup_Func (bool testConds, bool runActions)
     libBBAY_gf_MMBBCannonballsSetHeroCannonballsCount(lv_collectingPlayer, lv_collectingUnit, lv_newDoubloonCount);
     libBBAY_gv_mMBBDoubloonsCollected[lv_collectingPlayer] = lv_newDoubloonCount;
     libBBAY_gf_MMBBUpdateHeldDoubloonDisplay();
+    libUIUI_gf_CreateMapMechanicPickupTextTag(lv_collectingUnit, TextExpressionAssemble("Param/Expression/lib_BBAY_366504B6"));
     return true;
 }
 
@@ -2288,7 +1516,6 @@ bool libBBAY_gt_MMBBCannonballsBallsHandedIn_Func (bool testConds, bool runActio
 
     lv_cannonballsHandedIn = MinI(libBBAY_gf_MMBBCannonballsHeroCannonballsCount(lv_handInPlayer, lv_handInHeroUnit), (libBBAY_gf_MMBBCannonballsPirateShipCost(lv_handInTeam) - libBBAY_gv_mMBBCannonballsBallsSubmitted[lv_handInTeam]));
     libGame_gf_SendMapSpecificAwardEvent(lv_handInPlayer, lv_cannonballsHandedIn, true);
-    libBBAY_gf_MMBBHeroAIDoubloonsTurnedIn(lv_handInPlayer, lv_cannonballsHandedIn);
     libBBAY_gv_mMBBDoubloonsTurnedIn[lv_handInPlayer] += lv_cannonballsHandedIn;
     if ((libGame_gv_players[lv_handInPlayer].lv_activeVehicle == lv_handInHeroUnit)) {
         UnitBehaviorRemove(libGame_gv_players[lv_handInPlayer].lv_heroUnit, "MapMechanicStack", lv_cannonballsHandedIn);
@@ -2602,8 +1829,8 @@ bool libBBAY_gt_MMBBCannonballsTreasureSpawnChests_Func (bool testConds, bool ru
     for ( ; lv_iter <= auto82DD6336_ae ; lv_iter += 1 ) {
         libNtve_gf_CreateUnitsAtPoint2(1, "DocksTreasureChest", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Hostile, libBBAY_gv_mMBBCannonballsGhostChestLocations[lv_iter]);
         libBBAY_gv_mMBBCannonballsTreasureChestChests[lv_iter] = UnitLastCreated();
+        AddUnitOfInterest(UnitLastCreated(), 0.0, 0.0, "KillTreasureChest", libNtve_ge_GoalTeam_Both, 0);
         ActorCreate(ActorScopeFromUnit(libBBAY_gv_mMBBCannonballsTreasureChestChests[lv_iter]), "UI_Game_Ping_TreasureSpawn", null, null, null);
-        libBBAY_gf_MMBBHeroAITreasureChestsSpawns(UnitLastCreated());
         auto89875EA4_g = libCore_gv_allHeroPlayersPlusObserver;
         lv_p = -1;
         while (true) {
@@ -3025,153 +2252,6 @@ void libBBAY_gt_MMBBCannonballsGameOver_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: MMBB Cannonballs - HeroAI - Team Map Logic
-//--------------------------------------------------------------------------------------------------
-bool libBBAY_gt_MMBBCannonballsHeroAITeamMapLogic_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libBBAY_gf_MMBBHeroAIPickUpDoubloonsLogic(libAIAI_gv_heroAITeamMapLogicFaction);
-    libBBAY_gf_MMBBHeroAITurnInDoubloonsLogic(libAIAI_gv_heroAITeamMapLogicFaction);
-    libBBAY_gf_MMBBHeroAIAttackTreasureChestLogic(libAIAI_gv_heroAITeamMapLogicFaction);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libBBAY_gt_MMBBCannonballsHeroAITeamMapLogic_Init () {
-    libBBAY_gt_MMBBCannonballsHeroAITeamMapLogic = TriggerCreate("libBBAY_gt_MMBBCannonballsHeroAITeamMapLogic_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMBlackheart'sBay - HeroAI - State Logic
-//--------------------------------------------------------------------------------------------------
-bool libBBAY_gt_MMBlackheartsBayHeroAIStateLogic_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    int autoC803FD15_val;
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    autoC803FD15_val = libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSMapStateCurrentState;
-    if (autoC803FD15_val == libBBAY_ge_MMBBHeroAIStates_MMBlackheartsBayPickUpDoubloon) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libBBAY_gf_MMBBHeroAIPickUpDoubloon(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else if (autoC803FD15_val == libBBAY_ge_MMBBHeroAIStates_MMBlackheartsBayTreasureChestAttackChest) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libBBAY_gf_MMBBHeroAITreasureChestAttackChest(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else if (autoC803FD15_val == libBBAY_ge_MMBBHeroAIStates_MMBlackheartsBayTreasureChestDefend) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libBBAY_gf_MMBBHeroAITreasureChestDefend(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else if (autoC803FD15_val == libBBAY_ge_MMBBHeroAIStates_MMBlackheartsBayTreasureChestMoveToChest) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libBBAY_gf_MMBBHeroAITreasureChestMoveToChest(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else if (autoC803FD15_val == libBBAY_ge_MMBBHeroAIStates_MMBlackheartsBayTurnInDoubloons) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libBBAY_gf_MMBBHeroAITurnInDoubloons(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else if (autoC803FD15_val == libBBAY_ge_MMBBHeroAIStates_MMBlackheartsBayTurnInDoubloonsDefend) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libBBAY_gf_MMBBHeroAITurnInDoubloonsDefend(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else {
-    }
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libBBAY_gt_MMBlackheartsBayHeroAIStateLogic_Init () {
-    libBBAY_gt_MMBlackheartsBayHeroAIStateLogic = TriggerCreate("libBBAY_gt_MMBlackheartsBayHeroAIStateLogic_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMBB - HeroAI - Ghost Ship Shooting Ends
-//--------------------------------------------------------------------------------------------------
-bool libBBAY_gt_MMBBHeroAIGhostShipShootingEnds_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libBBAY_gv_heroAIGhostShipStatus.lv_beaconStatus = libBBAY_ge_MMBBHeroAIGhostShipBeaconStatus_Open;
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libBBAY_gt_MMBBHeroAIGhostShipShootingEnds_Init () {
-    libBBAY_gt_MMBBHeroAIGhostShipShootingEnds = TriggerCreate("libBBAY_gt_MMBBHeroAIGhostShipShootingEnds_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMBB - HeroAI - Follower Should Turn In Doubloons
-//--------------------------------------------------------------------------------------------------
-bool libBBAY_gt_MMBBHeroAIFollowerShouldTurnInDoubloons_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    if (((libBBAY_gv_heroAIGhostShipStatus.lv_beaconStatus == libBBAY_ge_MMBBHeroAIGhostShipBeaconStatus_Closed) || (libAIAI_gf_HeroAIMapMechanicStackCountForHero(libCore_gv_segTriggerPlayer) == 0) || (DistanceBetweenPoints(UnitGetPosition(libAIAI_gf_HeroAIGetUnitToFollow(libCore_gv_segTriggerPlayer)), UnitGetPosition(libBBAY_gv_heroAIGhostShipStatus.lv_beaconUnit)) >= libAIAI_gv_aIHeroFollowerNearbyDistance) || (UnitOrder(libGame_gv_players[libCore_gv_segTriggerPlayer].lv_heroUnit, 0) != null))) {
-        return false;
-    }
-
-    libAIAI_gf_HeroAILeaveCurrentObjective(libCore_gv_segTriggerPlayer);
-    libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_wantsToDoCustomMapLogic = true;
-    libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_currentLane = 0;
-    libBBAY_gf_MMBBHeroAIChangeToState(libCore_gv_segTriggerPlayer, libBBAY_ge_MMBBHeroAIStates_MMBlackheartsBayTurnInDoubloons, libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_hSMapStateCurrentTargetUnit, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-    libAIAI_gv_heroAIFollowerNearbyMapObjectiveFound = true;
-    return true;
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libBBAY_gt_MMBBHeroAIFollowerShouldTurnInDoubloons_Init () {
-    libBBAY_gt_MMBBHeroAIFollowerShouldTurnInDoubloons = TriggerCreate("libBBAY_gt_MMBBHeroAIFollowerShouldTurnInDoubloons_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMBB Ping Callback Player Pings Doubloon Turn In
-//--------------------------------------------------------------------------------------------------
-bool libBBAY_gt_MMBBPingCallbackPlayerPingsDoubloonTurnIn_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libBBAY_gf_MMBBHeroAIGhostShipBeaconPinged(libUIUI_gv_ping_PingCallbackPingingPlayer);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libBBAY_gt_MMBBPingCallbackPlayerPingsDoubloonTurnIn_Init () {
-    libBBAY_gt_MMBBPingCallbackPlayerPingsDoubloonTurnIn = TriggerCreate("libBBAY_gt_MMBBPingCallbackPlayerPingsDoubloonTurnIn_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMBB Ping Callback Player Pings Treasure Chest
-//--------------------------------------------------------------------------------------------------
-bool libBBAY_gt_MMBBPingCallbackPlayerPingsTreasureChest_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libBBAY_gf_MMBBHeroAITreasureChestPinged(libUIUI_gv_ping_PingCallbackPingingPlayer, libUIUI_gv_ping_PingCallbackTargetUnit);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libBBAY_gt_MMBBPingCallbackPlayerPingsTreasureChest_Init () {
-    libBBAY_gt_MMBBPingCallbackPlayerPingsTreasureChest = TriggerCreate("libBBAY_gt_MMBBPingCallbackPlayerPingsTreasureChest_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
 // Trigger: MMBB_Debug Cannonballs DisableEvent
 //--------------------------------------------------------------------------------------------------
 bool libBBAY_gt_MMBB_DebugCannonballsDisableEvent_Func (bool testConds, bool runActions) {
@@ -3283,6 +2363,7 @@ void libBBAY_InitTriggers () {
     libBBAY_gt_MMBBCannonballsHeroMapMechanicStatusSetup_Init();
     libBBAY_gt_MMBBCannonballsHeroDies_Init();
     libBBAY_gt_MMBBCannonballsHeroRespawns_Init();
+    libBBAY_gt_MMBBCannonballCreated_Init();
     libBBAY_gt_MMBBCannonballsGatesAreOpenComplete_Init();
     libBBAY_gt_MMBBCannonballsEventStart_Init();
     libBBAY_gt_MMBBCannonballsHeroPickup_Init();
@@ -3303,12 +2384,6 @@ void libBBAY_InitTriggers () {
     libBBAY_gt_MMBBCannonballsShootingStart_Init();
     libBBAY_gt_MMBBCannonballsShootingEnd_Init();
     libBBAY_gt_MMBBCannonballsGameOver_Init();
-    libBBAY_gt_MMBBCannonballsHeroAITeamMapLogic_Init();
-    libBBAY_gt_MMBlackheartsBayHeroAIStateLogic_Init();
-    libBBAY_gt_MMBBHeroAIGhostShipShootingEnds_Init();
-    libBBAY_gt_MMBBHeroAIFollowerShouldTurnInDoubloons_Init();
-    libBBAY_gt_MMBBPingCallbackPlayerPingsDoubloonTurnIn_Init();
-    libBBAY_gt_MMBBPingCallbackPlayerPingsTreasureChest_Init();
     libBBAY_gt_MMBB_DebugCannonballsDisableEvent_Init();
     libBBAY_gt_MMBB_DebugCannonballsEventStart_Init();
     libBBAY_gt_MMBB_DebugTriggerBombard_Init();

@@ -51,6 +51,8 @@ void libMSC2_InitVariables () {
     libMSC2_gv_mMSC2WarheadEventFirstTime = true;
     libMSC2_gv_mMSC2WarheadPickupReminderDelay_C = 20.0;
     libMSC2_gv_mMSC2BuiltWarheadReminderTimer = TimerCreate();
+    libMSC2_gv_mMSC2ObjectivePreviewTimer = TimerCreate();
+    libMSC2_gv_mMSC2ObjectivePreviewDelay_C = 30.0;
     libMSC2_gv_mMSC2NukeDamageScalingTimer = TimerCreate();
     libMSC2_gv_mMSC2DroppedWarheadReminderTimer = TimerCreate();
     libMSC2_gv_mMSC2DroppedWarheadsGroup = UnitGroupEmpty();
@@ -200,6 +202,7 @@ void libMSC2_gf_MMSC2WarningStarts (int lp_specialLane) {
     // Variable Initialization
 
     // Implementation
+    libMSC2_gf_MMSC2ClearCanisterSpawningSignals();
     SoundPlayForPlayer(SoundLink("UI_Game_Ping_Warhead_Nukes_Warning", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
     libSond_gf_SoundtrackApplyNewDefaultSoundtrackForPlayerGroup("MX_WarheadJunction_EventSpawning", libCore_gv_allHeroPlayersPlusObserver);
     autoF2A0A299_ae = libGame_gv_laneCount;
@@ -219,6 +222,42 @@ void libMSC2_gf_MMSC2WarningStarts (int lp_specialLane) {
             libMSC2_gf_MMSC2CanisterPlaformPlayBirthAnimations(libMSC2_gv_mMSC2WarheadData[lv_itLane].lv_middleCanisterDoodad);
         }
     }
+}
+
+void libMSC2_gf_MMSC2SetupandStartPreview (int lp_specialLane) {
+    // Variable Declarations
+    int lv_itLane;
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    int auto16C266E2_ae;
+    const int auto16C266E2_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    auto16C266E2_ae = libGame_gv_laneCount;
+    lv_itLane = 1;
+    for ( ; ( (auto16C266E2_ai >= 0 && lv_itLane <= auto16C266E2_ae) || (auto16C266E2_ai < 0 && lv_itLane >= auto16C266E2_ae) ) ; lv_itLane += auto16C266E2_ai ) {
+        if ((lv_itLane == lp_specialLane)) {
+            if ((libMSC2_gv_mMSC2FourWarheadsSpawn == true)) {
+                libMSC2_gf_MMSC2CreateCanisterPreview(libMSC2_gv_mMSC2WarheadData[lv_itLane].lv_leftCanisterPoint);
+                libMSC2_gf_MMSC2CreateCanisterPreview(libMSC2_gv_mMSC2WarheadData[lv_itLane].lv_rightCanisterPoint);
+            }
+
+        }
+        else {
+            libMSC2_gf_MMSC2CreateCanisterPreview(libMSC2_gv_mMSC2WarheadData[lv_itLane].lv_middleCanisterPoint);
+        }
+    }
+}
+
+void libMSC2_gf_MMSC2CreateCanisterPreview (point lp_location) {
+    // Automatic Variable Declarations
+    // Implementation
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, "NukeTargetMinimapPreviewIconUnit", 0, 0, lp_location);
+    libMSC2_gv_mMSC2BuiltWarheadsWarningEffectCount += 1;
+    libMSC2_gv_mMSC2BuiltWarheadsPreviewUnits[libMSC2_gv_mMSC2BuiltWarheadsWarningEffectCount] = UnitLastCreated();
 }
 
 void libMSC2_gf_MMSC2CreateCanisterSpawningSignal (point lp_location) {
@@ -277,6 +316,29 @@ void libMSC2_gf_MMSC2ClearCanisterSpawningSignals () {
 
     }
     libMSC2_gv_mMSC2BuiltWarheadsWarningEffectCount = 0;
+}
+
+void libMSC2_gf_MMSC2ClearWarheadPreviews () {
+    // Variable Declarations
+    int lv_itIndex;
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    int auto1367A629_ae;
+    const int auto1367A629_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    auto1367A629_ae = libMSC2_gv_mMSC2BuiltWarheadsWarningEffectCount;
+    lv_itIndex = 1;
+    for ( ; ( (auto1367A629_ai >= 0 && lv_itIndex <= auto1367A629_ae) || (auto1367A629_ai < 0 && lv_itIndex >= auto1367A629_ae) ) ; lv_itIndex += auto1367A629_ai ) {
+        if ((libMSC2_gv_mMSC2BuiltWarheadsPreviewUnits[lv_itIndex] != null)) {
+            UnitKill(libMSC2_gv_mMSC2BuiltWarheadsPreviewUnits[lv_itIndex]);
+            libMSC2_gv_mMSC2BuiltWarheadsPreviewUnits[lv_itIndex] = null;
+        }
+
+    }
 }
 
 void libMSC2_gf_MMSC2SpawnNukeCanisters (int lp_specialSpawnLane) {
@@ -1476,12 +1538,7 @@ void libMSC2_gt_MMSC2GatesOpened_Init () {
 // Trigger: MMSC2 Main Thread
 //--------------------------------------------------------------------------------------------------
 bool libMSC2_gt_MMSC2MainThread_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    int lv_specialSpawnLane;
-
     // Automatic Variable Declarations
-    // Variable Initialization
-
     // Conditions
     if (testConds) {
         if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
@@ -1494,23 +1551,25 @@ bool libMSC2_gt_MMSC2MainThread_Func (bool testConds, bool runActions) {
         return true;
     }
 
+    libMSC2_gv_mMSC2SpecialSpawnLane = libMSC2_gf_MMSC2DetermineDoubleWarheadSpawnLane();
+    TimerStart(libMSC2_gv_mMSC2ObjectivePreviewTimer, libMSC2_gv_mMSC2ObjectivePreviewDelay_C, false, c_timeGame);
     TriggerEnable(TriggerGetCurrent(), false);
     libNtve_gf_WaitForTimer(libMSC2_gv_mMSC2TerrazineMainEventTimer, libMSC2_gv_mMSC2EventWarningDelayGasCanister_C, false);
     TriggerExecute(libMSC2_gt_MMSC2UIHandler, true, false);
     while (true) {
         libMSC2_gv_mMSC2EventState = libMSC2_ge_MMSC2EventStates_CanisterWarning;
         libMSC2_gf_MMSC2TransmissionWarheadSpawnWarningQ();
-        lv_specialSpawnLane = libMSC2_gf_MMSC2DetermineDoubleWarheadSpawnLane();
-        libMSC2_gf_MMSC2WarningStarts(lv_specialSpawnLane);
+        libMSC2_gf_MMSC2WarningStarts(libMSC2_gv_mMSC2SpecialSpawnLane);
         libNtve_gf_WaitForTimer(libMSC2_gv_mMSC2TerrazineMainEventTimer, 0.0, false);
+        libMSC2_gf_MMSC2ClearWarheadPreviews();
         libMSC2_gf_MMSC2ClearCanisterSpawningSignals();
         libMSC2_gv_mMSC2EventState = libMSC2_ge_MMSC2EventStates_NukesActive;
-        libMSC2_gf_MMSC2SpawnNukeCanisters(lv_specialSpawnLane);
+        libMSC2_gf_MMSC2SpawnNukeCanisters(libMSC2_gv_mMSC2SpecialSpawnLane);
         if ((libMSC2_gv_mMSC2FourWarheadsSpawn == true)) {
-            libMSC2_gv_mMSC2LastDoubleWarheadLane = lv_specialSpawnLane;
+            libMSC2_gv_mMSC2LastDoubleWarheadLane = libMSC2_gv_mMSC2SpecialSpawnLane;
         }
         else {
-            libMSC2_gv_mMSC2LastEmptyWarheadLane = lv_specialSpawnLane;
+            libMSC2_gv_mMSC2LastEmptyWarheadLane = libMSC2_gv_mMSC2SpecialSpawnLane;
         }
         libMSC2_gv_mMSC2WarheadEventFirstTime = false;
         libMSC2_gf_MMSC2TransmissionWarheadsSpawnedQ();
@@ -1520,6 +1579,8 @@ bool libMSC2_gt_MMSC2MainThread_Func (bool testConds, bool runActions) {
         TimerStart(libMSC2_gv_mMSC2TerrazineMainEventTimer, (libMSC2_gv_mMSC2RepeatEventDelay_C + libMSC2_gv_mMSC2EventWarningDelayGasCanister_C + libMSC2_gv_mMSC2NukeExpireDuration_C), false, c_timeGame);
         libMSC2_gv_mMSC2FourWarheadsSpawn = !(libMSC2_gv_mMSC2FourWarheadsSpawn);
         libMSC2_gv_mMSC2EventState = libMSC2_ge_MMSC2EventStates_NoEvent;
+        libMSC2_gv_mMSC2SpecialSpawnLane = libMSC2_gf_MMSC2DetermineDoubleWarheadSpawnLane();
+        TimerStart(libMSC2_gv_mMSC2ObjectivePreviewTimer, libMSC2_gv_mMSC2ObjectivePreviewDelay_C, false, c_timeGame);
         libNtve_gf_WaitForTimer(libMSC2_gv_mMSC2TerrazineMainEventTimer, libMSC2_gv_mMSC2EventWarningDelayGasCanister_C, false);
     }
     return true;
@@ -1528,6 +1589,26 @@ bool libMSC2_gt_MMSC2MainThread_Func (bool testConds, bool runActions) {
 //--------------------------------------------------------------------------------------------------
 void libMSC2_gt_MMSC2MainThread_Init () {
     libMSC2_gt_MMSC2MainThread = TriggerCreate("libMSC2_gt_MMSC2MainThread_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMSC2 - Objective Preview Timer Expires
+//--------------------------------------------------------------------------------------------------
+bool libMSC2_gt_MMSC2ObjectivePreviewTimerExpires_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libMSC2_gf_MMSC2SetupandStartPreview(libMSC2_gv_mMSC2SpecialSpawnLane);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMSC2_gt_MMSC2ObjectivePreviewTimerExpires_Init () {
+    libMSC2_gt_MMSC2ObjectivePreviewTimerExpires = TriggerCreate("libMSC2_gt_MMSC2ObjectivePreviewTimerExpires_Func");
+    TriggerAddEventTimer(libMSC2_gt_MMSC2ObjectivePreviewTimerExpires, libMSC2_gv_mMSC2ObjectivePreviewTimer);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -2566,6 +2647,7 @@ void libMSC2_InitTriggers () {
     libMSC2_gt_MMSC2InitializePingData_Init();
     libMSC2_gt_MMSC2GatesOpened_Init();
     libMSC2_gt_MMSC2MainThread_Init();
+    libMSC2_gt_MMSC2ObjectivePreviewTimerExpires_Init();
     libMSC2_gt_MMSC2BuiltWarheadReminderTimerExpires_Init();
     libMSC2_gt_MMSC2NukeDamageScaling_Init();
     libMSC2_gt_MMSC2BuiltWarheadChannelStarted_Init();

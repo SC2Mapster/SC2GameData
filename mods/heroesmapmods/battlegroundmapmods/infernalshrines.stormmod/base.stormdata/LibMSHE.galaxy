@@ -59,6 +59,8 @@ void libMSHE_InitVariables () {
     libMSHE_gv_mMISNumberofShrinesAllowed = 3;
     libMSHE_gv_mMISShrineGroup = PlayerGroupEmpty();
     libMSHE_gv_mMISParalyzeStorage = UnitGroupEmpty();
+    libMSHE_gv_mMISObjectivePreviewTimer = TimerCreate();
+    libMSHE_gv_mMISObjectivePreviewDelay_C = 30.0;
     libMSHE_gv_mMISShrineReminderDelay_C = 20;
     libMSHE_gv_mMISShrineReminderTimer = TimerCreate();
     libMSHE_gv_mMISShrineNotificationDelay_C = 44;
@@ -151,6 +153,38 @@ void libMSHE_gf_MMISTextTagScoreHandler (int lp_enemyTeam, int lp_team, unit lp_
     }
 }
 
+void libMSHE_gf_MMISRandomizeNextShrineandShowPreview () {
+    // Automatic Variable Declarations
+    int autoED96EF13_val;
+
+    // Implementation
+    if ((libMSHE_gv_mMISNumberOfShrinesEvents == 0)) {
+        libMSHE_gv_mMISCurrentShrine = RandomInt(1, libMSHE_gv_mMISNumberofShrinesAllowed);
+        libMSHE_gv_mMISBuffIndex = libMSHE_gf_MMISGetWhichShrine();
+    }
+    else {
+        while (((libMSHE_gv_mMISLastShrineCounter < 15) && ((libMSHE_gv_mMISCurrentShrine == libMSHE_gv_mMISLastShrine) || (libMSHE_gv_mMISBuffIndex == libMSHE_gv_mMISLastBuff)))) {
+            libMSHE_gv_mMISLastShrineCounter += 1;
+            libMSHE_gv_mMISCurrentShrine = RandomInt(1, libMSHE_gv_mMISNumberofShrinesAllowed);
+            libMSHE_gv_mMISBuffIndex = libMSHE_gf_MMISGetWhichShrine();
+        }
+    }
+    libNtve_gf_SendActorMessageToUnit(libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine], "SetMinimapVisibility 1");
+    libNtve_gf_SendActorMessageToUnit(libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine], "SetMinimapVisibilityAlways 1");
+    autoED96EF13_val = libMSHE_gv_mMISBuffIndex;
+    if (autoED96EF13_val == 1) {
+        libNtve_gf_SendActorMessageToUnit(libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine], "MinimapTooltip DOCSTR_InactiveFrozenShrine");
+    }
+    else if (autoED96EF13_val == 2) {
+        libNtve_gf_SendActorMessageToUnit(libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine], "MinimapTooltip DOCSTR_InactiveMortarShrine");
+    }
+    else if (autoED96EF13_val == 3) {
+        libNtve_gf_SendActorMessageToUnit(libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine], "MinimapTooltip DOCSTR_InactiveArcaneShrine");
+    }
+    else {
+    }
+}
+
 int libMSHE_gf_MMISGetWhichShrine () {
     // Variable Declarations
     int lv_itShrine;
@@ -213,7 +247,6 @@ void libMSHE_gf_MMISActivateShrine (int lp_shrine) {
         if (autoE5CA2A3B_var == null) { break; }
         lv_shrineIconUnit = autoE5CA2A3B_var;
         UnitSetOwner(autoE5CA2A3B_var, 0, true);
-        ActorSend(libNtve_gf_MainActorofUnit(libMSHE_gv_mMISShrines[lp_shrine]), "MinimapIcon Assets\\Textures\\storm_ui_minimapicon_shrine_active.dds");
     }
     UnitBehaviorAdd(libMSHE_gv_mMISShrines[lp_shrine], libMSHE_gv_mMISBuff, libMSHE_gv_mMISShrines[lp_shrine], 1);
     UnitBehaviorAdd(libMSHE_gv_mMISShrines[lp_shrine], "MacguffinActivated", libMSHE_gv_mMISShrines[lp_shrine], 1);
@@ -221,6 +254,7 @@ void libMSHE_gf_MMISActivateShrine (int lp_shrine) {
     UnitSetState(libMSHE_gv_mMISShrines[lp_shrine], c_unitStateTargetable, true);
     UnitGroupAdd(libMSHE_gv_mMISActiveShrines, libMSHE_gv_mMISShrines[lp_shrine]);
     libNtve_gf_SendActorMessageToUnit(libMSHE_gv_mMISShrines[lp_shrine], "Signal Event");
+    libNtve_gf_SendActorMessageToUnit(libMSHE_gv_mMISShrines[lp_shrine], "MinimapIconTintColor 255,217,186,123");
     auto318ED688_val = libMSHE_gv_mMISBuff;
     if (auto318ED688_val == "ArcaneShrine") {
         ActorSend(libNtve_gf_MainActorofUnit(libMSHE_gv_mMISShrines[lp_shrine]), "Signal Arcane");
@@ -370,9 +404,9 @@ bool auto_libMSHE_gf_MMISGrantShrineRewardToTeam_TriggerFunc (bool testConds, bo
         if (autoF717E312_var == null) { break; }
         UnitAbilityEnable(autoF717E312_var, "CursedShrineSpawn", false);
     }
-    ActorSend(libNtve_gf_MainActorofUnit(lp_shrine), "MinimapIcon Assets\\Textures\\storm_ui_minimapicon_shrine_inactive.dds");
-    ActorSend(libNtve_gf_MainActorofUnit(lp_shrine), "MinimapIconTintColor 255,217,186,123");
-    libNtve_gf_SendActorMessageToUnit(lp_shrine, "MinimapTooltip DOCSTR_InactiveShrine");
+    ActorSend(libNtve_gf_MainActorofUnit(lp_shrine), "MinimapIconTintColor 255,145,113,218");
+    ActorSend(libNtve_gf_MainActorofUnit(lp_shrine), "SetMinimapVisibility");
+    ActorSend(libNtve_gf_MainActorofUnit(lp_shrine), "SetMinimapVisibilityAlways");
     TimerStart(libMSHE_gv_mMISPunisherSpawnTimer, 3.7, false, c_timeGame);
     if ((lp_team == libGame_gv_teamOrderIndex_C)) {
         libNtve_gf_SendActorMessageToUnit(lp_shrine, "Signal OpenRight");
@@ -569,21 +603,26 @@ void libMSHE_gf_MMISSpawnShrineMonster (int lp_affix, int lp_team) {
         UnitCreate(1, "MercPunisherLaner", 0, libGame_gf_ComputerPlayerInTeam(lp_team), PointWithOffset(UnitGetPosition(libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine]), -1.826, -5.018), -110.0);
     }
     UnitXPAddXP(UnitLastCreated(), null, libMSHE_gv_mMISMonsterXP);
+    AddUnitOfInterest(UnitLastCreated(), 15.0, 0.0, "EscortPunisher", libAIAI_gf_ConvertIntegertoGoalTeam(lp_team), 0);
+    AddUnitOfInterest(UnitLastCreated(), 15.0, 0.0, "KillEnemyPunisher", libAIAI_gf_ConvertIntegertoGoalTeam(libGame_gf_EnemyTeam(lp_team)), 0);
     auto22777E7A_val = lp_affix;
     if (auto22777E7A_val == libMSHE_ge_MMISShrineTypes_FrozenShrine) {
         UnitBehaviorAdd(UnitLastCreated(), "DiabloFrozen", UnitLastCreated(), 1);
         libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "ModelSwap MercPunisherLanerFrozen");
         libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "MinimapTooltip DOCSTR_FrozenPunisher");
+        libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "SetGroupIcon 0 Assets\\Textures\\Storm_UI_InGame_TargetInfoPanel_Unit_InfernalShrines_Boss_Punisher_Frozen.dds");
     }
     else if (auto22777E7A_val == libMSHE_ge_MMISShrineTypes_ArcaneShrine) {
         UnitBehaviorAdd(UnitLastCreated(), "DiabloArcane", UnitLastCreated(), 1);
         libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "ModelSwap MercPunisherLanerArcane");
         libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "MinimapTooltip DOCSTR_ArcanePunisher");
+        libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "SetGroupIcon 0 Assets\\Textures\\Storm_UI_InGame_TargetInfoPanel_Unit_InfernalShrines_Boss_Punisher_Arcane.dds");
     }
     else if (auto22777E7A_val == libMSHE_ge_MMISShrineTypes_BombardShrine) {
         UnitBehaviorAdd(UnitLastCreated(), "DiabloMortar", UnitLastCreated(), 1);
         libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "ModelSwap MercPunisherLanerMortar");
         libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "MinimapTooltip DOCSTR_MortarPunisher");
+        libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "SetGroupIcon 0 Assets\\Textures\\Storm_UI_InGame_TargetInfoPanel_Unit_InfernalShrines_Boss_Punisher_Mortar.dds");
     }
     else {
     }
@@ -1148,650 +1187,6 @@ bool auto_libMSHE_gf_MMISUIPunisherSpawnTimer_TriggerFunc (bool testConds, bool 
     return true;
 }
 
-void libMSHE_gf_MMISHeroAIShrineObjectiveLogic (int lp_faction, bool lp_useAllAIForObjective) {
-    // Variable Declarations
-    point lv_objectivePoint;
-    int lv_allyHeroesAssignedToObjective;
-    unitgroup lv_allyHeroesAvailableForObjective;
-    unit lv_allyHeroUnit;
-    int lv_playerIndex;
-    int lv_allyComputerPlayer;
-
-    // Automatic Variable Declarations
-    playergroup autoB0FFF6C5_g;
-
-    // Variable Initialization
-    lv_allyHeroesAvailableForObjective = UnitGroupEmpty();
-
-    // Implementation
-    if (((libMSHE_gf_MMISHeroAIShrineWarning() || libMSHE_gf_MMISHeroAIShrineNeedsActivating() || libMSHE_gf_MMISHeroAIShrineNeedsClearing() || libMSHE_gf_MMISHeroAIShrineMonsterExists()) == true)) {
-        if ((libMSHE_gf_MMISHeroAIShrineMonsterExists() == true)) {
-            lv_objectivePoint = UnitGetPosition(libMSHE_gv_mMISPunisher);
-        }
-        else {
-            lv_objectivePoint = UnitGetPosition(libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine]);
-        }
-        lv_allyHeroesAssignedToObjective = libMSHE_gf_MMISHeroAICountAllyHeroesAssignedToObjective(lp_faction, lv_objectivePoint, libMSHE_gv_mMISHeroAIFarShrineRadius);
-        lv_allyHeroesAvailableForObjective = libMSHE_gf_MMISHeroAIAllyHeroesAvailableForObjective(lp_faction);
-        while ((UnitGroupCount(lv_allyHeroesAvailableForObjective, c_unitCountAll) > 0)) {
-            lv_allyHeroUnit = libMSHE_gf_MMISHeroAIGetClosestUnit(lv_allyHeroesAvailableForObjective, lv_objectivePoint);
-            UnitGroupRemove(lv_allyHeroesAvailableForObjective, lv_allyHeroUnit);
-            lv_playerIndex = UnitGetOwner(lv_allyHeroUnit);
-            if (((lp_useAllAIForObjective == true) || (((libMSHE_gf_MMISHeroAIShrineWarning() == false) || (libAIAI_gv_aIHeroObeliskRecaptureDelay[(libAIAI_gv_aIHeroes[lv_playerIndex].lv_difficulty)] <= (libMSHE_gv_mMISHeroAIShrineWarningTime - TimerGetRemaining(libMSHE_gv_mMISShrineWarningTimer)))) && (libAIAI_gv_aIHeroMaxObjectiveCaptureAIHeroes[(libAIAI_gv_aIHeroes[lv_playerIndex].lv_difficulty)] > lv_allyHeroesAssignedToObjective)))) {
-                lv_allyHeroesAssignedToObjective += 1;
-                libAIAI_gf_HeroAILeaveCurrentObjective(lv_playerIndex);
-                libAIAI_gv_aIHeroes[lv_playerIndex].lv_wantsToDoCustomMapLogic = true;
-                if ((libMSHE_gf_MMISHeroAIShrineWarning() == true)) {
-                    libMSHE_gf_MMISHeroAIChangeToState(lv_playerIndex, libMSHE_ge_MMISHeroAIStates_MMHWWaitAtShrine, libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine], libAIAI_ge_HeroAIPriority_CustomMapRegular);
-                }
-                else if ((libMSHE_gf_MMISHeroAIShrineNeedsActivating() == true)) {
-                    libMSHE_gf_MMISHeroAIChangeToState(lv_playerIndex, libMSHE_ge_MMISHeroAIStates_MMHWActivateShrine, libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine], libAIAI_ge_HeroAIPriority_CustomMapRegular);
-                }
-                else if ((libMSHE_gf_MMISHeroAIShrineNeedsClearing() == true)) {
-                    libMSHE_gf_MMISHeroAIChangeToState(lv_playerIndex, libMSHE_ge_MMISHeroAIStates_MMHWClearShrine, libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine], libAIAI_ge_HeroAIPriority_CustomMapRegular);
-                }
-                else if ((libMSHE_gf_MMISHeroAIShrineMonsterExists() == true)) {
-                    if ((libGame_gv_players[lv_playerIndex].lv_faction == libGame_ge_Faction_Order)) {
-                        lv_allyComputerPlayer = libCore_gv_cOMPUTER_TeamOrder;
-                    }
-                    else {
-                        lv_allyComputerPlayer = libCore_gv_cOMPUTER_TeamChaos;
-                    }
-                    if ((UnitGetOwner(libMSHE_gv_mMISPunisher) == lv_allyComputerPlayer)) {
-                        libMSHE_gf_MMISHeroAIChangeToState(lv_playerIndex, libMSHE_ge_MMISHeroAIStates_MMHWPushLane, libMSHE_gv_mMISPunisher, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-                    }
-                    else {
-                        libMSHE_gf_MMISHeroAIChangeToState(lv_playerIndex, libMSHE_ge_MMISHeroAIStates_MMHWDefendLane, libMSHE_gv_mMISPunisher, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-                    }
-                }
-                else if (true) {
-                    TriggerDebugOutput(1, StringExternal("Param/Value/lib_MSHE_D572C518"), true);
-                }
-            }
-
-        }
-    }
-    else {
-        autoB0FFF6C5_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction)].lv_aIPlayers;
-        lv_playerIndex = -1;
-        while (true) {
-            	lv_playerIndex = PlayerGroupNextPlayer(autoB0FFF6C5_g, lv_playerIndex);
-            	if (lv_playerIndex<0) { break; }
-            	if ((libAIAI_gv_aIHeroes[lv_playerIndex].lv_wantsToDoCustomMapLogic == true)) {
-                libAIAI_gf_HeroAILeaveCurrentObjective(lv_playerIndex);
-            }
-
-        }
-    }
-}
-
-void libMSHE_gf_MMISHeroAIChangeToState (int lp_trigPlayer, int lp_state, unit lp_target, int lp_priority) {
-    // Automatic Variable Declarations
-    // Implementation
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentState = (lp_state);
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateTrigger = libMSHE_gt_MMISHeroAIStateLogic;
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit = lp_target;
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStatePriority = lp_priority;
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_wantsToDoCustomMapLogic = true;
-    libAIAI_gf_HeroAIChangeState(lp_trigPlayer, libAIAI_ge_HeroAIStates_HSCustomMapState);
-}
-
-int libMSHE_gf_MMISHeroAIWaitAtShrine (int lp_trigPlayer) {
-    // Variable Declarations
-    point lv_shrinePoint;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if ((libMSHE_gf_MMISHeroAIWaitAtShrineExit(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    lv_shrinePoint = UnitGetPosition(libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine]);
-    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, null, lv_shrinePoint, libMSHE_gv_mMISHeroAIInnerShrineRadius, libMSHE_gv_mMISHeroAIOuterShrineRadius, false, false, false, true) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIPaceAroundLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, lv_shrinePoint, libMSHE_gv_mMISHeroAIFarShrineRadius) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroes[lp_trigPlayer].lv_nextPaceAroundRepositionTime < TimerGetElapsed(libGame_gv_gameTimer))) {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_nextPaceAroundRepositionTime = (TimerGetElapsed(libGame_gv_gameTimer) + 3.0);
-        UnitIssueOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, OrderTargetingPoint(AbilityCommand("move", 0), RegionRandomPoint(RegionCircle(lv_shrinePoint, libMSHE_gv_mMISHeroAIOuterShrineRadius))), c_orderQueueReplace);
-        return 8;
-    }
-
-    return 8;
-}
-
-bool libMSHE_gf_MMISHeroAIWaitAtShrineExit (int lp_trigPlayer) {
-    // Automatic Variable Declarations
-    // Implementation
-    if ((libMSHE_gf_MMISHeroAIShrineNeedsActivating() == true)) {
-        libMSHE_gf_MMISHeroAIChangeToState(lp_trigPlayer, libMSHE_ge_MMISHeroAIStates_MMHWActivateShrine, libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine], libAIAI_ge_HeroAIPriority_CustomMapRegular);
-        return true;
-    }
-
-    if (((libMSHE_gf_MMISHeroAIShrineWarning() == false) || (UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth))) {
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return true;
-    }
-
-    if ((libMSHE_gf_MMISHeroAIEvalObjective(libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine], libGame_gv_players[lp_trigPlayer].lv_faction) <= libMSHE_gv_mMISHeroAIShrineEvalExitCombat)) {
-        libMSHE_gf_MMISHeroAIChangeStateObjectiveStaging(lp_trigPlayer);
-        return true;
-    }
-
-    return false;
-}
-
-int libMSHE_gf_MMISHeroAIActivateShrine (int lp_trigPlayer) {
-    // Variable Declarations
-    point lv_shrinePoint;
-    order lv_heroOrder;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if ((libMSHE_gf_MMISHeroAIActivateShrineExit(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    lv_shrinePoint = UnitGetPosition(libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine]);
-    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, null, lv_shrinePoint, libMSHE_gv_mMISHeroAIInnerShrineRadius, libMSHE_gv_mMISHeroAIOuterShrineRadius, false, false, false, true) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), libMSHE_gv_mMISHeroAIFarShrineRadius) == true)) {
-        return 8;
-    }
-
-    lv_heroOrder = UnitOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, 0);
-    if (((lv_heroOrder == null) || (OrderGetAbilityCommand(lv_heroOrder) != AbilityCommand("CaptureMacGuffin", 0)))) {
-        UnitIssueOrder(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_currentHeroUnit, OrderTargetingUnit(AbilityCommand("CaptureMacGuffin", 0), libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit), c_orderQueueReplace);
-    }
-
-    return 8;
-}
-
-bool libMSHE_gf_MMISHeroAIActivateShrineExit (int lp_trigPlayer) {
-    // Automatic Variable Declarations
-    // Implementation
-    if ((libMSHE_gf_MMISHeroAIShrineNeedsClearing() == true)) {
-        libMSHE_gf_MMISHeroAIChangeToState(lp_trigPlayer, libMSHE_ge_MMISHeroAIStates_MMHWClearShrine, libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine], libAIAI_ge_HeroAIPriority_CustomMapRegular);
-        return true;
-    }
-
-    if (((libMSHE_gf_MMISHeroAIShrineNeedsActivating() == false) || (UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth))) {
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return true;
-    }
-
-    if ((libMSHE_gf_MMISHeroAIEvalObjective(libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine], libGame_gv_players[lp_trigPlayer].lv_faction) <= libMSHE_gv_mMISHeroAIShrineEvalExitCombat)) {
-        libMSHE_gf_MMISHeroAIChangeStateObjectiveStaging(lp_trigPlayer);
-        return true;
-    }
-
-    return false;
-}
-
-int libMSHE_gf_MMISHeroAIClearShrine (int lp_trigPlayer) {
-    // Variable Declarations
-    point lv_shrinePoint;
-    point lv_searchPoint;
-    int lv_allyComputerPlayer;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if ((libMSHE_gf_MMISHeroAIClearShrineExit(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    lv_shrinePoint = UnitGetPosition(libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine]);
-    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, null, lv_shrinePoint, libMSHE_gv_mMISHeroAIInnerShrineRadius, libMSHE_gv_mMISHeroAIOuterShrineRadius, false, false, false, true) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIJungleChooseTarget(lp_trigPlayer, lv_shrinePoint, libMSHE_gv_mMISHeroAIFarShrineRadius) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIChooseHostileTarget(lp_trigPlayer, lv_shrinePoint, libMSHE_gv_mMISHeroAIFarShrineRadius) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroes[lp_trigPlayer].lv_nextPaceAroundRepositionTime < TimerGetElapsed(libGame_gv_gameTimer))) {
-        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_nextPaceAroundRepositionTime = (TimerGetElapsed(libGame_gv_gameTimer) + 3.0);
-        lv_searchPoint = RegionRandomPoint(RegionCircle(lv_shrinePoint, libMSHE_gv_mMISHeroAIOuterShrineRadius));
-        UnitIssueOrder(libGame_gv_players[lp_trigPlayer].lv_heroUnit, OrderTargetingPoint(AbilityCommand("move", 0), lv_searchPoint), c_orderQueueReplace);
-        return 8;
-    }
-
-    return 8;
-}
-
-bool libMSHE_gf_MMISHeroAIClearShrineExit (int lp_trigPlayer) {
-    // Variable Declarations
-    int lv_allyComputerPlayer;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if ((libMSHE_gf_MMISHeroAIShrineMonsterExists() == true)) {
-        if ((libGame_gv_players[lp_trigPlayer].lv_faction == libGame_ge_Faction_Order)) {
-            lv_allyComputerPlayer = libCore_gv_cOMPUTER_TeamOrder;
-        }
-        else {
-            lv_allyComputerPlayer = libCore_gv_cOMPUTER_TeamChaos;
-        }
-        if ((UnitGetOwner(libMSHE_gv_mMISPunisher) == lv_allyComputerPlayer)) {
-            libMSHE_gf_MMISHeroAIChangeToState(lp_trigPlayer, libMSHE_ge_MMISHeroAIStates_MMHWPushLane, libMSHE_gv_mMISPunisher, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-        }
-        else {
-            libMSHE_gf_MMISHeroAIChangeToState(lp_trigPlayer, libMSHE_ge_MMISHeroAIStates_MMHWDefendLane, libMSHE_gv_mMISPunisher, libAIAI_ge_HeroAIPriority_CustomMapRegular);
-        }
-        return true;
-    }
-
-    if (((libMSHE_gf_MMISHeroAIShrineNeedsClearing() == false) || (UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth))) {
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return true;
-    }
-
-    if ((libMSHE_gf_MMISHeroAIEvalObjective(libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine], libGame_gv_players[lp_trigPlayer].lv_faction) <= libMSHE_gv_mMISHeroAIShrineEvalExitCombat)) {
-        libMSHE_gf_MMISHeroAIChangeStateObjectiveStaging(lp_trigPlayer);
-        return true;
-    }
-
-    return false;
-}
-
-int libMSHE_gf_MMISHeroAIPushLaneWithMonster (int lp_trigPlayer) {
-    // Variable Declarations
-    point lv_monsterPosition;
-    unit lv_heroUnit;
-    order lv_monsterOrder;
-    fixed lv_startMoveDistance;
-    fixed lv_stopMoveDistance;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-    lv_startMoveDistance = libMSHE_gv_mMISHeroAIPunisherHelpRadiusMax;
-    lv_stopMoveDistance = libMSHE_gv_mMISHeroAIPunisherHelpRadiusMin;
-
-    // Implementation
-    if ((libMSHE_gf_MMISHeroAIPushLaneWithMonsterExit(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    lv_heroUnit = libAIAI_gf_HeroAIGetHeroOrVehicle(lp_trigPlayer);
-    lv_monsterPosition = UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
-    if ((libAIAI_gf_AIIsPointBehindEnemyGateEstimate(UnitGetPosition(lv_heroUnit), lp_trigPlayer, lv_monsterPosition) == true)) {
-        lv_startMoveDistance = libMSHE_gv_mMISHeroAIVeryFarShrineMaxThreshold;
-        lv_stopMoveDistance = libMSHE_gv_mMISHeroAIVeryFarShrineMinThreshold;
-    }
-
-    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, null, lv_monsterPosition, lv_stopMoveDistance, lv_startMoveDistance, false, false, false, true) == true)) {
-        return 8;
-    }
-
-    lv_monsterOrder = UnitOrder(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, 0);
-    if ((UnitOrder(lv_heroUnit, 0) == null) && (OrderGetAbilityCommand(lv_monsterOrder) == AbilityCommand("attack", 0)) && (UnitIsAlive(OrderGetTargetUnit(lv_monsterOrder)) == true)) {
-        libAIAI_gf_HeroAIEnsureOrderAttackUnit(lp_trigPlayer, OrderGetTargetUnit(lv_monsterOrder));
-    }
-
-    if ((libAIAI_gf_HeroAILaneChangeTarget(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    return 8;
-}
-
-bool libMSHE_gf_MMISHeroAIPushLaneWithMonsterExit (int lp_trigPlayer) {
-    // Variable Declarations
-    int lv_allyComputerPlayer;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if (((UnitIsValid(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == false) || (UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth))) {
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return true;
-    }
-
-    return false;
-}
-
-int libMSHE_gf_MMISHeroAIDefendLaneFromMonster (int lp_trigPlayer) {
-    // Variable Declarations
-    point lv_monsterPosition;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if ((libMSHE_gf_MMISHeroAIDefendLaneFromMonsterExit(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gv_aIHeroDodgeAOEAbilities[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty] == true) && (libAIAI_gf_HeroAIAvoidAreaLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    lv_monsterPosition = UnitGetPosition(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
-    if ((libAIAI_gf_HeroAIMoveTo2(lp_trigPlayer, null, lv_monsterPosition, libMSHE_gv_mMISHeroAIOuterShrineRadius, libMSHE_gv_mMISHeroAIFarShrineRadius, false, false, false, true) == true)) {
-        return 8;
-    }
-
-    if ((libAIAI_gf_HeroAIHarassSiegeEnemyLogic(lp_trigPlayer) == true)) {
-        return 8;
-    }
-
-    libAIAI_gf_HeroAIEnsureOrderAttackUnit(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit);
-    return 8;
-}
-
-bool libMSHE_gf_MMISHeroAIDefendLaneFromMonsterExit (int lp_trigPlayer) {
-    // Variable Declarations
-    int lv_allyComputerPlayer;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    if (((UnitIsValid(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit) == false) || (UnitGetPropertyFixed(libGame_gv_players[lp_trigPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) < libAIAI_gv_aIHeroes[lp_trigPlayer].lv_returnToSpawnHealth))) {
-        libAIAI_gf_HeroAILeaveCurrentObjective(lp_trigPlayer);
-        return true;
-    }
-
-    return false;
-}
-
-void libMSHE_gf_MMISHeroAIReturnFromObjectiveStaging () {
-    // Automatic Variable Declarations
-    // Implementation
-    libAIAI_gf_HeroAIChangeState(libAIAI_gv_heroAICustomStateCurrentPlayer, libAIAI_ge_HeroAIStates_HSCustomMapState);
-}
-
-void libMSHE_gf_MMISHeroAIChangeStateObjectiveStaging (int lp_trigPlayer) {
-    // Automatic Variable Declarations
-    // Implementation
-    libGame_gf_CalculateClosestLaneData(UnitGetPosition(libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine]));
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_objectiveStagingPoint = libGame_gv_closestLaneData.lv_laneData[libGame_gv_closestLaneData.lv_closestLane].lv_closestPoint;
-    libAIAI_gf_HeroAIChangeStateObjectiveStaging(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_hSMapStateCurrentTargetUnit, null, libMSHE_gv_mMISHeroAIFarShrineRadius, libMSHE_gv_mMISHeroAIOuterShrineRadius, libMSHE_gv_mMISHeroAIFarShrineRadius, libMSHE_gv_mMISHeroAIInnerShrineRadius, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_statePriority, libMSHE_gt_MMISHeroAIObjectiveStagingExit, libMSHE_gt_MMISHeroAIReturnToObjectiveStaging);
-}
-
-fixed libMSHE_gf_MMISHeroAIEvalObjective (unit lp_shrineUnit, int lp_faction) {
-    // Variable Declarations
-    region lv_objectiveRegion;
-    int lv_allyTeamIndex;
-    int lv_playerIndex;
-    int lv_enemyTeamIndex;
-    fixed lv_enemyEval;
-    fixed lv_allyEval;
-
-    // Automatic Variable Declarations
-    playergroup auto4C62CFDB_g;
-    playergroup auto92BFE606_g;
-    playergroup autoCD52BDFC_g;
-
-    // Variable Initialization
-
-    // Implementation
-    lv_allyTeamIndex = libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction);
-    lv_enemyTeamIndex = libAIAI_gf_HeroAITeamIndexOfEnemyFaction(lp_faction);
-    lv_objectiveRegion = RegionCircle(UnitGetPosition(lp_shrineUnit), libMSHE_gv_mMISHeroAIShrineEvalRadius);
-    auto4C62CFDB_g = libAIAI_gv_heroAITeamPlayerData[lv_enemyTeamIndex].lv_players;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(auto4C62CFDB_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (libNtve_gf_UnitInRegion(libGame_gv_players[lv_playerIndex].lv_heroUnit, lv_objectiveRegion) == true) && ((TimerGetElapsed(libGame_gv_gameTimer) - libAIAI_gv_heroAITeamData[lv_allyTeamIndex].lv_heroTrackingData[lv_playerIndex].lv_lastSeenTime) <= libMSHE_gv_mMISHeroAIShrineLastSeenEnemyTime) && (RegionContainsPoint(lv_objectiveRegion, libAIAI_gv_heroAITeamData[lv_allyTeamIndex].lv_heroTrackingData[lv_playerIndex].lv_lastSeenLocation) == true)) {
-            lv_enemyEval += libAIAI_gf_HeroAIHeroEval(libGame_gv_players[lv_playerIndex].lv_heroUnit);
-        }
-
-    }
-    auto92BFE606_g = libAIAI_gv_heroAITeamPlayerData[lv_allyTeamIndex].lv_aIPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(auto92BFE606_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (libAIAI_gv_aIHeroes[lv_playerIndex].lv_wantsToDoCustomMapLogic == true) && (libNtve_gf_UnitInRegion(libGame_gv_players[lv_playerIndex].lv_heroUnit, lv_objectiveRegion) == true)) {
-            lv_allyEval += libAIAI_gf_HeroAIHeroEval(libGame_gv_players[lv_playerIndex].lv_heroUnit);
-        }
-
-    }
-    autoCD52BDFC_g = libAIAI_gv_heroAITeamPlayerData[lv_allyTeamIndex].lv_humanPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(autoCD52BDFC_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((libGame_gv_players[lv_playerIndex].lv_isDead == false) && (libNtve_gf_UnitInRegion(libGame_gv_players[lv_playerIndex].lv_heroUnit, lv_objectiveRegion) == true)) {
-            lv_allyEval += libAIAI_gf_HeroAIHeroEval(libGame_gv_players[lv_playerIndex].lv_heroUnit);
-        }
-
-    }
-    if ((lv_enemyEval == 0.0)) {
-        return libMSHE_gv_mMISHeroAIShrineEvalAllIn;
-    }
-    else {
-        return (lv_allyEval / lv_enemyEval);
-    }
-}
-
-unit libMSHE_gf_MMISHeroAIGetClosestUnit (unitgroup lp_group, point lp_position) {
-    // Variable Declarations
-    unit lv_testUnit;
-    fixed lv_testDistanceSquared;
-    fixed lv_bestDistanceSquared;
-    unit lv_bestUnit;
-
-    // Automatic Variable Declarations
-    unitgroup auto55672EC3_g;
-    int auto55672EC3_u;
-
-    // Variable Initialization
-    lv_bestDistanceSquared = 524287.0;
-
-    // Implementation
-    auto55672EC3_g = lp_group;
-    auto55672EC3_u = UnitGroupCount(auto55672EC3_g, c_unitCountAll);
-    for (;; auto55672EC3_u -= 1) {
-        lv_testUnit = UnitGroupUnitFromEnd(auto55672EC3_g, auto55672EC3_u);
-        if (lv_testUnit == null) { break; }
-        lv_testDistanceSquared = DistanceSquaredBetweenPoints(UnitGetPosition(lv_testUnit), lp_position);
-        if ((lv_testDistanceSquared < lv_bestDistanceSquared)) {
-            lv_bestDistanceSquared = lv_testDistanceSquared;
-            lv_bestUnit = lv_testUnit;
-        }
-
-    }
-    return lv_bestUnit;
-}
-
-bool libMSHE_gf_MMISHeroAIShrineWarning () {
-    // Automatic Variable Declarations
-    // Implementation
-    if ((TimerGetRemaining(libMSHE_gv_mMISShrineWarningTimer) > 0.0) && (TimerGetRemaining(libMSHE_gv_mMISShrineWarningTimer) < libMSHE_gv_mMISHeroAIShrineWarningTime)) {
-        return true;
-    }
-    else {
-        return false;
-    }
-}
-
-bool libMSHE_gf_MMISHeroAIShrineNeedsActivating () {
-    // Automatic Variable Declarations
-    // Implementation
-    if ((libMSHE_gv_mMISTotalShrineCount > 0) && (UnitBehaviorEnabled(libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine], "MacguffinActivated") == true)) {
-        return true;
-    }
-    else {
-        return false;
-    }
-}
-
-bool libMSHE_gf_MMISHeroAIShrineNeedsClearing () {
-    // Automatic Variable Declarations
-    // Implementation
-    if ((libMSHE_gv_mMISTotalShrineCount > 0) && (UnitBehaviorEnabled(libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine], "MacguffinActivated") == false)) {
-        return true;
-    }
-    else {
-        return false;
-    }
-}
-
-bool libMSHE_gf_MMISHeroAIShrineMonsterExists () {
-    // Automatic Variable Declarations
-    // Implementation
-    return UnitIsValid(libMSHE_gv_mMISPunisher);
-}
-
-int libMSHE_gf_MMISHeroAICountVisibleEnemyHeroesNearPoint (int lp_faction, point lp_campIndex, fixed lp_searchRadius, bool lp_visionCheat) {
-    // Variable Declarations
-    int lv_allyComputerPlayer;
-    region lv_nearCamp;
-    unitgroup lv_heroes;
-    unit lv_unit;
-
-    // Automatic Variable Declarations
-    unitgroup auto3F7DFEF7_g;
-    int auto3F7DFEF7_u;
-
-    // Variable Initialization
-    lv_heroes = UnitGroupEmpty();
-
-    // Implementation
-    if ((lp_faction == libGame_ge_Faction_Order)) {
-        lv_allyComputerPlayer = libCore_gv_cOMPUTER_TeamOrder;
-    }
-    else {
-        lv_allyComputerPlayer = libCore_gv_cOMPUTER_TeamChaos;
-    }
-    lv_nearCamp = RegionCircle(lp_campIndex, lp_searchRadius);
-    lv_heroes = UnitGroupAlliance(lv_allyComputerPlayer, c_unitAllianceEnemy, lv_nearCamp, UnitFilter((1 << c_targetFilterHeroic), 0, (1 << c_targetFilterImmuneToSkillshots) | (1 << c_targetFilterMissile) | (1 << c_targetFilterItem), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterInvulnerable - 32))), 0);
-    if ((lp_visionCheat == false)) {
-        auto3F7DFEF7_g = lv_heroes;
-        auto3F7DFEF7_u = UnitGroupCount(auto3F7DFEF7_g, c_unitCountAll);
-        for (;; auto3F7DFEF7_u -= 1) {
-            lv_unit = UnitGroupUnitFromEnd(auto3F7DFEF7_g, auto3F7DFEF7_u);
-            if (lv_unit == null) { break; }
-            if ((libNtve_gf_UnitIsVisibleToPlayer(lv_unit, lv_allyComputerPlayer) == false)) {
-                UnitGroupRemove(lv_heroes, lv_unit);
-            }
-
-        }
-    }
-
-    return UnitGroupCount(lv_heroes, c_unitCountAlive);
-}
-
-int libMSHE_gf_MMISHeroAICountAllyHeroesAssignedToObjective (int lp_faction, point lp_campIndex, fixed lp_searchRadius) {
-    // Variable Declarations
-    int lv_playerIndex;
-    int lv_playerIndex2;
-
-    // Automatic Variable Declarations
-    playergroup auto58E4E06E_g;
-    playergroup autoA18E2453_g;
-
-    // Variable Initialization
-
-    // Implementation
-    auto58E4E06E_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction)].lv_aIPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(auto58E4E06E_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((libAIAI_gf_HeroAIGetCurrentObjective(lv_playerIndex) == libAIAI_ge_HeroAIObjective_CustomMapObj)) {
-            lv_playerIndex2 += 1;
-        }
-
-    }
-    autoA18E2453_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction)].lv_humanPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(autoA18E2453_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lv_playerIndex].lv_heroUnit), lp_campIndex) < lp_searchRadius)) {
-            lv_playerIndex2 += 1;
-        }
-
-    }
-    return lv_playerIndex2;
-}
-
-unitgroup libMSHE_gf_MMISHeroAIAllyHeroesAvailableForObjective (int lp_faction) {
-    // Variable Declarations
-    unitgroup lv_heroes;
-    int lv_playerIndex;
-
-    // Automatic Variable Declarations
-    playergroup auto681E82E5_g;
-
-    // Variable Initialization
-    lv_heroes = UnitGroupEmpty();
-
-    // Implementation
-    auto681E82E5_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction)].lv_aIPlayers;
-    lv_playerIndex = -1;
-    while (true) {
-        	lv_playerIndex = PlayerGroupNextPlayer(auto681E82E5_g, lv_playerIndex);
-        	if (lv_playerIndex<0) { break; }
-        	if ((libAIAI_gv_aIHeroes[lv_playerIndex].lv_wantsToDoCustomMapLogic == false) && (UnitGetPropertyFixed(libGame_gv_players[lv_playerIndex].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) > libAIAI_gv_aIHeroes[lv_playerIndex].lv_returnToSpawnHealth) && (libAIAI_gf_HeroAIIsHigherPriority(lv_playerIndex, libAIAI_ge_HeroAIPriority_CustomMapRegular) == true)) {
-            UnitGroupAdd(lv_heroes, libGame_gv_players[lv_playerIndex].lv_heroUnit);
-        }
-
-    }
-    return lv_heroes;
-}
-
-void libMSHE_gf_MMISHeroAICheckShouldGoToPingedUnit (int lp_pingingPlayer, unit lp_pingedUnit) {
-    // Variable Declarations
-    int lv_shrineIndex;
-    int lv_testLoopIndex;
-    int lv_playerIndex;
-    unitgroup lv_allyHeroesAvailableForObjective;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-    lv_allyHeroesAvailableForObjective = UnitGroupEmpty();
-
-    // Implementation
-    if (((((libMSHE_gf_MMISHeroAIShrineWarning() || libMSHE_gf_MMISHeroAIShrineNeedsActivating() || libMSHE_gf_MMISHeroAIShrineNeedsClearing()) == true) && (lp_pingedUnit == libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine])) || (((libMSHE_gf_MMISHeroAIShrineMonsterExists()) == true) && (lp_pingedUnit == libMSHE_gv_mMISPunisher)))) {
-        libMSHE_gf_MMISHeroAIShrineObjectiveLogic(libGame_gv_players[lp_pingingPlayer].lv_faction, true);
-    }
-
-}
-
 // Triggers
 //--------------------------------------------------------------------------------------------------
 // Trigger: MM IS Init
@@ -1824,11 +1219,6 @@ bool libMSHE_gt_MMISInit_Func (bool testConds, bool runActions) {
         CatalogFieldValueSet(c_gameCatalogEffect, "CaptureMacGuffin", "PeriodCount", lv_itPlayer, "1");
         CatalogFieldValueSet(c_gameCatalogEffect, "CaptureMacGuffin", "PeriodicPeriodArray[" + IntToString(0) + "]", lv_itPlayer, "0");
     }
-    libAIAI_gv_heroAITeamMapLogicTrigger = libMSHE_gt_MMISHeroAITeamMapLogic;
-    libAIAI_gf_HeroAIRegisterAOEwithWatchTrigger("MercPunisherLanerLeapCreateWarningPersistent", 4.0, 1.0, 0.0, false, true);
-    libAIAI_gf_HeroAIRegisterAOEwithWatchTrigger("DiabloFrozenDelayPersistent", 4.0, 1.5, 0.6, false, false);
-    libAIAI_gf_HeroAIRegisterAOEwithWatchTrigger("DiabloMortarCreateWarningPersistent", 2.0, 1.4, 0.2, false, false);
-    libAIAI_gf_HeroAIRegisterAOEwithWatchTrigger("DiabloArcaneCreateUnit", 6.0, 3.0, 2.5, false, false);
     libGame_gf_SendMapSpecificAwardInitializeEventwithUserData(null, "Generic Instance");
     TriggerExecute(libMSHE_gt_MMISInitializeShrines, true, false);
     return true;
@@ -1851,11 +1241,8 @@ bool libMSHE_gt_MMISPingDataInit_Func (bool testConds, bool runActions) {
     }
 
     libUIUI_gf_PingCreateNewPingTarget("DiabloShrineWarningUnit", false, null, StringExternal("Param/Value/lib_MSHE_02783CD4"), StringExternal("Param/Value/lib_MSHE_22894A5E"), SoundLink("UI_Game_Ping_Help", -1), SoundLink("UI_Game_Ping_Attack", -1));
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libMSHE_gt_MMISHeroAIPingCallbackPlayerPingsUnit);
     libUIUI_gf_PingCreateNewPingTarget("DiabloShrine", false, null, StringExternal("Param/Value/lib_MSHE_D9D04C20"), StringExternal("Param/Value/lib_MSHE_7E4B3496"), SoundLink("UI_Game_Ping_Help", -1), SoundLink("UI_Game_Ping_Attack", -1));
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libMSHE_gt_MMISHeroAIPingCallbackPlayerPingsUnit);
     libUIUI_gf_PingCreateNewPingTarget("MercPunisherLaner", false, null, StringExternal("Param/Value/lib_MSHE_1A30E150"), StringExternal("Param/Value/lib_MSHE_EA97B1A0"), SoundLink("UI_Game_Ping_Help", -1), SoundLink("UI_Game_Ping_Attack", -1));
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libMSHE_gt_MMISHeroAIPingCallbackPlayerPingsUnit);
     return true;
 }
 
@@ -1877,8 +1264,12 @@ bool libMSHE_gt_MMISGateOpen_Func (bool testConds, bool runActions) {
     int lv_itPlayer;
     unit lv_itHero;
     int lv_itSoulCage;
+    int lv_itShrine;
 
     // Automatic Variable Declarations
+    int autoD4036543_ae;
+    const int autoD4036543_ai = 1;
+
     // Variable Initialization
     lv_playersAlly = PlayerGroupEmpty();
     lv_playersEnemy = PlayerGroupEmpty();
@@ -1899,7 +1290,14 @@ bool libMSHE_gt_MMISGateOpen_Func (bool testConds, bool runActions) {
     TimerStart(libMSHE_gv_mMISShrineTimer, libMSHE_gv_mMDiabloShrinesShrineTimerDuration_C, false, c_timeGame);
     TimerStart(libMSHE_gv_mMISExperince, libMSHE_gv_mMDiabloShrinesExperinceTimer_C, false, c_timeGame);
     TimerStart(libMSHE_gv_mMISAffixTimer, libMSHE_gv_mMISAffixTimerDuration, false, c_timeGame);
-    TimerStart(libMSHE_gv_mMISLongWarningTimer, 600.0, false, c_timeGame);
+    libMSHE_gv_mMDiabloShrinesShrineTimerWarning = libMSHE_gv_mMDiabloShrineWarningTimerLong_C;
+    CatalogFieldValueSet(c_gameCatalogBehavior, "DiabloShrineWarningFX", "Duration", libCore_gv_cOMPUTER_Neutral, IntToString(FixedToInt(libMSHE_gv_mMDiabloShrineWarningTimerLong_C)));
+    autoD4036543_ae = libMSHE_gv_mMISNumberofShrinesAllowed;
+    lv_itShrine = 1;
+    for ( ; ( (autoD4036543_ai >= 0 && lv_itShrine <= autoD4036543_ae) || (autoD4036543_ai < 0 && lv_itShrine >= autoD4036543_ae) ) ; lv_itShrine += autoD4036543_ai ) {
+        libNtve_gf_SendActorMessageToUnit(libMSHE_gv_mMISShrines[lv_itShrine], "Signal LongIntro");
+    }
+    TimerStart(libMSHE_gv_mMISObjectivePreviewTimer, libMSHE_gv_mMISObjectivePreviewDelay_C, false, c_timeGame);
     return true;
 }
 
@@ -2075,6 +1473,7 @@ bool libMSHE_gt_MMISCursedEventScoreTracker_Func (bool testConds, bool runAction
             libMSHE_gf_MMISAnnouncementShrineCaptured(lv_shrine, libMSHE_ge_MMISShrineTypes_ArcaneShrine, lv_winningTeam);
         }
 
+        RemoveUnitOfInterest(libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine], "FightAtShrine", libNtve_ge_GoalTeam_Both);
         libMSHE_gf_MMISGrantShrineRewardToTeam(lv_winningTeam, lv_shrine, lv_shrineBuff);
         libGame_gf_SendEventMapObjectiveCapturedByUnit(libNtve_gf_KillingUnit());
         autoD5FE4C8D_g = UnitGroup("LootBannerSconce", c_playerAny, RegionCircle(UnitGetPosition(lv_shrine), 10.0), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 2);
@@ -2239,9 +1638,10 @@ bool libMSHE_gt_MMISInitializeShrines_Func (bool testConds, bool runActions) {
         lv_u = UnitGroupUnitFromEnd(auto6249E76F_g, auto6249E76F_u);
         if (lv_u == null) { break; }
         UnitGroupAdd(libMSHE_gv_mMISInactiveShrines, lv_u);
-        ActorSend(libNtve_gf_MainActorofUnit(lv_u), "MinimapIcon Assets\\Textures\\storm_ui_minimapicon_shrine_inactive.dds");
-        ActorSend(libNtve_gf_MainActorofUnit(lv_u), "MinimapIconTintColor 255,217,186,123");
-        libNtve_gf_SendActorMessageToUnit(lv_u, "MinimapTooltip DOCSTR_InactiveShrine");
+        ActorSend(libNtve_gf_MainActorofUnit(lv_u), "MinimapIcon Assets\\Textures\\storm_ui_minimapicon_shrine_active.dds");
+        ActorSend(libNtve_gf_MainActorofUnit(lv_u), "MinimapIconTintColor 255,145,113,218");
+        libNtve_gf_SendActorMessageToUnit(lv_u, "SetMinimapVisibility");
+        libNtve_gf_SendActorMessageToUnit(lv_u, "SetMinimapVisibilityAlways");
         UnitSetState(lv_u, c_unitStateHighlightable, false);
         UnitSetState(lv_u, c_unitStateTargetable, false);
     }
@@ -2266,17 +1666,7 @@ bool libMSHE_gt_MMISShrineTimerExpired_Func (bool testConds, bool runActions) {
     }
 
     TimerStart(libMSHE_gv_mMISShrineWarningTimer, libMSHE_gv_mMDiabloShrinesShrineTimerWarning, false, c_timeGame);
-    if ((libMSHE_gv_mMISNumberOfShrinesEvents == 0)) {
-        libMSHE_gv_mMISCurrentShrine = RandomInt(1, libMSHE_gv_mMISNumberofShrinesAllowed);
-        libMSHE_gv_mMISBuffIndex = libMSHE_gf_MMISGetWhichShrine();
-    }
-    else {
-        while (((libMSHE_gv_mMISLastShrineCounter < 15) && ((libMSHE_gv_mMISCurrentShrine == libMSHE_gv_mMISLastShrine) || (libMSHE_gv_mMISBuffIndex == libMSHE_gv_mMISLastBuff)))) {
-            libMSHE_gv_mMISLastShrineCounter += 1;
-            libMSHE_gv_mMISCurrentShrine = RandomInt(1, libMSHE_gv_mMISNumberofShrinesAllowed);
-            libMSHE_gv_mMISBuffIndex = libMSHE_gf_MMISGetWhichShrine();
-        }
-    }
+    AddUnitOfInterest(libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine], 14.0, (libMSHE_gv_mMDiabloShrinesShrineTimerWarning + 1.0), "FightAtShrine", libNtve_ge_GoalTeam_Both, 0);
     libMSHE_gf_MMISWarningAnnouncementShrine(libMSHE_gv_mMISCurrentShrine);
     PlayerGroupRemove(libMSHE_gv_mMISShrineGroup, libMSHE_gv_mMISBuffIndex);
     DialogControlSetVisible(libMSHE_gv_mMTowerPushPanel.lv_crystalFrozenIcon, PlayerGroupAll(), false);
@@ -2312,6 +1702,26 @@ bool libMSHE_gt_MMISShrineTimerExpired_Func (bool testConds, bool runActions) {
 void libMSHE_gt_MMISShrineTimerExpired_Init () {
     libMSHE_gt_MMISShrineTimerExpired = TriggerCreate("libMSHE_gt_MMISShrineTimerExpired_Func");
     TriggerAddEventTimer(libMSHE_gt_MMISShrineTimerExpired, libMSHE_gv_mMISShrineTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MM IS Objective Preview Timer Expires
+//--------------------------------------------------------------------------------------------------
+bool libMSHE_gt_MMISObjectivePreviewTimerExpires_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libMSHE_gf_MMISRandomizeNextShrineandShowPreview();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMSHE_gt_MMISObjectivePreviewTimerExpires_Init () {
+    libMSHE_gt_MMISObjectivePreviewTimerExpires = TriggerCreate("libMSHE_gt_MMISObjectivePreviewTimerExpires_Func");
+    TriggerAddEventTimer(libMSHE_gt_MMISObjectivePreviewTimerExpires, libMSHE_gv_mMISObjectivePreviewTimer);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -2400,6 +1810,7 @@ bool libMSHE_gt_MMISStartShrineTimer_Func (bool testConds, bool runActions) {
 
     TriggerEnable(libMSHE_gt_PunisherDurationTracking, false);
     TimerStart(libMSHE_gv_mMISShrineTimer, libMSHE_gv_mMDiabloShrinesShrineTimerDuration_C, false, c_timeGame);
+    TimerStart(libMSHE_gv_mMISObjectivePreviewTimer, libMSHE_gv_mMISObjectivePreviewDelay_C, false, c_timeGame);
     if ((UnitGetOwner(EventUnit()) == libCore_gv_cOMPUTER_TeamOrder)) {
         SoundtrackPlay(PlayerGroupAll(), c_soundtrackCategoryMusic, "MX_Event_Shrines_Punisher_Heaven_End", c_soundtrackCueAny, c_soundtrackIndexAny, false);
     }
@@ -3095,131 +2506,6 @@ void libMSHE_gt_MMISDebugDisableEvent_Init () {
     TriggerAddEventChatMessage(libMSHE_gt_MMISDebugDisableEvent, c_playerAny, "DisableEvent", true);
 }
 
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMIS - HeroAI - Team Map Logic
-//--------------------------------------------------------------------------------------------------
-bool libMSHE_gt_MMISHeroAITeamMapLogic_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libMSHE_gf_MMISHeroAIShrineObjectiveLogic(libAIAI_gv_heroAITeamMapLogicFaction, false);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libMSHE_gt_MMISHeroAITeamMapLogic_Init () {
-    libMSHE_gt_MMISHeroAITeamMapLogic = TriggerCreate("libMSHE_gt_MMISHeroAITeamMapLogic_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMIS - HeroAI - State Logic
-//--------------------------------------------------------------------------------------------------
-bool libMSHE_gt_MMISHeroAIStateLogic_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    int auto5612C606_val;
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    auto5612C606_val = libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSMapStateCurrentState;
-    if (auto5612C606_val == libMSHE_ge_MMISHeroAIStates_MMHWWaitAtShrine) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libMSHE_gf_MMISHeroAIWaitAtShrine(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else if (auto5612C606_val == libMSHE_ge_MMISHeroAIStates_MMHWActivateShrine) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libMSHE_gf_MMISHeroAIActivateShrine(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else if (auto5612C606_val == libMSHE_ge_MMISHeroAIStates_MMHWClearShrine) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libMSHE_gf_MMISHeroAIClearShrine(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else if (auto5612C606_val == libMSHE_ge_MMISHeroAIStates_MMHWPushLane) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libMSHE_gf_MMISHeroAIPushLaneWithMonster(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else if (auto5612C606_val == libMSHE_ge_MMISHeroAIStates_MMHWDefendLane) {
-        libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSCustomStateTimeSpent = libMSHE_gf_MMISHeroAIDefendLaneFromMonster(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    }
-    else {
-    }
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libMSHE_gt_MMISHeroAIStateLogic_Init () {
-    libMSHE_gt_MMISHeroAIStateLogic = TriggerCreate("libMSHE_gt_MMISHeroAIStateLogic_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMIS - HeroAI - Return To Objective Staging
-//--------------------------------------------------------------------------------------------------
-bool libMSHE_gt_MMISHeroAIReturnToObjectiveStaging_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libMSHE_gf_MMISHeroAIChangeStateObjectiveStaging(libAIAI_gv_heroAICustomStateCurrentPlayer);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libMSHE_gt_MMISHeroAIReturnToObjectiveStaging_Init () {
-    libMSHE_gt_MMISHeroAIReturnToObjectiveStaging = TriggerCreate("libMSHE_gt_MMISHeroAIReturnToObjectiveStaging_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMIS - HeroAI - Objective Staging Exit
-//--------------------------------------------------------------------------------------------------
-bool libMSHE_gt_MMISHeroAIObjectiveStagingExit_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    if ((libMSHE_gf_MMISHeroAIShrineNeedsActivating() == false) && (libMSHE_gf_MMISHeroAIShrineNeedsClearing() == false) && (libMSHE_gf_MMISHeroAIShrineWarning() == false) && (libMSHE_gf_MMISHeroAIShrineMonsterExists() == false)) {
-        libAIAI_gf_HeroAILeaveCurrentObjective(libAIAI_gv_heroAICustomStateCurrentPlayer);
-        libAIAI_gv_heroAICustomStateReturnBoolean = true;
-        return true;
-    }
-
-    if (((libMSHE_gf_MMISHeroAIShrineMonsterExists() == true) || (libMSHE_gf_MMISHeroAIEvalObjective(libMSHE_gv_mMISShrines[libMSHE_gv_mMISCurrentShrine], libGame_gv_players[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_faction) >= libMSHE_gv_mMISHeroAIShrineEvalEnterCombat))) {
-        libMSHE_gf_MMISHeroAIReturnFromObjectiveStaging();
-        libAIAI_gv_heroAICustomStateReturnBoolean = true;
-        return true;
-    }
-
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libMSHE_gt_MMISHeroAIObjectiveStagingExit_Init () {
-    libMSHE_gt_MMISHeroAIObjectiveStagingExit = TriggerCreate("libMSHE_gt_MMISHeroAIObjectiveStagingExit_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MMIS - HeroAI - Ping Callback Player Pings Unit
-//--------------------------------------------------------------------------------------------------
-bool libMSHE_gt_MMISHeroAIPingCallbackPlayerPingsUnit_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libMSHE_gf_MMISHeroAICheckShouldGoToPingedUnit(libUIUI_gv_ping_PingCallbackPingingPlayer, libUIUI_gv_ping_PingCallbackTargetUnit);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libMSHE_gt_MMISHeroAIPingCallbackPlayerPingsUnit_Init () {
-    libMSHE_gt_MMISHeroAIPingCallbackPlayerPingsUnit = TriggerCreate("libMSHE_gt_MMISHeroAIPingCallbackPlayerPingsUnit_Func");
-}
-
 void libMSHE_InitTriggers () {
     libMSHE_gt_MMISInit_Init();
     libMSHE_gt_MMISPingDataInit_Init();
@@ -3232,6 +2518,7 @@ void libMSHE_InitTriggers () {
     libMSHE_gt_MMISExperienceTimerExpired_Init();
     libMSHE_gt_MMISInitializeShrines_Init();
     libMSHE_gt_MMISShrineTimerExpired_Init();
+    libMSHE_gt_MMISObjectivePreviewTimerExpires_Init();
     libMSHE_gt_MMISBuffTimerExpired_Init();
     libMSHE_gt_MMISWarningTimerExpired_Init();
     libMSHE_gt_MMISStartShrineTimer_Init();
@@ -3251,11 +2538,6 @@ void libMSHE_InitTriggers () {
     libMSHE_gt_MMISDebugWarningShrine_Init();
     libMSHE_gt_MMISDebugLongShrineTimer_Init();
     libMSHE_gt_MMISDebugDisableEvent_Init();
-    libMSHE_gt_MMISHeroAITeamMapLogic_Init();
-    libMSHE_gt_MMISHeroAIStateLogic_Init();
-    libMSHE_gt_MMISHeroAIReturnToObjectiveStaging_Init();
-    libMSHE_gt_MMISHeroAIObjectiveStagingExit_Init();
-    libMSHE_gt_MMISHeroAIPingCallbackPlayerPingsUnit_Init();
 }
 
 //--------------------------------------------------------------------------------------------------

@@ -1,0 +1,1528 @@
+//==================================================================================================
+// 
+// Generated Map Script
+// 
+// Name:   Harbinger of Death
+// 
+//==================================================================================================
+include "TriggerLibs/NativeLib"
+include "LibChal"
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+void InitLibs () {
+    libNtve_InitLib();
+    libChal_InitLib();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Constants
+//--------------------------------------------------------------------------------------------------
+const int gv_pLAYER_USER = 1;
+const int gv_pLAYER_ALLY = 4;
+const int gv_pLAYER_COMPUTER1 = 2;
+const int gv_pLAYER_COMPUTER2 = 3;
+const int gv_readyButton = 1;
+
+//--------------------------------------------------------------------------------------------------
+// Global Structures
+//--------------------------------------------------------------------------------------------------
+struct gs_RECORD_ChallengeUnit {
+    string lv_unitType;
+    int lv_player;
+    point lv_position;
+    fixed lv_facing;
+};
+
+//--------------------------------------------------------------------------------------------------
+// Global Variables
+//--------------------------------------------------------------------------------------------------
+bool gv_inCinematic;
+bool gv_gameOver;
+unitgroup gv_enemiesUnits;
+timer gv_mainTimer;
+int gv_mainTimerWindow;
+bool gv_ready;
+int gv_finalScore;
+int gv_previousBestScore;
+gs_RECORD_ChallengeUnit[512] gv_challengeUnits;
+int gv_numberOfChallengeUnits;
+int gv_winningScoreBronze;
+int gv_winningScoreSilver;
+int gv_winningScoreGold;
+bool gv_victory;
+revealer gv_revealer;
+int gv_savedUnitsDialog;
+int gv_savedUnitsDialog2;
+text gv_ratingText;
+int gv_retryCount;
+text gv_ratingTextBronze;
+text gv_ratingTextSilver;
+text gv_ratingTextGold;
+int gv_board;
+bool gv_firstPlayThough;
+bool gv_cheatUsed;
+int gv_multikillCounter;
+bool gv_multiKillMsgUp;
+point gv_multiKillLastKillPosition;
+int gv_objectiveKill1;
+int gv_objectiveKill2;
+int gv_objectiveKill3;
+bool gv_introCinematicCompleted;
+
+void InitGlobals () {
+    gv_enemiesUnits = UnitGroupEmpty();
+    gv_mainTimer = TimerCreate();
+    gv_mainTimerWindow = c_timerWindowNone;
+    gv_winningScoreBronze = 50;
+    gv_winningScoreSilver = 100;
+    gv_winningScoreGold = 150;
+    gv_savedUnitsDialog = c_invalidDialogId;
+    gv_savedUnitsDialog2 = c_invalidDialogControlId;
+    gv_ratingTextBronze = StringExternal("Param/Value/2552D51F");
+    gv_ratingTextSilver = StringExternal("Param/Value/8F49502C");
+    gv_ratingTextGold = StringExternal("Param/Value/1D326B19");
+    gv_board = c_boardNone;
+    gv_firstPlayThough = true;
+    gv_objectiveKill1 = c_invalidObjectiveId;
+    gv_objectiveKill2 = c_invalidObjectiveId;
+    gv_objectiveKill3 = c_invalidObjectiveId;
+}
+
+//--------------------------------------------------------------------------------------------------
+// Global Function Declarations
+//--------------------------------------------------------------------------------------------------
+void gf_UpdateScoreUI (int lp_score);
+
+//--------------------------------------------------------------------------------------------------
+// Trigger Variables
+//--------------------------------------------------------------------------------------------------
+trigger gt_Initialization;
+trigger gt_Init01Players;
+trigger gt_Init01aTechnology;
+trigger gt_Init02Units;
+trigger gt_Init03Music;
+trigger gt_Init04Environment;
+trigger gt_Init05Hints;
+trigger gt_Init06MapSettings;
+trigger gt_ButtonChosenTryAgain;
+trigger gt_ButtonChosenLeaveGame;
+trigger gt_DialogScoreShow;
+trigger gt_CreateMultikillObject;
+trigger gt_DisplayMultikillMessage;
+trigger gt_RestartChallengeQ;
+trigger gt_ResetGameData;
+trigger gt_PopulateMap;
+trigger gt_ResetPlayField;
+trigger gt_TrackUnitKilled;
+trigger gt_CheckforCheating;
+trigger gt_Timer;
+trigger gt_AddReadyButtonQ;
+trigger gt_ReadyPressed;
+trigger gt_ObjectiveKillCreate;
+trigger gt_ObjectiveKillUpdate;
+trigger gt_ObjectiveKillDiscoverQ;
+trigger gt_ObjectiveKillCompleteQ;
+trigger gt_ObjectiveKillFailed;
+trigger gt_FinishVictory;
+trigger gt_FinishDefeatTimer;
+trigger gt_TipHotkeysQ;
+trigger gt_IntroQ;
+trigger gt_IntroSetup;
+trigger gt_IntroCinematic;
+trigger gt_IntroGroupCuts;
+trigger gt_IntroCinematicEnd;
+trigger gt_IntroCleanup;
+
+//--------------------------------------------------------------------------------------------------
+// Global Functions
+//--------------------------------------------------------------------------------------------------
+void gf_UpdateScoreUI (int lp_score) {
+    // Implementation
+    UISetChallengeScoreText(PlayerGroupAll(), "AdvancedCommand", (StringExternal("Param/Value/22F25F02") + StringExternal("Param/Value/A102DD13") + IntToText(lp_score) + StringExternal("Param/Value/009E2762")));
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Initialization
+//--------------------------------------------------------------------------------------------------
+bool gt_Initialization_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UISetChallengeMode(PlayerGroupSingle(gv_pLAYER_USER), true);
+    libChal_gf_LoadChallengeData(libChal_ge_ChallengeType_AdvancedCommand);
+    GameCheatAllow(c_gameCheatVictory, false);
+    TriggerExecute(gt_Init01Players, true, false);
+    TriggerExecute(gt_Init02Units, true, false);
+    TriggerExecute(gt_Init03Music, true, false);
+    TriggerExecute(gt_Init04Environment, true, false);
+    TriggerExecute(gt_Init05Hints, true, false);
+    TriggerExecute(gt_Init06MapSettings, true, false);
+    TriggerExecute(gt_IntroQ, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Initialization_Init () {
+    gt_Initialization = TriggerCreate("gt_Initialization_Func");
+    TriggerAddEventMapInit(gt_Initialization);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 01 Players
+//--------------------------------------------------------------------------------------------------
+bool gt_Init01Players_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerExecute(gt_Init01aTechnology, true, true);
+    libNtve_gf_SetAlliance(gv_pLAYER_USER, gv_pLAYER_ALLY, libNtve_ge_AllianceSetting_AllyWithSharedVision);
+    libNtve_gf_SetAlliance(gv_pLAYER_USER, gv_pLAYER_COMPUTER2, libNtve_ge_AllianceSetting_Enemy);
+    libNtve_gf_SetAlliance(gv_pLAYER_COMPUTER1, gv_pLAYER_COMPUTER2, libNtve_ge_AllianceSetting_Ally);
+    PlayerModifyPropertyInt(gv_pLAYER_USER, c_playerPropMinerals, c_playerPropOperSetTo, 1600);
+    PlayerModifyPropertyInt(gv_pLAYER_USER, c_playerPropVespene, c_playerPropOperSetTo, 1000);
+    PlayerModifyPropertyInt(gv_pLAYER_COMPUTER1, c_playerPropMinerals, c_playerPropOperSetTo, 1600);
+    PlayerModifyPropertyInt(gv_pLAYER_COMPUTER1, c_playerPropVespene, c_playerPropOperSetTo, 1000);
+    UISetCommandAllowed(PlayerGroupAll(), c_uiCommandAllowButtons, false);
+    UISetCommandAllowed(PlayerGroupAll(), c_uiCommandAllowHotkeys, false);
+    UISetCommandAllowed(PlayerGroupAll(), c_uiCommandAllowSmartClick, false);
+    UISetCommandDisallowedMessage(PlayerGroupAll(), StringExternal("Param/Value/C9B47DEF"));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init01Players_Init () {
+    gt_Init01Players = TriggerCreate("gt_Init01Players_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 01a Technology
+//--------------------------------------------------------------------------------------------------
+bool gt_Init01aTechnology_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TechTreeRestrictionsEnable(gv_pLAYER_USER, true);
+    TechTreeAbilityAllow(gv_pLAYER_USER, AbilityCommand("TemplarArchivesResearch", 4), true);
+    TechTreeAbilityAllow(gv_pLAYER_USER, AbilityCommand("TwilightCouncilResearch", 1), true);
+    TechTreeAbilityAllow(gv_pLAYER_USER, AbilityCommand("TwilightCouncilResearch", 0), true);
+    TechTreeAbilityAllow(gv_pLAYER_USER, AbilityCommand("MorphBackToGateway", 0), false);
+    TechTreeAbilityAllow(gv_pLAYER_USER, AbilityCommand("WarpGateTrain", 4), true);
+    TechTreeAbilityAllow(gv_pLAYER_USER, AbilityCommand("WarpGateTrain", 0), true);
+    TechTreeAbilityAllow(gv_pLAYER_USER, AbilityCommand("WarpGateTrain", 1), true);
+    TechTreeAbilityAllow(gv_pLAYER_USER, AbilityCommand("WarpGateTrain", 2), true);
+    TechTreeAbilityAllow(gv_pLAYER_USER, AbilityCommand("WarpGateTrain", 5), true);
+    TechTreeAbilityAllow(gv_pLAYER_USER, AbilityCommand("WarpGateTrain", 3), true);
+    TechTreeAbilityAllow(gv_pLAYER_USER, AbilityCommand("PsiStorm", 0), true);
+    TechTreeAbilityAllow(gv_pLAYER_USER, AbilityCommand("ArchonWarp", 0), true);
+    TechTreeAbilityAllow(gv_pLAYER_USER, AbilityCommand("ArchonWarp", 1), true);
+    TechTreeUpgradeAddLevel(gv_pLAYER_USER, "PsiStormTech", 1);
+    TechTreeUpgradeAddLevel(gv_pLAYER_USER, "haltech", 1);
+    TechTreeUpgradeAddLevel(gv_pLAYER_USER, "BlinkTech", 1);
+    TechTreeUpgradeAddLevel(gv_pLAYER_USER, "Charge", 1);
+    TechTreeUpgradeAddLevel(gv_pLAYER_USER, "WarpGateResearch", 1);
+    TechTreeUpgradeAddLevel(gv_pLAYER_USER, "ObserverGraviticBooster", 1);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init01aTechnology_Init () {
+    gt_Init01aTechnology = TriggerCreate("gt_Init01aTechnology_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 02 Units
+//--------------------------------------------------------------------------------------------------
+bool gt_Init02Units_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_i;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupLoopBegin(UnitGroup(null, c_playerAny, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        lv_i += 1;
+        gv_challengeUnits[lv_i].lv_unitType = UnitGetType(UnitGroupLoopCurrent());
+        gv_challengeUnits[lv_i].lv_player = UnitGetOwner(UnitGroupLoopCurrent());
+        gv_challengeUnits[lv_i].lv_position = UnitGetPosition(UnitGroupLoopCurrent());
+        gv_challengeUnits[lv_i].lv_facing = UnitGetFacing(UnitGroupLoopCurrent());
+    }
+    UnitGroupLoopEnd();
+    gv_numberOfChallengeUnits = lv_i;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init02Units_Init () {
+    gt_Init02Units = TriggerCreate("gt_Init02Units_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 03 Music
+//--------------------------------------------------------------------------------------------------
+bool gt_Init03Music_Func (bool testConds, bool runActions) {
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init03Music_Init () {
+    gt_Init03Music = TriggerCreate("gt_Init03Music_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 04 Environment
+//--------------------------------------------------------------------------------------------------
+bool gt_Init04Environment_Func (bool testConds, bool runActions) {
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init04Environment_Init () {
+    gt_Init04Environment = TriggerCreate("gt_Init04Environment_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 05 Hints
+//--------------------------------------------------------------------------------------------------
+bool gt_Init05Hints_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    HelpPanelAddHint(PlayerGroupAll(), StringExternal("Param/Value/02B3FD13"), StringExternal("Param/Value/181411DC"), "Assets\\Textures\\btn-unit-protoss-phaseprism.dds");
+    HelpPanelAddHint(PlayerGroupAll(), StringExternal("Param/Value/FC88B79C"), StringExternal("Param/Value/01FAC5CF"), "Assets\\Textures\\btn-building-protoss-warpgate.dds");
+    HelpPanelAddHint(PlayerGroupAll(), StringExternal("Param/Value/578CF15B"), StringExternal("Param/Value/ED2C00DB"), "Assets\\Textures\\ui_btn_generic_exclemation.dds");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init05Hints_Init () {
+    gt_Init05Hints = TriggerCreate("gt_Init05Hints_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init 06 Map Settings
+//--------------------------------------------------------------------------------------------------
+bool gt_Init06MapSettings_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TechTreeUnitHelpDefault(gv_pLAYER_USER, false);
+    TechTreeUnitHelp(gv_pLAYER_USER, "Marine", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "Ghost", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "Reaper", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "SCV", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "MissileTurret", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "Zealot", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "Sentry", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "Stalker", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "HighTemplar", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "DarkTemplar", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "Observer", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "WarpPrismPhasing", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "WarpPrism", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "Phoenix", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "Carrier", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "PhotonCannon", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "Overseer", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "Zergling", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "Hydralisk", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "Roach", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "Baneling", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "Ultralisk", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "Mutalisk", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "Infestor", true);
+    TechTreeUnitHelp(gv_pLAYER_USER, "Queen", true);
+    HelpPanelShowTechTreeRace(PlayerGroupAll(), "Prot", false);
+    HelpPanelShowTechTreeRace(PlayerGroupAll(), "Zerg", false);
+    HelpPanelShowTechTreeRace(PlayerGroupAll(), "Terr", false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Init06MapSettings_Init () {
+    gt_Init06MapSettings = TriggerCreate("gt_Init06MapSettings_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Button Chosen Try Again
+//--------------------------------------------------------------------------------------------------
+bool gt_ButtonChosenTryAgain_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    gv_firstPlayThough = false;
+    TriggerExecute(gt_RestartChallengeQ, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ButtonChosenTryAgain_Init () {
+    gt_ButtonChosenTryAgain = TriggerCreate("gt_ButtonChosenTryAgain_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Button Chosen Leave Game
+//--------------------------------------------------------------------------------------------------
+bool gt_ButtonChosenLeaveGame_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    GameOver(gv_pLAYER_USER, c_gameOverDefeat, false, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ButtonChosenLeaveGame_Init () {
+    gt_ButtonChosenLeaveGame = TriggerCreate("gt_ButtonChosenLeaveGame_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Dialog Score Show
+//--------------------------------------------------------------------------------------------------
+bool gt_DialogScoreShow_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libChal_gf_ShowHideChallengeWaveSuccessPanel(false);
+    UISetMode(PlayerGroupAll(), c_uiModeFullscreen, c_transitionDurationImmediate);
+    CinematicFade(false, 0.0, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, false);
+    TriggerQueueClear(c_triggerQueueKill);
+    TriggerQueuePause(false);
+    UIClearMessages(PlayerGroupAll(), c_messageAreaAll);
+    VisExploreArea(gv_pLAYER_USER, RegionEntireMap(), true, false);
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_COMPUTER1, null, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        UnitRemove(UnitGroupLoopCurrent());
+        UnitGroupRemove(gv_enemiesUnits, UnitGroupLoopCurrent());
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_COMPUTER2, null, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        UnitRemove(UnitGroupLoopCurrent());
+    }
+    UnitGroupLoopEnd();
+    if ((gv_victory == true)) {
+        if ((gv_previousBestScore >= gv_winningScoreSilver)) {
+            gv_ratingText = (StringExternal("Param/Value/AB822EBD") + gv_ratingTextSilver);
+        }
+        else {
+        }
+        if ((gv_previousBestScore >= gv_winningScoreGold)) {
+            gv_ratingText = (StringExternal("Param/Value/F348244B") + gv_ratingTextGold);
+        }
+        else {
+        }
+        if ((gv_firstPlayThough == true)) {
+            libChal_gf_CreateChallengeVictoryPanel(StringExternal("Param/Value/732F14D3"), gv_ratingText, StringToText(""), (StringExternal("Param/Value/621A713F") + IntToText(gv_finalScore)), gt_ButtonChosenLeaveGame, gt_ButtonChosenTryAgain);
+        }
+        else {
+            libChal_gf_CreateChallengeVictoryPanel(StringExternal("Param/Value/8D24BB12"), gv_ratingText, StringToText(""), (StringExternal("Param/Value/68AE048C") + IntToText(gv_finalScore)), gt_ButtonChosenLeaveGame, gt_ButtonChosenTryAgain);
+        }
+        libChal_gf_AddAchievementToChallengeVictoryPanel("Challenge_AdvancedCommand_Basic");
+        libChal_gf_AddAchievementToChallengeVictoryPanel("Challenge_AdvancedCommand_Mastery");
+        libChal_gf_AddAchievementToChallengeVictoryPanel("Challenge_AdvancedCommand_Dominance");
+        libChal_gf_ShowHideChallengeVictoryPanel(true);
+        if ((gv_previousBestScore > 0) && (gv_finalScore < gv_previousBestScore)) {
+            libChal_gf_ShowHideChallengeVictoryPanel(false);
+            libChal_gf_CreateChallengeVictoryPanel(StringExternal("Param/Value/B8D360C1"), gv_ratingText, StringToText(""), (StringExternal("Param/Value/371D32CC") + IntToText(gv_previousBestScore)), gt_ButtonChosenLeaveGame, gt_ButtonChosenTryAgain);
+            libChal_gf_AddAchievementToChallengeVictoryPanel("Challenge_AdvancedCommand_Basic");
+            libChal_gf_AddAchievementToChallengeVictoryPanel("Challenge_AdvancedCommand_Mastery");
+            libChal_gf_AddAchievementToChallengeVictoryPanel("Challenge_AdvancedCommand_Dominance");
+            libChal_gf_ShowHideChallengeVictoryPanel(true);
+        }
+        else {
+        }
+    }
+    else {
+        libChal_gf_CreateChallengeDefeatPanel(StringExternal("Param/Value/5FF29001"), TextReplaceWord(StringExternal("Param/Value/974891C1"), StringExternal("Param/Value/62CFCF47"), IntToText(gv_winningScoreBronze), c_stringReplaceAll, c_stringCase), gt_ButtonChosenLeaveGame, gt_ButtonChosenTryAgain);
+        libChal_gf_ShowHideChallengeDefeatPanel(true);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_DialogScoreShow_Init () {
+    gt_DialogScoreShow = TriggerCreate("gt_DialogScoreShow_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Create Multikill Object
+//--------------------------------------------------------------------------------------------------
+bool gt_CreateMultikillObject_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetOwner(EventUnit()) != 1))) {
+            return false;
+        }
+
+        if (!((UnitGetType(EventUnit()) != "MultiKillObject"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, "MultiKillObject", 0, 1, UnitGetPosition(EventUnit()));
+    gv_multiKillLastKillPosition = UnitGetPosition(EventUnit());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_CreateMultikillObject_Init () {
+    gt_CreateMultikillObject = TriggerCreate("gt_CreateMultikillObject_Func");
+    TriggerAddEventUnitDied(gt_CreateMultikillObject, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Display Multikill Message
+//--------------------------------------------------------------------------------------------------
+bool gt_DisplayMultikillMessage_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_range;
+    int lv_tier1;
+    int lv_tier2;
+    int lv_tier3;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_range = 8.0;
+    lv_tier1 = 6;
+    lv_tier2 = 9;
+    lv_tier3 = 12;
+    gv_multikillCounter = UnitGroupCount(UnitGroup("MultiKillObject", c_playerAny, RegionCircle(gv_multiKillLastKillPosition, lv_range), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), c_unitCountAlive);
+    if ((gv_multiKillMsgUp == false)) {
+        if ((gv_multikillCounter >= lv_tier3)) {
+            gv_multiKillMsgUp = true;
+            TextTagCreate((IntToText(gv_multikillCounter) + StringExternal("Param/Value/65AC0DEF")), 24, gv_multiKillLastKillPosition, 1.0, true, false, PlayerGroupAll());
+            TextTagSetColor(TextTagLastCreated(), c_textTagColorText, Color(100.00, 0.00, 0.00));
+            TextTagSetVelocity(TextTagLastCreated(), 0.5, 90.0);
+            TextTagSetTime(TextTagLastCreated(), c_textTagTimeDuration, 3.0);
+            Wait(3.0, c_timeGame);
+            gv_multiKillMsgUp = false;
+        }
+        else {
+            if ((gv_multikillCounter < lv_tier3) && (gv_multikillCounter >= lv_tier2)) {
+                gv_multiKillMsgUp = true;
+                TextTagCreate((IntToText(gv_multikillCounter) + StringExternal("Param/Value/B51155E6")), 24, gv_multiKillLastKillPosition, 1.0, true, false, PlayerGroupAll());
+                TextTagSetColor(TextTagLastCreated(), c_textTagColorText, Color(100.00, 0.00, 0.00));
+                TextTagSetVelocity(TextTagLastCreated(), 0.5, 90.0);
+                TextTagSetTime(TextTagLastCreated(), c_textTagTimeDuration, 3.0);
+                Wait(3.0, c_timeGame);
+                gv_multiKillMsgUp = false;
+            }
+            else {
+                if ((gv_multikillCounter < lv_tier2) && (gv_multikillCounter >= lv_tier1)) {
+                    gv_multiKillMsgUp = true;
+                    TextTagCreate((IntToText(gv_multikillCounter) + StringExternal("Param/Value/E455D391")), 24, gv_multiKillLastKillPosition, 1.0, true, false, PlayerGroupAll());
+                    TextTagSetColor(TextTagLastCreated(), c_textTagColorText, Color(100.00, 0.00, 0.00));
+                    TextTagSetVelocity(TextTagLastCreated(), 0.5, 90.0);
+                    TextTagSetTime(TextTagLastCreated(), c_textTagTimeDuration, 3.0);
+                    Wait(3.0, c_timeGame);
+                    gv_multiKillMsgUp = false;
+                }
+                else {
+                }
+            }
+        }
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_DisplayMultikillMessage_Init () {
+    gt_DisplayMultikillMessage = TriggerCreate("gt_DisplayMultikillMessage_Func");
+    TriggerEnable(gt_DisplayMultikillMessage, false);
+    TriggerAddEventTimePeriodic(gt_DisplayMultikillMessage, 0.5, c_timeGame);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Restart Challenge Q
+//--------------------------------------------------------------------------------------------------
+bool gt_RestartChallengeQ_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libChal_gf_ShowHideChallengeVictoryPanel(false);
+    libChal_gf_ShowHideChallengeDefeatPanel(false);
+    TriggerExecute(gt_ResetGameData, true, true);
+    TriggerExecute(gt_PopulateMap, true, false);
+    TriggerExecute(gt_ResetPlayField, true, false);
+    Wait(0.5, c_timeGame);
+    TriggerEnable(gt_FinishVictory, true);
+    TriggerEnable(gt_FinishDefeatTimer, true);
+    TriggerQueueEnter();
+    CinematicFade(true, 1.0, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, false);
+    Wait(1.0, c_timeGame);
+    UnitPauseAll(true);
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_USER, RegionEntireMap(), UnitFilter((1 << c_targetFilterStructure), 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        libNtve_gf_PauseUnit(UnitGroupLoopCurrent(), false);
+    }
+    UnitGroupLoopEnd();
+    UIAlertPoint("Trigger", gv_pLAYER_USER, StringToText(""), null, PointFromId(2));
+    UISetMode(PlayerGroupAll(), c_uiModeConsole, c_transitionDurationDefault);
+    TriggerExecute(gt_Timer, true, false);
+    TriggerExecute(gt_AddReadyButtonQ, true, false);
+    TriggerExecute(gt_ObjectiveKillDiscoverQ, true, false);
+    TriggerExecute(gt_TipHotkeysQ, true, false);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_RestartChallengeQ_Init () {
+    gt_RestartChallengeQ = TriggerCreate("gt_RestartChallengeQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Reset Game Data
+//--------------------------------------------------------------------------------------------------
+bool gt_ResetGameData_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitPauseAll(true);
+    VisRevealerDestroy(gv_revealer);
+    libNtve_gf_HideScreenButton(false, gv_readyButton);
+    PlayerModifyPropertyInt(gv_pLAYER_USER, c_playerPropMinerals, c_playerPropOperSetTo, 4200);
+    PlayerModifyPropertyInt(gv_pLAYER_USER, c_playerPropVespene, c_playerPropOperSetTo, 3000);
+    gv_gameOver = false;
+    if ((gv_finalScore > 0) && (gv_finalScore > gv_previousBestScore)) {
+        gv_previousBestScore = gv_finalScore;
+    }
+    else {
+    }
+    gv_finalScore = 0;
+    BoardItemSetText(gv_board, 1, 1, (StringExternal("Param/Value/4BC10C45") + IntToText(gv_finalScore) + StringExternal("Param/Value/238ED619") + IntToText(gv_winningScoreBronze)));
+    gv_enemiesUnits = UnitGroupEmpty();
+    gv_ready = false;
+    gv_revealer = null;
+    ObjectiveDestroy(gv_objectiveKill1);
+    ObjectiveDestroy(gv_objectiveKill2);
+    ObjectiveDestroy(gv_objectiveKill3);
+    TimerWindowDestroy(gv_mainTimerWindow);
+    TriggerEnable(gt_TrackUnitKilled, true);
+    TriggerEnable(gt_Timer, true);
+    TriggerEnable(gt_ObjectiveKillCompleteQ, true);
+    TriggerEnable(gt_ObjectiveKillCreate, true);
+    TriggerEnable(gt_ObjectiveKillDiscoverQ, true);
+    TriggerEnable(gt_ObjectiveKillFailed, true);
+    TriggerEnable(gt_FinishVictory, false);
+    TriggerEnable(gt_FinishDefeatTimer, true);
+    DialogSetVisible(gv_savedUnitsDialog, PlayerGroupAll(), false);
+    DialogControlSetVisible(gv_savedUnitsDialog2, PlayerGroupAll(), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ResetGameData_Init () {
+    gt_ResetGameData = TriggerCreate("gt_ResetGameData_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Populate Map
+//--------------------------------------------------------------------------------------------------
+bool gt_PopulateMap_Func (bool testConds, bool runActions) {
+    int auto5D165E8D_ae;
+    int auto5D165E8D_ai;
+
+    // Variable Declarations
+    int lv_i;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupLoopBegin(UnitGroup(null, c_playerAny, null, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        UnitRemove(UnitGroupLoopCurrent());
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(UnitGroup("VespeneGeyser", c_playerAny, null, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        UnitRemove(UnitGroupLoopCurrent());
+    }
+    UnitGroupLoopEnd();
+    auto5D165E8D_ae = gv_numberOfChallengeUnits;
+    auto5D165E8D_ai = 1;
+    lv_i = 1;
+    for ( ; ( (auto5D165E8D_ai >= 0 && lv_i <= auto5D165E8D_ae) || (auto5D165E8D_ai <= 0 && lv_i >= auto5D165E8D_ae) ) ; lv_i += auto5D165E8D_ai ) {
+        UnitCreate(1, gv_challengeUnits[lv_i].lv_unitType, 0, gv_challengeUnits[lv_i].lv_player, gv_challengeUnits[lv_i].lv_position, gv_challengeUnits[lv_i].lv_facing);
+        UnitSetPosition(UnitLastCreated(), gv_challengeUnits[lv_i].lv_position, false);
+        if ((UnitGetType(UnitLastCreated()) == "CreepTumorBurrowed")) {
+            CreepModify(UnitGetPosition(UnitLastCreated()), 10.0, true, false);
+        }
+        else {
+        }
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_PopulateMap_Init () {
+    gt_PopulateMap = TriggerCreate("gt_PopulateMap_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Reset Play Field
+//--------------------------------------------------------------------------------------------------
+bool gt_ResetPlayField_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_COMPUTER1, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        UnitGroupAdd(gv_enemiesUnits, UnitGroupLoopCurrent());
+        UnitBehaviorAddPlayer(UnitGroupLoopCurrent(), "Untargetable", gv_pLAYER_COMPUTER1, 1);
+        UnitBehaviorAddPlayer(UnitGroupLoopCurrent(), "DamageTakenNone", gv_pLAYER_COMPUTER1, 1);
+        UnitSetPropertyFixed(UnitGroupLoopCurrent(), c_unitPropEnergyPercent, 100.0);
+    }
+    UnitGroupLoopEnd();
+    CameraApplyInfo(gv_pLAYER_USER, CameraInfoFromId(62), 0.0, -1, 10, true);
+    VisExploreArea(gv_pLAYER_USER, RegionPlayableMap(), true, false);
+    VisRevealerCreate(gv_pLAYER_USER, RegionFromId(10));
+    gv_revealer = VisRevealerLastCreated();
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_USER, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        UnitSetPropertyFixed(UnitGroupLoopCurrent(), c_unitPropEnergyPercent, 100.0);
+    }
+    UnitGroupLoopEnd();
+    UnitPauseAll(true);
+    UISetCommandAllowed(PlayerGroupAll(), c_uiCommandAllowButtons, false);
+    UISetCommandAllowed(PlayerGroupAll(), c_uiCommandAllowHotkeys, false);
+    UISetCommandAllowed(PlayerGroupAll(), c_uiCommandAllowSmartClick, false);
+    UISetCommandDisallowedMessage(PlayerGroupAll(), StringExternal("Param/Value/9993AB03"));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ResetPlayField_Init () {
+    gt_ResetPlayField = TriggerCreate("gt_ResetPlayField_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Track Unit Killed
+//--------------------------------------------------------------------------------------------------
+bool gt_TrackUnitKilled_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!(((UnitGetOwner(EventUnit()) == gv_pLAYER_COMPUTER1) || (UnitGetOwner(EventUnit()) == 0)))) {
+            return false;
+        }
+
+        if (!((UnitGetType(EventUnit()) != "MultiKillObject"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    gv_finalScore = (gv_finalScore + 1);
+    UnitGroupRemove(gv_enemiesUnits, EventUnit());
+    TriggerExecute(gt_ObjectiveKillUpdate, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TrackUnitKilled_Init () {
+    gt_TrackUnitKilled = TriggerCreate("gt_TrackUnitKilled_Func");
+    TriggerAddEventUnitDied(gt_TrackUnitKilled, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Check for Cheating
+//--------------------------------------------------------------------------------------------------
+bool gt_CheckforCheating_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    gv_cheatUsed = true;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_CheckforCheating_Init () {
+    gt_CheckforCheating = TriggerCreate("gt_CheckforCheating_Func");
+    TriggerAddEventCheatUsed(gt_CheckforCheating, c_playerAny, c_gameCheatAny);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Timer
+//--------------------------------------------------------------------------------------------------
+bool gt_Timer_Func (bool testConds, bool runActions) {
+    int auto07B0E3C2_n;
+    int auto07B0E3C2_i;
+    int auto094C0D11_n;
+    int auto094C0D11_i;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    if ((gv_retryCount == 2)) {
+        gv_retryCount = (gv_retryCount + 1);
+        HelpPanelDisplayPage(PlayerGroupAll(), c_helpPanelPageTips);
+    }
+    else {
+    }
+    BoardDestroy(gv_board);
+    while (!((gv_ready == true))) {
+        Wait(0.5, c_timeGame);
+    }
+    libChal_gf_ChallengeScoreWindow(StringExternal("Param/Value/812F3F1F"), gv_finalScore, gv_winningScoreBronze);
+    gv_board = BoardLastCreated();
+    TriggerExecute(gt_ObjectiveKillUpdate, true, false);
+    TimerStart(gv_mainTimer, 150.0, false, c_timeGame);
+    TimerWindowCreate(TimerLastStarted(), StringExternal("Param/Value/C83E2D28"), true, false);
+    TimerWindowSetFormat(TimerWindowLastCreated(), StringToText("<min2/>:<sec2/>"));
+    gv_mainTimerWindow = TimerWindowLastCreated();
+    Wait(130.0, c_timeGame);
+    auto07B0E3C2_n = 10;
+    for (auto07B0E3C2_i = 1; auto07B0E3C2_i <= auto07B0E3C2_n; auto07B0E3C2_i += 1) {
+        TimerWindowSetColor(gv_mainTimerWindow, c_timerWindowColorBackground, Color(99.61, 67.45, 0.39), 0.0);
+        TimerWindowSetColor(gv_mainTimerWindow, c_timerWindowColorTitle, Color(100.00, 100.00, 100.00), 0.0);
+        TimerWindowSetColor(gv_mainTimerWindow, c_timerWindowColorTime, Color(100.00, 100.00, 100.00), 0.0);
+        Wait(0.7, c_timeGame);
+        TimerWindowSetColor(gv_mainTimerWindow, c_timerWindowColorBackground, Color(99.22, 90.98, 31.76), 0.0);
+        TimerWindowSetColor(gv_mainTimerWindow, c_timerWindowColorTitle, Color(100.00, 100.00, 100.00), 0.0);
+        TimerWindowSetColor(gv_mainTimerWindow, c_timerWindowColorTime, Color(100.00, 100.00, 100.00), 0.0);
+        Wait(0.3, c_timeGame);
+    }
+    libChal_gf_ShowFinalCountdown(10);
+    auto094C0D11_n = 10;
+    for (auto094C0D11_i = 1; auto094C0D11_i <= auto094C0D11_n; auto094C0D11_i += 1) {
+        TimerWindowSetColor(gv_mainTimerWindow, c_timerWindowColorBackground, Color(64.31, 2.35, 11.76), 0.0);
+        TimerWindowSetColor(gv_mainTimerWindow, c_timerWindowColorTitle, Color(100.00, 100.00, 100.00), 0.0);
+        TimerWindowSetColor(gv_mainTimerWindow, c_timerWindowColorTime, Color(100.00, 100.00, 100.00), 0.0);
+        Wait(0.7, c_timeGame);
+        TimerWindowSetColor(gv_mainTimerWindow, c_timerWindowColorBackground, Color(99.22, 0.00, 0.00), 0.0);
+        TimerWindowSetColor(gv_mainTimerWindow, c_timerWindowColorTitle, Color(100.00, 100.00, 100.00), 0.0);
+        TimerWindowSetColor(gv_mainTimerWindow, c_timerWindowColorTime, Color(100.00, 100.00, 100.00), 0.0);
+        Wait(0.3, c_timeGame);
+        TextTagDestroy(TextTagLastCreated());
+    }
+    TriggerEnable(gt_TrackUnitKilled, false);
+    TriggerExecute(gt_ObjectiveKillUpdate, true, false);
+    if ((gv_finalScore >= gv_winningScoreBronze)) {
+        TriggerExecute(gt_FinishVictory, true, false);
+    }
+    else {
+        TriggerExecute(gt_FinishDefeatTimer, true, false);
+    }
+    TimerWindowDestroy(gv_mainTimerWindow);
+    DialogDestroy(libChal_gv_finalCountdownDIALOG);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_Timer_Init () {
+    gt_Timer = TriggerCreate("gt_Timer_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Add Ready Button Q
+//--------------------------------------------------------------------------------------------------
+bool gt_AddReadyButtonQ_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    VisRevealerCreate(gv_pLAYER_USER, RegionEntireMap());
+    gv_revealer = VisRevealerLastCreated();
+    TriggerQueueEnter();
+    libChal_gf_ChallengeReadyButton(gv_readyButton, gv_pLAYER_USER, gt_ReadyPressed);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_AddReadyButtonQ_Init () {
+    gt_AddReadyButtonQ = TriggerCreate("gt_AddReadyButtonQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Ready Pressed
+//--------------------------------------------------------------------------------------------------
+bool gt_ReadyPressed_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libNtve_gf_HideScreenButton(false, gv_readyButton);
+    VisRevealerDestroy(gv_revealer);
+    UISetCommandDisallowedMessage(PlayerGroupAll(), StringExternal("Param/Value/80B968CF"));
+    libChal_gf_ShowRacingStart();
+    UISetCommandDisallowedMessage(PlayerGroupAll(), StringExternal("Param/Value/DCC5BD70"));
+    gv_ready = true;
+    TriggerEnable(gt_DisplayMultikillMessage, true);
+    TriggerExecute(gt_ObjectiveKillUpdate, true, false);
+    UnitGroupLoopBegin(gv_enemiesUnits);
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        UnitBehaviorRemovePlayer(UnitGroupLoopCurrent(), "Untargetable", gv_pLAYER_COMPUTER1, 1);
+        UnitBehaviorRemovePlayer(UnitGroupLoopCurrent(), "DamageTakenNone", gv_pLAYER_COMPUTER1, 1);
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_USER, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        UnitSetPropertyFixed(UnitGroupLoopCurrent(), c_unitPropEnergyPercent, 100.0);
+    }
+    UnitGroupLoopEnd();
+    UnitGroupLoopBegin(UnitGroup(null, gv_pLAYER_USER, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    for ( ; !UnitGroupLoopDone() ; UnitGroupLoopStep() ) {
+        UnitIssueOrder(UnitGroupLoopCurrent(), Order(AbilityCommand("HoldFire", 0)), c_orderQueueReplace);
+        libNtve_gf_MakeUnitUncommandable(UnitGroupLoopCurrent(), false);
+    }
+    UnitGroupLoopEnd();
+    UISetCommandAllowed(PlayerGroupAll(), c_uiCommandAllowButtons, false);
+    UISetCommandAllowed(PlayerGroupAll(), c_uiCommandAllowSmartClick, true);
+    UISetCommandAllowed(PlayerGroupAll(), c_uiCommandAllowHotkeys, true);
+    UnitPauseAll(false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ReadyPressed_Init () {
+    gt_ReadyPressed = TriggerCreate("gt_ReadyPressed_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ObjectiveKill Create
+//--------------------------------------------------------------------------------------------------
+bool gt_ObjectiveKillCreate_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    ObjectiveCreate(TextReplaceWord((StringExternal("Param/Value/53FCAC82") + gv_ratingTextBronze + StringExternal("Param/Value/029129D5")), StringExternal("Param/Value/5F6EBF43"), IntToText(gv_winningScoreBronze), c_stringReplaceAll, c_stringCase), TextReplaceWord(StringExternal("Param/Value/32DF2F98"), StringExternal("Param/Value/8AA09FB4"), IntToText(gv_winningScoreBronze), c_stringReplaceAll, c_stringCase), c_objectiveStateActive, true);
+    gv_objectiveKill1 = ObjectiveLastCreated();
+    Wait(2.0, c_timeGame);
+    ObjectiveCreate(TextReplaceWord((StringExternal("Param/Value/04CFC30A") + gv_ratingTextSilver + StringExternal("Param/Value/7F7B82FC")), StringExternal("Param/Value/D75FAE77"), IntToText(gv_winningScoreSilver), c_stringReplaceAll, c_stringCase), TextReplaceWord(StringExternal("Param/Value/2B200293"), StringExternal("Param/Value/E7477835"), IntToText(gv_winningScoreSilver), c_stringReplaceAll, c_stringCase), c_objectiveStateActive, false);
+    gv_objectiveKill2 = ObjectiveLastCreated();
+    Wait(2.0, c_timeGame);
+    ObjectiveCreate(TextReplaceWord((StringExternal("Param/Value/AA04631D") + gv_ratingTextGold + StringExternal("Param/Value/D59DA782")), StringExternal("Param/Value/4D415390"), IntToText(gv_winningScoreGold), c_stringReplaceAll, c_stringCase), TextReplaceWord(StringExternal("Param/Value/677E8B18"), StringExternal("Param/Value/3F40F919"), IntToText(gv_winningScoreGold), c_stringReplaceAll, c_stringCase), c_objectiveStateActive, false);
+    gv_objectiveKill3 = ObjectiveLastCreated();
+    Wait(2.0, c_timeGame);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ObjectiveKillCreate_Init () {
+    gt_ObjectiveKillCreate = TriggerCreate("gt_ObjectiveKillCreate_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ObjectiveKill Update
+//--------------------------------------------------------------------------------------------------
+bool gt_ObjectiveKillUpdate_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((gv_finalScore >= gv_winningScoreBronze)) {
+        ObjectiveSetState(gv_objectiveKill1, c_objectiveStateCompleted);
+        gv_ratingText = (StringExternal("Param/Value/8312FB80") + gv_ratingTextBronze);
+        AchievementAward(gv_pLAYER_USER, "Challenge_AdvancedCommand_Basic");
+    }
+    else {
+    }
+    if ((gv_finalScore >= gv_winningScoreSilver)) {
+        ObjectiveSetState(gv_objectiveKill2, c_objectiveStateCompleted);
+        gv_ratingText = (StringExternal("Param/Value/30C28126") + gv_ratingTextSilver);
+        AchievementAward(gv_pLAYER_USER, "Challenge_AdvancedCommand_Mastery");
+    }
+    else {
+    }
+    if ((gv_finalScore >= gv_winningScoreGold)) {
+        ObjectiveSetState(gv_objectiveKill3, c_objectiveStateCompleted);
+        gv_ratingText = (StringExternal("Param/Value/0945A8DF") + gv_ratingTextGold);
+        AchievementAward(gv_pLAYER_USER, "Challenge_AdvancedCommand_Dominance");
+    }
+    else {
+    }
+    DialogSetVisible(gv_savedUnitsDialog, PlayerGroupAll(), false);
+    DialogControlSetVisible(gv_savedUnitsDialog2, PlayerGroupAll(), false);
+    if ((ObjectiveGetState(gv_objectiveKill1) == c_objectiveStateActive) && (ObjectiveGetState(gv_objectiveKill2) == c_objectiveStateActive) && (ObjectiveGetState(gv_objectiveKill3) == c_objectiveStateActive)) {
+        BoardItemSetText(gv_board, 1, 1, (StringExternal("Param/Value/B7593957") + IntToText(gv_finalScore) + StringExternal("Param/Value/D5FBB5BF") + IntToText(gv_winningScoreBronze)));
+        gv_savedUnitsDialog = DialogLastCreated();
+        gv_savedUnitsDialog2 = DialogControlLastCreated();
+    }
+    else {
+    }
+    if ((ObjectiveGetState(gv_objectiveKill1) == c_objectiveStateCompleted) && (ObjectiveGetState(gv_objectiveKill2) == c_objectiveStateActive) && (ObjectiveGetState(gv_objectiveKill3) == c_objectiveStateActive)) {
+        BoardItemSetText(gv_board, 1, 1, (StringExternal("Param/Value/E11829E5") + IntToText(gv_finalScore) + StringExternal("Param/Value/2FC6682E") + IntToText(gv_winningScoreSilver)));
+        gv_savedUnitsDialog = DialogLastCreated();
+        gv_savedUnitsDialog2 = DialogControlLastCreated();
+    }
+    else {
+    }
+    if ((ObjectiveGetState(gv_objectiveKill1) == c_objectiveStateCompleted) && (ObjectiveGetState(gv_objectiveKill2) == c_objectiveStateCompleted) && (ObjectiveGetState(gv_objectiveKill3) == c_objectiveStateActive)) {
+        BoardItemSetText(gv_board, 1, 1, (StringExternal("Param/Value/891F42D1") + IntToText(gv_finalScore) + StringExternal("Param/Value/EE0B110F") + IntToText(gv_winningScoreGold)));
+        gv_savedUnitsDialog = DialogLastCreated();
+        gv_savedUnitsDialog2 = DialogControlLastCreated();
+    }
+    else {
+    }
+    if ((ObjectiveGetState(gv_objectiveKill1) == c_objectiveStateCompleted) && (ObjectiveGetState(gv_objectiveKill2) == c_objectiveStateCompleted) && (ObjectiveGetState(gv_objectiveKill3) == c_objectiveStateCompleted)) {
+        BoardItemSetText(gv_board, 1, 1, (StringExternal("Param/Value/99F92FE7") + IntToText(gv_finalScore) + StringExternal("Param/Value/E98A4104") + IntToText(gv_winningScoreGold)));
+        gv_savedUnitsDialog = DialogLastCreated();
+        gv_savedUnitsDialog2 = DialogControlLastCreated();
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ObjectiveKillUpdate_Init () {
+    gt_ObjectiveKillUpdate = TriggerCreate("gt_ObjectiveKillUpdate_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ObjectiveKill Discover Q
+//--------------------------------------------------------------------------------------------------
+bool gt_ObjectiveKillDiscoverQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    TriggerExecute(gt_ObjectiveKillCreate, true, true);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ObjectiveKillDiscoverQ_Init () {
+    gt_ObjectiveKillDiscoverQ = TriggerCreate("gt_ObjectiveKillDiscoverQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ObjectiveKill Complete Q
+//--------------------------------------------------------------------------------------------------
+bool gt_ObjectiveKillCompleteQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    TriggerExecute(gt_ObjectiveKillCreate, true, false);
+    if ((gv_finalScore >= gv_winningScoreBronze)) {
+        ObjectiveSetState(gv_objectiveKill1, c_objectiveStateCompleted);
+    }
+    else {
+    }
+    if ((gv_finalScore >= gv_winningScoreSilver)) {
+        ObjectiveSetState(gv_objectiveKill2, c_objectiveStateCompleted);
+    }
+    else {
+    }
+    if ((gv_finalScore >= gv_winningScoreGold)) {
+        ObjectiveSetState(gv_objectiveKill3, c_objectiveStateCompleted);
+    }
+    else {
+    }
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ObjectiveKillCompleteQ_Init () {
+    gt_ObjectiveKillCompleteQ = TriggerCreate("gt_ObjectiveKillCompleteQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ObjectiveKill Failed
+//--------------------------------------------------------------------------------------------------
+bool gt_ObjectiveKillFailed_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerExecute(gt_ObjectiveKillCreate, true, false);
+    ObjectiveSetState(gv_objectiveKill2, c_objectiveStateFailed);
+    ObjectiveSetState(gv_objectiveKill3, c_objectiveStateFailed);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_ObjectiveKillFailed_Init () {
+    gt_ObjectiveKillFailed = TriggerCreate("gt_ObjectiveKillFailed_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Finish Victory
+//--------------------------------------------------------------------------------------------------
+bool gt_FinishVictory_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((gv_finalScore >= gv_winningScoreBronze))) {
+            return false;
+        }
+
+        if (!((gv_gameOver == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    gv_gameOver = true;
+    gv_victory = true;
+    if ((gv_cheatUsed == false)) {
+        if ((libChal_gf_ChallengeScoreFromBank(libChal_ge_ChallengeType_AdvancedCommand) <= gv_finalScore)) {
+            gf_UpdateScoreUI(gv_finalScore);
+            libChal_gf_SaveChallengeScoreToBank(libChal_ge_ChallengeType_AdvancedCommand, gv_finalScore);
+        }
+        else {
+            gf_UpdateScoreUI(libChal_gf_ChallengeScoreFromBank(libChal_gf_CurrentChallengeType()));
+        }
+    }
+    else {
+    }
+    UnitPauseAll(true);
+    TriggerStop(gt_Timer);
+    TriggerQueueClear(c_triggerQueueRetain);
+    if ((gv_finalScore > gv_previousBestScore) && (gv_previousBestScore > 0)) {
+        libChal_gf_CreateChallengeWaveSuccessPanel(libChal_ge_SuccessFailure_Success, StringExternal("Param/Value/63245A61"), StringToText(""), StringExternal("Param/Value/F54348E6"), (StringExternal("Param/Value/71EF2B19") + IntToText(gv_finalScore)), gt_DialogScoreShow);
+        libChal_gf_ShowHideChallengeWaveSuccessPanel(true);
+        return true;
+    }
+    else {
+        if ((gv_previousBestScore > 0)) {
+            libChal_gf_CreateChallengeWaveSuccessPanel(libChal_ge_SuccessFailure_Success, StringExternal("Param/Value/1577A3EB"), StringToText(""), StringExternal("Param/Value/EEF12DC8"), (StringExternal("Param/Value/DFE49861") + IntToText(gv_previousBestScore)), gt_DialogScoreShow);
+            libChal_gf_ShowHideChallengeWaveSuccessPanel(true);
+            return true;
+        }
+        else {
+        }
+    }
+    TriggerExecute(gt_ObjectiveKillCompleteQ, true, false);
+    UISetChallengeCompleted(PlayerGroupSingle(1), libChal_gf_ChallengeName(libChal_gf_CurrentChallengeType()), true);
+    Wait(2.0, c_timeGame);
+    TriggerExecute(gt_DialogScoreShow, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_FinishVictory_Init () {
+    gt_FinishVictory = TriggerCreate("gt_FinishVictory_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Finish Defeat (Timer)
+//--------------------------------------------------------------------------------------------------
+bool gt_FinishDefeatTimer_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((gv_finalScore < gv_winningScoreBronze))) {
+            return false;
+        }
+
+        if (!((gv_gameOver == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    gv_gameOver = true;
+    UnitPauseAll(true);
+    TriggerStop(gt_Timer);
+    TriggerQueuePause(true);
+    TriggerQueueClear(c_triggerQueueRetain);
+    libNtve_gf_HideScreenButton(false, gv_readyButton);
+    Wait(2.0, c_timeReal);
+    gv_retryCount = (gv_retryCount + 1);
+    if ((gv_previousBestScore > 0) && (gv_finalScore > gv_previousBestScore)) {
+        CinematicFade(false, 1.0, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+        TriggerExecute(gt_ObjectiveKillFailed, true, false);
+        Wait(2.0, c_timeGame);
+        TriggerQueueClear(c_triggerQueueKill);
+        TriggerQueuePause(false);
+        libChal_gf_CreateChallengeDefeatPanel(StringExternal("Param/Value/FCBD19C1"), TextReplaceWord(StringExternal("Param/Value/8BDE6E58"), StringExternal("Param/Value/6E67A216"), IntToText(gv_winningScoreBronze), c_stringReplaceAll, c_stringCase), gt_ButtonChosenLeaveGame, gt_ButtonChosenTryAgain);
+        libChal_gf_ShowHideChallengeDefeatPanel(true);
+        return true;
+    }
+    else {
+        if ((gv_victory == true)) {
+            libChal_gf_CreateChallengeWaveSuccessPanel(libChal_ge_SuccessFailure_Failure, StringExternal("Param/Value/696C0D45"), StringToText(""), StringExternal("Param/Value/22316541"), (StringExternal("Param/Value/2F94A37B") + IntToText(gv_previousBestScore)), gt_DialogScoreShow);
+            libChal_gf_ShowHideChallengeWaveSuccessPanel(true);
+            return true;
+        }
+        else {
+        }
+    }
+    CinematicFade(false, 1.0, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+    TriggerExecute(gt_ObjectiveKillFailed, true, false);
+    Wait(2.0, c_timeGame);
+    TriggerExecute(gt_DialogScoreShow, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_FinishDefeatTimer_Init () {
+    gt_FinishDefeatTimer = TriggerCreate("gt_FinishDefeatTimer_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Tip Hotkeys Q
+//--------------------------------------------------------------------------------------------------
+bool gt_TipHotkeysQ_Func (bool testConds, bool runActions) {
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerQueueEnter();
+    HelpPanelAddTip(PlayerGroupAll(), libNtve_gf_FormatTipTitle(StringExternal("Param/Value/7E527772"), libNtve_ge_TipType_NormalTip), StringExternal("Param/Value/7D92B505"), StringExternal("Param/Value/C18025A3"), "Assets\\Textures\\btn-tips-hotkeys.dds");
+    Wait(libChal_gv_challengeTipDelay, c_timeReal);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TipHotkeysQ_Init () {
+    gt_TipHotkeysQ = TriggerCreate("gt_TipHotkeysQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Q
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroQ_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerQueueEnter();
+    TriggerExecute(gt_IntroSetup, true, true);
+    TriggerExecute(gt_IntroCinematic, true, true);
+    TriggerExecute(gt_IntroCinematicEnd, true, true);
+    TriggerExecute(gt_IntroCleanup, true, true);
+    TriggerQueueExit();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroQ_Init () {
+    gt_IntroQ = TriggerCreate("gt_IntroQ_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Setup
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroSetup_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    gv_inCinematic = true;
+    CinematicFade(false, 0.0, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, false);
+    libNtve_gf_CinematicMode(true, PlayerGroupAll(), 0.0);
+    libNtve_gf_GlobalCinematicSetting(true);
+    GameTimeOfDayPause(true);
+    Wait(0.1, c_timeGame);
+    TriggerExecute(gt_ResetGameData, true, true);
+    TriggerExecute(gt_ResetPlayField, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroSetup_Init () {
+    gt_IntroSetup = TriggerCreate("gt_IntroSetup_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Cinematic
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroCinematic_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    CameraApplyInfo(gv_pLAYER_USER, CameraInfoFromId(1710), 0.0, -1, 10, true);
+    TriggerSkippableBegin(PlayerGroupAll(), 0, null, true, false);
+    gv_introCinematicCompleted = false;
+    libNtve_gf_SetAllSoundChannelVolumes(libNtve_ge_VolumeChannelMode_Speech, PlayerGroupAll(), 0.0);
+    CinematicFade(true, 1.0, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+    Wait(1.0, c_timeGame);
+    CameraApplyInfo(gv_pLAYER_USER, CameraInfoFromId(1711), (SoundLengthSync(SoundLink("ChallengescombinedExecutor00034", -1)) - 1.0), -1, 10, true);
+    // Transmission - SoundLink("ChallengescombinedExecutor00034", 0)
+    libNtve_gf_SendTransmissionSimple(TransmissionSourceFromModel(null), libNtve_gf_CinematicPortrait(libNtve_ge_CinematicPortraitPosition_BottomLeft), SoundLink("ChallengescombinedExecutor00034", -1), 0.0, c_transmissionDurationAdd, true);
+    TriggerExecute(gt_IntroGroupCuts, true, false);
+    // Transmission - SoundLink("ChallengescombinedExecutor00035", 0)
+    libNtve_gf_SendTransmissionSimple(TransmissionSourceFromModel(null), libNtve_gf_CinematicPortrait(libNtve_ge_CinematicPortraitPosition_BottomLeft), SoundLink("ChallengescombinedExecutor00035", -1), 0.0, c_transmissionDurationAdd, true);
+    // Transmission - SoundLink("ChallengescombinedExecutor00036", 0)
+    libNtve_gf_SendTransmissionSimple(TransmissionSourceFromModel(null), libNtve_gf_CinematicPortrait(libNtve_ge_CinematicPortraitPosition_BottomLeft), SoundLink("ChallengescombinedExecutor00036", -1), 0.0, c_transmissionDurationAdd, true);
+    CameraApplyInfo(gv_pLAYER_USER, CameraInfoFromId(1708), 0.0, -1, 10, true);
+    CameraApplyInfo(gv_pLAYER_USER, CameraInfoFromId(1709), (SoundLengthSync(SoundLink("ChallengescombinedExecutor00048", -1)) - 0.0), -1, 10, true);
+    // Transmission - SoundLink("ChallengescombinedExecutor00048", 0)
+    libNtve_gf_SendTransmissionSimple(TransmissionSourceFromModel(null), libNtve_gf_CinematicPortrait(libNtve_ge_CinematicPortraitPosition_BottomLeft), SoundLink("ChallengescombinedExecutor00048", -1), 0.0, c_transmissionDurationAdd, true);
+    gv_introCinematicCompleted = true;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroCinematic_Init () {
+    gt_IntroCinematic = TriggerCreate("gt_IntroCinematic_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Group Cuts
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroGroupCuts_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_totalDuration;
+    fixed lv_individualDuration;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_totalDuration = (SoundLengthSync(SoundLink("ChallengescombinedExecutor00035", -1)) + SoundLengthSync(SoundLink("ChallengescombinedExecutor00036", -1)));
+    lv_individualDuration = (lv_totalDuration / 5.0);
+    CameraApplyInfo(gv_pLAYER_USER, CameraInfoFromId(1703), 0.0, -1, 10, true);
+    Wait(lv_individualDuration, c_timeReal);
+    CameraApplyInfo(gv_pLAYER_USER, CameraInfoFromId(1704), 0.0, -1, 10, true);
+    Wait(lv_individualDuration, c_timeReal);
+    CameraApplyInfo(gv_pLAYER_USER, CameraInfoFromId(1705), 0.0, -1, 10, true);
+    Wait(lv_individualDuration, c_timeReal);
+    CameraApplyInfo(gv_pLAYER_USER, CameraInfoFromId(248), 0.0, -1, 10, true);
+    Wait(lv_individualDuration, c_timeReal);
+    CameraApplyInfo(gv_pLAYER_USER, CameraInfoFromId(1706), 0.0, -1, 10, true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroGroupCuts_Init () {
+    gt_IntroGroupCuts = TriggerCreate("gt_IntroGroupCuts_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Cinematic End
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroCinematicEnd_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_fadeDuration;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((gv_introCinematicCompleted == true)) {
+        lv_fadeDuration = 2.0;
+    }
+    else {
+        lv_fadeDuration = 0.5;
+    }
+    CinematicFade(false, lv_fadeDuration, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+    TriggerStop(gt_IntroGroupCuts);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroCinematicEnd_Init () {
+    gt_IntroCinematicEnd = TriggerCreate("gt_IntroCinematicEnd_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Intro Cleanup
+//--------------------------------------------------------------------------------------------------
+bool gt_IntroCleanup_Func (bool testConds, bool runActions) {
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UIAlertPoint("Trigger", gv_pLAYER_USER, StringToText(""), null, PointFromId(2));
+    GameTimeOfDayPause(false);
+    CameraApplyInfo(gv_pLAYER_USER, CameraInfoFromId(62), 0.0, -1, 10, true);
+    VisExploreArea(gv_pLAYER_USER, RegionEntireMap(), true, false);
+    libNtve_gf_CinematicMode(false, PlayerGroupAll(), c_transitionDurationDefault);
+    libNtve_gf_GlobalCinematicSetting(false);
+    GameSetSpeedLocked(true);
+    GameSetSpeedValue(c_gameSpeedNormal);
+    CinematicFade(true, 1.0, c_fadeStyleNormal, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, true);
+    gv_inCinematic = false;
+    UnitPauseAll(false);
+    UnitPauseAll(true);
+    TriggerExecute(gt_Timer, true, false);
+    TriggerExecute(gt_AddReadyButtonQ, true, false);
+    TriggerExecute(gt_ObjectiveKillDiscoverQ, true, false);
+    TriggerExecute(gt_TipHotkeysQ, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_IntroCleanup_Init () {
+    gt_IntroCleanup = TriggerCreate("gt_IntroCleanup_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger Initialization
+//--------------------------------------------------------------------------------------------------
+void InitTriggers () {
+    gt_Initialization_Init();
+    gt_Init01Players_Init();
+    gt_Init01aTechnology_Init();
+    gt_Init02Units_Init();
+    gt_Init03Music_Init();
+    gt_Init04Environment_Init();
+    gt_Init05Hints_Init();
+    gt_Init06MapSettings_Init();
+    gt_ButtonChosenTryAgain_Init();
+    gt_ButtonChosenLeaveGame_Init();
+    gt_DialogScoreShow_Init();
+    gt_CreateMultikillObject_Init();
+    gt_DisplayMultikillMessage_Init();
+    gt_RestartChallengeQ_Init();
+    gt_ResetGameData_Init();
+    gt_PopulateMap_Init();
+    gt_ResetPlayField_Init();
+    gt_TrackUnitKilled_Init();
+    gt_CheckforCheating_Init();
+    gt_Timer_Init();
+    gt_AddReadyButtonQ_Init();
+    gt_ReadyPressed_Init();
+    gt_ObjectiveKillCreate_Init();
+    gt_ObjectiveKillUpdate_Init();
+    gt_ObjectiveKillDiscoverQ_Init();
+    gt_ObjectiveKillCompleteQ_Init();
+    gt_ObjectiveKillFailed_Init();
+    gt_FinishVictory_Init();
+    gt_FinishDefeatTimer_Init();
+    gt_TipHotkeysQ_Init();
+    gt_IntroQ_Init();
+    gt_IntroSetup_Init();
+    gt_IntroCinematic_Init();
+    gt_IntroGroupCuts_Init();
+    gt_IntroCinematicEnd_Init();
+    gt_IntroCleanup_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Map Initialization
+//--------------------------------------------------------------------------------------------------
+void InitMap () {
+    InitLibs();
+    InitGlobals();
+    InitTriggers();
+}
