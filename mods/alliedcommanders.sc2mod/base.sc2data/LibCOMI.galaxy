@@ -143,6 +143,7 @@ void libCOMI_InitVariables () {
     for (init_i = 0; init_i <= libCOOC_gv_cCC_MAXPLAYERS; init_i += 1) {
         libCOMI_gv_cM_Fenix_OfflineEnergyRegen[init_i] = 2.0833;
     }
+    libCOMI_gv_cM_Fenix_RalliedGroup = UnitGroupEmpty();
     for (init_i = 0; init_i <= libCOMI_gv_cMC_Fenix_ChampionCount; init_i += 1) {
         for (init_j = 0; init_j <= libCOOC_gv_cCC_MAXPLAYERS; init_j += 1) {
             libCOMI_gv_cM_Fenix_ChampionVolunteerUnitGroup[init_i][init_j] = UnitGroupEmpty();
@@ -226,8 +227,6 @@ void libCOMI_InitVariables () {
     for (init_i = 0; init_i <= libCOOC_gv_cCC_MAXPLAYERS; init_i += 1) {
         libCOMI_gv_cM_SharedVisionPlayers[init_i] = PlayerGroupEmpty();
     }
-    libCOMI_gv_cM_NeedPylonEnabled = true;
-    libCOMI_gv_cM_NeedPylonFoodRequired = 1;
     for (init_i = 0; init_i <= 2; init_i += 1) {
         libCOMI_gv_playerColor[init_i] = 15;
     }
@@ -3609,7 +3608,7 @@ void libCOMI_gf_CM_MasteryKaraxArmyCostReduction (string lp_unitType, int lp_pla
 
     // Automatic Variable Declarations
     // Variable Initialization
-    lv_UnitVespeneCostReductionPerPoint = 100.0;
+    lv_UnitVespeneCostReductionPerPoint = 133.3333;
 
     // Implementation
     lv_unitCostOriginal = IntToFixed(CatalogFieldValueGetAsInt(c_gameCatalogUnit, lp_unitType, "CostResource[" + IntToString(1) + "]", lp_player));
@@ -4405,13 +4404,35 @@ void libCOMI_gf_CM_Fenix_SetActiveHeroUIState (unit lp_unit, bool lp_active) {
     }
 }
 
+void libCOMI_gf_CM_Fenix_SetActiveHeroRally (unit lp_unit) {
+    // Variable Declarations
+    unit lv_ralliedUnit;
+
+    // Automatic Variable Declarations
+    unitgroup autoE1527CA3_g;
+    int autoE1527CA3_u;
+
+    // Variable Initialization
+
+    // Implementation
+    autoE1527CA3_g = libCOMI_gv_cM_Fenix_RalliedGroup;
+    autoE1527CA3_u = UnitGroupCount(autoE1527CA3_g, c_unitCountAll);
+    for (;; autoE1527CA3_u -= 1) {
+        lv_ralliedUnit = UnitGroupUnitFromEnd(autoE1527CA3_g, autoE1527CA3_u);
+        if (lv_ralliedUnit == null) { break; }
+        UnitIssueOrder(lv_ralliedUnit, OrderTargetingUnit(AbilityCommand("Rally", 0), lp_unit), c_orderQueueAddToFront);
+    }
+}
+
 void libCOMI_gf_CM_Fenix_AvengingProtocol (int lp_group, int lp_player, int lp_stacksToApply) {
     // Variable Declarations
-    fixed lv_hastePerStack;
+    fixed lv_moveSpeedHastePerStack;
+    fixed lv_attackSpeedHastePerStack;
 
     // Automatic Variable Declarations
     // Variable Initialization
-    lv_hastePerStack = 0.05;
+    lv_moveSpeedHastePerStack = 0.05;
+    lv_attackSpeedHastePerStack = 0.1;
 
     // Implementation
     if ((TechTreeUpgradeCount(lp_player, "FenixChampionSwapBoost", c_techCountCompleteOnly) >= 1)) {
@@ -4420,8 +4441,8 @@ void libCOMI_gf_CM_Fenix_AvengingProtocol (int lp_group, int lp_player, int lp_s
             libCOMI_gv_cM_Fenix_ChampionAvengingProtocolBuffStacks[lp_group] = libCOMI_gv_cM_Fenix_ChampionAvengingProtocolBuffStackMaxCount[lp_group];
         }
 
-        CatalogFieldValueModify(c_gameCatalogBehavior, libCOMI_gv_cM_Fenix_ChampionAvengingProtocolBehaviors[lp_group], "Modification.MoveSpeedMultiplier", lp_player, FixedToString((1.0 + (libCOMI_gv_cM_Fenix_ChampionAvengingProtocolBuffStacks[lp_group] * lv_hastePerStack)), c_fixedPrecisionAny), c_upgradeOperationSet);
-        CatalogFieldValueModify(c_gameCatalogBehavior, libCOMI_gv_cM_Fenix_ChampionAvengingProtocolBehaviors[lp_group], "Modification.AttackSpeedMultiplier", lp_player, FixedToString((1.0 + (libCOMI_gv_cM_Fenix_ChampionAvengingProtocolBuffStacks[lp_group] * lv_hastePerStack)), c_fixedPrecisionAny), c_upgradeOperationSet);
+        CatalogFieldValueModify(c_gameCatalogBehavior, libCOMI_gv_cM_Fenix_ChampionAvengingProtocolBehaviors[lp_group], "Modification.MoveSpeedMultiplier", lp_player, FixedToString((1.0 + (libCOMI_gv_cM_Fenix_ChampionAvengingProtocolBuffStacks[lp_group] * lv_moveSpeedHastePerStack)), c_fixedPrecisionAny), c_upgradeOperationSet);
+        CatalogFieldValueModify(c_gameCatalogBehavior, libCOMI_gv_cM_Fenix_ChampionAvengingProtocolBehaviors[lp_group], "Modification.AttackSpeedMultiplier", lp_player, FixedToString((1.0 + (libCOMI_gv_cM_Fenix_ChampionAvengingProtocolBuffStacks[lp_group] * lv_attackSpeedHastePerStack)), c_fixedPrecisionAny), c_upgradeOperationSet);
         UnitBehaviorAdd(libCOMI_gv_cM_Fenix_ChampionUnit[lp_group][lp_player], libCOMI_gv_cM_Fenix_ChampionAvengingProtocolBehaviors[lp_group], libCOMI_gv_cM_Fenix_ChampionUnit[lp_group][lp_player], 1);
     }
 
@@ -4563,7 +4584,7 @@ void libCOMI_gf_CM_HornerStatUpdate (int lp_player) {
         lv_factionScore = MinF(lv_factionMaxStacks, lv_factionScore);
         lv_factionBonusLifeMulti = (lv_itBonusLifeMulti*lv_factionScore*lv_bonusMulti);
         lv_factionBonusAtkSpeedMulti = (lv_itBonusAtkSpeedMulti*lv_factionScore*lv_bonusMulti);
-        if ((TechTreeUpgradeCount(lp_player, "HHSOBuff", c_techCountCompleteOnly) == 1)) {
+        if ((TechTreeUpgradeCount(lp_player, "HHSOBuff", c_techCountCompleteOnly) >= 1)) {
             auto9045C56D_userType = libCOMI_gv_cM_HornerStatUserType;
             auto9045C56D_i = 1;
             for ( ; auto9045C56D_i <= UserDataInstanceCount(auto9045C56D_userType) ; auto9045C56D_i += 1 ) {
@@ -5785,7 +5806,7 @@ void libCOMI_gf_CM_StartingTechForHumanPlayer (int lp_player) {
     }
 
     if ((TechTreeUpgradeCount(lp_player, "MasteryFenixSuitAttackSpeed", c_techCountCompleteOnly) >= 1)) {
-        libCOMI_gf_CM_MasteryWeaponListFromUpgradeAttackSpeedBonus(lp_player, "MasteryFenixSuitAttackSpeed", 0.01);
+        libCOMI_gf_CM_MasteryWeaponListFromUpgradeAttackSpeedBonus(lp_player, "MasteryFenixSuitAttackSpeed", 0.02);
     }
 
     if ((TechTreeUpgradeCount(lp_player, "MasteryFenixChampionAttackSpeed", c_techCountCompleteOnly) >= 1)) {
@@ -6788,28 +6809,6 @@ void libCOMI_gf_CM_GPReminderDisable (int lp_player) {
     libCOUI_gf_CU_GPHighlightButton(4, false, lp_player);
 }
 
-void libCOMI_gf_EnableDisableNeedPylonInfo (bool lp_enableDisable) {
-    // Automatic Variable Declarations
-    // Implementation
-    libCOMI_gv_cM_NeedPylonEnabled = lp_enableDisable;
-    if ((libCOMI_gv_cM_NeedPylonEnabled == false)) {
-        if ((libCOMI_gv_cM_NeedPylonAbilityHighlightOn == true)) {
-            libCOMI_gv_cM_NeedPylonAbilityHighlightOn = false;
-            UIClearMessages(PlayerGroupSingle(1), c_messageAreaDirective);
-            UISetButtonHighlighted(PlayerGroupSingle(1), AbilityCommand("ProtossBuild", 1), false);
-            CatalogFieldValueSet(c_gameCatalogButton, "Pylon", "Tooltip", 1, "Button/Tooltip/Pylon");
-        }
-
-    }
-
-}
-
-bool libCOMI_gf_NeedPylonHighlightOn () {
-    // Automatic Variable Declarations
-    // Implementation
-    return libCOMI_gv_cM_NeedPylonAbilityHighlightOn;
-}
-
 bool libCOMI_gf_ValidAntiAirUnitIsNearUnit (int lp_player, unit lp_unit) {
     // Variable Declarations
     bool lv_validAttackerFound;
@@ -6908,186 +6907,6 @@ bool auto_libCOMI_gf_RemindPlayertoCreateAntiAirUnits_TriggerFunc (bool testCond
     }
     TriggerQueueEnter();
     if ((libCOMI_gf_GameIsOver() == true)) {
-        return true;
-    }
-
-    libCOOC_gf_SetAllSoundChannelVolumesCampaign(libCOOC_ge_VolumeChannelModeCampaign_Speech);
-    libCOOC_gf_SetAllSoundChannelVolumesCampaign(libCOOC_ge_VolumeChannelModeCampaign_Game);
-    TriggerQueueExit();
-    return true;
-}
-
-trigger auto_libCOMI_gf_RemindPlayertoCompleteBonusObjective_Trigger = null;
-string auto_libCOMI_gf_RemindPlayertoCompleteBonusObjective_lp_bonusObjective;
-fixed auto_libCOMI_gf_RemindPlayertoCompleteBonusObjective_lp_delay;
-
-void libCOMI_gf_RemindPlayertoCompleteBonusObjective (string lp_bonusObjective, fixed lp_delay) {
-    auto_libCOMI_gf_RemindPlayertoCompleteBonusObjective_lp_bonusObjective = lp_bonusObjective;
-    auto_libCOMI_gf_RemindPlayertoCompleteBonusObjective_lp_delay = lp_delay;
-
-    if (auto_libCOMI_gf_RemindPlayertoCompleteBonusObjective_Trigger == null) {
-        auto_libCOMI_gf_RemindPlayertoCompleteBonusObjective_Trigger = TriggerCreate("auto_libCOMI_gf_RemindPlayertoCompleteBonusObjective_TriggerFunc");
-    }
-
-    TriggerExecute(auto_libCOMI_gf_RemindPlayertoCompleteBonusObjective_Trigger, false, false);
-}
-
-bool auto_libCOMI_gf_RemindPlayertoCompleteBonusObjective_TriggerFunc (bool testConds, bool runActions) {
-    string lp_bonusObjective = auto_libCOMI_gf_RemindPlayertoCompleteBonusObjective_lp_bonusObjective;
-    fixed lp_delay = auto_libCOMI_gf_RemindPlayertoCompleteBonusObjective_lp_delay;
-
-    // Automatic Variable Declarations
-    // Implementation
-    Wait(lp_delay, c_timeAI);
-    if ((libCOOC_gf_MissionObjectiveProgress(lp_bonusObjective) == 0)) {
-        TriggerQueueEnter();
-        if ((libCOMI_gf_GameIsOver() == true)) {
-            return true;
-        }
-
-        libCOOC_gf_SetAllSoundChannelVolumesCampaign(libCOOC_ge_VolumeChannelModeCampaign_Speech);
-        libCOOC_gf_SetAllSoundChannelVolumesCampaign(libCOOC_ge_VolumeChannelModeCampaign_Game);
-        TriggerQueueExit();
-    }
-
-    return true;
-}
-
-trigger auto_libCOMI_gf_RemindPlayertoBuildProbes_Trigger = null;
-fixed auto_libCOMI_gf_RemindPlayertoBuildProbes_lp_delay;
-int auto_libCOMI_gf_RemindPlayertoBuildProbes_lp_amount;
-
-void libCOMI_gf_RemindPlayertoBuildProbes (fixed lp_delay, int lp_amount) {
-    auto_libCOMI_gf_RemindPlayertoBuildProbes_lp_delay = lp_delay;
-    auto_libCOMI_gf_RemindPlayertoBuildProbes_lp_amount = lp_amount;
-
-    if (auto_libCOMI_gf_RemindPlayertoBuildProbes_Trigger == null) {
-        auto_libCOMI_gf_RemindPlayertoBuildProbes_Trigger = TriggerCreate("auto_libCOMI_gf_RemindPlayertoBuildProbes_TriggerFunc");
-    }
-
-    TriggerExecute(auto_libCOMI_gf_RemindPlayertoBuildProbes_Trigger, false, false);
-}
-
-bool auto_libCOMI_gf_RemindPlayertoBuildProbes_TriggerFunc (bool testConds, bool runActions) {
-    fixed lp_delay = auto_libCOMI_gf_RemindPlayertoBuildProbes_lp_delay;
-    int lp_amount = auto_libCOMI_gf_RemindPlayertoBuildProbes_lp_amount;
-
-    // Variable Declarations
-    int lv_probeCount;
-    order lv_currentOrder;
-
-    // Automatic Variable Declarations
-    unitgroup autoD777BD30_g;
-    int autoD777BD30_u;
-    unit autoD777BD30_var;
-
-    // Variable Initialization
-
-    // Implementation
-    Wait(lp_delay, c_timeAI);
-    autoD777BD30_g = UnitGroup("Probe", 1, RegionPlayableMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile) | (1 << c_targetFilterBuried), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
-    autoD777BD30_u = UnitGroupCount(autoD777BD30_g, c_unitCountAll);
-    for (;; autoD777BD30_u -= 1) {
-        autoD777BD30_var = UnitGroupUnitFromEnd(autoD777BD30_g, autoD777BD30_u);
-        if (autoD777BD30_var == null) { break; }
-        lv_currentOrder = UnitOrder(autoD777BD30_var, 0);
-        if ((((OrderGetAbilityCommand(lv_currentOrder) == AbilityCommand("ProbeHarvest", 0)) && ((UnitGetType(OrderGetTargetUnit(lv_currentOrder)) == "MineralField") || (UnitGetType(OrderGetTargetUnit(lv_currentOrder)) == "RichMineralField"))) || ((OrderGetAbilityCommand(lv_currentOrder) == AbilityCommand("ProbeHarvest", 1)) && ((UnitHasBehavior(autoD777BD30_var, "CarryMineralFieldMinerals") == true) || (UnitHasBehavior(autoD777BD30_var, "CarryHighYieldMineralFieldMinerals") == true))))) {
-            lv_probeCount += 1;
-        }
-
-    }
-    if ((lv_probeCount <= lp_amount)) {
-        TriggerQueueEnter();
-        if ((libCOMI_gf_GameIsOver() == true)) {
-            return true;
-        }
-
-        libCOOC_gf_SetAllSoundChannelVolumesCampaign(libCOOC_ge_VolumeChannelModeCampaign_Speech);
-        libCOOC_gf_SetAllSoundChannelVolumesCampaign(libCOOC_ge_VolumeChannelModeCampaign_Game);
-        TriggerQueueExit();
-    }
-
-    return true;
-}
-
-trigger auto_libCOMI_gf_RemindPlayertoAssign3ProbestoAssimilator_Trigger = null;
-unit auto_libCOMI_gf_RemindPlayertoAssign3ProbestoAssimilator_lp_assimilator;
-fixed auto_libCOMI_gf_RemindPlayertoAssign3ProbestoAssimilator_lp_delay;
-
-void libCOMI_gf_RemindPlayertoAssign3ProbestoAssimilator (unit lp_assimilator, fixed lp_delay) {
-    auto_libCOMI_gf_RemindPlayertoAssign3ProbestoAssimilator_lp_assimilator = lp_assimilator;
-    auto_libCOMI_gf_RemindPlayertoAssign3ProbestoAssimilator_lp_delay = lp_delay;
-
-    if (auto_libCOMI_gf_RemindPlayertoAssign3ProbestoAssimilator_Trigger == null) {
-        auto_libCOMI_gf_RemindPlayertoAssign3ProbestoAssimilator_Trigger = TriggerCreate("auto_libCOMI_gf_RemindPlayertoAssign3ProbestoAssimilator_TriggerFunc");
-    }
-
-    TriggerExecute(auto_libCOMI_gf_RemindPlayertoAssign3ProbestoAssimilator_Trigger, false, false);
-}
-
-bool auto_libCOMI_gf_RemindPlayertoAssign3ProbestoAssimilator_TriggerFunc (bool testConds, bool runActions) {
-    unit lp_assimilator = auto_libCOMI_gf_RemindPlayertoAssign3ProbestoAssimilator_lp_assimilator;
-    fixed lp_delay = auto_libCOMI_gf_RemindPlayertoAssign3ProbestoAssimilator_lp_delay;
-
-    // Variable Declarations
-    int lv_probeCount;
-    order lv_currentOrder;
-
-    // Automatic Variable Declarations
-    const int auto860A7A22_n = 3;
-    int auto860A7A22_i;
-    unitgroup auto7D3CC923_g;
-    int auto7D3CC923_u;
-    unit auto7D3CC923_var;
-    unitgroup autoB8EF7717_g;
-    int autoB8EF7717_u;
-    unit autoB8EF7717_var;
-
-    // Variable Initialization
-
-    // Implementation
-    if ((UnitGetType(lp_assimilator) != "Assimilator")) {
-        return true;
-    }
-
-    Wait(lp_delay, c_timeAI);
-    if ((UnitIsAlive(lp_assimilator) == false)) {
-        return true;
-    }
-
-    for (auto860A7A22_i = 1; auto860A7A22_i <= auto860A7A22_n; auto860A7A22_i += 1) {
-        auto7D3CC923_g = UnitGroup("Probe", 1, RegionCircle(UnitGetPosition(lp_assimilator), 5.0), UnitFilter(0, 0, (1 << c_targetFilterMissile) | (1 << c_targetFilterBuried), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
-        auto7D3CC923_u = UnitGroupCount(auto7D3CC923_g, c_unitCountAll);
-        for (;; auto7D3CC923_u -= 1) {
-            auto7D3CC923_var = UnitGroupUnitFromEnd(auto7D3CC923_g, auto7D3CC923_u);
-            if (auto7D3CC923_var == null) { break; }
-            lv_currentOrder = UnitOrder(auto7D3CC923_var, 0);
-            if ((((OrderGetAbilityCommand(lv_currentOrder) == AbilityCommand("ProbeHarvest", 0)) && (OrderGetTargetUnit(lv_currentOrder) == lp_assimilator)) || ((OrderGetAbilityCommand(lv_currentOrder) == AbilityCommand("ProbeHarvest", 1)) && (UnitHasBehavior(auto7D3CC923_var, "CarryHarvestableVespeneGeyserGasProtoss") == true)))) {
-                lv_probeCount += 1;
-            }
-
-        }
-        autoB8EF7717_g = UnitGroup("Drone", 1, RegionEntireMap(), UnitFilter(0, (1 << (c_targetFilterHidden - 32)), (1 << c_targetFilterMissile) | (1 << c_targetFilterBuried), (1 << (c_targetFilterDead - 32))), 0);
-        autoB8EF7717_u = UnitGroupCount(autoB8EF7717_g, c_unitCountAll);
-        for (;; autoB8EF7717_u -= 1) {
-            autoB8EF7717_var = UnitGroupUnitFromEnd(autoB8EF7717_g, autoB8EF7717_u);
-            if (autoB8EF7717_var == null) { break; }
-            lv_currentOrder = UnitOrder(autoB8EF7717_var, 0);
-            if ((OrderGetAbilityCommand(lv_currentOrder) == AbilityCommand("DroneHarvest", 0)) && (OrderGetTargetUnit(lv_currentOrder) == lp_assimilator)) {
-                lv_probeCount += 1;
-            }
-
-        }
-        if ((lv_probeCount >= 3)) {
-            return true;
-        }
-        else {
-            lv_probeCount = 0;
-            Wait(0.5, c_timeAI);
-        }
-    }
-    TriggerQueueEnter();
-    if (((libCOMI_gf_GameIsOver() == true) || (UnitIsAlive(lp_assimilator) == false))) {
         return true;
     }
 
@@ -15599,6 +15418,7 @@ bool libCOMI_gt_CM_Fenix_HeroSpawn_Func (bool testConds, bool runActions) {
     }
     libCOMI_gf_CM_Fenix_SetActiveHeroUIState(EventUnitCreatedUnit(), true);
     libCOUI_gf_SetHeroPanelUnit(1, EventUnitCreatedUnit(), UnitGetOwner(EventUnitCreatedUnit()));
+    libCOMI_gf_CM_Fenix_SetActiveHeroRally(EventUnitCreatedUnit());
     libCOMI_gf_TransferGuardianShell(lv_fenixUnitOld, lv_fenixUnitNew);
     UnitCreateEffectUnit(lv_fenixUnitNew, "CopyTargetSelectionAndControlGroups", lv_fenixUnitOld);
     if ((UnitGroupCount(lv_fenixPlayerSelectionGroup, c_unitCountAlive) > 0)) {
@@ -15809,6 +15629,32 @@ void libCOMI_gt_CM_Fenix_ResearchRemoveSuicide_Init () {
     libCOMI_gt_CM_Fenix_ResearchRemoveSuicide = TriggerCreate("libCOMI_gt_CM_Fenix_ResearchRemoveSuicide_Func");
     TriggerEnable(libCOMI_gt_CM_Fenix_ResearchRemoveSuicide, false);
     TriggerAddEventUnitAbility(libCOMI_gt_CM_Fenix_ResearchRemoveSuicide, null, AbilityCommand("ForgeResearch", 16), c_unitAbilStageComplete, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Fenix_RallySetToFenix
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Fenix_RallySetToFenix_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitIsAlive(EventUnitTargetUnit()) == true) && (EventUnitTargetUnit() == libCOMI_gv_cM_Fenix_ActiveHero[libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("ProtossFenix", libCOOC_gf_CommanderPlayers())])) {
+        UnitGroupAdd(libCOMI_gv_cM_Fenix_RalliedGroup, EventUnit());
+    }
+    else {
+        UnitGroupRemove(libCOMI_gv_cM_Fenix_RalliedGroup, EventUnit());
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Fenix_RallySetToFenix_Init () {
+    libCOMI_gt_CM_Fenix_RallySetToFenix = TriggerCreate("libCOMI_gt_CM_Fenix_RallySetToFenix_Func");
+    TriggerEnable(libCOMI_gt_CM_Fenix_RallySetToFenix, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_Fenix_RallySetToFenix, null, AbilityCommand("Rally", 0), c_abilRallyStagePlace, true);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -16669,6 +16515,7 @@ bool libCOMI_gt_CM_Fenix_TriggersInit_Func (bool testConds, bool runActions) {
     TriggerEnable(libCOMI_gt_CM_Fenix_HeroKilled, true);
     TriggerEnable(libCOMI_gt_CM_Fenix_SuicideUpdateVital, true);
     TriggerEnable(libCOMI_gt_CM_Fenix_ResearchRemoveSuicide, true);
+    TriggerEnable(libCOMI_gt_CM_Fenix_RallySetToFenix, true);
     return true;
 }
 
@@ -16917,6 +16764,10 @@ bool libCOMI_gt_CM_Horner_DoubleSupplyStun_Func (bool testConds, bool runActions
 
     // Conditions
     if (testConds) {
+        if (!((PlayerCommander(UnitGetOwner(EventUnitProgressUnit())) == "Horner"))) {
+            return false;
+        }
+
         if (!((UnitGetType(lv_supplyDepot) == "SupplyDepot"))) {
             return false;
         }
@@ -17082,6 +16933,10 @@ bool libCOMI_gt_CM_Horner_ScrapDrop_Func (bool testConds, bool runActions) {
             return false;
         }
 
+        if (!((UnitFilterMatch(EventUnit(), 1, UnitFilter(0, (1 << (c_targetFilterSummoned - 32)), 0, 0)) != true))) {
+            return false;
+        }
+
         if (!((UnitGetType(EventUnit()) != "Baneling"))) {
             return false;
         }
@@ -17159,6 +17014,30 @@ bool libCOMI_gt_CM_Horner_ScrapDrop_Func (bool testConds, bool runActions) {
         }
 
         if (!((UnitGetType(EventUnit()) != "HHWidowMineBurrowed"))) {
+            return false;
+        }
+
+        if (!((UnitGetType(EventUnit()) != "SIInfestedTrooper"))) {
+            return false;
+        }
+
+        if (!((UnitGetType(EventUnit()) != "SIInfestedTrooperBurrowed"))) {
+            return false;
+        }
+
+        if (!((UnitGetType(EventUnit()) != "SIInfestedCivilian"))) {
+            return false;
+        }
+
+        if (!((UnitGetType(EventUnit()) != "SIInfestedCivilianBurrowed"))) {
+            return false;
+        }
+
+        if (!((UnitGetType(EventUnit()) != "SIVolatileInfested"))) {
+            return false;
+        }
+
+        if (!((UnitGetType(EventUnit()) != "SIVolatileInfestedBurrowed"))) {
             return false;
         }
     }
@@ -17325,15 +17204,11 @@ bool libCOMI_gt_CM_Horner_SupplyAchievement_Func (bool testConds, bool runAction
 
     // Automatic Variable Declarations
     // Variable Initialization
-    lv_player = UnitGetOwner(EventUnitCreatedUnit());
+    lv_player = EventPlayer();
 
     // Conditions
     if (testConds) {
         if (!((PlayerCommander(lv_player) == "Horner"))) {
-            return false;
-        }
-
-        if (!(((UnitGetType(EventUnitCreatedUnit()) == "HHReaper") || (UnitGetType(EventUnitCreatedUnit()) == "HHWidowMine") || (UnitGetType(EventUnitCreatedUnit()) == "HHHellion") || (UnitGetType(EventUnitCreatedUnit()) == "HHHellionTank") || (UnitGetType(EventUnitCreatedUnit()) == "HHMercStarportUpgraded") || (UnitGetType(EventUnitCreatedUnit()) == "HHMercStarportNoArmy") || (UnitGetType(EventUnitCreatedUnit()) == "HHBomberPlatform") || (UnitGetType(EventUnitCreatedUnit()) == "HHViking_SpawnerUnit") || (UnitGetType(EventUnitCreatedUnit()) == "HHWraith_SpawnerUnit") || (UnitGetType(EventUnitCreatedUnit()) == "HHRaven_SpawnerUnit") || (UnitGetType(EventUnitCreatedUnit()) == "HHBattlecruiser_SpawnerUnit")))) {
             return false;
         }
     }
@@ -17355,7 +17230,7 @@ bool libCOMI_gt_CM_Horner_SupplyAchievement_Func (bool testConds, bool runAction
 void libCOMI_gt_CM_Horner_SupplyAchievement_Init () {
     libCOMI_gt_CM_Horner_SupplyAchievement = TriggerCreate("libCOMI_gt_CM_Horner_SupplyAchievement_Func");
     TriggerEnable(libCOMI_gt_CM_Horner_SupplyAchievement, false);
-    TriggerAddEventUnitCreated(libCOMI_gt_CM_Horner_SupplyAchievement, null, null, null);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Horner_SupplyAchievement, c_playerAny, "TheHornersStatUpdate");
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -17832,9 +17707,10 @@ bool libCOMI_gt_CM_Horner_BomberPlatform_Individual_TargetSelected_Func (bool te
         }
 
     }
-    UnitSetHeight(lv_bomber, 3.75, 1.0);
-    libNtve_gf_MakeUnitFacePoint(lv_bomber, lv_bomberTargetPoint, 1.0);
-    Wait(1.0, c_timeGame);
+    UnitSetHeight(lv_bomber, 3.75, 0.5);
+    ActorSend(lv_bomberTargetActor, (("SetScale " + CatalogFieldValueGet(c_gameCatalogActor, "HHBomberAreaBombWarning", "Scale", lv_bomberPlayer))));
+    libNtve_gf_MakeUnitFacePoint(lv_bomber, lv_bomberTargetPoint, 0.5);
+    Wait(0.5, c_timeGame);
     libNtve_gf_SendActorMessageToUnit(lv_bomber, "Signal FlyOut");
     UnitIssueOrder(lv_bomber, OrderTargetingPoint(AbilityCommand("move", 0), lv_bomberTargetPoint), c_orderQueueReplace);
     while ((lv_bomberState > 0)) {
@@ -18631,6 +18507,39 @@ void libCOMI_gt_LaserDrillNukeBeamSoundRegionClear_Init () {
     libCOMI_gt_LaserDrillNukeBeamSoundRegionClear = TriggerCreate("libCOMI_gt_LaserDrillNukeBeamSoundRegionClear_Func");
     TriggerEnable(libCOMI_gt_LaserDrillNukeBeamSoundRegionClear, false);
     TriggerAddEventPlayerEffectUsed(libCOMI_gt_LaserDrillNukeBeamSoundRegionClear, c_playerAny, "DrakkenLaserDrillNukeSearch");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_LaserDrillTopbarOrder
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_LaserDrillTopbarOrder_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    order lv_order;
+    bool lv_queue;
+    unit lv_laserDrill;
+    order lv_orderAttack;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_order = EventUnitOrder();
+    lv_queue = OrderGetFlag(lv_order, c_cmdQueued);
+    lv_laserDrill = libCOMI_gv_cM_LaserDrillUnit[OrderGetPlayer(lv_order)];
+    lv_orderAttack = OrderTargetingUnit(AbilityCommand("attack", 0), OrderGetTargetUnit(lv_order));
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    OrderSetFlag(lv_orderAttack, c_cmdQueued, lv_queue);
+    UnitIssueOrder(lv_laserDrill, lv_orderAttack, c_orderQueueReplace);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_LaserDrillTopbarOrder_Init () {
+    libCOMI_gt_CM_LaserDrillTopbarOrder = TriggerCreate("libCOMI_gt_CM_LaserDrillTopbarOrder_Func");
+    TriggerAddEventUnitOrder(libCOMI_gt_CM_LaserDrillTopbarOrder, null, AbilityCommand("DrakkenLaserDrillAttackIssueOrder", 0));
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -20257,12 +20166,14 @@ void libCOMI_gt_CM_Stukov_UnitCostRefund_Init () {
 bool libCOMI_gt_CM_Stukov_InfestedSiegeTankDeath_Func (bool testConds, bool runActions) {
     // Variable Declarations
     int lv_stackCount;
+    int lv_player;
 
     // Automatic Variable Declarations
     int auto7F872E61_ae;
     const int auto7F872E61_ai = 1;
 
     // Variable Initialization
+    lv_player = UnitGetOwner(EventUnit());
 
     // Conditions
     if (testConds) {
@@ -20282,6 +20193,10 @@ bool libCOMI_gt_CM_Stukov_InfestedSiegeTankDeath_Func (bool testConds, bool runA
     for ( ; ( (auto7F872E61_ai >= 0 && lv_stackCount <= auto7F872E61_ae) || (auto7F872E61_ai < 0 && lv_stackCount >= auto7F872E61_ae) ) ; lv_stackCount += auto7F872E61_ai ) {
         libNtve_gf_CreateUnitsWithDefaultFacing(1, "SIVolatileInfested", 0, EventPlayer(), UnitGetPosition(EventUnit()));
         UnitBehaviorAddPlayer(UnitLastCreated(), "SIBarracksTrainTimedLife", EventPlayer(), 1);
+        UnitGroupAdd(libCOMI_gv_cM_Stukov_HordeGroup[lv_player], UnitLastCreated());
+        UnitGroupAdd(libCOMI_gv_cM_Stukov_HordeCurrentWave[lv_player], UnitLastCreated());
+        libCOMI_gv_cM_Stukov_HordeCount[lv_player] = UnitGroupCount(libCOMI_gv_cM_Stukov_HordeGroup[lv_player], c_unitCountAlive);
+        libCOMI_gf_CM_Stukov_SingleUnitGoToRally(UnitLastCreated(), false);
     }
     return true;
 }
@@ -20352,11 +20267,20 @@ bool libCOMI_gt_CM_SoAShiftCheatFailSafeThermal_Func (bool testConds, bool runAc
     // Variable Declarations
     unit lv_caster;
     abilcmd lv_cmd;
+    string lv_abil;
 
     // Automatic Variable Declarations
     // Variable Initialization
     lv_caster = libCOMI_gf_CM_PlayerGetGlobalCaster(EventPlayer());
     lv_cmd = AbilityCommand("SOAThermalLanceActivate", 0);
+    lv_abil = AbilityCommandGetAbility(lv_cmd);
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitAbilityGetCooldown(lv_caster, lv_abil, CatalogFieldValueGet(c_gameCatalogAbil, lv_abil, "Cost[" + IntToString(0) + "].Cooldown.Link", EventPlayer())) == 0.0))) {
+            return false;
+        }
+    }
 
     // Actions
     if (!runActions) {
@@ -20380,11 +20304,20 @@ bool libCOMI_gt_CM_SoAShiftCheatFailSafeHHCallFleet_Func (bool testConds, bool r
     // Variable Declarations
     unit lv_caster;
     abilcmd lv_cmd;
+    string lv_abil;
 
     // Automatic Variable Declarations
     // Variable Initialization
     lv_caster = libCOMI_gf_CM_PlayerGetGlobalCaster(EventPlayer());
     lv_cmd = AbilityCommand("HornerAirFleetActivate", 0);
+    lv_abil = AbilityCommandGetAbility(lv_cmd);
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitAbilityGetCooldown(lv_caster, lv_abil, CatalogFieldValueGet(c_gameCatalogAbil, lv_abil, "Cost[" + IntToString(0) + "].Cooldown.Link", EventPlayer())) == 0.0))) {
+            return false;
+        }
+    }
 
     // Actions
     if (!runActions) {
@@ -20408,11 +20341,20 @@ bool libCOMI_gt_CM_SoAShiftCheatFailSafeNovaBombing_Func (bool testConds, bool r
     // Variable Declarations
     unit lv_caster;
     abilcmd lv_cmd;
+    string lv_abil;
 
     // Automatic Variable Declarations
     // Variable Initialization
     lv_caster = libCOMI_gf_CM_PlayerGetGlobalCaster(EventPlayer());
     lv_cmd = AbilityCommand("NovaGriffinBombingRunActivate", 0);
+    lv_abil = AbilityCommandGetAbility(lv_cmd);
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitAbilityGetCooldown(lv_caster, lv_abil, CatalogFieldValueGet(c_gameCatalogAbil, lv_abil, "Cost[" + IntToString(0) + "].Cooldown.Link", EventPlayer())) == 0.0))) {
+            return false;
+        }
+    }
 
     // Actions
     if (!runActions) {
@@ -20620,6 +20562,10 @@ bool libCOMI_gt_CM_SoATargetingDirectionChosen_Func (bool testConds, bool runAct
     libCOMI_gv_cM_SoATargetingUnrefundableStageEntered[lv_casterPlayer] = true;
     libNtve_gf_CreateActorAtPoint("SOATargetingModeConfirmationSound", lv_targetPoint);
     ActorSend(libCOMI_gv_cM_SoATargetingActors[libCOMI_gv_cM_SoATargetingChargesSpent[lv_casterPlayer]][lv_casterPlayer], "Signal Destroy");
+    if ((UnitIsValid(libCOMI_gv_cM_SoATargetingUnit[libCOMI_gv_cM_SoATargetingChargesSpent[lv_casterPlayer]][lv_casterPlayer]) == false)) {
+        return true;
+    }
+
     libNtve_gf_MakeUnitFacePoint(libCOMI_gv_cM_SoATargetingUnit[libCOMI_gv_cM_SoATargetingChargesSpent[lv_casterPlayer]][lv_casterPlayer], lv_targetPoint, 0.0);
     libCOUI_gf_CU_TargetingSetCharges((libCOMI_gv_cM_SoATargetingChargesTotal[lv_casterPlayer]-libCOMI_gv_cM_SoATargetingChargesSpent[lv_casterPlayer]), libCOMI_gv_cM_SoATargetingChargesTotal[lv_casterPlayer], lv_casterPlayer);
     if ((libCOMI_gv_cM_SoATargetingChargesSpent[lv_casterPlayer] == libCOMI_gv_cM_SoATargetingChargesTotal[lv_casterPlayer])) {
@@ -21471,6 +21417,10 @@ bool libCOMI_gt_CM_HatcheryPrimarySearch_Func (bool testConds, bool runActions) 
     while (true) {
         lv_indexPlayer = PlayerGroupNextPlayer(auto59F15E5F_g, lv_indexPlayer);
         if (lv_indexPlayer < 0) { break; }
+        if ((UnitGetOwner(libCOMI_gv_cM_PrimaryTownHall[lv_indexPlayer]) != lv_indexPlayer)) {
+            UnitBehaviorRemove(libCOMI_gv_cM_PrimaryTownHall[lv_indexPlayer], "ZerglingRespawnPrimary", 1);
+        }
+
         lv_closestHatchery = null;
         lv_distance = 500.0;
         if (((TechTreeBehaviorCount(lv_indexPlayer, "ZerglingRespawnPrimary", c_techCountCompleteOnly) == 0) || (libCOMI_gf_CM_PrimaryTownHall(lv_indexPlayer) == null))) {
@@ -21973,403 +21923,6 @@ void libCOMI_gt_CM_GPReminderAbilityUsed_Init () {
     TriggerAddEventUnitAbility(libCOMI_gt_CM_GPReminderAbilityUsed, null, AbilityCommand("SOAShadowGuardCalldown", 0), c_unitAbilStageExecute, false);
     TriggerAddEventUnitAbility(libCOMI_gt_CM_GPReminderAbilityUsed, null, AbilityCommand("SpawnToxicNest", 0), c_unitAbilStageExecute, false);
     TriggerAddEventUnitAbility(libCOMI_gt_CM_GPReminderAbilityUsed, null, AbilityCommand("HHTrainTopBar", 0), c_unitAbilStageExecute, false);
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: CM_CampaignProbeHelperInit
-//--------------------------------------------------------------------------------------------------
-bool libCOMI_gt_CM_CampaignProbeHelperInit_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    unit lv_indexUnit;
-    unitgroup lv_group;
-
-    // Automatic Variable Declarations
-    unitgroup autoEE39304C_g;
-    int autoEE39304C_u;
-
-    // Variable Initialization
-
-    // Conditions
-    if (testConds) {
-        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
-            return false;
-        }
-    }
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    TriggerEnable(TriggerGetCurrent(), false);
-    lv_group = UnitGroup("Nexus", 1, null, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32))), 0);
-    UnitGroupAddUnitGroup(lv_group, UnitGroup("Assimilator", 1, null, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32))), 0));
-    autoEE39304C_g = lv_group;
-    autoEE39304C_u = UnitGroupCount(autoEE39304C_g, c_unitCountAll);
-    for (;; autoEE39304C_u -= 1) {
-        lv_indexUnit = UnitGroupUnitFromEnd(autoEE39304C_g, autoEE39304C_u);
-        if (lv_indexUnit == null) { break; }
-        libNtve_gf_SendActorMessageToUnit(lv_indexUnit, "SetStatusBarOn 1 Workers");
-    }
-    TriggerEnable(libCOMI_gt_CM_CampaignProbeHelperUpdateCreated, true);
-    TriggerEnable(libCOMI_gt_CM_CampaignProbeHelperUpdateConstructionFinishes, true);
-    TriggerEnable(libCOMI_gt_CM_CampaignDroneHelperUpdateChangedOwner, true);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libCOMI_gt_CM_CampaignProbeHelperInit_Init () {
-    libCOMI_gt_CM_CampaignProbeHelperInit = TriggerCreate("libCOMI_gt_CM_CampaignProbeHelperInit_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: CM_CampaignProbeHelperUpdateCreated
-//--------------------------------------------------------------------------------------------------
-bool libCOMI_gt_CM_CampaignProbeHelperUpdateCreated_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Conditions
-    if (testConds) {
-        if (!((UnitGetOwner(EventUnitCreatedUnit()) == 1))) {
-            return false;
-        }
-
-        if (!((UnitTestState(EventUnitCreatedUnit(), c_unitStateUnderConstruction) == false))) {
-            return false;
-        }
-
-        if (!(((UnitGetType(EventUnitCreatedUnit()) == "Nexus") || (UnitGetType(EventUnitCreatedUnit()) == "Assimilator")))) {
-            return false;
-        }
-    }
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libNtve_gf_SendActorMessageToUnit(EventUnitCreatedUnit(), "SetStatusBarOn 1 Workers");
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libCOMI_gt_CM_CampaignProbeHelperUpdateCreated_Init () {
-    libCOMI_gt_CM_CampaignProbeHelperUpdateCreated = TriggerCreate("libCOMI_gt_CM_CampaignProbeHelperUpdateCreated_Func");
-    TriggerEnable(libCOMI_gt_CM_CampaignProbeHelperUpdateCreated, false);
-    TriggerAddEventUnitCreated(libCOMI_gt_CM_CampaignProbeHelperUpdateCreated, null, null, null);
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: CM_CampaignProbeHelperUpdateConstructionFinishes
-//--------------------------------------------------------------------------------------------------
-bool libCOMI_gt_CM_CampaignProbeHelperUpdateConstructionFinishes_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Conditions
-    if (testConds) {
-        if (!((UnitGetOwner(EventUnitProgressUnit()) == 1))) {
-            return false;
-        }
-
-        if (!(((UnitGetType(EventUnitProgressUnit()) == "Nexus") || (UnitGetType(EventUnitProgressUnit()) == "Assimilator")))) {
-            return false;
-        }
-    }
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libNtve_gf_SendActorMessageToUnit(EventUnitProgressUnit(), "SetStatusBarOn 1 Workers");
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libCOMI_gt_CM_CampaignProbeHelperUpdateConstructionFinishes_Init () {
-    libCOMI_gt_CM_CampaignProbeHelperUpdateConstructionFinishes = TriggerCreate("libCOMI_gt_CM_CampaignProbeHelperUpdateConstructionFinishes_Func");
-    TriggerEnable(libCOMI_gt_CM_CampaignProbeHelperUpdateConstructionFinishes, false);
-    TriggerAddEventUnitConstructProgress(libCOMI_gt_CM_CampaignProbeHelperUpdateConstructionFinishes, null, c_unitProgressStageComplete);
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: CM_CampaignDroneHelperUpdateChangedOwner
-//--------------------------------------------------------------------------------------------------
-bool libCOMI_gt_CM_CampaignDroneHelperUpdateChangedOwner_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Conditions
-    if (testConds) {
-        if (!(((UnitGetType(EventUnit()) == "Nexus") || (UnitGetType(EventUnit()) == "Assimilator")))) {
-            return false;
-        }
-    }
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    if ((UnitGetOwner(EventUnit()) == 1)) {
-        libNtve_gf_SendActorMessageToUnit(EventUnit(), "SetStatusBarOn 1 Workers");
-    }
-    else {
-        libNtve_gf_SendActorMessageToUnit(EventUnit(), "SetStatusBarOn 0 Workers");
-    }
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libCOMI_gt_CM_CampaignDroneHelperUpdateChangedOwner_Init () {
-    libCOMI_gt_CM_CampaignDroneHelperUpdateChangedOwner = TriggerCreate("libCOMI_gt_CM_CampaignDroneHelperUpdateChangedOwner_Func");
-    TriggerEnable(libCOMI_gt_CM_CampaignDroneHelperUpdateChangedOwner, false);
-    TriggerAddEventUnitChangeOwner(libCOMI_gt_CM_CampaignDroneHelperUpdateChangedOwner, null);
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: CM_PlayerNeedPylon
-//--------------------------------------------------------------------------------------------------
-bool libCOMI_gt_CM_PlayerNeedPylon_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    text lv_newTooltip;
-    fixed lv_used;
-    fixed lv_made;
-    fixed lv_limit;
-    bool lv_transmissionDelivered;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-    lv_newTooltip = StringExternal("Param/Value/lib_COMI_075E5731");
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    TriggerEnable(libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood2, true);
-    TriggerEnable(libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood3, true);
-    TriggerEnable(libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood4, true);
-    TriggerEnable(libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood6, true);
-    while (true) {
-        Wait(1.0, c_timeAI);
-        if ((libCOMI_gf_GameIsOver() == true)) {
-            return true;
-        }
-
-        if ((libCOMI_gv_cM_NeedPylonEnabled == true) && (libNtve_gf_PlayerInCinematicMode(1) == false) && (TechTreeUnitCount(1, "Nexus", c_techCountQueuedOrBetter) > 0)) {
-            lv_made = PlayerGetPropertyFixed(1, c_playerPropSuppliesMade);
-            lv_used = PlayerGetPropertyFixed(1, c_playerPropSuppliesUsed);
-            lv_limit = PlayerGetPropertyFixed(1, c_playerPropSuppliesLimit);
-            if (((lv_made + (TechTreeUnitCount(1, "Pylon", c_techCountInProgressOnly) * StringToFixed(CatalogFieldValueGet(c_gameCatalogUnit, "Pylon", "Food", 1)))) < lv_limit) && ((lv_made + (TechTreeUnitCount(1, "Pylon", c_techCountInProgressOnly) * StringToFixed(CatalogFieldValueGet(c_gameCatalogUnit, "Pylon", "Food", 1)))) <= ((lv_used + libCOMI_gv_cM_NeedPylonFoodRequired) - 0.1))) {
-                if ((libCOMI_gv_cM_NeedPylonAbilityHighlightOn == false)) {
-                    if ((lv_transmissionDelivered == false)) {
-                        lv_transmissionDelivered = true;
-                        TriggerQueueEnter();
-                        libCOOC_gf_SetAllSoundChannelVolumesCampaign(libCOOC_ge_VolumeChannelModeCampaign_Speech);
-                        libCOMI_gf_SendTransmissionCampaign(null, "Tutorial|Line00143", c_transmissionDurationAdd, 0.0, true, libCOMI_ge_MissionTransmissionPortraitOptioins_HidePortraitAfter, libCOMI_ge_MissionTransmissionCueSoundOptions_DefaultCueSoundBehavior);
-                        libCOOC_gf_SetAllSoundChannelVolumesCampaign(libCOOC_ge_VolumeChannelModeCampaign_Game);
-                        TriggerQueueExit();
-                    }
-                    else {
-                        libCOMI_gv_cM_NeedPylonAbilityHighlightOn = true;
-                        UIDisplayMessage(PlayerGroupAll(), c_messageAreaDirective, StringExternal("Param/Value/lib_COMI_1142C38C"));
-                        UISetButtonHighlighted(PlayerGroupSingle(1), AbilityCommand("ProtossBuild", 1), true);
-                        CatalogFieldValueSet(c_gameCatalogButton, "Pylon", "Tooltip", 1, "Param/Value/lib_VoiC_F569C4E3");
-                        libNtve_gf_DisplayScreenImage(1, "Assets\\Textures\\tutorialresourceshighlight.dds", c_triggerBlendModeAdd, 212, 134, c_anchorTopRight, 11, -34);
-                        libNtve_gf_PulseScreenImage(1, 1.75, 100.0, 0.0);
-                    }
-                }
-
-            }
-            else {
-                if ((libCOMI_gv_cM_NeedPylonAbilityHighlightOn == true)) {
-                    libCOMI_gv_cM_NeedPylonAbilityHighlightOn = false;
-                    UIClearMessages(PlayerGroupSingle(1), c_messageAreaDirective);
-                    UISetButtonHighlighted(PlayerGroupSingle(1), AbilityCommand("ProtossBuild", 1), false);
-                    CatalogFieldValueSet(c_gameCatalogButton, "Pylon", "Tooltip", 1, "Button/Tooltip/Pylon");
-                    libNtve_gf_StopPulsingScreenImage(1);
-                    libNtve_gf_HideScreenImage(false, 1);
-                }
-
-            }
-        }
-
-    }
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libCOMI_gt_CM_PlayerNeedPylon_Init () {
-    libCOMI_gt_CM_PlayerNeedPylon = TriggerCreate("libCOMI_gt_CM_PlayerNeedPylon_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: CM_PlayerNeedPylonButtonClicked (Food 2)
-//--------------------------------------------------------------------------------------------------
-bool libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood2_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    int lv_localIndex;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Conditions
-    if (testConds) {
-        if (!((libCOMI_gf_GameIsOver() == false))) {
-            return false;
-        }
-    }
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libCOMI_gv_cM_NeedPylonFoodRequired2Index += 1;
-    lv_localIndex = libCOMI_gv_cM_NeedPylonFoodRequired2Index;
-    libCOMI_gv_cM_NeedPylonFoodRequired = MaxI(libCOMI_gv_cM_NeedPylonFoodRequired, 2);
-    Wait(15.0, c_timeGame);
-    if ((lv_localIndex == libCOMI_gv_cM_NeedPylonFoodRequired2Index) && (libCOMI_gv_cM_NeedPylonFoodRequired == 2)) {
-        libCOMI_gv_cM_NeedPylonFoodRequired = 1;
-        libCOMI_gv_cM_NeedPylonFoodRequired2Index = 0;
-    }
-
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood2_Init () {
-    libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood2 = TriggerCreate("libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood2_Func");
-    TriggerEnable(libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood2, false);
-    TriggerAddEventButtonPressed(libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood2, 1, "Zealot");
-    TriggerAddEventButtonPressed(libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood2, 1, "Sentry");
-    TriggerAddEventButtonPressed(libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood2, 1, "Stalker");
-    TriggerAddEventButtonPressed(libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood2, 1, "HighTemplar");
-    TriggerAddEventButtonPressed(libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood2, 1, "DarkTemplar");
-    TriggerAddEventButtonPressed(libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood2, 1, "WarpPrism");
-    TriggerAddEventButtonPressed(libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood2, 1, "Phoenix");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: CM_PlayerNeedPylonButtonClicked (Food 3)
-//--------------------------------------------------------------------------------------------------
-bool libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood3_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    int lv_localIndex;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Conditions
-    if (testConds) {
-        if (!((libCOMI_gf_GameIsOver() == false))) {
-            return false;
-        }
-    }
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libCOMI_gv_cM_NeedPylonFoodRequired3Index += 1;
-    lv_localIndex = libCOMI_gv_cM_NeedPylonFoodRequired3Index;
-    libCOMI_gv_cM_NeedPylonFoodRequired = MaxI(libCOMI_gv_cM_NeedPylonFoodRequired, 3);
-    Wait(15.0, c_timeGame);
-    if ((lv_localIndex == libCOMI_gv_cM_NeedPylonFoodRequired3Index) && (libCOMI_gv_cM_NeedPylonFoodRequired == 3)) {
-        libCOMI_gv_cM_NeedPylonFoodRequired = 1;
-        libCOMI_gv_cM_NeedPylonFoodRequired3Index = 0;
-    }
-
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood3_Init () {
-    libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood3 = TriggerCreate("libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood3_Func");
-    TriggerEnable(libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood3, false);
-    TriggerAddEventButtonPressed(libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood3, 1, "VoidRay");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: CM_PlayerNeedPylonButtonClicked (Food 4)
-//--------------------------------------------------------------------------------------------------
-bool libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood4_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    int lv_localIndex;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Conditions
-    if (testConds) {
-        if (!((libCOMI_gf_GameIsOver() == false))) {
-            return false;
-        }
-    }
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libCOMI_gv_cM_NeedPylonFoodRequired4Index += 1;
-    lv_localIndex = libCOMI_gv_cM_NeedPylonFoodRequired4Index;
-    libCOMI_gv_cM_NeedPylonFoodRequired = MaxI(libCOMI_gv_cM_NeedPylonFoodRequired, 4);
-    Wait(15.0, c_timeGame);
-    if ((lv_localIndex == libCOMI_gv_cM_NeedPylonFoodRequired4Index) && (libCOMI_gv_cM_NeedPylonFoodRequired == 4)) {
-        libCOMI_gv_cM_NeedPylonFoodRequired = 1;
-        libCOMI_gv_cM_NeedPylonFoodRequired4Index = 0;
-    }
-
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood4_Init () {
-    libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood4 = TriggerCreate("libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood4_Func");
-    TriggerEnable(libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood4, false);
-    TriggerAddEventButtonPressed(libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood4, 1, "Immortal");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: CM_PlayerNeedPylonButtonClicked (Food 6)
-//--------------------------------------------------------------------------------------------------
-bool libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood6_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    int lv_localIndex;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Conditions
-    if (testConds) {
-        if (!((libCOMI_gf_GameIsOver() == false))) {
-            return false;
-        }
-    }
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libCOMI_gv_cM_NeedPylonFoodRequired6Index += 1;
-    lv_localIndex = libCOMI_gv_cM_NeedPylonFoodRequired6Index;
-    libCOMI_gv_cM_NeedPylonFoodRequired = MaxI(libCOMI_gv_cM_NeedPylonFoodRequired, 6);
-    Wait(15.0, c_timeGame);
-    if ((lv_localIndex == libCOMI_gv_cM_NeedPylonFoodRequired6Index) && (libCOMI_gv_cM_NeedPylonFoodRequired == 6)) {
-        libCOMI_gv_cM_NeedPylonFoodRequired = 1;
-        libCOMI_gv_cM_NeedPylonFoodRequired6Index = 0;
-    }
-
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood6_Init () {
-    libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood6 = TriggerCreate("libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood6_Func");
-    TriggerEnable(libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood6, false);
-    TriggerAddEventButtonPressed(libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood6, 1, "Colossus");
-    TriggerAddEventButtonPressed(libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood6, 1, "Tempest");
-    TriggerAddEventButtonPressed(libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood6, 1, "Carrier");
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -24109,7 +23662,7 @@ bool libCOMI_gt_CM_TransmissionSend_Func (bool testConds, bool runActions) {
         Wait(0.0625, c_timeGame);
     }
     if ((RandomInt(1, 100) <= UserDataGetInt("MissionTransmission", libCOMI_gv_cM_TransmissionCurrentType, "ResponseChance", 1))) {
-        ConversationDataRun("acResponses", PlayerGroupAll(), c_conversationSkipNone, true);
+        ConversationDataRun("acResponses", libCOOC_gf_NondefeatedPlayers(), c_conversationSkipNone, true);
         while (!((libCOMI_gf_CM_PlayerHasTransmission(1) == false) && (libCOMI_gf_CM_PlayerHasTransmission(2) == false))) {
             Wait(0.0625, c_timeGame);
         }
@@ -24801,6 +24354,7 @@ void libCOMI_InitTriggers () {
     libCOMI_gt_CM_Fenix_HeroKilled_Init();
     libCOMI_gt_CM_Fenix_SuicideUpdateVital_Init();
     libCOMI_gt_CM_Fenix_ResearchRemoveSuicide_Init();
+    libCOMI_gt_CM_Fenix_RallySetToFenix_Init();
     libCOMI_gt_CM_Fenix_ChampionInitialSetup_Init();
     libCOMI_gt_CM_Fenix_ChampionPotentialVoluteerTrained_Init();
     libCOMI_gt_CM_Fenix_ChampionBuildingReBuilt_Init();
@@ -24862,6 +24416,7 @@ void libCOMI_InitTriggers () {
     libCOMI_gt_LaserDrillBFGBeamSoundFiring_Init();
     libCOMI_gt_LaserDrillNukeBeamSoundFiring_Init();
     libCOMI_gt_LaserDrillNukeBeamSoundRegionClear_Init();
+    libCOMI_gt_CM_LaserDrillTopbarOrder_Init();
     libCOMI_gt_NovaUnitNames_GenerateNameList_Init();
     libCOMI_gt_NovaUnitNames_Assign_Init();
     libCOMI_gt_NovaUnitNames_KillCountUpdate_Init();
@@ -24949,15 +24504,6 @@ void libCOMI_InitTriggers () {
     libCOMI_gt_CM_GlobalCasterInit_Init();
     libCOMI_gt_CM_AutoRevealRegionController_Init();
     libCOMI_gt_CM_GPReminderAbilityUsed_Init();
-    libCOMI_gt_CM_CampaignProbeHelperInit_Init();
-    libCOMI_gt_CM_CampaignProbeHelperUpdateCreated_Init();
-    libCOMI_gt_CM_CampaignProbeHelperUpdateConstructionFinishes_Init();
-    libCOMI_gt_CM_CampaignDroneHelperUpdateChangedOwner_Init();
-    libCOMI_gt_CM_PlayerNeedPylon_Init();
-    libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood2_Init();
-    libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood3_Init();
-    libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood4_Init();
-    libCOMI_gt_CM_PlayerNeedPylonButtonClickedFood6_Init();
     libCOMI_gt_CM_AbilityTransmissionRaynorHyperion_Init();
     libCOMI_gt_CM_AbilityTransmissionRaynorBansheesUsed_Init();
     libCOMI_gt_CM_AbilityTransmissionSwannDrone_Init();

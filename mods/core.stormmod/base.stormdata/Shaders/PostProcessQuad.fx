@@ -49,6 +49,10 @@ void PostProcessQuadVertexMain( in Input vertIn, out VertexTransport vertOut ) {
         READ_INTERPOLANT_UV( i ) = EmitPostProcessQuadUV( vertIn, i );
         
     if (b_iSampleCountPS == 0) {
+#if __bsl__
+        // Inspector Bug ID: 186629
+        [unroll]
+#endif
         for ( int i = 0; i < b_iSampleInterpolantCount; i++ )
             WRITE_INTERPOLANT_GaussianBlurSample(i, EmitGaussianBlurSample( vertIn, i ) );
     }

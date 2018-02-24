@@ -59,10 +59,6 @@ unitgroup gv_cinematicTempUnits;
 unitgroup gv_cinematicHiddenUnits;
 unitgroup gv_cinematicPausedUnits;
 bool gv_enabled;
-fixed gv_moveStartRange;
-fixed gv_moveStopRange;
-int gv_guardTargetingRange;
-int gv_guardPositionRange;
 unitgroup gv_hiddenUnitsforCutscene;
 int gv_mapMechanicHighlightTopFrame;
 int gv_mapMechanicHighlightBottomFrame;
@@ -73,6 +69,7 @@ unit gv_tributeCutsceneUnit;
 unitgroup gv_orderCutsceneUnitGroup;
 unitgroup gv_chaosCutsceneUnitGroup;
 int gv_mapMechanicIndex;
+fixed gv_aIMinimumHealthPercent;
 playergroup gv_firstEventPlayerGroup;
 playergroup gv_secondEventPlayerGroup;
 playergroup gv_repeatingEventPlayerGroup;
@@ -96,15 +93,12 @@ void InitGlobals () {
     gv_cinematicHiddenUnits = UnitGroupEmpty();
     gv_cinematicPausedUnits = UnitGroupEmpty();
     gv_enabled = true;
-    gv_moveStartRange = 50.0;
-    gv_moveStopRange = 10.0;
-    gv_guardTargetingRange = 9;
-    gv_guardPositionRange = 7;
     gv_hiddenUnitsforCutscene = UnitGroupEmpty();
     gv_mapMechanicHighlightTopFrame = c_invalidDialogControlId;
     gv_mapMechanicHighlightBottomFrame = c_invalidDialogControlId;
     gv_orderCutsceneUnitGroup = UnitGroupEmpty();
     gv_chaosCutsceneUnitGroup = UnitGroupEmpty();
+    gv_aIMinimumHealthPercent = 35.0;
     gv_firstEventPlayerGroup = PlayerGroupEmpty();
     gv_secondEventPlayerGroup = PlayerGroupEmpty();
     gv_repeatingEventPlayerGroup = PlayerGroupEmpty();
@@ -116,8 +110,6 @@ void InitGlobals () {
 //--------------------------------------------------------------------------------------------------
 // Global Function Declarations
 //--------------------------------------------------------------------------------------------------
-void gf_TutorialMapHeroAIChangeStateCaptureTribute (int lp_trigPlayer, unit lp_objectiveUnit, int lp_priority);
-void gf_TutorialMapHeroAIChangeStateDefendTributePosition (int lp_trigPlayer, point lp_position, int lp_priority);
 void gf_PauseGameStateforCutscene (bool lp_hideUnits);
 void gf_CreateandPrepMinionforCutscene (string lp_unitType, point lp_spawnPoint, int lp_owningPlayer);
 void gf_AddAItoFightingGroupsandHealUp (int lp_playerIndex);
@@ -137,11 +129,6 @@ trigger gt_HookupLaneData;
 trigger gt_HookupJungleCreepData;
 trigger gt_HookupTownData;
 trigger gt_HookupRegionData;
-trigger gt_TutorialMapHeroAIReturnToCaptureTribute;
-trigger gt_TutorialMapHeroAICaptureTributeExit;
-trigger gt_TutorialMapHeroAIReturnToDefendTributePosition;
-trigger gt_TutorialMapHeroAIDefendTributePositionExit;
-trigger gt_TutorialMapHeroAIDefendPointLogic;
 trigger gt_ResumeGameStateforCutscene;
 trigger gt_EnemyHeroLongerRespawn;
 trigger gt_MakeEnemyInnerTownsTakeMinimalDamage;
@@ -163,6 +150,7 @@ trigger gt_TributeSpawned;
 trigger gt_AIStartImmortalityMonitor;
 trigger gt_AIEndImmortalityMonitor;
 trigger gt_EnemyHeroDiesTrigger;
+trigger gt_EnemyHeroRespawns;
 trigger gt_TributeGathered;
 trigger gt_TributeCollectStarted;
 trigger gt_TributeCollectInterrupted;
@@ -203,32 +191,6 @@ trigger gt_AutomationExitOut;
 //--------------------------------------------------------------------------------------------------
 // Global Functions
 //--------------------------------------------------------------------------------------------------
-void gf_TutorialMapHeroAIChangeStateCaptureTribute (int lp_trigPlayer, unit lp_objectiveUnit, int lp_priority) {
-    // Automatic Variable Declarations
-    // Implementation
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_wantsToDoCustomMapLogic = true;
-    libAIAI_gf_HeroAIChangeStateDefendObjective(lp_trigPlayer, lp_objectiveUnit, null, gv_moveStartRange, gv_moveStopRange, gv_guardTargetingRange, gv_guardPositionRange, AbilityCommand("CaptureMacGuffin", 0), lp_priority, gt_TutorialMapHeroAICaptureTributeExit, gt_TutorialMapHeroAIReturnToCaptureTribute);
-}
-
-void gf_TutorialMapHeroAIChangeStateDefendTributePosition (int lp_trigPlayer, point lp_position, int lp_priority) {
-    // Variable Declarations
-    fixed lv_angleOffset;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_wantsToDoCustomMapLogic = true;
-    if ((gv_enemyGroupDead == true)) {
-        lv_angleOffset = (AngleBetweenPoints(PointFromId(825), libMapM_gv_mMRavenTributeSpawnPoints[gv_mapMechanicIndex]) + 90.0);
-        lv_angleOffset += ((2-lp_trigPlayer)*60);
-        libAIAI_gf_HeroAIChangeStateDefendObjective(lp_trigPlayer, null, PointWithOffsetPolar(libMapM_gv_mMRavenTributeSpawnPoints[gv_mapMechanicIndex], 4.0, lv_angleOffset), 15.0, 1.0, 0.0, 0.0, null, libAIAI_ge_HeroAIPriority_CustomMapVital, gt_TutorialMapHeroAIDefendTributePositionExit, gt_TutorialMapHeroAIReturnToDefendTributePosition);
-    }
-    else {
-        libAIAI_gf_HeroAIChangeStateDefendObjective(lp_trigPlayer, null, lp_position, gv_moveStartRange, gv_moveStopRange, gv_guardTargetingRange, gv_guardPositionRange, null, lp_priority, gt_TutorialMapHeroAIDefendTributePositionExit, gt_TutorialMapHeroAIReturnToDefendTributePosition);
-    }
-}
-
 void gf_PauseGameStateforCutscene (bool lp_hideUnits) {
     // Variable Declarations
     unit lv_itUnit;
@@ -288,8 +250,8 @@ void gf_AddAItoFightingGroupsandHealUp (int lp_playerIndex) {
         UnitSetPropertyFixed(libGame_gv_players[lp_playerIndex].lv_heroUnit, c_unitPropLifePercent, 100.0);
         UnitSetPropertyFixed(libGame_gv_players[lp_playerIndex].lv_heroUnit, c_unitPropEnergyPercent, 100.0);
     }
-    else if ((UnitGetPropertyFixed(libGame_gv_players[lp_playerIndex].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) <= libAIAI_gv_aIHeroes[lp_playerIndex].lv_returnToSpawnHealth)) {
-        UnitSetPropertyFixed(libGame_gv_players[lp_playerIndex].lv_heroUnit, c_unitPropLifePercent, (libAIAI_gv_aIHeroes[lp_playerIndex].lv_returnToSpawnHealth + 10.0));
+    else if ((UnitGetPropertyFixed(libGame_gv_players[lp_playerIndex].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) <= gv_aIMinimumHealthPercent)) {
+        UnitSetPropertyFixed(libGame_gv_players[lp_playerIndex].lv_heroUnit, c_unitPropLifePercent, (gv_aIMinimumHealthPercent + 10.0));
     }
 }
 
@@ -394,7 +356,6 @@ bool gt_InitPlayers_Func (bool testConds, bool runActions) {
     if ((libStEx_gf_TutorialHero() != "Tyrande")) {
         CatalogFieldValueSet(c_gameCatalogAbil, "TyrandeLightofElune", "Cost.Vital[" + IntToString(0) + "]", gv_pLAYER_02_HEALERTANK, "30");
         CatalogFieldValueSet(c_gameCatalogAbil, "TyrandeLightofElune", "Cost.Cooldown.TimeUse", gv_pLAYER_02_HEALERTANK, "6");
-        CatalogFieldValueSet(c_gameCatalogEffect, "LightofEluneHealSelf", "RechargeVitalRate", gv_pLAYER_02_HEALERTANK, "300");
         CatalogFieldValueSet(c_gameCatalogEffect, "LightofEluneHealTarget", "RechargeVitalRate", gv_pLAYER_02_HEALERTANK, "400");
         CatalogFieldValueSet(c_gameCatalogEffect, "LightofEluneHealTargetOverflowingLight", "RechargeVitalRate", gv_pLAYER_02_HEALERTANK, "520");
     }
@@ -447,15 +408,6 @@ bool gt_InitUnit_Func (bool testConds, bool runActions) {
     libAIAI_gf_HeroAIEnableAIForPlayer(gv_pLAYER_08_GREYMANE);
     libAIAI_gf_HeroAIEnableAIForPlayer(gv_pLAYER_09_STITCHES);
     libAIAI_gf_HeroAIEnableAIForPlayer(gv_pLAYER_10_GULDAN);
-    libAIAI_gf_HeroAISetStartingLane(gv_pLAYER_04_NOVA, 1);
-    libAIAI_gf_HeroAISetStartingLane(gv_pLAYER_05_TANKDPS, 1);
-    libAIAI_gf_HeroAISetStartingLane(gv_pLAYER_02_HEALERTANK, 2);
-    libAIAI_gf_HeroAISetStartingLane(gv_pLAYER_03_DEMONHUNTER, 3);
-    libAIAI_gf_HeroAISetStartingLane(gv_pLAYER_09_STITCHES, 1);
-    libAIAI_gf_HeroAISetStartingLane(gv_pLAYER_10_GULDAN, 1);
-    libAIAI_gf_HeroAISetStartingLane(gv_pLAYER_06_ARTHAS, 2);
-    libAIAI_gf_HeroAISetStartingLane(gv_pLAYER_08_GREYMANE, 2);
-    libAIAI_gf_HeroAISetStartingLane(gv_pLAYER_07_TYCHUS, 3);
     return true;
 }
 
@@ -494,6 +446,7 @@ bool gt_InitUI_Func (bool testConds, bool runActions) {
     gv_mapMechanicHighlightBottomFrame = DialogControlLastCreated();
     DialogControlHookup(libUIUI_gv_notificationDisplay.lv_mainPanel, c_triggerControlTypePanel, "KillCounterTemplate");
     DialogControlSetVisible(DialogControlLastCreated(), PlayerGroupAll(), false);
+    DialogControlSetEnabled(libUIUI_gv_uIGameUIHandles.lv_targetInfoPanel, PlayerGroupAll(), false);
     return true;
 }
 
@@ -562,25 +515,6 @@ bool gt_ChangeAISettings_Func (bool testConds, bool runActions) {
         return true;
     }
 
-    libAIAI_gv_aIHeroAIAllowedToChangeDesiredLane[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = false;
-    libAIAI_gv_aIHeroUseMoonwells[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = true;
-    libAIAI_gv_aIHeroUseUltimates[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = true;
-    libAIAI_gv_aIHeroNeverEnterLateGame[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = true;
-    libAIAI_gv_aIHeroMinSpellFrequency[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = 4.0;
-    libAIAI_gv_aIHeroSkillshotMissRate[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = 30.0;
-    libAIAI_gv_aIHeroEnemyLaneEvalUnderestimatePercent[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = 25.0;
-    libAIAI_gv_aIHeroOnlyInitiateEasyCamps[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = true;
-    libAIAI_gv_aIHeroChanceMiddleMinionCamp[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = 0.0;
-    libAIAI_gv_aIHeroChanceNearbyMinionCamp[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = 0.0;
-    libAIAI_gv_aIHeroAlwaysWaitAtCampForHumanPlayer[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = true;
-    libAIAI_gv_aIHeroLetHumanPlayerCaptureCampBeacon[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = true;
-    libAIAI_gv_aIHeroWaitForMinionsWhenLaning[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = false;
-    libAIAI_gv_aIHeroPreemptivelyRetreatFromTowers[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = false;
-    libAIAI_gv_aIHeroMaxObjectiveCaptureAIHeroes[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = 0;
-    libAIAI_gv_aIHeroRetreatWhenTargettedByNonHeroNonTowerPercent[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = 30.0;
-    libAIAI_gv_aIHeroRetreatWhenTargettedByHeroPercent[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = 40.0;
-    libAIAI_gv_aIHeroRetreatWhenTargettedByTowerPercent[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = 60.0;
-    libAIAI_gv_aIHeroRetreatWhenTargettedByEnemyCorePercent[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = 60.0;
     lv_itPlayer = 2;
     for ( ; ( (autoD1908165_ai >= 0 && lv_itPlayer <= autoD1908165_ae) || (autoD1908165_ai < 0 && lv_itPlayer >= autoD1908165_ae) ) ; lv_itPlayer += autoD1908165_ai ) {
         if (((libGame_gv_players[lv_itPlayer].lv_heroIndex == libCore_gf_GetIndexFromHero("Tyrande")) || (libGame_gv_players[lv_itPlayer].lv_heroIndex == libCore_gf_GetIndexFromHero("Muradin")))) {
@@ -1082,142 +1016,6 @@ void gt_HookupRegionData_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: TutorialMap - HeroAI - Return To Capture Tribute
-//--------------------------------------------------------------------------------------------------
-bool gt_TutorialMapHeroAIReturnToCaptureTribute_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    gf_TutorialMapHeroAIChangeStateCaptureTribute(libAIAI_gv_heroAICustomStateCurrentPlayer, libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSMapStateCurrentTargetUnit, libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_statePriority);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void gt_TutorialMapHeroAIReturnToCaptureTribute_Init () {
-    gt_TutorialMapHeroAIReturnToCaptureTribute = TriggerCreate("gt_TutorialMapHeroAIReturnToCaptureTribute_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: TutorialMap - HeroAI - Capture Tribute Exit
-//--------------------------------------------------------------------------------------------------
-bool gt_TutorialMapHeroAICaptureTributeExit_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    if (((gv_tributeEventActive == false) || (UnitIsAlive(libGame_gv_players[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_heroUnit) == false))) {
-        libAIAI_gv_heroAICustomStateReturnBoolean = true;
-        libAIAI_gf_HeroAILeaveCurrentObjective(libAIAI_gv_heroAICustomStateCurrentPlayer);
-        return true;
-    }
-
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void gt_TutorialMapHeroAICaptureTributeExit_Init () {
-    gt_TutorialMapHeroAICaptureTributeExit = TriggerCreate("gt_TutorialMapHeroAICaptureTributeExit_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: TutorialMap - HeroAI - Return To Defend Tribute Position
-//--------------------------------------------------------------------------------------------------
-bool gt_TutorialMapHeroAIReturnToDefendTributePosition_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    gf_TutorialMapHeroAIChangeStateDefendTributePosition(libAIAI_gv_heroAICustomStateCurrentPlayer, libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSMapStateCurrentTargetPoint, libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_statePriority);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void gt_TutorialMapHeroAIReturnToDefendTributePosition_Init () {
-    gt_TutorialMapHeroAIReturnToDefendTributePosition = TriggerCreate("gt_TutorialMapHeroAIReturnToDefendTributePosition_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: TutorialMap - HeroAI - Defend Tribute Position Exit
-//--------------------------------------------------------------------------------------------------
-bool gt_TutorialMapHeroAIDefendTributePositionExit_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    if ((gv_tributeEventActive == false)) {
-        libAIAI_gv_heroAICustomStateReturnBoolean = true;
-        libAIAI_gf_HeroAILeaveCurrentObjective(libAIAI_gv_heroAICustomStateCurrentPlayer);
-        return true;
-    }
-
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void gt_TutorialMapHeroAIDefendTributePositionExit_Init () {
-    gt_TutorialMapHeroAIDefendTributePositionExit = TriggerCreate("gt_TutorialMapHeroAIDefendTributePositionExit_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: TutorialMap - HeroAI - Defend Point Logic
-//--------------------------------------------------------------------------------------------------
-bool gt_TutorialMapHeroAIDefendPointLogic_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    unit lv_itUnit;
-    int lv_itPlayer;
-
-    // Automatic Variable Declarations
-    unitgroup auto9AF77250_g;
-    int auto9AF77250_u;
-
-    // Variable Initialization
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    while (true) {
-        if ((gv_tributeEventActive == false)) {
-            return true;
-        }
-
-        auto9AF77250_g = gv_fightingAIUnitGroup;
-        auto9AF77250_u = UnitGroupCount(auto9AF77250_g, c_unitCountAll);
-        for (;; auto9AF77250_u -= 1) {
-            lv_itUnit = UnitGroupUnitFromEnd(auto9AF77250_g, auto9AF77250_u);
-            if (lv_itUnit == null) { break; }
-            lv_itPlayer = UnitGetOwner(lv_itUnit);
-            if ((libAIAI_gv_aIHeroes[lv_itPlayer].lv_shouldWaitInSpawn == false) && (UnitGetPropertyFixed(libGame_gv_players[lv_itPlayer].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) >= libAIAI_gv_aIHeroes[lv_itPlayer].lv_startOffensiveHealth) && (libAIAI_gf_HeroAIIsHigherPriority(lv_itPlayer, libAIAI_ge_HeroAIPriority_CustomMapVital) == true)) {
-                if ((gv_tributeUnit != null) && (libGame_gf_TeamNumberOfPlayer(lv_itPlayer) == libGame_gv_teamChaosIndex_C)) {
-                    gf_TutorialMapHeroAIChangeStateCaptureTribute(lv_itPlayer, gv_tributeUnit, libAIAI_ge_HeroAIPriority_CustomMapVital);
-                }
-                else {
-                    gf_TutorialMapHeroAIChangeStateDefendTributePosition(lv_itPlayer, libMapM_gv_mMRavenTributeSpawnPoints[gv_mapMechanicIndex], libAIAI_ge_HeroAIPriority_CustomMapVital);
-                }
-            }
-
-        }
-        Wait(1.0, c_timeGame);
-    }
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void gt_TutorialMapHeroAIDefendPointLogic_Init () {
-    gt_TutorialMapHeroAIDefendPointLogic = TriggerCreate("gt_TutorialMapHeroAIDefendPointLogic_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
 // Trigger: Resume Game State for Cutscene
 //--------------------------------------------------------------------------------------------------
 bool gt_ResumeGameStateforCutscene_Func (bool testConds, bool runActions) {
@@ -1439,6 +1237,20 @@ bool gt_OpentheGatesTimerExpires_Func (bool testConds, bool runActions) {
     StatEventCreate("Tutorial02_GatesOpened");
     StatEventSend(StatEventLastCreated());
     TriggerExecute(gt_MakeEnemyInnerTownsTakeMinimalDamage, true, false);
+    libAIAI_gf_HeroAIEnableAIForPlayer(gv_pLAYER_02_HEALERTANK);
+    libAIAI_gf_HeroAIEnableAIForPlayer(gv_pLAYER_03_DEMONHUNTER);
+    libAIAI_gf_HeroAIEnableAIForPlayer(gv_pLAYER_04_NOVA);
+    libAIAI_gf_HeroAIEnableAIForPlayer(gv_pLAYER_05_TANKDPS);
+    Wait(0.125, c_timeGame);
+    AIRequiredLane(libGame_gv_players[gv_pLAYER_04_NOVA].lv_heroUnit, 1);
+    AIRequiredLane(libGame_gv_players[gv_pLAYER_05_TANKDPS].lv_heroUnit, 1);
+    AIRequiredLane(libGame_gv_players[gv_pLAYER_02_HEALERTANK].lv_heroUnit, 2);
+    AIRequiredLane(libGame_gv_players[gv_pLAYER_03_DEMONHUNTER].lv_heroUnit, 3);
+    AIRequiredLane(libGame_gv_players[gv_pLAYER_06_ARTHAS].lv_heroUnit, 2);
+    AIRequiredLane(libGame_gv_players[gv_pLAYER_07_TYCHUS].lv_heroUnit, 3);
+    AIRequiredLane(libGame_gv_players[gv_pLAYER_08_GREYMANE].lv_heroUnit, 2);
+    AIRequiredLane(libGame_gv_players[gv_pLAYER_09_STITCHES].lv_heroUnit, 1);
+    AIRequiredLane(libGame_gv_players[gv_pLAYER_10_GULDAN].lv_heroUnit, 1);
     return true;
 }
 
@@ -1465,15 +1277,15 @@ bool gt_IntroMapExplanation_Func (bool testConds, bool runActions) {
     Wait(1.5, c_timeGame);
     TimerPause(libGame_gv_openTheGatesTimer, true);
     libStEx_gf_DisplayVOMessageGamePaused(StringExternal("Param/Value/B4A5DE4B"), libStEx_ge_SE_VOMessageType_tribute, true);
-    libAIAI_gf_HeroAIEnableAIForPlayer(gv_pLAYER_02_HEALERTANK);
-    libAIAI_gf_HeroAIEnableAIForPlayer(gv_pLAYER_03_DEMONHUNTER);
-    libAIAI_gf_HeroAIEnableAIForPlayer(gv_pLAYER_04_NOVA);
-    libAIAI_gf_HeroAIEnableAIForPlayer(gv_pLAYER_05_TANKDPS);
     libNtve_gf_MakeUnitUncommandable(gv_heroPlayer, false);
     TriggerEnable(gt_HealingFountainProximityMonitor, true);
     TimerPause(libGame_gv_openTheGatesTimer, false);
     TriggerExecute(gt_ManaReminder, true, false);
     SetTalentsEnabled(true);
+    UnitIssueOrder(gv_heroHealerTank, OrderTargetingPoint(AbilityCommand("move", 0), PointFromId(2145)), c_orderQueueReplace);
+    UnitIssueOrder(gv_heroDemonHunter, OrderTargetingPoint(AbilityCommand("move", 0), PointFromId(2132)), c_orderQueueReplace);
+    UnitIssueOrder(gv_heroNova, OrderTargetingPoint(AbilityCommand("move", 0), PointFromId(2117)), c_orderQueueReplace);
+    UnitIssueOrder(gv_heroTankDps, OrderTargetingPoint(AbilityCommand("move", 0), PointFromId(2117)), c_orderQueueReplace);
     Wait(2.0, c_timeGame);
     TriggerExecute(gt_AutomationEnablePlayerAI, true, false);
     libUIUI_gf_AddTutorialReferenceItemPreset(libUIUI_ge_TutorialReferenceItem_Mount);
@@ -1995,7 +1807,13 @@ bool gt_TributeEncounter1_Func (bool testConds, bool runActions) {
         	if (lv_itPlayer<0) { break; }
         	gf_AddAItoFightingGroupsandHealUp(lv_itPlayer);
     }
-    TriggerExecute(gt_TutorialMapHeroAIDefendPointLogic, true, false);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 0.0), 0.0, 0.0, "TutorialArthasBeacon", libNtve_ge_GoalTeam_Chaos, 0);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 36.0), 0.0, 0.0, "TutorialGreymaneBeacon", libNtve_ge_GoalTeam_Chaos, 0);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 144.0), 0.0, 0.0, "TutorialJainaBeacon", libNtve_ge_GoalTeam_Order, 0);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 180.0), 0.0, 0.0, "TutorialMuradinBeacon", libNtve_ge_GoalTeam_Order, 0);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 216.0), 0.0, 0.0, "TutorialTyrandeBeacon", libNtve_ge_GoalTeam_Order, 0);
+    UnitBehaviorAdd(libGame_gv_players[gv_pLAYER_06_ARTHAS].lv_heroUnit, "AIControlFightToTheDeath", libGame_gv_players[gv_pLAYER_06_ARTHAS].lv_heroUnit, 1);
+    UnitBehaviorAdd(libGame_gv_players[gv_pLAYER_08_GREYMANE].lv_heroUnit, "AIControlFightToTheDeath", libGame_gv_players[gv_pLAYER_08_GREYMANE].lv_heroUnit, 1);
     gv_pauseReminders = true;
     TriggerExecute(gt_MapMechanicQ, true, true);
     gf_PauseGameStateforCutscene(false);
@@ -2060,7 +1878,16 @@ bool gt_TributeEncounter2_Func (bool testConds, bool runActions) {
         	if (lv_itPlayer<0) { break; }
         	gf_AddAItoFightingGroupsandHealUp(lv_itPlayer);
     }
-    TriggerExecute(gt_TutorialMapHeroAIDefendPointLogic, true, false);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 0.0), 0.0, 0.0, "TutorialArthasBeacon", libNtve_ge_GoalTeam_Chaos, 0);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 36.0), 0.0, 0.0, "TutorialGreymaneBeacon", libNtve_ge_GoalTeam_Chaos, 0);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 72.0), 0.0, 0.0, "TutorialStitchesBeacon", libNtve_ge_GoalTeam_Chaos, 0);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 144.0), 0.0, 0.0, "TutorialJainaBeacon", libNtve_ge_GoalTeam_Order, 0);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 180.0), 0.0, 0.0, "TutorialMuradinBeacon", libNtve_ge_GoalTeam_Order, 0);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 216.0), 0.0, 0.0, "TutorialTyrandeBeacon", libNtve_ge_GoalTeam_Order, 0);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 252.0), 0.0, 0.0, "TutorialVallaBeacon", libNtve_ge_GoalTeam_Order, 0);
+    UnitBehaviorAdd(libGame_gv_players[gv_pLAYER_06_ARTHAS].lv_heroUnit, "AIControlFightToTheDeath", libGame_gv_players[gv_pLAYER_06_ARTHAS].lv_heroUnit, 1);
+    UnitBehaviorAdd(libGame_gv_players[gv_pLAYER_08_GREYMANE].lv_heroUnit, "AIControlFightToTheDeath", libGame_gv_players[gv_pLAYER_08_GREYMANE].lv_heroUnit, 1);
+    UnitBehaviorAdd(libGame_gv_players[gv_pLAYER_09_STITCHES].lv_heroUnit, "AIControlFightToTheDeath", libGame_gv_players[gv_pLAYER_09_STITCHES].lv_heroUnit, 1);
     TriggerEnable(gt_TributeFightReminder, true);
     TriggerExecute(gt_AIStartImmortalityMonitor, true, false);
     TriggerExecute(gt_AIEndImmortalityMonitor, true, false);
@@ -2114,7 +1941,21 @@ bool gt_TributeEncounter3_Func (bool testConds, bool runActions) {
         	if (lv_itPlayer<0) { break; }
         	gf_AddAItoFightingGroupsandHealUp(lv_itPlayer);
     }
-    TriggerExecute(gt_TutorialMapHeroAIDefendPointLogic, true, false);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 0.0), 0.0, 0.0, "TutorialArthasBeacon", libNtve_ge_GoalTeam_Chaos, 0);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 36.0), 0.0, 0.0, "TutorialGreymaneBeacon", libNtve_ge_GoalTeam_Chaos, 0);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 72.0), 0.0, 0.0, "TutorialStitchesBeacon", libNtve_ge_GoalTeam_Chaos, 0);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 108.0), 0.0, 0.0, "TutorialGuldanBeacon", libNtve_ge_GoalTeam_Chaos, 0);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 324.0), 0.0, 0.0, "TutorialTychusBeacon", libNtve_ge_GoalTeam_Chaos, 0);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 144.0), 0.0, 0.0, "TutorialJainaBeacon", libNtve_ge_GoalTeam_Order, 0);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 180.0), 0.0, 0.0, "TutorialMuradinBeacon", libNtve_ge_GoalTeam_Order, 0);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 216.0), 0.0, 0.0, "TutorialTyrandeBeacon", libNtve_ge_GoalTeam_Order, 0);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 252.0), 0.0, 0.0, "TutorialVallaBeacon", libNtve_ge_GoalTeam_Order, 0);
+    AddPointOfInterest(PointWithOffsetPolar(lv_localMapMechanicPosition, 4.0, 288.0), 0.0, 0.0, "TutorialNovaBeacon", libNtve_ge_GoalTeam_Order, 0);
+    UnitBehaviorAdd(libGame_gv_players[gv_pLAYER_06_ARTHAS].lv_heroUnit, "AIControlFightToTheDeath", libGame_gv_players[gv_pLAYER_06_ARTHAS].lv_heroUnit, 1);
+    UnitBehaviorAdd(libGame_gv_players[gv_pLAYER_08_GREYMANE].lv_heroUnit, "AIControlFightToTheDeath", libGame_gv_players[gv_pLAYER_08_GREYMANE].lv_heroUnit, 1);
+    UnitBehaviorAdd(libGame_gv_players[gv_pLAYER_09_STITCHES].lv_heroUnit, "AIControlFightToTheDeath", libGame_gv_players[gv_pLAYER_09_STITCHES].lv_heroUnit, 1);
+    UnitBehaviorAdd(libGame_gv_players[gv_pLAYER_10_GULDAN].lv_heroUnit, "AIControlFightToTheDeath", libGame_gv_players[gv_pLAYER_10_GULDAN].lv_heroUnit, 1);
+    UnitBehaviorAdd(libGame_gv_players[gv_pLAYER_07_TYCHUS].lv_heroUnit, "AIControlFightToTheDeath", libGame_gv_players[gv_pLAYER_07_TYCHUS].lv_heroUnit, 1);
     TriggerEnable(gt_TributeFightReminder, true);
     TriggerExecute(gt_AIStartImmortalityMonitor, true, false);
     TriggerExecute(gt_AIEndImmortalityMonitor, true, false);
@@ -2138,9 +1979,6 @@ bool gt_TributeSpawned_Func (bool testConds, bool runActions) {
     unit lv_itUnit;
 
     // Automatic Variable Declarations
-    unitgroup auto5743C1C8_g;
-    int auto5743C1C8_u;
-
     // Variable Initialization
 
     // Actions
@@ -2152,13 +1990,6 @@ bool gt_TributeSpawned_Func (bool testConds, bool runActions) {
     TriggerExecute(gt_TributeFightReminder, true, false);
     while (!((TriggerIsEnabled(gt_TributeFightReminder) == false))) {
         Wait(0.25, c_timeGame);
-    }
-    auto5743C1C8_g = gv_enemyAIUnitGroup;
-    auto5743C1C8_u = UnitGroupCount(auto5743C1C8_g, c_unitCountAll);
-    for (;; auto5743C1C8_u -= 1) {
-        lv_itUnit = UnitGroupUnitFromEnd(auto5743C1C8_g, auto5743C1C8_u);
-        if (lv_itUnit == null) { break; }
-        gf_TutorialMapHeroAIChangeStateCaptureTribute(UnitGetOwner(lv_itUnit), gv_tributeUnit, libAIAI_ge_HeroAIPriority_CustomMapVital);
     }
     return true;
 }
@@ -2189,6 +2020,7 @@ bool gt_AIStartImmortalityMonitor_Func (bool testConds, bool runActions) {
         return true;
     }
 
+    TriggerEnable(gt_EnemyHeroRespawns, true);
     while (!((DistanceBetweenPoints(UnitGetPosition(UnitGroupClosestToPoint(gv_fightingAIUnitGroup, libMapM_gv_mMRavenTributeSpawnPoints[gv_mapMechanicIndex])), libMapM_gv_mMRavenTributeSpawnPoints[gv_mapMechanicIndex]) <= 10.0))) {
         Wait(0.25, c_timeGame);
     }
@@ -2271,8 +2103,7 @@ bool gt_EnemyHeroDiesTrigger_Func (bool testConds, bool runActions) {
     fixed lv_angleOffset;
 
     // Automatic Variable Declarations
-    unitgroup auto57C065C1_g;
-    int auto57C065C1_u;
+    int auto61EA90AC_val;
 
     // Variable Initialization
 
@@ -2288,21 +2119,35 @@ bool gt_EnemyHeroDiesTrigger_Func (bool testConds, bool runActions) {
         return true;
     }
 
-    libAIAI_gf_HeroAIStartWaitInSpawn(libGame_gf_HeroKilledPlayer());
+    if ((gv_tributeEventActive == true)) {
+        auto61EA90AC_val = UnitGetOwner(libGame_gf_HeroKilledUnit());
+        if (auto61EA90AC_val == gv_pLAYER_06_ARTHAS) {
+            RemovePointOfInterest(PointWithOffsetPolar(UnitGetPosition(gv_tributeUnit), 4.0, 0.0), "TutorialArthasBeacon", libNtve_ge_GoalTeam_Chaos);
+            AddUnitOfInterest(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core, 0.0, 0.0, "TutorialArthasEscort", libNtve_ge_GoalTeam_Chaos, 0);
+        }
+        else if (auto61EA90AC_val == gv_pLAYER_07_TYCHUS) {
+            RemovePointOfInterest(PointWithOffsetPolar(UnitGetPosition(gv_tributeUnit), 4.0, 324.0), "TutorialTychusBeacon", libNtve_ge_GoalTeam_Chaos);
+            AddUnitOfInterest(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core, 0.0, 0.0, "TutorialTychusEscort", libNtve_ge_GoalTeam_Chaos, 0);
+        }
+        else if (auto61EA90AC_val == gv_pLAYER_08_GREYMANE) {
+            RemovePointOfInterest(PointWithOffsetPolar(UnitGetPosition(gv_tributeUnit), 4.0, 36.0), "TutorialGreymaneBeacon", libNtve_ge_GoalTeam_Chaos);
+            AddUnitOfInterest(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core, 0.0, 0.0, "TutorialGreymaneEscort", libNtve_ge_GoalTeam_Chaos, 0);
+        }
+        else if (auto61EA90AC_val == gv_pLAYER_09_STITCHES) {
+            RemovePointOfInterest(PointWithOffsetPolar(UnitGetPosition(gv_tributeUnit), 4.0, 72.0), "TutorialStitchesBeacon", libNtve_ge_GoalTeam_Chaos);
+            AddUnitOfInterest(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core, 0.0, 0.0, "TutorialStitchesEscort", libNtve_ge_GoalTeam_Chaos, 0);
+        }
+        else if (auto61EA90AC_val == gv_pLAYER_10_GULDAN) {
+            RemovePointOfInterest(PointWithOffsetPolar(UnitGetPosition(gv_tributeUnit), 4.0, 108.0), "TutorialGuldanBeacon", libNtve_ge_GoalTeam_Chaos);
+            AddUnitOfInterest(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core, 0.0, 0.0, "TutorialGuldanEscort", libNtve_ge_GoalTeam_Chaos, 0);
+        }
+        else {
+        }
+    }
+
     UnitGroupRemove(gv_enemyAIUnitGroup, libGame_gv_players[libGame_gf_HeroKilledPlayer()].lv_heroUnit);
     if ((libNtve_gf_UnitGroupIsDead(gv_enemyAIUnitGroup) == true)) {
         gv_enemyGroupDead = true;
-        auto57C065C1_g = gv_fightingAIUnitGroup;
-        auto57C065C1_u = UnitGroupCount(auto57C065C1_g, c_unitCountAll);
-        for (;; auto57C065C1_u -= 1) {
-            lv_itUnit = UnitGroupUnitFromEnd(auto57C065C1_g, auto57C065C1_u);
-            if (lv_itUnit == null) { break; }
-            lv_player = UnitGetOwner(lv_itUnit);
-            if ((libGame_gf_TeamNumberOfPlayer(lv_player) == libGame_gv_teamOrderIndex_C)) {
-                gf_TutorialMapHeroAIChangeStateDefendTributePosition(lv_player, libMapM_gv_mMRavenTributeSpawnPoints[gv_mapMechanicIndex], libAIAI_ge_HeroAIPriority_CustomMapVital);
-            }
-
-        }
         TriggerExecute(gt_TributeCollectReminder, true, false);
         TriggerExecute(gt_TributeCollectSuggestingPath, true, false);
     }
@@ -2315,6 +2160,49 @@ void gt_EnemyHeroDiesTrigger_Init () {
     gt_EnemyHeroDiesTrigger = TriggerCreate("gt_EnemyHeroDiesTrigger_Func");
     TriggerEnable(gt_EnemyHeroDiesTrigger, false);
     libGame_gf_HeroKilled(gt_EnemyHeroDiesTrigger);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Enemy Hero Respawns
+//--------------------------------------------------------------------------------------------------
+bool gt_EnemyHeroRespawns_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_respawnPlayer;
+    unit lv_respawnUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_respawnPlayer = libGame_gf_HeroRespawnPlayer();
+    lv_respawnUnit = libGame_gv_players[lv_respawnPlayer].lv_heroUnit;
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetOwner(libGame_gf_HeroRespawnUnit()) >= 5))) {
+            return false;
+        }
+
+        if (!((UnitGetOwner(libGame_gf_HeroRespawnUnit()) <= 10))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((gv_tributeEventActive == true)) {
+        UnitBehaviorAdd(lv_respawnUnit, "AIControlFightToTheDeath", lv_respawnUnit, 1);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_EnemyHeroRespawns_Init () {
+    gt_EnemyHeroRespawns = TriggerCreate("gt_EnemyHeroRespawns_Func");
+    TriggerEnable(gt_EnemyHeroRespawns, false);
+    libGame_gf_HeroRespawn(gt_EnemyHeroRespawns);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -2337,6 +2225,7 @@ bool gt_TributeGathered_Func (bool testConds, bool runActions) {
         return true;
     }
 
+    TriggerEnable(gt_EnemyHeroRespawns, false);
     if ((libGame_gf_MapCursedHollowTributePickedUpPlayer() == gv_pLAYER_01_USER)) {
         gv_tributeGatheredCount += 1;
         autoF61EC164_val = gv_tributeGatheredCount;
@@ -2354,6 +2243,39 @@ bool gt_TributeGathered_Func (bool testConds, bool runActions) {
         }
         else {
         }
+        RemovePointOfInterest(PointWithOffsetPolar(libMapM_gv_mMRavenTributeSpawnPoints[gv_mapMechanicIndex], 4.0, 0.0), "TutorialArthasBeacon", libNtve_ge_GoalTeam_Chaos);
+        RemovePointOfInterest(PointWithOffsetPolar(libMapM_gv_mMRavenTributeSpawnPoints[gv_mapMechanicIndex], 4.0, 36.0), "TutorialGreymaneBeacon", libNtve_ge_GoalTeam_Chaos);
+        RemovePointOfInterest(PointWithOffsetPolar(libMapM_gv_mMRavenTributeSpawnPoints[gv_mapMechanicIndex], 4.0, 72.0), "TutorialStitchesBeacon", libNtve_ge_GoalTeam_Chaos);
+        RemovePointOfInterest(PointWithOffsetPolar(libMapM_gv_mMRavenTributeSpawnPoints[gv_mapMechanicIndex], 4.0, 108.0), "TutorialGuldanBeacon", libNtve_ge_GoalTeam_Chaos);
+        RemovePointOfInterest(PointWithOffsetPolar(libMapM_gv_mMRavenTributeSpawnPoints[gv_mapMechanicIndex], 4.0, 324.0), "TutorialTychusBeacon", libNtve_ge_GoalTeam_Chaos);
+        RemovePointOfInterest(PointWithOffsetPolar(libMapM_gv_mMRavenTributeSpawnPoints[gv_mapMechanicIndex], 4.0, 144.0), "TutorialJainaBeacon", libNtve_ge_GoalTeam_Order);
+        RemovePointOfInterest(PointWithOffsetPolar(libMapM_gv_mMRavenTributeSpawnPoints[gv_mapMechanicIndex], 4.0, 180.0), "TutorialMuradinBeacon", libNtve_ge_GoalTeam_Order);
+        RemovePointOfInterest(PointWithOffsetPolar(libMapM_gv_mMRavenTributeSpawnPoints[gv_mapMechanicIndex], 4.0, 216.0), "TutorialTyrandeBeacon", libNtve_ge_GoalTeam_Order);
+        RemovePointOfInterest(PointWithOffsetPolar(libMapM_gv_mMRavenTributeSpawnPoints[gv_mapMechanicIndex], 4.0, 252.0), "TutorialVallaBeacon", libNtve_ge_GoalTeam_Order);
+        RemovePointOfInterest(PointWithOffsetPolar(libMapM_gv_mMRavenTributeSpawnPoints[gv_mapMechanicIndex], 4.0, 288.0), "TutorialNovaBeacon", libNtve_ge_GoalTeam_Order);
+        RemoveUnitOfInterest(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core, "TutorialArthasEscort", libNtve_ge_GoalTeam_Chaos);
+        RemoveUnitOfInterest(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core, "TutorialGreymaneEscort", libNtve_ge_GoalTeam_Chaos);
+        RemoveUnitOfInterest(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core, "TutorialStitchesEscort", libNtve_ge_GoalTeam_Chaos);
+        RemoveUnitOfInterest(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core, "TutorialGuldanEscort", libNtve_ge_GoalTeam_Chaos);
+        RemoveUnitOfInterest(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core, "TutorialTychusEscort", libNtve_ge_GoalTeam_Chaos);
+        UnitBehaviorRemove(libGame_gv_players[gv_pLAYER_06_ARTHAS].lv_heroUnit, "AIControlFightToTheDeath", 1);
+        UnitBehaviorRemove(libGame_gv_players[gv_pLAYER_07_TYCHUS].lv_heroUnit, "AIControlFightToTheDeath", 1);
+        UnitBehaviorRemove(libGame_gv_players[gv_pLAYER_08_GREYMANE].lv_heroUnit, "AIControlFightToTheDeath", 1);
+        UnitBehaviorRemove(libGame_gv_players[gv_pLAYER_09_STITCHES].lv_heroUnit, "AIControlFightToTheDeath", 1);
+        UnitBehaviorRemove(libGame_gv_players[gv_pLAYER_10_GULDAN].lv_heroUnit, "AIControlFightToTheDeath", 1);
+        libAIAI_gf_HeroAIDisableAIForPlayer(gv_pLAYER_02_HEALERTANK);
+        libAIAI_gf_HeroAIDisableAIForPlayer(gv_pLAYER_03_DEMONHUNTER);
+        libAIAI_gf_HeroAIDisableAIForPlayer(gv_pLAYER_04_NOVA);
+        libAIAI_gf_HeroAIDisableAIForPlayer(gv_pLAYER_05_TANKDPS);
+        Wait(0.125, c_timeGame);
+        libAIAI_gf_HeroAIEnableAIForPlayer(gv_pLAYER_02_HEALERTANK);
+        libAIAI_gf_HeroAIEnableAIForPlayer(gv_pLAYER_03_DEMONHUNTER);
+        libAIAI_gf_HeroAIEnableAIForPlayer(gv_pLAYER_04_NOVA);
+        libAIAI_gf_HeroAIEnableAIForPlayer(gv_pLAYER_05_TANKDPS);
+        AIRequiredLane(libGame_gv_players[gv_pLAYER_02_HEALERTANK].lv_heroUnit, 2);
+        AIRequiredLane(libGame_gv_players[gv_pLAYER_03_DEMONHUNTER].lv_heroUnit, 3);
+        AIRequiredLane(libGame_gv_players[gv_pLAYER_04_NOVA].lv_heroUnit, 1);
+        AIRequiredLane(libGame_gv_players[gv_pLAYER_05_TANKDPS].lv_heroUnit, 1);
         if ((gv_tributeGatheredCount > 3)) {
             gv_tributeGatheredCount -= 3;
         }
@@ -2379,10 +2301,6 @@ bool gt_TributeGathered_Func (bool testConds, bool runActions) {
         lv_itUnit = UnitGroupUnitFromEnd(autoDB204E4F_g, autoDB204E4F_u);
         if (lv_itUnit == null) { break; }
         lv_player = UnitGetOwner(lv_itUnit);
-        if ((libAIAI_gv_aIHeroes[lv_player].lv_shouldWaitInSpawn == true)) {
-            libAIAI_gf_HeroAIStopWaitInSpawn(lv_player);
-        }
-
         UnitGroupRemove(gv_fightingAIUnitGroup, lv_itUnit);
     }
     return true;
@@ -2733,6 +2651,8 @@ bool gt_CurseStarts_Func (bool testConds, bool runActions) {
     // Automatic Variable Declarations
     const int auto6708FAA9_ae = 5;
     const int auto6708FAA9_ai = 1;
+    const int autoFAB23564_ae = 10;
+    const int autoFAB23564_ai = 1;
     unitgroup auto3C493121_g;
     int auto3C493121_u;
 
@@ -2744,21 +2664,16 @@ bool gt_CurseStarts_Func (bool testConds, bool runActions) {
         return true;
     }
 
-    libAIAI_gv_aIHeroAIAllowedToChangeDesiredLane[libAIAI_ge_HeroAIDifficulty_HeroAITutorialMapMechanicAlly] = true;
-    libAIAI_gv_aIHeroAIAllowedToChangeDesiredLane[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = true;
+    Wait(0.25, c_timeGame);
     lv_itPlayer = 2;
     for ( ; ( (auto6708FAA9_ai >= 0 && lv_itPlayer <= auto6708FAA9_ae) || (auto6708FAA9_ai < 0 && lv_itPlayer >= auto6708FAA9_ae) ) ; lv_itPlayer += auto6708FAA9_ai ) {
-        libAIAI_gf_HeroAIChangeDesiredLane(lv_itPlayer, 2);
-        libAIAI_gv_aIHeroes[lv_itPlayer].lv_wantsToGoHome = false;
-        libAIAI_gf_HeroAIStartReturnToLane(lv_itPlayer, libAIAI_gv_aIHeroes[lv_itPlayer].lv_desiredLane);
+        Wait(0.125, c_timeGame);
+        AIRequiredLane(libGame_gv_players[lv_itPlayer].lv_heroUnit, 2);
     }
-    libAIAI_gv_aIHeroAIAllowedToChangeDesiredLane[libAIAI_ge_HeroAIDifficulty_HeroAITutorialMapMechanicAlly] = false;
-    libAIAI_gv_aIHeroAIAllowedToChangeDesiredLane[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = false;
-    libAIAI_gv_aIHeroAIAllowedToChangeDesiredLane[libAIAI_ge_HeroAIDifficulty_HeroAITutorialMapMechanicEnemy] = true;
-    libAIAI_gv_aIHeroStayBehindMinionsNearTowers[libAIAI_ge_HeroAIDifficulty_HeroAITutorialMapMechanicAlly] = false;
-    libAIAI_gv_aIHeroStayBehindMinionsNearTowers[libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly] = false;
-    libAIAI_gv_heroAITeamData[0].lv_gameState = libAIAI_ge_HeroAIGameState_Act3;
-    libAIAI_gv_heroAITeamData[1].lv_gameState = libAIAI_ge_HeroAIGameState_Act3;
+    lv_itPlayer = 6;
+    for ( ; ( (autoFAB23564_ai >= 0 && lv_itPlayer <= autoFAB23564_ae) || (autoFAB23564_ai < 0 && lv_itPlayer >= autoFAB23564_ae) ) ; lv_itPlayer += autoFAB23564_ai ) {
+        AIRequiredLane(libGame_gv_players[lv_itPlayer].lv_heroUnit, -1);
+    }
     if ((gv_isFirstCurse == true)) {
         if ((UnitGetPropertyFixed(gv_heroPlayer, c_unitPropEnergyPercent, c_unitPropCurrent) <= 50.0)) {
             UnitSetPropertyFixed(gv_heroPlayer, c_unitPropEnergyPercent, 50.0);
@@ -3489,9 +3404,6 @@ bool gt_AutomationStartupTriggerandCameraLock_Func (bool testConds, bool runActi
     }
 
     libNtve_gf_ChangeUnitDamage(gv_heroPlayer, libNtve_ge_UnitDamageTakenDealt_Damage_Take, libNtve_ge_UnitDamageChangeOption_Minimal);
-    libAIAI_gv_aIHeroNeverEnterLateGame[libAIAI_ge_HeroAIDifficulty_HeroAIElite] = true;
-    libAIAI_gv_aIHeroWaitForMinionsWhenLaning[libAIAI_ge_HeroAIDifficulty_HeroAIElite] = false;
-    libAIAI_gv_aIHeroPreemptivelyRetreatFromTowers[libAIAI_ge_HeroAIDifficulty_HeroAIElite] = false;
     while (true) {
         if ((libGame_gv_gameOver == true)) {
             return true;
@@ -3529,8 +3441,7 @@ bool gt_AutomationEnablePlayerAI_Func (bool testConds, bool runActions) {
     }
 
     libAIAI_gf_HeroAITakeOverHeroForPlayer(gv_pLAYER_01_USER);
-    libAIAI_gf_HeroAIChangeDesiredLane(gv_pLAYER_01_USER, 2);
-    libAIAI_gv_aIHeroAIAllowedToChangeDesiredLane[libAIAI_ge_HeroAIDifficulty_HeroAIElite] = false;
+    AIRequiredLane(libGame_gv_players[gv_pLAYER_01_USER].lv_heroUnit, 2);
     return true;
 }
 
@@ -3587,7 +3498,6 @@ bool gt_AutomationCurseBegins_Func (bool testConds, bool runActions) {
     }
 
     TriggerEnable(TriggerGetCurrent(), false);
-    libAIAI_gv_aIHeroStayBehindMinionsNearTowers[libAIAI_ge_HeroAIDifficulty_HeroAIElite] = false;
     return true;
 }
 
@@ -3641,11 +3551,6 @@ void InitTriggers () {
     gt_HookupJungleCreepData_Init();
     gt_HookupTownData_Init();
     gt_HookupRegionData_Init();
-    gt_TutorialMapHeroAIReturnToCaptureTribute_Init();
-    gt_TutorialMapHeroAICaptureTributeExit_Init();
-    gt_TutorialMapHeroAIReturnToDefendTributePosition_Init();
-    gt_TutorialMapHeroAIDefendTributePositionExit_Init();
-    gt_TutorialMapHeroAIDefendPointLogic_Init();
     gt_ResumeGameStateforCutscene_Init();
     gt_EnemyHeroLongerRespawn_Init();
     gt_MakeEnemyInnerTownsTakeMinimalDamage_Init();
@@ -3667,6 +3572,7 @@ void InitTriggers () {
     gt_AIStartImmortalityMonitor_Init();
     gt_AIEndImmortalityMonitor_Init();
     gt_EnemyHeroDiesTrigger_Init();
+    gt_EnemyHeroRespawns_Init();
     gt_TributeGathered_Init();
     gt_TributeCollectStarted_Init();
     gt_TributeCollectInterrupted_Init();

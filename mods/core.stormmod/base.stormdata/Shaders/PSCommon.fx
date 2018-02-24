@@ -42,7 +42,6 @@ HALF4 p_vMissingPixelDepth;
 
 #define DEPTH_NORMAL_ENCODING_FLOAT     0
 #define DEPTH_NORMAL_ENCODING_RGBA      1
-#define DEPTH_NORMAL_ENCODING_RGBA16    2
 
 //--------------------------------------------------------------------------------------------------
 float DecodeDepth( float4 vNormalDepth ) {
@@ -53,8 +52,7 @@ float DecodeDepth( float4 vNormalDepth ) {
         //fDepth *= p_fMaxDepth;
         fDepth = p_fMaxDepthFactor * ( ( 1.0f / ( 1.0f - fDepth ) ) - 1.0f );
         return fDepth;
-    } else if ( b_iInEncoding == DEPTH_NORMAL_ENCODING_RGBA16 )
-        return p_fMaxDepthFactor * ( ( 1.0f / ( 1.0f - vNormalDepth.a ) ) - 1.0f );
+    }
     else return 0;
 }
 
@@ -69,8 +67,7 @@ float3 DecodeNormal( float4 vNormalDepth, bool flipZ ) {
         vNormal = mul( (float3x3)p_mInvViewTransform, vNormal );
         vNormal = normalize( vNormal );
         return vNormal.rgb;
-    } else if ( b_iInEncoding == DEPTH_NORMAL_ENCODING_RGBA16 )
-        return 2.0f * vNormalDepth.rgb - 1.0f;
+    }
     else return 0;
 }
 
@@ -105,13 +102,6 @@ float4 EncodeDepthNormal( float3 vNormal, float fDepth ) {
             vNormalDepth.ba = frac( float2( 1.0f, 255.0f ) * fDepth );
             vNormalDepth.b -= vNormalDepth.a / 255.0f;
         } else vNormalDepth.ba = 0;
-    } else if ( b_iOutEncoding == DEPTH_NORMAL_ENCODING_RGBA16 ) {
-        if ( b_emitMRTNormal == 1 )
-            vNormalDepth.rgb = vNormal * 0.5f + 0.5f;
-        else vNormalDepth.rgb = 0;
-        if ( b_emitMRTDepth == 1 )
-            vNormalDepth.a = saturate( 1.0f - 1.0f / ( 1.0f + fDepth / p_fMaxDepthFactor ) );
-        else vNormalDepth.a = 1.0f;
     }
     return vNormalDepth;
 }

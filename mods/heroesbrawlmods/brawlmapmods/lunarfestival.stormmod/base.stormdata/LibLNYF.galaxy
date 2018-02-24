@@ -1,0 +1,2113 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/AILib"
+include "TriggerLibs/UILib"
+include "TriggerLibs/SoundLib"
+include "TriggerLibs/SupportLib"
+
+include "LibLNYF_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: LunarFestival
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libLNYF_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+    libAIAI_InitVariables();
+    libUIUI_InitVariables();
+    libSond_InitVariables();
+    libSprt_InitVariables();
+}
+
+// Variable Initialization
+bool libLNYF_InitVariables_completed = false;
+
+void libLNYF_InitVariables () {
+    int init_i1;
+    int init_j1;
+
+    if (libLNYF_InitVariables_completed) {
+        return;
+    }
+
+    libLNYF_InitVariables_completed = true;
+
+    libLNYF_gv_drivePointsCount = 1;
+    libLNYF_gv_drivePointMaxRadius_C = 6.0;
+    libLNYF_gv_forcegameendTimer = TimerCreate();
+    libLNYF_gv_countdownTimer = TimerCreate();
+    libLNYF_gv_timer_RaceCompleted_EndGame = TimerCreate();
+    libLNYF_gv_time_EndGameTime = 30;
+    libLNYF_gv_progress.lv_maxLaps = 7;
+    libLNYF_gv_progress.lv_players_RaceIncomplete = PlayerGroupEmpty();
+    libLNYF_gv_progress.lv_players_RaceComplete = PlayerGroupEmpty();
+    libLNYF_gv_leaderboard.lv_players_RaceFinished = PlayerGroupEmpty();
+    libLNYF_gv_leaderboard.lv_players_RaceUnfinished = PlayerGroupEmpty();
+    libLNYF_gv_leaderboard.lv_players_NotRanked = PlayerGroupEmpty();
+    for (init_i1 = 0; init_i1 <= libCore_gv_bALMaxPlayers; init_i1 += 1) {
+        libLNYF_gv_leaderboard.lv_currentLap[init_i1] = 1;
+    }
+    libLNYF_gv_uI.lv_timerContainer = c_invalidDialogControlId;
+    libLNYF_gv_uI.lv_gameEnding_Frame = c_invalidDialogControlId;
+    for (init_i1 = 0; init_i1 <= 3; init_i1 += 1) {
+        libLNYF_gv_uI.lv_gameEnding_TimerLabel[init_i1] = c_invalidDialogControlId;
+    }
+    libLNYF_gv_uI.lv_raceCompleteLabel = c_invalidDialogControlId;
+    libLNYF_gv_uI.lv_raceCompleteFrame = c_invalidDialogControlId;
+    for (init_i1 = 0; init_i1 <= 3; init_i1 += 1) {
+        libLNYF_gv_uI.lv_timerLabel[init_i1] = c_invalidDialogControlId;
+    }
+    for (init_i1 = 0; init_i1 <= 3; init_i1 += 1) {
+        libLNYF_gv_uI.lv_rankLabel[init_i1] = c_invalidDialogControlId;
+    }
+    for (init_i1 = 0; init_i1 <= 2; init_i1 += 1) {
+        for (init_j1 = 0; init_j1 <= 2; init_j1 += 1) {
+            libLNYF_gv_uI.lv_raceFlourishA[init_i1][init_j1] = c_invalidDialogControlId;
+        }
+    }
+    for (init_i1 = 0; init_i1 <= 2; init_i1 += 1) {
+        libLNYF_gv_uI.lv_raceFlourishB[init_i1] = c_invalidDialogControlId;
+    }
+    for (init_i1 = 0; init_i1 <= 2; init_i1 += 1) {
+        libLNYF_gv_uI.lv_gameTimeLabel[init_i1] = c_invalidDialogControlId;
+    }
+    for (init_i1 = 0; init_i1 <= 2; init_i1 += 1) {
+        libLNYF_gv_uI.lv_lapLabel[init_i1] = c_invalidDialogControlId;
+    }
+}
+
+// Functions
+void libLNYF_gf_InitializeAIDrivePoints () {
+    // Variable Declarations
+    point lv_newPoint;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_newPoint = PointFromName("AI Drive 01");
+
+    // Implementation
+    while ((lv_newPoint != null)) {
+        libLNYF_gv_drivePoints[libLNYF_gv_drivePointsCount] = lv_newPoint;
+        libLNYF_gv_drivePointsCount += 1;
+        if ((libLNYF_gv_drivePointsCount >= 10)) {
+            lv_newPoint = PointFromName(("AI Drive " + IntToString(libLNYF_gv_drivePointsCount)));
+        }
+        else {
+            lv_newPoint = PointFromName(("AI Drive 0" + IntToString(libLNYF_gv_drivePointsCount)));
+        }
+    }
+    libLNYF_gv_drivePointsCount -= 1;
+}
+
+void libLNYF_gf_StartDriverAI () {
+    // Variable Declarations
+    int lv_player;
+
+    // Automatic Variable Declarations
+    const int auto6CA1D7F5_ae = libCore_gv_bALMaxPlayers;
+    const int auto6CA1D7F5_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_player = 1;
+    for ( ; ( (auto6CA1D7F5_ai >= 0 && lv_player <= auto6CA1D7F5_ae) || (auto6CA1D7F5_ai < 0 && lv_player >= auto6CA1D7F5_ae) ) ; lv_player += auto6CA1D7F5_ai ) {
+        if (((PlayerStatus(lv_player) == c_playerStatusLeft) || (libAIAI_gf_HeroAIIsAIEnabledForPlayer(lv_player) == true))) {
+            AIDisableForPlayer(lv_player);
+            UnitBehaviorRemove(libGame_gv_players[lv_player].lv_heroUnit, "LunarFestivalIssueMoveOrder", 1);
+            libLNYF_gv_driverAI[lv_player].lv_enabled = true;
+            libLNYF_gv_driverAI[lv_player].lv_currentPointIndex = libLNYF_gf_ClosestDrivePontIndextoPlayer(lv_player);
+            libLNYF_gv_driverAI[lv_player].lv_currentDriveTarget = RegionRandomPoint(RegionCircle(libLNYF_gv_drivePoints[libLNYF_gf_NextDrivePointIndexforPlayer(lv_player)], libLNYF_gv_drivePointMaxRadius_C));
+            UnitIssueOrder(libGame_gv_players[lv_player].lv_heroUnit, OrderTargetingPoint(AbilityCommand("move", 0), libLNYF_gv_driverAI[lv_player].lv_currentDriveTarget), c_orderQueueReplace);
+        }
+
+    }
+    TriggerEnable(libLNYF_gt_DriveAllAIPlayers, true);
+}
+
+int libLNYF_gf_NextDrivePointIndexforPlayer (int lp_player) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libLNYF_gv_driverAI[lp_player].lv_currentPointIndex == libLNYF_gv_drivePointsCount)) {
+        return 1;
+    }
+    else {
+        return (libLNYF_gv_driverAI[lp_player].lv_currentPointIndex + 1);
+    }
+}
+
+int libLNYF_gf_ClosestDrivePontIndextoPlayer (int lp_player) {
+    // Variable Declarations
+    point lv_playerPosition;
+    int lv_point;
+    fixed lv_pointDistance;
+    int lv_closestPoint;
+    fixed lv_closestDistance;
+
+    // Automatic Variable Declarations
+    int autoB2CF610E_ae;
+    const int autoB2CF610E_ai = 1;
+
+    // Variable Initialization
+    lv_playerPosition = UnitGetPosition(libGame_gv_players[lp_player].lv_heroUnit);
+    lv_closestDistance = 9999.0;
+
+    // Implementation
+    autoB2CF610E_ae = libLNYF_gv_drivePointsCount;
+    lv_point = 1;
+    for ( ; ( (autoB2CF610E_ai >= 0 && lv_point <= autoB2CF610E_ae) || (autoB2CF610E_ai < 0 && lv_point >= autoB2CF610E_ae) ) ; lv_point += autoB2CF610E_ai ) {
+        lv_pointDistance = DistanceBetweenPoints(lv_playerPosition, libLNYF_gv_drivePoints[lv_point]);
+        if ((lv_pointDistance < lv_closestDistance)) {
+            lv_closestPoint = lv_point;
+            lv_closestDistance = lv_pointDistance;
+        }
+
+    }
+    return lv_closestPoint;
+}
+
+void libLNYF_gf_PlayerCompletesRace (int lp_player) {
+    // Automatic Variable Declarations
+    // Implementation
+    PlayerGroupRemove(libLNYF_gv_progress.lv_players_RaceIncomplete, lp_player);
+    PlayerGroupAdd(libLNYF_gv_progress.lv_players_RaceComplete, lp_player);
+    PlayerGroupAdd(libLNYF_gv_leaderboard.lv_players_RaceFinished, lp_player);
+    PlayerGroupRemove(libLNYF_gv_leaderboard.lv_players_RaceUnfinished, lp_player);
+    libGame_gf_ScoreValuesReportIntegerValueAndLog(lp_player, "LeaderboardValue", libLNYF_gv_leaderboard.lv_player_CurrentRank[lp_player]);
+    libGame_gv_players[lp_player].lv_victoryDefeat = c_gameOverVictory;
+    DialogControlSetVisible(libLNYF_gv_uI.lv_raceCompleteLabel, PlayerGroupSingle(lp_player), true);
+    DialogControlSetVisible(libLNYF_gv_uI.lv_raceCompleteFrame, PlayerGroupSingle(lp_player), true);
+    libUIUI_gf_FullscreenOverlayAddItemForPlayer(lp_player, libUIUI_ge_FullscreenOverlayPriorities_Invulnerable, "Cutscenes\\Lunar Festival.StormCutscene", null);
+    if ((libLNYF_gv_endGameTimerStarted == false)) {
+        libLNYF_gv_endGameTimerStarted = true;
+        SoundPlayForPlayer(SoundLink("UI_Game_Race_End_Win", -1), c_maxPlayers, PlayerGroupSingle(lp_player), 100.0, 0.0);
+        DialogControlSetVisible(libLNYF_gv_uI.lv_gameEnding_Frame, PlayerGroupAll(), true);
+        TimerStart(libLNYF_gv_timer_RaceCompleted_EndGame, libLNYF_gv_time_EndGameTime, false, c_timeGame);
+        libLNYF_gf_SetGameEndTime();
+    }
+    else {
+        SoundPlayForPlayer(SoundLink("UI_Game_Race_End_Lose", -1), c_maxPlayers, PlayerGroupSingle(lp_player), 100.0, 0.0);
+        if ((PlayerGroupCount(libLNYF_gv_leaderboard.lv_players_RaceUnfinished) == 1)) {
+            TriggerEnable(libLNYF_gt_GameOverTimerExpires, false);
+            libLNYF_gf_GameOverLunar();
+        }
+
+    }
+}
+
+void libLNYF_gf_GameOverLunar () {
+    // Variable Declarations
+    int[libCore_gv_bALMaxTeams + 1] lv_total;
+    int lv_itPlayer;
+    const fixed lv_endGameTimeDelay = 7.0;
+
+    // Automatic Variable Declarations
+    playergroup autoD6D90C9C_g;
+    int autoD6D90C9C_var;
+    playergroup auto8A0C490B_g;
+    int auto8A0C490B_var;
+    playergroup auto3EC1B628_g;
+
+    // Variable Initialization
+
+    // Implementation
+    UnitPauseAll(true);
+    autoD6D90C9C_g = libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroupNoNPCPlayers;
+    autoD6D90C9C_var = -1;
+    while (true) {
+        	autoD6D90C9C_var = PlayerGroupNextPlayer(autoD6D90C9C_g, autoD6D90C9C_var);
+        	if (autoD6D90C9C_var<0) { break; }
+        	libGame_gf_ScoreValuesReportForPlayer(autoD6D90C9C_var);
+        libGame_gv_players[autoD6D90C9C_var].lv_gameEndedForPlayer = true;
+        if ((libGame_gv_players[autoD6D90C9C_var].lv_victoryDefeat != c_gameOverVictory)) {
+            UnitCreateEffectPoint(libGame_gv_players[autoD6D90C9C_var].lv_heroUnit, "RaceBrawl_Crowd_GameEnd", UnitGetPosition(libGame_gv_players[autoD6D90C9C_var].lv_heroUnit));
+            libGame_gv_players[autoD6D90C9C_var].lv_victoryDefeat = c_gameOverDefeat;
+            GameOver(autoD6D90C9C_var, c_gameOverDefeat, false, true);
+        }
+        else {
+            UnitCreateEffectPoint(libGame_gv_players[autoD6D90C9C_var].lv_heroUnit, "RaceBrawl_Crowd_GameEnd_FirstPlace", UnitGetPosition(libGame_gv_players[autoD6D90C9C_var].lv_heroUnit));
+            GameOver(autoD6D90C9C_var, c_gameOverVictory, false, true);
+        }
+    }
+    auto8A0C490B_g = libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroupNoNPCPlayers;
+    auto8A0C490B_var = -1;
+    while (true) {
+        	auto8A0C490B_var = PlayerGroupNextPlayer(auto8A0C490B_g, auto8A0C490B_var);
+        	if (auto8A0C490B_var<0) { break; }
+        	libGame_gf_ScoreValuesReportForPlayer(auto8A0C490B_var);
+        libGame_gv_players[auto8A0C490B_var].lv_gameEndedForPlayer = true;
+        if ((libGame_gv_players[auto8A0C490B_var].lv_victoryDefeat != c_gameOverVictory)) {
+            UnitCreateEffectPoint(libGame_gv_players[auto8A0C490B_var].lv_heroUnit, "RaceBrawl_Crowd_GameEnd", UnitGetPosition(libGame_gv_players[auto8A0C490B_var].lv_heroUnit));
+            libGame_gv_players[auto8A0C490B_var].lv_victoryDefeat = c_gameOverDefeat;
+            GameOver(auto8A0C490B_var, c_gameOverDefeat, false, true);
+        }
+        else {
+            UnitCreateEffectPoint(libGame_gv_players[auto8A0C490B_var].lv_heroUnit, "RaceBrawl_Crowd_GameEnd_FirstPlace", UnitGetPosition(libGame_gv_players[auto8A0C490B_var].lv_heroUnit));
+            GameOver(auto8A0C490B_var, c_gameOverVictory, false, true);
+        }
+    }
+    libLNYF_gf_GameOverSplashShowHideForAllPlayers(true);
+    libGame_gf_SendEventGameOverEvent();
+    TriggerEnable(libGame_gt_XPTrickle, false);
+    auto3EC1B628_g = libCore_gv_allHeroPlayersPlusObserver;
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(auto3EC1B628_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	libUIUI_gf_UIHeroConsoleShowHideForPlayer(false, lv_itPlayer);
+        UISetMode(libCore_gv_playerGroupFromPlayer[lv_itPlayer], c_uiModeFullscreen, c_transitionDurationImmediate);
+        DialogControlSetVisible(libUIUI_gv_uIGameUIHandles.lv_talentsButton, libCore_gv_playerGroupFromPlayer[lv_itPlayer], false);
+        UISetFrameVisible(libCore_gv_playerGroupFromPlayer[lv_itPlayer], c_syncFrameTypeMinimapPanel, false);
+        libUIUI_gf_UIHeroTrackerArrowShowHideForPlayer(false, lv_itPlayer);
+        libUIUI_gf_UIGameUIShowHideConsolePanelForPlayer(false, lv_itPlayer);
+        libUIUI_gf_UIPartyFrameShowHidePartyFramePanelForPlayer(false, lv_itPlayer);
+        libUIUI_gf_FullscreenOverlayStopandClearCutsceneQueueForPlayer(lv_itPlayer);
+    }
+    DialogControlSetVisible(libUIUI_gv_uIObserverUI.lv_mainPanel, libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], false);
+    DialogControlHookupStandard(c_triggerControlTypePanel, "UIContainer/ConsoleUIContainer");
+    DialogControlSetVisible(DialogControlLastCreated(), libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], false);
+    UISetFrameVisible(PlayerGroupAll(), c_syncFrameTypeStatusUI, false);
+    Wait(3.0, c_timeGame);
+    KickFromGame(PlayerGroupAll());
+}
+
+void libLNYF_gf_SetPlayersHeroChoice (int lp_player, int lp_shufflerValue) {
+    // Automatic Variable Declarations
+    int auto19C27B59_val;
+
+    // Implementation
+    libCore_gf_DataClearHeroDataAtIndex(lp_player);
+    libCore_gf_DataClearSkinDataAtIndex(lp_player);
+    auto19C27B59_val = lp_shufflerValue;
+    if (auto19C27B59_val == 0) {
+        libGame_gv_players[lp_player].lv_heroIndex = libCore_gf_GetIndexFromHero("Chen");
+        PlayerSetSkin(lp_player, "ChenLunar");
+    }
+    else if (auto19C27B59_val == 1) {
+        libGame_gv_players[lp_player].lv_heroIndex = libCore_gf_GetIndexFromHero("LiLi");
+        PlayerSetSkin(lp_player, "LiLiLunarLiLi");
+    }
+    else if (auto19C27B59_val == 2) {
+        libGame_gv_players[lp_player].lv_heroIndex = libCore_gf_GetIndexFromHero("Illidan");
+        PlayerSetSkin(lp_player, "IllidanLunar");
+    }
+    else if (auto19C27B59_val == 3) {
+        libGame_gv_players[lp_player].lv_heroIndex = libCore_gf_GetIndexFromHero("Wizard");
+        PlayerSetSkin(lp_player, "WizardSkinLunar");
+    }
+    else if (auto19C27B59_val == 4) {
+        libGame_gv_players[lp_player].lv_heroIndex = libCore_gf_GetIndexFromHero("Jaina");
+        PlayerSetSkin(lp_player, "LunarJaina");
+    }
+    else if (auto19C27B59_val == 5) {
+        libGame_gv_players[lp_player].lv_heroIndex = libCore_gf_GetIndexFromHero("Samuro");
+        PlayerSetSkin(lp_player, "SamuroMonkey");
+    }
+    else if (auto19C27B59_val == 6) {
+        libGame_gv_players[lp_player].lv_heroIndex = libCore_gf_GetIndexFromHero("Sylvanas");
+        PlayerSetSkin(lp_player, "SylvanasLunar");
+    }
+    else if (auto19C27B59_val == 7) {
+        libGame_gv_players[lp_player].lv_heroIndex = libCore_gf_GetIndexFromHero("Amazon");
+        PlayerSetSkin(lp_player, "AmazonLunar");
+    }
+    else if (auto19C27B59_val == 8) {
+        libGame_gv_players[lp_player].lv_heroIndex = libCore_gf_GetIndexFromHero("Zuljin");
+        PlayerSetSkin(lp_player, "ZuljinLunar");
+    }
+    else if (auto19C27B59_val == 9) {
+        libGame_gv_players[lp_player].lv_heroIndex = libCore_gf_GetIndexFromHero("Kaelthas");
+        PlayerSetSkin(lp_player, "KaelthasLunar");
+    }
+    else {
+    }
+    PlayerSetMount(lp_player, "LunarFestivalRocket");
+}
+
+void libLNYF_gf_AddPointToEnvelopeSpawnLocation (point lp_point) {
+    // Automatic Variable Declarations
+    // Implementation
+    libLNYF_gv_envelopes.lv_spawnLocationCount += 1;
+    libLNYF_gv_envelopes.lv_spawnLocation[libLNYF_gv_envelopes.lv_spawnLocationCount] = lp_point;
+}
+
+void libLNYF_gf_CreateEnvelopeAtPoint (point lp_point) {
+    // Automatic Variable Declarations
+    // Implementation
+    UnitCreate(1, "LunarFestivalEnvelope", c_unitCreateIgnorePlacement, 0, lp_point, 0.0);
+}
+
+void libLNYF_gf_IssueMoveOrderToPlayer (int lp_player) {
+    // Variable Declarations
+    int lv_i;
+
+    // Automatic Variable Declarations
+    const int auto2FE66D4E_ae = 19;
+    const int auto2FE66D4E_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_i = 1;
+    for ( ; ( (auto2FE66D4E_ai >= 0 && lv_i <= auto2FE66D4E_ae) || (auto2FE66D4E_ai < 0 && lv_i >= auto2FE66D4E_ae) ) ; lv_i += auto2FE66D4E_ai ) {
+        if ((libNtve_gf_UnitInRegion(libGame_gv_players[lp_player].lv_heroUnit, libLNYF_gv_movement.lv_boosterRegion[lv_i]) == true)) {
+            UnitCreateEffectPoint(libGame_gv_players[lp_player].lv_heroUnit, "IssueMoveOrder_Target", libLNYF_gv_movement.lv_boosterPoint[lv_i]);
+            return ;
+        }
+
+    }
+    UnitCreateEffectPoint(libGame_gv_players[lp_player].lv_heroUnit, "IssueMoveOrder", UnitGetPosition(libGame_gv_players[lp_player].lv_heroUnit));
+}
+
+void libLNYF_gf_PlayerCompletesLap (int lp_player) {
+    // Automatic Variable Declarations
+    // Implementation
+    libLNYF_gv_leaderboard.lv_currentLap[lp_player] += 1;
+    SoundPlayForPlayer(SoundLink("UI_Game_Race_LapComplete", -1), c_maxPlayers, PlayerGroupSingle(lp_player), 100.0, 0.0);
+    if ((libLNYF_gv_leaderboard.lv_currentLap[lp_player] == 7)) {
+        SoundPlayForPlayer(SoundLink("UI_Game_Race_FinalLap", -1), c_maxPlayers, PlayerGroupSingle(lp_player), 100.0, 0.0);
+        libSond_gf_SoundtrackApplyNewDefaultSoundtrackForPlayerGroup("MX_LunarFestival_Race_FinalLap_Loop", PlayerGroupSingle(lp_player));
+    }
+
+    if ((libLNYF_gv_leaderboard.lv_rank_CurrentPlayer[lp_player] == 1)) {
+        UnitCreateEffectPoint(libGame_gv_players[lp_player].lv_heroUnit, "RaceBrawl_Crowd_Lap_FirstPlace", UnitGetPosition(libGame_gv_players[lp_player].lv_heroUnit));
+        UnitCreateEffectPoint(libGame_gv_players[lp_player].lv_heroUnit, "RaceBrawl_Crowd_Stands_Lap_FirstPlace", Point(124.0, 221.5));
+    }
+    else {
+        UnitCreateEffectPoint(libGame_gv_players[lp_player].lv_heroUnit, "RaceBrawl_Crowd_Lap", UnitGetPosition(libGame_gv_players[lp_player].lv_heroUnit));
+        UnitCreateEffectPoint(libGame_gv_players[lp_player].lv_heroUnit, "RaceBrawl_Crowd_Stands_Lap", Point(124.0, 221.5));
+    }
+}
+
+int libLNYF_gf_HighestLapValue () {
+    // Variable Declarations
+    int lv_currentMaxLap;
+
+    // Automatic Variable Declarations
+    playergroup auto047AA042_g;
+    int auto047AA042_var;
+
+    // Variable Initialization
+    lv_currentMaxLap = -1;
+
+    // Implementation
+    auto047AA042_g = libLNYF_gv_leaderboard.lv_players_NotRanked;
+    auto047AA042_var = -1;
+    while (true) {
+        	auto047AA042_var = PlayerGroupNextPlayer(auto047AA042_g, auto047AA042_var);
+        	if (auto047AA042_var<0) { break; }
+        	if ((libLNYF_gv_leaderboard.lv_currentLap[auto047AA042_var] > lv_currentMaxLap)) {
+            lv_currentMaxLap = libLNYF_gv_leaderboard.lv_currentLap[auto047AA042_var];
+        }
+
+    }
+    return lv_currentMaxLap;
+}
+
+unit libLNYF_gf_UnrankedUnitClosestToFinishLine (playergroup lp_unrankedPlayers) {
+    // Variable Declarations
+    int lv_highestLapCount;
+    bool lv_unitInFinalStretch;
+    playergroup lv_players_SameLap;
+    playergroup lv_players_SameRegion;
+
+    // Automatic Variable Declarations
+    playergroup auto063168C3_g;
+    int auto063168C3_var;
+    playergroup autoF3E0E7F7_g;
+    int autoF3E0E7F7_var;
+
+    // Variable Initialization
+    lv_players_SameLap = PlayerGroupEmpty();
+    lv_players_SameRegion = PlayerGroupEmpty();
+
+    // Implementation
+    lv_highestLapCount = libLNYF_gf_HighestLapValue();
+    auto063168C3_g = libLNYF_gv_leaderboard.lv_players_NotRanked;
+    auto063168C3_var = -1;
+    while (true) {
+        	auto063168C3_var = PlayerGroupNextPlayer(auto063168C3_g, auto063168C3_var);
+        	if (auto063168C3_var<0) { break; }
+        	if ((libLNYF_gv_leaderboard.lv_currentLap[auto063168C3_var] == lv_highestLapCount)) {
+            PlayerGroupAdd(lv_players_SameLap, auto063168C3_var);
+        }
+
+    }
+    autoF3E0E7F7_g = lv_players_SameLap;
+    autoF3E0E7F7_var = -1;
+    while (true) {
+        	autoF3E0E7F7_var = PlayerGroupNextPlayer(autoF3E0E7F7_g, autoF3E0E7F7_var);
+        	if (autoF3E0E7F7_var<0) { break; }
+        	if ((libLNYF_gf_UnitIsInFinalStretchOfRacetrack(libGame_gv_players[autoF3E0E7F7_var].lv_heroUnit) == true) && (libLNYF_gv_progress.lv_isCurrentLapOverHalfwayComplete_Player[autoF3E0E7F7_var] == true)) {
+            lv_unitInFinalStretch = true;
+            PlayerGroupAdd(lv_players_SameRegion, autoF3E0E7F7_var);
+        }
+
+    }
+    if ((lv_unitInFinalStretch == true)) {
+        return libLNYF_gf_UnitInFinalStretchClosestToFinishLine(lv_players_SameRegion);
+    }
+    else {
+        return libLNYF_gf_UnitNotInFinalStretchClosestToFinishLine(lv_players_SameLap);
+    }
+}
+
+unit libLNYF_gf_UnitNotInFinalStretchClosestToFinishLine (playergroup lp_playergroup) {
+    // Variable Declarations
+    int lv_i;
+    bool lv_stopCheckingRegions;
+    playergroup lv_players_SameRegion;
+    int lv_index_FurthestOccupiedRegion;
+    fixed lv_shortestDistance;
+    int lv_player_ShortestDistance;
+
+    // Automatic Variable Declarations
+    const int auto197A11FD_ae = 1;
+    const int auto197A11FD_ai = -1;
+    playergroup auto5B8E052D_g;
+    int auto5B8E052D_var;
+    playergroup auto2277B2B8_g;
+    int auto2277B2B8_var;
+    playergroup autoA0480C1D_g;
+    int autoA0480C1D_var;
+
+    // Variable Initialization
+    lv_players_SameRegion = PlayerGroupEmpty();
+
+    // Implementation
+    lv_i = libLNYF_gv_leaderboard.lv_maxRegions;
+    for ( ; ( (auto197A11FD_ai >= 0 && lv_i <= auto197A11FD_ae) || (auto197A11FD_ai < 0 && lv_i >= auto197A11FD_ae) ) ; lv_i += auto197A11FD_ai ) {
+        if ((lv_stopCheckingRegions == true)) {
+            break;
+        }
+
+        auto5B8E052D_g = lp_playergroup;
+        auto5B8E052D_var = -1;
+        while (true) {
+            	auto5B8E052D_var = PlayerGroupNextPlayer(auto5B8E052D_g, auto5B8E052D_var);
+            	if (auto5B8E052D_var<0) { break; }
+            	if ((libNtve_gf_UnitInRegion(libGame_gv_players[auto5B8E052D_var].lv_heroUnit, libLNYF_gv_leaderboard.lv_region[lv_i]) == true) && ((lv_i <= 1) || (libLNYF_gv_progress.lv_isCurrentLapOver25PercentComplete_Player[auto5B8E052D_var] == true))) {
+                PlayerGroupAdd(lv_players_SameRegion, auto5B8E052D_var);
+                lv_stopCheckingRegions = true;
+                lv_index_FurthestOccupiedRegion = lv_i;
+            }
+
+        }
+    }
+    if ((lv_stopCheckingRegions == false)) {
+        auto2277B2B8_g = lp_playergroup;
+        auto2277B2B8_var = -1;
+        while (true) {
+            	auto2277B2B8_var = PlayerGroupNextPlayer(auto2277B2B8_g, auto2277B2B8_var);
+            	if (auto2277B2B8_var<0) { break; }
+            	if ((libLNYF_gf_UnitIsInFinalStretchOfRacetrack(libGame_gv_players[auto2277B2B8_var].lv_heroUnit) == true)) {
+                PlayerGroupAdd(lv_players_SameRegion, auto2277B2B8_var);
+            }
+
+        }
+        return libLNYF_gf_UnitInFinalStretchClosestToFinishLine(lv_players_SameRegion);
+    }
+
+    autoA0480C1D_g = lv_players_SameRegion;
+    autoA0480C1D_var = -1;
+    while (true) {
+        	autoA0480C1D_var = PlayerGroupNextPlayer(autoA0480C1D_g, autoA0480C1D_var);
+        	if (autoA0480C1D_var<0) { break; }
+        	if (((lv_shortestDistance == 0.0) || (AIPathingCostMap(UnitGetPosition(libGame_gv_players[autoA0480C1D_var].lv_heroUnit), libLNYF_gv_leaderboard.lv_point[lv_index_FurthestOccupiedRegion]) < lv_shortestDistance))) {
+            lv_shortestDistance = AIPathingCostMap(UnitGetPosition(libGame_gv_players[autoA0480C1D_var].lv_heroUnit), libLNYF_gv_leaderboard.lv_point[lv_index_FurthestOccupiedRegion]);
+            lv_player_ShortestDistance = autoA0480C1D_var;
+        }
+
+    }
+    return libGame_gv_players[lv_player_ShortestDistance].lv_heroUnit;
+}
+
+bool libLNYF_gf_UnitIsInFinalStretchOfRacetrack (unit lp_unit) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libNtve_gf_UnitInRegion(lp_unit, RegionFromName("Leaderboard Tracking - Final Stretch")) == true)) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+unit libLNYF_gf_UnitInFinalStretchClosestToFinishLine (playergroup lp_playergroup) {
+    // Variable Declarations
+    fixed lv_currentdistance;
+    fixed lv_shortestdistance;
+    int lv_closestplayer;
+
+    // Automatic Variable Declarations
+    playergroup auto0A7C3EFC_g;
+    int auto0A7C3EFC_var;
+
+    // Variable Initialization
+
+    // Implementation
+    auto0A7C3EFC_g = lp_playergroup;
+    auto0A7C3EFC_var = -1;
+    while (true) {
+        	auto0A7C3EFC_var = PlayerGroupNextPlayer(auto0A7C3EFC_g, auto0A7C3EFC_var);
+        	if (auto0A7C3EFC_var<0) { break; }
+        	lv_currentdistance = DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[auto0A7C3EFC_var].lv_heroUnit), libLNYF_gf_PointInFinishLineClosestToPlayer(libGame_gv_players[auto0A7C3EFC_var].lv_heroUnit));
+        if (((lv_shortestdistance == 0.0) || (lv_currentdistance < lv_shortestdistance))) {
+            lv_closestplayer = auto0A7C3EFC_var;
+            lv_shortestdistance = lv_currentdistance;
+        }
+
+    }
+    return libGame_gv_players[lv_closestplayer].lv_heroUnit;
+}
+
+point libLNYF_gf_PointInFinishLineClosestToPlayer (unit lp_unit) {
+    // Variable Declarations
+    point lv_positionOfUnit;
+    point lv_pointInRegion;
+    fixed lv_distanceOffset;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_positionOfUnit = UnitGetPosition(lp_unit);
+
+    // Implementation
+    lv_pointInRegion = PointWithOffsetPolar(lv_positionOfUnit, lv_distanceOffset, 45.0);
+    while ((RegionContainsPoint(RegionFromName("Start/Finish Line"), lv_pointInRegion) == false)) {
+        lv_distanceOffset += 0.1;
+        lv_pointInRegion = PointWithOffsetPolar(lv_positionOfUnit, lv_distanceOffset, 45.0);
+    }
+    return lv_pointInRegion;
+}
+
+void libLNYF_gf_SetUnitsTextTag (int lp_rank, unit lp_unit) {
+    // Automatic Variable Declarations
+    // Implementation
+    TextTagDestroy(libCore_gf_TextTagStoredForUnit(lp_unit, 1));
+    TextTagCreate(IntToText(lp_rank), 24, UnitGetPosition(lp_unit), 1.0, true, false, PlayerGroupAll());
+    TextTagAttachToUnit(TextTagLastCreated(), lp_unit, 1.0);
+    libCore_gf_StoreTextTagForUnit(lp_unit, 1, TextTagLastCreated());
+}
+
+void libLNYF_gf_SetPlayersLapText (int lp_player) {
+    // Variable Declarations
+    playergroup lv_uIPlayerGroup;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_uIPlayerGroup = PlayerGroupEmpty();
+
+    // Implementation
+    PlayerGroupAdd(lv_uIPlayerGroup, lp_player);
+    if ((lp_player == 1)) {
+        PlayerGroupAdd(lv_uIPlayerGroup, libCore_gv_oBSERVER_ObserverUIPlayer);
+    }
+
+    TextExpressionSetToken("Param/Expression/lib_LNYF_BA0B6EF5", "A", IntToText(libLNYF_gv_leaderboard.lv_currentLap[lp_player]));
+    TextExpressionSetToken("Param/Expression/lib_LNYF_BA0B6EF5", "B", IntToText(libLNYF_gv_progress.lv_maxLaps));
+    libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_lapLabel[1], TextExpressionAssemble("Param/Expression/lib_LNYF_BA0B6EF5"), lv_uIPlayerGroup);
+    TextExpressionSetToken("Param/Expression/lib_LNYF_5433264F", "A", IntToText(libLNYF_gv_leaderboard.lv_currentLap[lp_player]));
+    TextExpressionSetToken("Param/Expression/lib_LNYF_5433264F", "B", IntToText(libLNYF_gv_progress.lv_maxLaps));
+    libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_lapLabel[2], TextExpressionAssemble("Param/Expression/lib_LNYF_5433264F"), lv_uIPlayerGroup);
+}
+
+void libLNYF_gf_SetPlayersRankText (int lp_player, int lp_rank) {
+    // Variable Declarations
+    playergroup lv_uIPlayerGroup;
+
+    // Automatic Variable Declarations
+    int autoB0464793_val;
+
+    // Variable Initialization
+    lv_uIPlayerGroup = PlayerGroupEmpty();
+
+    // Implementation
+    PlayerGroupAdd(lv_uIPlayerGroup, lp_player);
+    if ((lp_player == 1)) {
+        PlayerGroupAdd(lv_uIPlayerGroup, libCore_gv_oBSERVER_ObserverUIPlayer);
+    }
+
+    autoB0464793_val = lp_rank;
+    if (autoB0464793_val == 1) {
+        libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_rankLabel[1], StringExternal("Param/Value/lib_LNYF_C0CF27AB"), lv_uIPlayerGroup);
+        libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_rankLabel[2], StringExternal("Param/Value/lib_LNYF_2D701403"), lv_uIPlayerGroup);
+        libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_rankLabel[3], StringExternal("Param/Value/lib_LNYF_7380F78B"), lv_uIPlayerGroup);
+    }
+    else if (autoB0464793_val == 2) {
+        libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_rankLabel[1], StringExternal("Param/Value/lib_LNYF_4498E271"), lv_uIPlayerGroup);
+        libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_rankLabel[2], StringExternal("Param/Value/lib_LNYF_003789FA"), lv_uIPlayerGroup);
+        libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_rankLabel[3], StringExternal("Param/Value/lib_LNYF_B72ADE83"), lv_uIPlayerGroup);
+    }
+    else if (autoB0464793_val == 3) {
+        libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_rankLabel[1], StringExternal("Param/Value/lib_LNYF_F34861FC"), lv_uIPlayerGroup);
+        libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_rankLabel[2], StringExternal("Param/Value/lib_LNYF_88BF2141"), lv_uIPlayerGroup);
+        libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_rankLabel[3], StringExternal("Param/Value/lib_LNYF_F5E1B6C6"), lv_uIPlayerGroup);
+    }
+    else {
+        TextExpressionSetToken("Param/Expression/lib_LNYF_5324AFD2", "A", IntToText(lp_rank));
+        libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_rankLabel[1], TextExpressionAssemble("Param/Expression/lib_LNYF_5324AFD2"), lv_uIPlayerGroup);
+        TextExpressionSetToken("Param/Expression/lib_LNYF_7A989330", "A", IntToText(lp_rank));
+        libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_rankLabel[2], TextExpressionAssemble("Param/Expression/lib_LNYF_7A989330"), lv_uIPlayerGroup);
+        TextExpressionSetToken("Param/Expression/lib_LNYF_20869902", "A", IntToText(lp_rank));
+        libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_rankLabel[3], TextExpressionAssemble("Param/Expression/lib_LNYF_20869902"), lv_uIPlayerGroup);
+    }
+}
+
+void libLNYF_gf_GameOverSplashShowHideForAllPlayers (bool lp_showHide) {
+    // Variable Declarations
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    const int auto8BC84009_ae = libCore_gv_bALMaxPlayers;
+    const int auto8BC84009_ai = 1;
+    int auto230BA8A3_val;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_itPlayer = 1;
+    for ( ; ( (auto8BC84009_ai >= 0 && lv_itPlayer <= auto8BC84009_ae) || (auto8BC84009_ai < 0 && lv_itPlayer >= auto8BC84009_ae) ) ; lv_itPlayer += auto8BC84009_ai ) {
+        auto230BA8A3_val = libGame_gv_players[lv_itPlayer].lv_victoryDefeat;
+        if (auto230BA8A3_val == c_gameOverVictory) {
+            DialogControlSetVisible(libUIUI_gv_gameOverSplash.lv_victoryFrame, libCore_gv_playerGroupFromPlayer[lv_itPlayer], lp_showHide);
+        }
+        else if (auto230BA8A3_val == c_gameOverDefeat) {
+            DialogControlSetVisible(libUIUI_gv_gameOverSplash.lv_defeatFrame, libCore_gv_playerGroupFromPlayer[lv_itPlayer], lp_showHide);
+        }
+        else {
+        }
+        DialogControlSetVisible(libUIUI_gv_gameOverSplash.lv_mainPanel, libCore_gv_playerGroupFromPlayer[lv_itPlayer], lp_showHide);
+        if ((lp_showHide == true)) {
+            UnitStatusBarOverride(libGame_gv_players[lv_itPlayer].lv_heroUnit, -1);
+        }
+        else {
+            UnitStatusBarOverride(libGame_gv_players[lv_itPlayer].lv_heroUnit, c_unitStatusGroupAll);
+        }
+    }
+    DialogControlSetVisible(libUIUI_gv_uIGameUIHandles.lv_gameMenuButton, PlayerGroupAll(), lp_showHide);
+}
+
+trigger auto_libLNYF_gf_SetGameEndTime_Trigger = null;
+
+void libLNYF_gf_SetGameEndTime () {
+    if (auto_libLNYF_gf_SetGameEndTime_Trigger == null) {
+        auto_libLNYF_gf_SetGameEndTime_Trigger = TriggerCreate("auto_libLNYF_gf_SetGameEndTime_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libLNYF_gf_SetGameEndTime_Trigger, false, false);
+}
+
+bool auto_libLNYF_gf_SetGameEndTime_TriggerFunc (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Implementation
+    while ((TimerGetRemaining(libLNYF_gv_timer_RaceCompleted_EndGame) >= 0.0)) {
+        libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_gameEnding_TimerLabel[1], FixedToText(TimerGetRemaining(libLNYF_gv_timer_RaceCompleted_EndGame), 0), PlayerGroupAll());
+        libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_gameEnding_TimerLabel[2], FixedToText(TimerGetRemaining(libLNYF_gv_timer_RaceCompleted_EndGame), 0), PlayerGroupAll());
+        libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_gameEnding_TimerLabel[3], FixedToText(TimerGetRemaining(libLNYF_gv_timer_RaceCompleted_EndGame), 0), PlayerGroupAll());
+        DialogControlSetVisible(libLNYF_gv_uI.lv_gameEnding_TimerLabel[3], PlayerGroupAll(), true);
+        Wait(1.0, c_timeGame);
+    }
+    return true;
+}
+
+trigger auto_libLNYF_gf_TrafficLightSequence_Trigger = null;
+
+void libLNYF_gf_TrafficLightSequence () {
+    if (auto_libLNYF_gf_TrafficLightSequence_Trigger == null) {
+        auto_libLNYF_gf_TrafficLightSequence_Trigger = TriggerCreate("auto_libLNYF_gf_TrafficLightSequence_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libLNYF_gf_TrafficLightSequence_Trigger, false, false);
+}
+
+bool auto_libLNYF_gf_TrafficLightSequence_TriggerFunc (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_i;
+
+    // Automatic Variable Declarations
+    fixed auto6C360558_at;
+    const int auto1EFF1C44_ae = 4;
+    const int auto1EFF1C44_ai = 1;
+    const int autoED3C45DE_ae = 4;
+    const int autoED3C45DE_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    auto6C360558_at = 0;
+    while (!((TimerGetRemaining(libGame_gv_openTheGatesTimer) <= 1.0)) && auto6C360558_at <= 30.0) {
+        Wait(0.0625, c_timeGame);
+        auto6C360558_at = auto6C360558_at + 0.0625;
+    }
+    lv_i = 1;
+    for ( ; ( (auto1EFF1C44_ai >= 0 && lv_i <= auto1EFF1C44_ae) || (auto1EFF1C44_ai < 0 && lv_i >= auto1EFF1C44_ae) ) ; lv_i += auto1EFF1C44_ai ) {
+        ActorSend(ActorFromDoodad(libLNYF_gv_trafficLight[lv_i]), "AnimClear Stand 0.000000");
+        ActorSend(ActorFromDoodad(libLNYF_gv_trafficLight[lv_i]), "AnimPlay Stand Stand,C PlayForever -1.000000 0.000000 -1.000000 AsAutomatic 0.000000 4");
+    }
+    Wait(1.0, c_timeGame);
+    lv_i = 1;
+    for ( ; ( (autoED3C45DE_ai >= 0 && lv_i <= autoED3C45DE_ae) || (autoED3C45DE_ai < 0 && lv_i >= autoED3C45DE_ae) ) ; lv_i += autoED3C45DE_ai ) {
+        ActorSend(ActorFromDoodad(libLNYF_gv_trafficLight[lv_i]), "AnimClear Stand 0.000000");
+        ActorSend(ActorFromDoodad(libLNYF_gv_trafficLight[lv_i]), "AnimPlay Stand Stand,B PlayForever -1.000000 0.000000 -1.000000 AsAutomatic 0.000000 4");
+    }
+    return true;
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: #Include LunarFestival
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_IncludeLunarFestival_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_IncludeLunarFestival_Init () {
+    libLNYF_gt_IncludeLunarFestival = TriggerCreate("libLNYF_gt_IncludeLunarFestival_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Map Initialization
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_MapInitialization_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_i;
+
+    // Automatic Variable Declarations
+    const int auto025E9E28_ae = 10;
+    const int auto025E9E28_ai = 1;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerEnable(libGame_gt_TeamAbandonedTheGameTimerExpires, false);
+    SetTalentsEnabled(false);
+    libCore_gv_sYSIsBrawlGame = true;
+    libGame_gv_xPTrickleEnabled = false;
+    libCore_gv_dataXPBrawlMetaXPExpectedDuration = 5.0;
+    libGame_gv_pickingHeroesCallback = libLNYF_gt_LunarFestivalHeroCallback;
+    libGame_gv_heroDeath_RespawnMounted = false;
+    libCore_gv_bALOpenTheGatesDelay = 10.0;
+    lv_i = 1;
+    for ( ; ( (auto025E9E28_ai >= 0 && lv_i <= auto025E9E28_ae) || (auto025E9E28_ai < 0 && lv_i >= auto025E9E28_ae) ) ; lv_i += auto025E9E28_ai ) {
+        PlayerSetAnnouncerPack(lv_i, "LiLiA");
+        libNtve_gf_CreateUnitsWithDefaultFacing(1, "Observer_InvisibleUnit", c_unitCreateIgnorePlacement, lv_i, PlayerStartLocation(lv_i));
+        libLNYF_gv_player_Camera_InvisibleUnit[lv_i] = UnitLastCreated();
+        UnitSelect(libLNYF_gv_player_Camera_InvisibleUnit[lv_i], lv_i, true);
+        libGame_gf_CameraPanCameraForPlayerAndUpdateMapBoundsIfNecessary(lv_i, UnitGetPosition(UnitLastCreated()), 0.0, -1, 0.0, false);
+        CameraUseHeightDisplacement(lv_i, true);
+        CameraFollowUnitGroup(lv_i, libNtve_gf_ConvertUnitToUnitGroup(UnitLastCreated()), true, false);
+        PlayerOptionOverride(lv_i, "camerafollow", "1");
+    }
+    libLNYF_gf_InitializeAIDrivePoints();
+    SoundtrackStop(PlayerGroupAll(), c_soundtrackCategoryMusic, false);
+    DialogControlHookupStandard(c_triggerControlTypePanel, "UIContainer/FullscreenUpperContainer/ObserverHeroOverviewPanel");
+    DialogControlFadeTransparency(DialogControlLastCreated(), PlayerGroupAll(), 0.0, 100.0);
+    DialogControlHookupStandard(c_triggerControlTypePanel, "UIContainer/ConsolePanel/PortraitPanelContainer/PortraitPanel");
+    DialogControlFadeTransparency(DialogControlLastCreated(), PlayerGroupAll(), 0.0, 100.0);
+    DialogControlHookupStandard(c_triggerControlTypePanel, "UIContainer/ConsoleUIContainer/HeroConsolePanel");
+    DialogControlFadeTransparency(DialogControlLastCreated(), PlayerGroupAll(), 0.0, 100.0);
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, "Observer_InvisibleUnit", c_unitCreateIgnorePlacement, 0, PlayerStartLocation(1));
+    libLNYF_gv_observer_InvisibleUnit = UnitLastCreated();
+    libGame_gf_CameraPanCameraForPlayerAndUpdateMapBoundsIfNecessary(libCore_gv_oBSERVER_ObserverUIPlayer, UnitGetPosition(UnitLastCreated()), 0.0, -1, 0.0, false);
+    CameraUseHeightDisplacement(libCore_gv_oBSERVER_ObserverUIPlayer, true);
+    CameraFollowUnitGroup(libCore_gv_oBSERVER_ObserverUIPlayer, libNtve_gf_ConvertUnitToUnitGroup(UnitLastCreated()), true, false);
+    PlayerOptionOverride(libCore_gv_oBSERVER_ObserverUIPlayer, "camerafollow", "1");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_MapInitialization_Init () {
+    libLNYF_gt_MapInitialization = TriggerCreate("libLNYF_gt_MapInitialization_Func");
+    TriggerAddEventMapInit(libLNYF_gt_MapInitialization);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Drive All AI Players
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_DriveAllAIPlayers_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Automatic Variable Declarations
+    const int auto7F649C7A_ae = libCore_gv_bALMaxPlayers;
+    const int auto7F649C7A_ai = 1;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_player = 1;
+    for ( ; ( (auto7F649C7A_ai >= 0 && lv_player <= auto7F649C7A_ae) || (auto7F649C7A_ai < 0 && lv_player >= auto7F649C7A_ae) ) ; lv_player += auto7F649C7A_ai ) {
+        if ((libLNYF_gv_driverAI[lv_player].lv_enabled == true)) {
+            if ((DistanceBetweenPoints(UnitGetPosition(libGame_gv_players[lv_player].lv_heroUnit), libLNYF_gv_driverAI[lv_player].lv_currentDriveTarget) <= libLNYF_gv_drivePointMaxRadius_C)) {
+                libLNYF_gv_driverAI[lv_player].lv_currentPointIndex = libLNYF_gf_NextDrivePointIndexforPlayer(lv_player);
+                libLNYF_gv_driverAI[lv_player].lv_currentDriveTarget = RegionRandomPoint(RegionCircle(libLNYF_gv_drivePoints[libLNYF_gf_NextDrivePointIndexforPlayer(lv_player)], libLNYF_gv_drivePointMaxRadius_C));
+                UnitIssueOrder(libGame_gv_players[lv_player].lv_heroUnit, OrderTargetingPoint(AbilityCommand("move", 0), libLNYF_gv_driverAI[lv_player].lv_currentDriveTarget), c_orderQueueReplace);
+            }
+            else {
+                UnitIssueOrder(libGame_gv_players[lv_player].lv_heroUnit, OrderTargetingPoint(AbilityCommand("move", 0), libLNYF_gv_driverAI[lv_player].lv_currentDriveTarget), c_orderQueueReplace);
+            }
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_DriveAllAIPlayers_Init () {
+    libLNYF_gt_DriveAllAIPlayers = TriggerCreate("libLNYF_gt_DriveAllAIPlayers_Func");
+    TriggerEnable(libLNYF_gt_DriveAllAIPlayers, false);
+    TriggerAddEventTimePeriodic(libLNYF_gt_DriveAllAIPlayers, 0.25, c_timeGame);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Player Disconnects
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_PlayerDisconnects_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_player = EventPlayer();
+
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gv_gameOver == false))) {
+            return false;
+        }
+
+        if (!(((lv_player >= 1) && (lv_player <= libCore_gv_bALMaxPlayers)))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libLNYF_gv_driverAI[lv_player].lv_enabled = true;
+    libLNYF_gv_driverAI[lv_player].lv_currentPointIndex = libLNYF_gf_ClosestDrivePontIndextoPlayer(lv_player);
+    libLNYF_gv_driverAI[lv_player].lv_currentDriveTarget = RegionRandomPoint(RegionCircle(libLNYF_gv_drivePoints[libLNYF_gf_NextDrivePointIndexforPlayer(lv_player)], libLNYF_gv_drivePointMaxRadius_C));
+    UnitIssueOrder(libGame_gv_players[lv_player].lv_heroUnit, OrderTargetingPoint(AbilityCommand("move", 0), libLNYF_gv_driverAI[lv_player].lv_currentDriveTarget), c_orderQueueReplace);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_PlayerDisconnects_Init () {
+    libLNYF_gt_PlayerDisconnects = TriggerCreate("libLNYF_gt_PlayerDisconnects_Func");
+    TriggerAddEventPlayerLeft(libLNYF_gt_PlayerDisconnects, c_playerAny, c_gameResultUndecided);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Player Reconnects
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_PlayerReconnects_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_player = EventPlayer();
+
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gv_gameOver == false))) {
+            return false;
+        }
+
+        if (!(((lv_player >= 1) && (lv_player <= libCore_gv_bALMaxPlayers)))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libLNYF_gv_driverAI[lv_player].lv_enabled = false;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_PlayerReconnects_Init () {
+    libLNYF_gt_PlayerReconnects = TriggerCreate("libLNYF_gt_PlayerReconnects_Func");
+    TriggerAddEventPlayerJoin(libLNYF_gt_PlayerReconnects, c_playerAny);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Team Abandoned The Game Timer Expires
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_TeamAbandonedTheGameTimerExpires_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itTeam;
+    int lv_enemyTeam;
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    const int autoA8376183_ae = libCore_gv_bALMaxPlayers;
+    const int autoA8376183_ai = 1;
+    const int auto1E1E8A2B_ae = libCore_gv_bALMaxTeams;
+    const int auto1E1E8A2B_ai = 1;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gv_gameOver == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_itPlayer = 1;
+    for ( ; ( (autoA8376183_ai >= 0 && lv_itPlayer <= autoA8376183_ae) || (autoA8376183_ai < 0 && lv_itPlayer >= autoA8376183_ae) ) ; lv_itPlayer += autoA8376183_ai ) {
+        if ((libGame_gv_players[lv_itPlayer].lv_playerStatus != libGame_ge_PlayerStatusStorm_LefttheGame)) {
+            PlayerGroupRemove(libLNYF_gv_progress.lv_players_RaceIncomplete, lv_itPlayer);
+            PlayerGroupAdd(libLNYF_gv_progress.lv_players_RaceComplete, lv_itPlayer);
+            PlayerGroupAdd(libLNYF_gv_leaderboard.lv_players_RaceFinished, lv_itPlayer);
+            PlayerGroupRemove(libLNYF_gv_leaderboard.lv_players_RaceUnfinished, lv_itPlayer);
+            libGame_gv_players[lv_itPlayer].lv_victoryDefeat = c_gameOverVictory;
+        }
+
+    }
+    lv_itTeam = 1;
+    for ( ; ( (auto1E1E8A2B_ai >= 0 && lv_itTeam <= auto1E1E8A2B_ae) || (auto1E1E8A2B_ai < 0 && lv_itTeam >= auto1E1E8A2B_ae) ) ; lv_itTeam += auto1E1E8A2B_ai ) {
+        if ((EventTimer() == libGame_gv_teams[lv_itTeam].lv_abandonedTheGameTimer)) {
+            lv_enemyTeam = (3 - lv_itTeam);
+            UIDisplayMessage(libGame_gv_teams[lv_enemyTeam].lv_teamPlayerGroupNoNPCPlayers, c_messageAreaChat, StringExternal("Param/Value/lib_LNYF_D35F5A4B"));
+            libLNYF_gf_GameOverLunar();
+            TriggerEnable(TriggerGetCurrent(), false);
+            break;
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_TeamAbandonedTheGameTimerExpires_Init () {
+    libLNYF_gt_TeamAbandonedTheGameTimerExpires = TriggerCreate("libLNYF_gt_TeamAbandonedTheGameTimerExpires_Func");
+    TriggerAddEventTimer(libLNYF_gt_TeamAbandonedTheGameTimerExpires, libGame_gv_teams[1].lv_abandonedTheGameTimer);
+    TriggerAddEventTimer(libLNYF_gt_TeamAbandonedTheGameTimerExpires, libGame_gv_teams[2].lv_abandonedTheGameTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Open The Gates Timer Started
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_OpenTheGatesTimerStarted_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_i;
+
+    // Automatic Variable Declarations
+    const int autoA71650B4_ae = 10;
+    const int autoA71650B4_ai = 1;
+    playergroup auto11F1B762_g;
+    int auto11F1B762_var;
+    playergroup autoA5FE4F00_g;
+    int autoA5FE4F00_var;
+    playergroup autoEBA0CD2C_g;
+    int autoEBA0CD2C_var;
+    int autoC2E650CB_ae;
+    const int autoC2E650CB_ai = 1;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    DialogControlSetVisible(libUIUI_gv_uIObserverUI.lv_mainPanel, PlayerGroupSingle(libCore_gv_oBSERVER_ObserverUIPlayer), false);
+    TriggerExecute(libLNYF_gt_ProgressLoop, true, false);
+    PlayerCreateEffectPoint(15, "RaceBrawl_Crowd_Walla", Point(0.0, 0.0));
+    TimerStart(libLNYF_gv_countdownTimer, (libCore_gv_bALOpenTheGatesDelay - 5.0), false, c_timeGame);
+    lv_i = 1;
+    for ( ; ( (autoA71650B4_ai >= 0 && lv_i <= autoA71650B4_ae) || (autoA71650B4_ai < 0 && lv_i >= autoA71650B4_ae) ) ; lv_i += autoA71650B4_ai ) {
+        auto11F1B762_g = PlayerGroupAll();
+        auto11F1B762_var = -1;
+        while (true) {
+            	auto11F1B762_var = PlayerGroupNextPlayer(auto11F1B762_g, auto11F1B762_var);
+            	if (auto11F1B762_var<0) { break; }
+            	if ((auto11F1B762_var != lv_i)) {
+                libNtve_gf_SetAllianceOneWay(lv_i, auto11F1B762_var, libNtve_ge_AllianceSetting_Enemy);
+            }
+
+        }
+    }
+    Wait(5.0, c_timeGame);
+    autoA5FE4F00_g = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamOrderIndex_C, false);
+    autoA5FE4F00_var = -1;
+    while (true) {
+        	autoA5FE4F00_var = PlayerGroupNextPlayer(autoA5FE4F00_g, autoA5FE4F00_var);
+        	if (autoA5FE4F00_var<0) { break; }
+        	UnitBehaviorRemove(libGame_gv_players[autoA5FE4F00_var].lv_heroUnit, "DisableAbils", 1);
+    }
+    autoEBA0CD2C_g = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamChaosIndex_C, false);
+    autoEBA0CD2C_var = -1;
+    while (true) {
+        	autoEBA0CD2C_var = PlayerGroupNextPlayer(autoEBA0CD2C_g, autoEBA0CD2C_var);
+        	if (autoEBA0CD2C_var<0) { break; }
+        	UnitBehaviorRemove(libGame_gv_players[autoEBA0CD2C_var].lv_heroUnit, "DisableAbils", 1);
+    }
+    autoC2E650CB_ae = libLNYF_gv_envelopes.lv_spawnLocationCount;
+    lv_i = 1;
+    for ( ; ( (autoC2E650CB_ai >= 0 && lv_i <= autoC2E650CB_ae) || (autoC2E650CB_ai < 0 && lv_i >= autoC2E650CB_ae) ) ; lv_i += autoC2E650CB_ai ) {
+        PlayerCreateEffectPoint(15, "LunarFestivalCreateEnvelopeStand", libLNYF_gv_envelopes.lv_spawnLocation[lv_i]);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_OpenTheGatesTimerStarted_Init () {
+    libLNYF_gt_OpenTheGatesTimerStarted = TriggerCreate("libLNYF_gt_OpenTheGatesTimerStarted_Func");
+    libGame_gf_GameOpenTimerStarted(libLNYF_gt_OpenTheGatesTimerStarted);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Countdown Timer Expires
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_CountdownTimerExpires_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    const int auto6D56896A_n = 5;
+    int auto6D56896A_i;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    for (auto6D56896A_i = 1; auto6D56896A_i <= auto6D56896A_n; auto6D56896A_i += 1) {
+        SoundPlayForPlayer(SoundLink("UI_Game_Race_Countdown", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+        Wait(1.0, c_timeGame);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_CountdownTimerExpires_Init () {
+    libLNYF_gt_CountdownTimerExpires = TriggerCreate("libLNYF_gt_CountdownTimerExpires_Func");
+    TriggerAddEventTimer(libLNYF_gt_CountdownTimerExpires, libLNYF_gv_countdownTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero Spawned
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_HeroSpawned_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGame_gf_SendEventClearHeroSpecificUI();
+    PlayerGroupAdd(libLNYF_gv_progress.lv_players_RaceIncomplete, libGame_gf_HeroSpawnPlayer());
+    PlayerGroupAdd(libLNYF_gv_leaderboard.lv_players_RaceUnfinished, libGame_gf_HeroSpawnPlayer());
+    libNtve_gf_ChangeUnitDamage(libGame_gv_players[libGame_gf_HeroSpawnPlayer()].lv_heroUnit, libNtve_ge_UnitDamageTakenDealt_Damage_Take, libNtve_ge_UnitDamageChangeOption_No);
+    UnitBehaviorAdd(libGame_gv_players[libGame_gf_HeroSpawnPlayer()].lv_heroUnit, "LunarFestivalDisableAbilities", libGame_gv_players[libGame_gf_HeroSpawnPlayer()].lv_heroUnit, 1);
+    UnitBehaviorAdd(libGame_gv_players[libGame_gf_HeroSpawnPlayer()].lv_heroUnit, "LunarFestivalPreGameMovementSuppression", libGame_gv_players[libGame_gf_HeroSpawnPlayer()].lv_heroUnit, 1);
+    UnitBehaviorAdd(libGame_gv_players[libGame_gf_HeroSpawnPlayer()].lv_heroUnit, "DisableAbils", libGame_gv_players[libGame_gf_HeroSpawnPlayer()].lv_heroUnit, 1);
+    UnitBehaviorAdd(libGame_gv_players[libGame_gf_HeroSpawnPlayer()].lv_heroUnit, "Mounted", libGame_gv_players[libGame_gf_HeroSpawnPlayer()].lv_heroUnit, 1);
+    libGame_gv_players[libGame_gf_HeroSpawnPlayer()].lv_cameraPlayerHasControl = false;
+    libGame_gv_players[libGame_gf_HeroSpawnPlayer()].lv_cameraPlayerUnitGroupToFocusOn = libNtve_gf_ConvertUnitToUnitGroup(libGame_gv_players[libGame_gf_HeroSpawnPlayer()].lv_heroUnit);
+    CameraUseHeightDisplacement(libGame_gf_HeroSpawnPlayer(), true);
+    libGame_gf_CameraUpdateCameraForPlayer(libGame_gf_HeroSpawnPlayer());
+    libNtve_gf_SendActorMessageToUnit(libGame_gv_players[libGame_gf_HeroSpawnPlayer()].lv_heroUnit, "SetShowStatusBar");
+    libNtve_gf_SendActorMessageToUnit(libGame_gv_players[libGame_gf_HeroSpawnPlayer()].lv_heroUnit, "SetWalkAnimMoveSpeed 30");
+    DialogControlSetVisible(libUIUI_gv_heroSpecificStatusContainer, PlayerGroupAll(), false);
+    DialogControlSetVisible(libUIUI_gv_uIHeroConsole.lv_gameUIInventoryPanel, PlayerGroupAll(), false);
+    libLNYF_gv_leaderboard.lv_maxPlayers += 1;
+    UnitSelect(libGame_gv_players[1].lv_heroUnit, 0, true);
+    libGame_gf_CameraPanCameraForPlayerAndUpdateMapBoundsIfNecessary(libCore_gv_oBSERVER_ObserverUIPlayer, UnitGroupCenterOfGroup(libGame_gv_players[1].lv_cameraCurrentTargetGroup), 0.0, -1, 0.0, false);
+    CameraUseHeightDisplacement(libCore_gv_oBSERVER_ObserverUIPlayer, true);
+    CameraFollowUnitGroup(libCore_gv_oBSERVER_ObserverUIPlayer, libGame_gv_players[1].lv_cameraCurrentTargetGroup, true, false);
+    PlayerOptionOverride(libCore_gv_oBSERVER_ObserverUIPlayer, "camerafollow", "1");
+    if ((libLNYF_gv_observer_InvisibleUnit != null)) {
+        UnitSelect(libLNYF_gv_observer_InvisibleUnit, libCore_gv_oBSERVER_ObserverUIPlayer, false);
+        UnitRemove(libLNYF_gv_observer_InvisibleUnit);
+        libLNYF_gv_observer_InvisibleUnit = null;
+    }
+
+    if ((libLNYF_gv_player_Camera_InvisibleUnit[libGame_gf_HeroSpawnPlayer()] != null)) {
+        UnitSelect(libLNYF_gv_player_Camera_InvisibleUnit[libGame_gf_HeroSpawnPlayer()], libGame_gf_HeroSpawnPlayer(), false);
+        UnitRemove(libLNYF_gv_player_Camera_InvisibleUnit[libGame_gf_HeroSpawnPlayer()]);
+        libLNYF_gv_player_Camera_InvisibleUnit[libGame_gf_HeroSpawnPlayer()] = null;
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_HeroSpawned_Init () {
+    libLNYF_gt_HeroSpawned = TriggerCreate("libLNYF_gt_HeroSpawned_Func");
+    libGame_gf_HeroSpawn(libLNYF_gt_HeroSpawned);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Gates Open
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_GatesOpen_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    playergroup auto043F3C6E_g;
+    int auto043F3C6E_var;
+    playergroup auto1455230E_g;
+    int auto1455230E_var;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGame_gf_SendEventClearHeroSpecificUI();
+    libSond_gf_SoundtrackApplyNewDefaultSoundtrackForPlayerGroup("MX_LunarFestival_Race_Main_Loop", PlayerGroupAll());
+    PlayerCreateEffectPoint(15, "RaceBrawl_Crowd_GameStart", Point(0.0, 0.0));
+    auto043F3C6E_g = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamOrderIndex_C, false);
+    auto043F3C6E_var = -1;
+    while (true) {
+        	auto043F3C6E_var = PlayerGroupNextPlayer(auto043F3C6E_g, auto043F3C6E_var);
+        	if (auto043F3C6E_var<0) { break; }
+        	libNtve_gf_SendActorMessageToUnit(libGame_gv_players[auto043F3C6E_var].lv_heroUnit, "SetWalkAnimMoveSpeed 30");
+        UnitBehaviorRemove(libGame_gv_players[auto043F3C6E_var].lv_heroUnit, "LunarFestivalPreGameMovementSuppression", 1);
+        libNtve_gf_MakeUnitInvulnerable(libGame_gv_players[auto043F3C6E_var].lv_heroUnit, true);
+        UnitBehaviorAdd(libGame_gv_players[auto043F3C6E_var].lv_heroUnit, "LunarFestivalSpeedBoostController", libGame_gv_players[auto043F3C6E_var].lv_heroUnit, 1);
+    }
+    auto1455230E_g = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamChaosIndex_C, false);
+    auto1455230E_var = -1;
+    while (true) {
+        	auto1455230E_var = PlayerGroupNextPlayer(auto1455230E_g, auto1455230E_var);
+        	if (auto1455230E_var<0) { break; }
+        	libNtve_gf_SendActorMessageToUnit(libGame_gv_players[auto1455230E_var].lv_heroUnit, "SetWalkAnimMoveSpeed 30");
+        UnitBehaviorRemove(libGame_gv_players[auto1455230E_var].lv_heroUnit, "LunarFestivalPreGameMovementSuppression", 1);
+        libNtve_gf_MakeUnitInvulnerable(libGame_gv_players[auto1455230E_var].lv_heroUnit, true);
+        UnitBehaviorAdd(libGame_gv_players[auto1455230E_var].lv_heroUnit, "LunarFestivalSpeedBoostController", libGame_gv_players[auto1455230E_var].lv_heroUnit, 1);
+    }
+    TriggerEnable(libLNYF_gt_MovementModifier, true);
+    TimerStart(libLNYF_gv_forcegameendTimer, 600.0, false, c_timeGame);
+    libLNYF_gf_StartDriverAI();
+    Wait(5.0, c_timeGame);
+    DialogControlSetVisible(libLNYF_gv_uI.lv_timerContainer, PlayerGroupSingle(libCore_gv_oBSERVER_ObserverUIPlayer), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_GatesOpen_Init () {
+    libLNYF_gt_GatesOpen = TriggerCreate("libLNYF_gt_GatesOpen_Func");
+    TriggerAddEventTimer(libLNYF_gt_GatesOpen, libGame_gv_openTheGatesTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Force Game End
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_ForceGameEnd_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gv_gameOver == false))) {
+            return false;
+        }
+
+        if (!((libLNYF_gv_endGameTimerStarted == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libLNYF_gf_GameOverLunar();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_ForceGameEnd_Init () {
+    libLNYF_gt_ForceGameEnd = TriggerCreate("libLNYF_gt_ForceGameEnd_Func");
+    TriggerAddEventTimer(libLNYF_gt_ForceGameEnd, libLNYF_gv_forcegameendTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Game Over Timer Expires
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_GameOverTimerExpires_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libLNYF_gf_GameOverLunar();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_GameOverTimerExpires_Init () {
+    libLNYF_gt_GameOverTimerExpires = TriggerCreate("libLNYF_gt_GameOverTimerExpires_Func");
+    TriggerAddEventTimer(libLNYF_gt_GameOverTimerExpires, libLNYF_gv_timer_RaceCompleted_EndGame);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Lunar Festival Hero Callback
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_LunarFestivalHeroCallback_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itPlayer;
+    shuffler lv_shuffler;
+
+    // Automatic Variable Declarations
+    playergroup autoC78A6CE0_g;
+    playergroup autoFDDA94BB_g;
+
+    // Variable Initialization
+    lv_shuffler = ShufflerCreate(10);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGame_gv_heroPickDone = false;
+    libGame_gv_randomizeMountsAndSkins = false;
+    autoC78A6CE0_g = libGame_gf_PlayersOnTeamHeroes(1, false);
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(autoC78A6CE0_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	libLNYF_gf_SetPlayersHeroChoice(lv_itPlayer, ShufflerAdvance(lv_shuffler));
+    }
+    autoFDDA94BB_g = libGame_gf_PlayersOnTeamHeroes(2, false);
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(autoFDDA94BB_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	libLNYF_gf_SetPlayersHeroChoice(lv_itPlayer, ShufflerAdvance(lv_shuffler));
+    }
+    libGame_gv_heroPickDone = true;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_LunarFestivalHeroCallback_Init () {
+    libLNYF_gt_LunarFestivalHeroCallback = TriggerCreate("libLNYF_gt_LunarFestivalHeroCallback_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Envelope Is Opened
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_EnvelopeIsOpened_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    point lv_pos;
+    int lv_random;
+
+    // Automatic Variable Declarations
+    int auto0D01EDB8_val;
+
+    // Variable Initialization
+    lv_pos = UnitGetPosition(EventPlayerEffectUsedUnit(c_effectUnitCaster));
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libLNYF_gv_leaderboard.lv_rank_CurrentPlayer[EventPlayerEffectUsedUnitOwner(c_effectPlayerTarget)] <= 5)) {
+        lv_random = RandomInt(1, 2);
+    }
+    else if ((libLNYF_gv_leaderboard.lv_rank_CurrentPlayer[EventPlayerEffectUsedUnitOwner(c_effectPlayerTarget)] <= 9)) {
+        lv_random = RandomInt(1, 3);
+    }
+    else if ((libLNYF_gv_leaderboard.lv_rank_CurrentPlayer[EventPlayerEffectUsedUnitOwner(c_effectPlayerTarget)] == libLNYF_gv_leaderboard.lv_maxPlayers)) {
+        lv_random = 3;
+    }
+    auto0D01EDB8_val = lv_random;
+    if (auto0D01EDB8_val == 1) {
+        UnitBehaviorAdd(EventPlayerEffectUsedUnit(c_effectUnitTarget), "LunarFestivalFirecracker", EventPlayerEffectUsedUnit(c_effectUnitTarget), 1);
+        SoundPlayForPlayer(SoundLink("LunarFestival_Pickup_Trap_Acquired", -1), c_maxPlayers, PlayerGroupSingle(UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitTarget))), 100.0, 0.0);
+    }
+    else if (auto0D01EDB8_val == 2) {
+        UnitBehaviorAdd(EventPlayerEffectUsedUnit(c_effectUnitTarget), "LunarFestivalGreenRocket", EventPlayerEffectUsedUnit(c_effectUnitTarget), 1);
+        SoundPlayForPlayer(SoundLink("LunarFestival_Pickup_Rocket_Acquired", -1), c_maxPlayers, PlayerGroupSingle(UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitTarget))), 100.0, 0.0);
+    }
+    else if (auto0D01EDB8_val == 3) {
+        UnitBehaviorAdd(EventPlayerEffectUsedUnit(c_effectUnitTarget), "LunarFestivalLunarBlessingAvailable", EventPlayerEffectUsedUnit(c_effectUnitTarget), 1);
+        SoundPlayForPlayer(SoundLink("LunarFestival_Pickup_Blessing_Acquired", -1), c_maxPlayers, PlayerGroupSingle(UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitTarget))), 100.0, 0.0);
+    }
+    else {
+    }
+    DialogControlHookupStandard(c_triggerControlTypePanel, "UIContainer/ConsoleUIContainer/CommandPanel/GameButtonLunarBorder_Frame/GameButtonLunarBorder_Top");
+    DialogControlSendAnimationEvent(DialogControlLastCreated(), PlayerGroupSingle(EventPlayerEffectUsedUnitOwner(c_effectPlayerTarget)), "SheenWipe");
+    Wait(5.0, c_timeGame);
+    libLNYF_gf_CreateEnvelopeAtPoint(lv_pos);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_EnvelopeIsOpened_Init () {
+    libLNYF_gt_EnvelopeIsOpened = TriggerCreate("libLNYF_gt_EnvelopeIsOpened_Func");
+    TriggerAddEventPlayerEffectUsed(libLNYF_gt_EnvelopeIsOpened, 0, "LunarFestivalEnvelopePickupSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Behavior (Blessing) On
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_BehaviorBlessingOn_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libLNYF_gv_leaderboard.lv_rank_CurrentPlayer[UnitGetOwner(EventUnit())] == libLNYF_gv_leaderboard.lv_maxPlayers)) {
+        UnitBehaviorSetDuration(EventUnit(), "LunarFestivalLunarBlessing", 10.0);
+    }
+    else if ((libLNYF_gv_leaderboard.lv_rank_CurrentPlayer[UnitGetOwner(EventUnit())] > (libLNYF_gv_leaderboard.lv_maxPlayers - 3))) {
+        UnitBehaviorSetDuration(EventUnit(), "LunarFestivalLunarBlessing", 8.0);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_BehaviorBlessingOn_Init () {
+    libLNYF_gt_BehaviorBlessingOn = TriggerCreate("libLNYF_gt_BehaviorBlessingOn_Func");
+    TriggerAddEventUnitBehaviorChange(libLNYF_gt_BehaviorBlessingOn, null, "LunarFestivalLunarBlessing", c_unitBehaviorChangeCreate);
+    TriggerAddEventUnitBehaviorChange(libLNYF_gt_BehaviorBlessingOn, null, "LunarFestivalLunarBlessing", c_unitBehaviorChangeRefresh);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Movement Logic
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_MovementLogic_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    playergroup auto2067DA5C_g;
+    int auto2067DA5C_var;
+    playergroup auto6EC827A0_g;
+    int auto6EC827A0_var;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    while (true) {
+        auto2067DA5C_g = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamOrderIndex_C, false);
+        auto2067DA5C_var = -1;
+        while (true) {
+            	auto2067DA5C_var = PlayerGroupNextPlayer(auto2067DA5C_g, auto2067DA5C_var);
+            	if (auto2067DA5C_var<0) { break; }
+            	if ((libLNYF_gv_driverAI[auto2067DA5C_var].lv_enabled == false)) {
+                libLNYF_gf_IssueMoveOrderToPlayer(auto2067DA5C_var);
+            }
+
+        }
+        auto6EC827A0_g = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamChaosIndex_C, false);
+        auto6EC827A0_var = -1;
+        while (true) {
+            	auto6EC827A0_var = PlayerGroupNextPlayer(auto6EC827A0_g, auto6EC827A0_var);
+            	if (auto6EC827A0_var<0) { break; }
+            	if ((libLNYF_gv_driverAI[auto6EC827A0_var].lv_enabled == false)) {
+                libLNYF_gf_IssueMoveOrderToPlayer(auto6EC827A0_var);
+            }
+
+        }
+        Wait(0.0625, c_timeGame);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_MovementLogic_Init () {
+    libLNYF_gt_MovementLogic = TriggerCreate("libLNYF_gt_MovementLogic_Func");
+    TriggerAddEventTimer(libLNYF_gt_MovementLogic, libGame_gv_openTheGatesTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Movement Modifier
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_MovementModifier_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    playergroup lv_playerGroup;
+    int lv_maxSpeed;
+    fixed lv_difference;
+
+    // Automatic Variable Declarations
+    playergroup autoE34AC8EB_g;
+    int autoE34AC8EB_var;
+
+    // Variable Initialization
+    lv_playerGroup = PlayerGroupEmpty();
+    lv_maxSpeed = 18;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_playerGroup = PlayerGroupCopy(libLNYF_gv_leaderboard.lv_players_RaceUnfinished);
+    libNtve_gf_AddPlayerGroupToPlayerGroup(libLNYF_gv_leaderboard.lv_players_RaceFinished, lv_playerGroup);
+    autoE34AC8EB_g = lv_playerGroup;
+    autoE34AC8EB_var = -1;
+    while (true) {
+        	autoE34AC8EB_var = PlayerGroupNextPlayer(autoE34AC8EB_g, autoE34AC8EB_var);
+        	if (autoE34AC8EB_var<0) { break; }
+        	if ((UnitHasBehavior2(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, "Mounted") == false)) {
+            UnitSetPropertyFixed(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, c_unitPropBaseMovementSpeed, 4.0);
+            UnitSetPropertyFixed(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, c_unitPropMovementSpeed, 4.0);
+            continue;
+        }
+        else {
+            libLNYF_gv_movement.lv_facing_Old[autoE34AC8EB_var] = libLNYF_gv_movement.lv_facing_Current[autoE34AC8EB_var];
+            libLNYF_gv_movement.lv_facing_Current[autoE34AC8EB_var] = UnitGetFacing(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit);
+            libLNYF_gv_movement.lv_speed[autoE34AC8EB_var] = UnitGetPropertyFixed(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, c_unitPropMovementSpeed, c_unitPropCurrent);
+        }
+        if ((UnitHasBehavior2(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, "LunarFestivalSlowInRough") == true)) {
+            UnitSetPropertyFixed(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, c_unitPropMovementSpeed, MaxF((libLNYF_gv_movement.lv_speed[autoE34AC8EB_var] - 1.0), 4.0));
+            UnitSetPropertyFixed(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, c_unitPropBaseMovementSpeed, MaxF((libLNYF_gv_movement.lv_speed[autoE34AC8EB_var] - 1.0), 4.0));
+            libLNYF_gv_movement.lv_speed[autoE34AC8EB_var] = MaxF((libLNYF_gv_movement.lv_speed[autoE34AC8EB_var] - 1.0), 4.0);
+            continue;
+        }
+
+        if ((UnitHasBehavior2(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, "LunarFestivalLunarBlessing") == true)) {
+            UnitSetPropertyFixed(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, c_unitPropBaseMovementSpeed, (lv_maxSpeed + 5.0));
+            UnitSetPropertyFixed(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, c_unitPropMovementSpeed, (lv_maxSpeed + 5.0));
+            libLNYF_gv_movement.lv_speed[autoE34AC8EB_var] = (lv_maxSpeed + 5.0);
+            continue;
+        }
+
+        if ((UnitHasBehavior2(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, "LunarFestivalSpeedBoost") == true)) {
+            UnitSetPropertyFixed(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, c_unitPropBaseMovementSpeed, (lv_maxSpeed + UnitBehaviorCount(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, "LunarFestivalSpeedBoost")));
+            UnitSetPropertyFixed(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, c_unitPropMovementSpeed, (lv_maxSpeed + UnitBehaviorCount(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, "LunarFestivalSpeedBoost")));
+            libLNYF_gv_movement.lv_speed[autoE34AC8EB_var] = (lv_maxSpeed + UnitBehaviorCount(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, "LunarFestivalSpeedBoost"));
+            continue;
+        }
+
+        if ((AbsF(libLNYF_gv_movement.lv_facing_Current[autoE34AC8EB_var]) > AbsF(libLNYF_gv_movement.lv_facing_Old[autoE34AC8EB_var]))) {
+            lv_difference = (AbsF(libLNYF_gv_movement.lv_facing_Current[autoE34AC8EB_var]) - AbsF(libLNYF_gv_movement.lv_facing_Old[autoE34AC8EB_var]));
+        }
+        else if ((AbsF(libLNYF_gv_movement.lv_facing_Old[autoE34AC8EB_var]) > AbsF(libLNYF_gv_movement.lv_facing_Current[autoE34AC8EB_var]))) {
+            lv_difference = (AbsF(libLNYF_gv_movement.lv_facing_Old[autoE34AC8EB_var]) - AbsF(libLNYF_gv_movement.lv_facing_Current[autoE34AC8EB_var]));
+        }
+        else if ((AbsF(libLNYF_gv_movement.lv_facing_Old[autoE34AC8EB_var]) == AbsF(libLNYF_gv_movement.lv_facing_Current[autoE34AC8EB_var]))) {
+            lv_difference = 0.0;
+        }
+        if ((lv_difference < 1.0) && (UnitGetPropertyFixed(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, c_unitPropMovementSpeedCurrent, c_unitPropCurrent) < lv_maxSpeed)) {
+            UnitSetPropertyFixed(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, c_unitPropMovementSpeed, MinF((libLNYF_gv_movement.lv_speed[autoE34AC8EB_var] + 1.0), lv_maxSpeed));
+            UnitSetPropertyFixed(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, c_unitPropBaseMovementSpeed, MinF((libLNYF_gv_movement.lv_speed[autoE34AC8EB_var] + 1.0), lv_maxSpeed));
+        }
+        else if ((lv_difference < 3.0) && (UnitGetPropertyFixed(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, c_unitPropMovementSpeedCurrent, c_unitPropCurrent) < lv_maxSpeed)) {
+            UnitSetPropertyFixed(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, c_unitPropMovementSpeed, MinF((libLNYF_gv_movement.lv_speed[autoE34AC8EB_var] + 0.5), lv_maxSpeed));
+            UnitSetPropertyFixed(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, c_unitPropBaseMovementSpeed, MinF((libLNYF_gv_movement.lv_speed[autoE34AC8EB_var] + 0.5), lv_maxSpeed));
+        }
+        else if ((lv_difference >= 10.0)) {
+            UnitSetPropertyFixed(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, c_unitPropBaseMovementSpeed, (libLNYF_gv_movement.lv_speed[autoE34AC8EB_var] - 0.5));
+            UnitSetPropertyFixed(libGame_gv_players[autoE34AC8EB_var].lv_heroUnit, c_unitPropMovementSpeed, (libLNYF_gv_movement.lv_speed[autoE34AC8EB_var] - 0.5));
+        }
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_MovementModifier_Init () {
+    libLNYF_gt_MovementModifier = TriggerCreate("libLNYF_gt_MovementModifier_Func");
+    TriggerEnable(libLNYF_gt_MovementModifier, false);
+    TriggerAddEventTimePeriodic(libLNYF_gt_MovementModifier, 0.0625, c_timeGame);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ProgressLoop
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_ProgressLoop_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_unit;
+    int lv_leaderboardRank;
+    int lv_player;
+
+    // Automatic Variable Declarations
+    int auto6B389EDD_n;
+    int auto6B389EDD_i;
+    int auto5ACAB99A_n;
+    int auto5ACAB99A_i;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    while (true) {
+        PlayerGroupClear(libLNYF_gv_leaderboard.lv_players_NotRanked);
+        libLNYF_gv_leaderboard.lv_players_NotRanked = PlayerGroupCopy(libLNYF_gv_leaderboard.lv_players_RaceUnfinished);
+        lv_leaderboardRank = 0;
+        auto6B389EDD_n = PlayerGroupCount(libLNYF_gv_leaderboard.lv_players_RaceFinished);
+        for (auto6B389EDD_i = 1; auto6B389EDD_i <= auto6B389EDD_n; auto6B389EDD_i += 1) {
+            lv_leaderboardRank += 1;
+            lv_player = PlayerGroupPlayer(libLNYF_gv_leaderboard.lv_players_RaceFinished, lv_leaderboardRank);
+            lv_unit = libGame_gv_players[lv_player].lv_heroUnit;
+            libLNYF_gv_leaderboard.lv_player_CurrentRank[lv_player] = lv_leaderboardRank;
+            libLNYF_gv_leaderboard.lv_rank_CurrentPlayer[lv_leaderboardRank] = lv_player;
+            PlayerGroupRemove(libLNYF_gv_leaderboard.lv_players_NotRanked, lv_player);
+            libGame_gf_ScoreValuesReportIntegerValueAndLog(lv_player, "LeaderboardValue", lv_leaderboardRank);
+            libLNYF_gf_SetPlayersRankText(lv_player, lv_leaderboardRank);
+        }
+        auto5ACAB99A_n = PlayerGroupCount(libLNYF_gv_leaderboard.lv_players_NotRanked);
+        for (auto5ACAB99A_i = 1; auto5ACAB99A_i <= auto5ACAB99A_n; auto5ACAB99A_i += 1) {
+            lv_leaderboardRank += 1;
+            lv_unit = libLNYF_gf_UnrankedUnitClosestToFinishLine(libLNYF_gv_leaderboard.lv_players_NotRanked);
+            if ((UnitGetOwner(lv_unit) == 16)) {
+                break;
+            }
+
+            lv_player = UnitGetOwner(lv_unit);
+            libLNYF_gv_leaderboard.lv_player_CurrentRank[lv_player] = lv_leaderboardRank;
+            libLNYF_gv_leaderboard.lv_rank_CurrentPlayer[lv_leaderboardRank] = lv_player;
+            PlayerGroupRemove(libLNYF_gv_leaderboard.lv_players_NotRanked, lv_player);
+            libGame_gf_ScoreValuesReportIntegerValueAndLog(lv_player, "LeaderboardValue", lv_leaderboardRank);
+            libLNYF_gf_SetPlayersRankText(lv_player, lv_leaderboardRank);
+        }
+        Wait(0.0625, c_timeGame);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_ProgressLoop_Init () {
+    libLNYF_gt_ProgressLoop = TriggerCreate("libLNYF_gt_ProgressLoop_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Player Reconnects_HideUI
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_PlayerReconnects_HideUI_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_player = EventPlayer();
+
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gv_gameOver == false))) {
+            return false;
+        }
+
+        if (!(((lv_player >= 1) && (lv_player <= libCore_gv_bALMaxPlayers)))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    DialogControlSetVisible(libUIUI_gv_heroSpecificStatusContainer, PlayerGroupSingle(EventPlayer()), false);
+    DialogControlSetVisible(libUIUI_gv_uIHeroConsole.lv_gameUIInventoryPanel, PlayerGroupSingle(EventPlayer()), false);
+    DialogControlSetVisible(libUIUI_gv_uIHeroConsole.lv_mainPanel, PlayerGroupSingle(EventPlayer()), false);
+    DialogControlSetVisible(libUIUI_gv_uIHeroConsole.lv_gameUIPortrait, PlayerGroupSingle(EventPlayer()), false);
+    DialogControlSetVisible(libUIUI_gv_uIHeroConsole.lv_buffDebuffPanel, PlayerGroupSingle(EventPlayer()), false);
+    DialogControlSetVisible(libUIUI_gv_heroSpecificFullUIModContainer, PlayerGroupSingle(EventPlayer()), false);
+    libLNYF_gf_SetPlayersLapText(EventPlayer());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_PlayerReconnects_HideUI_Init () {
+    libLNYF_gt_PlayerReconnects_HideUI = TriggerCreate("libLNYF_gt_PlayerReconnects_HideUI_Func");
+    TriggerAddEventPlayerJoin(libLNYF_gt_PlayerReconnects_HideUI, c_playerAny);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Initialize UI
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_InitializeUI_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_mutatorPanel;
+    int lv_timerContainer;
+    int lv_hUDContainer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_mutatorPanel = c_invalidDialogControlId;
+    lv_timerContainer = c_invalidDialogControlId;
+    lv_hUDContainer = c_invalidDialogControlId;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    DialogControlHookupStandard(c_triggerControlTypePanel, "UIContainer/ConsoleUIContainer/MutatorPanel");
+    lv_mutatorPanel = DialogControlLastCreated();
+    DialogControlHookup(lv_mutatorPanel, c_triggerControlTypePanel, "TimerContainer");
+    lv_timerContainer = DialogControlLastCreated();
+    libLNYF_gv_uI.lv_timerContainer = DialogControlLastCreated();
+    DialogControlHookup(lv_timerContainer, c_triggerControlTypeLabel, "TimerLabel_Bottom");
+    libLNYF_gv_uI.lv_timerLabel[1] = DialogControlLastCreated();
+    DialogControlHookup(lv_timerContainer, c_triggerControlTypeLabel, "TimerLabel_Middle");
+    libLNYF_gv_uI.lv_timerLabel[2] = DialogControlLastCreated();
+    DialogControlHookup(lv_timerContainer, c_triggerControlTypeLabel, "TimerLabel_Top");
+    libLNYF_gv_uI.lv_timerLabel[3] = DialogControlLastCreated();
+    DialogControlSetVisible(libLNYF_gv_uI.lv_timerLabel[1], PlayerGroupAll(), false);
+    DialogControlSetVisible(libLNYF_gv_uI.lv_timerLabel[2], PlayerGroupAll(), false);
+    DialogControlSetVisible(libLNYF_gv_uI.lv_timerLabel[3], PlayerGroupAll(), false);
+    DialogControlHookup(lv_timerContainer, c_triggerControlTypePanel, "RaceFlourish_Left");
+    DialogControlHookup(DialogControlLastCreated(), c_triggerControlTypePanel, "RaceFlourishImage");
+    libLNYF_gv_uI.lv_raceFlourishA[1][1] = DialogControlLastCreated();
+    DialogControlHookup(lv_timerContainer, c_triggerControlTypePanel, "RaceFlourish_Left_Bottom");
+    DialogControlHookup(DialogControlLastCreated(), c_triggerControlTypePanel, "RaceFlourishImage");
+    libLNYF_gv_uI.lv_raceFlourishA[1][2] = DialogControlLastCreated();
+    DialogControlHookup(lv_timerContainer, c_triggerControlTypePanel, "RaceFlourish_Right");
+    DialogControlHookup(DialogControlLastCreated(), c_triggerControlTypePanel, "RaceFlourishImage");
+    libLNYF_gv_uI.lv_raceFlourishA[2][1] = DialogControlLastCreated();
+    DialogControlHookup(lv_timerContainer, c_triggerControlTypePanel, "RaceFlourish_Right_Bottom");
+    DialogControlHookup(DialogControlLastCreated(), c_triggerControlTypePanel, "RaceFlourishImage");
+    libLNYF_gv_uI.lv_raceFlourishA[2][2] = DialogControlLastCreated();
+    DialogControlSetVisible(libLNYF_gv_uI.lv_raceFlourishA[1][1], PlayerGroupAll(), false);
+    DialogControlSetVisible(libLNYF_gv_uI.lv_raceFlourishA[1][2], PlayerGroupAll(), false);
+    DialogControlSetVisible(libLNYF_gv_uI.lv_raceFlourishA[2][1], PlayerGroupAll(), false);
+    DialogControlSetVisible(libLNYF_gv_uI.lv_raceFlourishA[2][2], PlayerGroupAll(), false);
+    DialogControlHookup(lv_mutatorPanel, c_triggerControlTypePanel, "HUDFrame");
+    lv_hUDContainer = DialogControlLastCreated();
+    DialogControlHookup(lv_hUDContainer, c_triggerControlTypeLabel, "RankLabel_Top");
+    libLNYF_gv_uI.lv_rankLabel[1] = DialogControlLastCreated();
+    DialogControlSetVisible(libLNYF_gv_uI.lv_rankLabel[1], PlayerGroupAll(), true);
+    DialogControlHookup(lv_hUDContainer, c_triggerControlTypeLabel, "RankLabel_Middle");
+    libLNYF_gv_uI.lv_rankLabel[2] = DialogControlLastCreated();
+    DialogControlSetVisible(libLNYF_gv_uI.lv_rankLabel[2], PlayerGroupAll(), true);
+    DialogControlHookup(lv_hUDContainer, c_triggerControlTypeLabel, "RankLabel_Bottom");
+    libLNYF_gv_uI.lv_rankLabel[3] = DialogControlLastCreated();
+    DialogControlSetVisible(libLNYF_gv_uI.lv_rankLabel[3], PlayerGroupAll(), true);
+    DialogControlHookup(lv_hUDContainer, c_triggerControlTypeLabel, "LapCountLabel_Bottom");
+    libLNYF_gv_uI.lv_lapLabel[1] = DialogControlLastCreated();
+    DialogControlHookup(lv_hUDContainer, c_triggerControlTypeLabel, "LapCountLabel_Top");
+    libLNYF_gv_uI.lv_lapLabel[2] = DialogControlLastCreated();
+    DialogControlHookup(lv_hUDContainer, c_triggerControlTypeLabel, "LapTimeLabel_Top");
+    libLNYF_gv_uI.lv_gameTimeLabel[1] = DialogControlLastCreated();
+    DialogControlHookup(lv_hUDContainer, c_triggerControlTypeLabel, "LapTimeLabel_Bottom");
+    libLNYF_gv_uI.lv_gameTimeLabel[2] = DialogControlLastCreated();
+    libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_gameTimeLabel[1], TextTimeFormat(StringToText("<min2/>:<sec2/>"), 0), PlayerGroupAll());
+    libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_gameTimeLabel[2], TextTimeFormat(StringToText("<min2/>:<sec2/>"), 0), PlayerGroupAll());
+    DialogControlHookup(lv_mutatorPanel, c_triggerControlTypePanel, "RaceCompleteFrame");
+    libLNYF_gv_uI.lv_raceCompleteFrame = DialogControlLastCreated();
+    DialogControlSetVisible(libLNYF_gv_uI.lv_raceCompleteFrame, PlayerGroupAll(), false);
+    DialogControlHookup(DialogControlLastCreated(), c_triggerControlTypeLabel, "RaceCompleteLabel");
+    libLNYF_gv_uI.lv_raceCompleteLabel = DialogControlLastCreated();
+    DialogControlHookup(lv_mutatorPanel, c_triggerControlTypePanel, "GameEndingTimerFrame");
+    libLNYF_gv_uI.lv_gameEnding_Frame = DialogControlLastCreated();
+    DialogControlHookup(libLNYF_gv_uI.lv_gameEnding_Frame, c_triggerControlTypeLabel, "TimerLabel_Bottom");
+    libLNYF_gv_uI.lv_gameEnding_TimerLabel[1] = DialogControlLastCreated();
+    DialogControlHookup(libLNYF_gv_uI.lv_gameEnding_Frame, c_triggerControlTypeLabel, "TimerLabel_Middle");
+    libLNYF_gv_uI.lv_gameEnding_TimerLabel[2] = DialogControlLastCreated();
+    DialogControlHookup(libLNYF_gv_uI.lv_gameEnding_Frame, c_triggerControlTypeLabel, "TimerLabel_Top");
+    libLNYF_gv_uI.lv_gameEnding_TimerLabel[3] = DialogControlLastCreated();
+    DialogControlSetVisible(libLNYF_gv_uI.lv_gameEnding_Frame, PlayerGroupAll(), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_InitializeUI_Init () {
+    libLNYF_gt_InitializeUI = TriggerCreate("libLNYF_gt_InitializeUI_Func");
+    TriggerAddEventMapInit(libLNYF_gt_InitializeUI);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Show Timer UI
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_ShowTimerUI_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    fixed auto792750ED_at;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto792750ED_at = 0;
+    while (!((TimerGetRemaining(libGame_gv_openTheGatesTimer) <= 5.0)) && auto792750ED_at <= 30.0) {
+        Wait(0.0625, c_timeGame);
+        auto792750ED_at = auto792750ED_at + 0.0625;
+    }
+    libLNYF_gf_TrafficLightSequence();
+    DialogControlSetVisible(libLNYF_gv_uI.lv_timerLabel[1], PlayerGroupAll(), true);
+    DialogControlSetVisible(libLNYF_gv_uI.lv_timerLabel[2], PlayerGroupAll(), true);
+    DialogControlSetVisible(libLNYF_gv_uI.lv_timerLabel[3], PlayerGroupAll(), true);
+    while ((TimerGetRemaining(libGame_gv_openTheGatesTimer) > 0.0)) {
+        libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_timerLabel[1], FixedToText(TimerGetRemaining(libGame_gv_openTheGatesTimer), c_fixedPrecisionAny), PlayerGroupAll());
+        libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_timerLabel[2], FixedToText(TimerGetRemaining(libGame_gv_openTheGatesTimer), c_fixedPrecisionAny), PlayerGroupAll());
+        libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_timerLabel[3], FixedToText(TimerGetRemaining(libGame_gv_openTheGatesTimer), c_fixedPrecisionAny), PlayerGroupAll());
+        DialogControlSetVisible(libLNYF_gv_uI.lv_timerLabel[3], PlayerGroupAll(), true);
+        DialogControlSetVisible(libLNYF_gv_uI.lv_raceFlourishA[1][1], PlayerGroupAll(), true);
+        DialogControlSetVisible(libLNYF_gv_uI.lv_raceFlourishA[1][2], PlayerGroupAll(), true);
+        DialogControlSetVisible(libLNYF_gv_uI.lv_raceFlourishA[2][1], PlayerGroupAll(), true);
+        DialogControlSetVisible(libLNYF_gv_uI.lv_raceFlourishA[2][2], PlayerGroupAll(), true);
+        Wait(0.75, c_timeGame);
+        DialogControlSendAnimationEvent(libLNYF_gv_uI.lv_raceFlourishA[1][1], PlayerGroupAll(), "FadeOut");
+        DialogControlSendAnimationEvent(libLNYF_gv_uI.lv_raceFlourishA[1][2], PlayerGroupAll(), "FadeOut");
+        DialogControlSendAnimationEvent(libLNYF_gv_uI.lv_raceFlourishA[2][1], PlayerGroupAll(), "FadeOut");
+        DialogControlSendAnimationEvent(libLNYF_gv_uI.lv_raceFlourishA[2][2], PlayerGroupAll(), "FadeOut");
+        Wait(0.25, c_timeGame);
+    }
+    libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_timerLabel[1], StringExternal("Param/Value/lib_LNYF_DA5FAA3D"), PlayerGroupAll());
+    libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_timerLabel[2], StringExternal("Param/Value/lib_LNYF_BDE09371"), PlayerGroupAll());
+    libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_timerLabel[3], StringExternal("Param/Value/lib_LNYF_3C8A5ABB"), PlayerGroupAll());
+    DialogControlSetVisible(libLNYF_gv_uI.lv_timerLabel[3], PlayerGroupAll(), true);
+    DialogControlSetVisible(libLNYF_gv_uI.lv_raceFlourishA[1][1], PlayerGroupAll(), true);
+    DialogControlSetVisible(libLNYF_gv_uI.lv_raceFlourishA[1][2], PlayerGroupAll(), true);
+    DialogControlSetVisible(libLNYF_gv_uI.lv_raceFlourishA[2][1], PlayerGroupAll(), true);
+    DialogControlSetVisible(libLNYF_gv_uI.lv_raceFlourishA[2][2], PlayerGroupAll(), true);
+    Wait(0.75, c_timeGame);
+    DialogControlSendAnimationEvent(libLNYF_gv_uI.lv_raceFlourishA[1][1], PlayerGroupAll(), "FadeOut");
+    DialogControlSendAnimationEvent(libLNYF_gv_uI.lv_raceFlourishA[1][2], PlayerGroupAll(), "FadeOut");
+    DialogControlSendAnimationEvent(libLNYF_gv_uI.lv_raceFlourishA[2][1], PlayerGroupAll(), "FadeOut");
+    DialogControlSendAnimationEvent(libLNYF_gv_uI.lv_raceFlourishA[2][2], PlayerGroupAll(), "FadeOut");
+    Wait(0.25, c_timeGame);
+    DialogControlSetVisible(libLNYF_gv_uI.lv_timerLabel[1], PlayerGroupAll(), false);
+    DialogControlSetVisible(libLNYF_gv_uI.lv_timerLabel[2], PlayerGroupAll(), false);
+    DialogControlSetVisible(libLNYF_gv_uI.lv_timerLabel[3], PlayerGroupAll(), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_ShowTimerUI_Init () {
+    libLNYF_gt_ShowTimerUI = TriggerCreate("libLNYF_gt_ShowTimerUI_Func");
+    libGame_gf_GameOpenTimerStarted(libLNYF_gt_ShowTimerUI);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Set UI
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_SetUI_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    DialogControlSetVisible(libUIUI_gv_uIHeroConsole.lv_mainPanel, PlayerGroupAll(), false);
+    DialogControlSetVisible(libUIUI_gv_uIHeroConsole.lv_gameUIPortrait, PlayerGroupAll(), false);
+    DialogControlFadeTransparency(libUIUI_gv_uIHeroConsole.lv_gameUIPortrait, PlayerGroupAll(), 0.0, 100.0);
+    DialogControlSetVisible(libUIUI_gv_uIHeroConsole.lv_buffDebuffPanel, PlayerGroupAll(), false);
+    DialogControlSetVisible(libUIUI_gv_heroSpecificFullUIModContainer, PlayerGroupAll(), false);
+    libUIUI_gf_UIPartyFrameShowHidePartyFramePanelForPlayer(false, libGame_gf_HeroSpawnPlayer());
+    libLNYF_gf_SetPlayersLapText(libGame_gf_HeroSpawnPlayer());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_SetUI_Init () {
+    libLNYF_gt_SetUI = TriggerCreate("libLNYF_gt_SetUI_Func");
+    libGame_gf_HeroSpawn(libLNYF_gt_SetUI);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Set GameTime UI
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_SetGameTimeUI_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    while (true) {
+        libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_gameTimeLabel[1], TextTimeFormat(StringToText("<min2/>:<sec2/>"), FixedToInt(TimerGetElapsed(libGame_gv_gameTimer))), PlayerGroupAll());
+        libNtve_gf_SetDialogItemText(libLNYF_gv_uI.lv_gameTimeLabel[2], TextTimeFormat(StringToText("<min2/>:<sec2/>"), FixedToInt(TimerGetElapsed(libGame_gv_gameTimer))), PlayerGroupAll());
+        Wait(1.0, c_timeGame);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_SetGameTimeUI_Init () {
+    libLNYF_gt_SetGameTimeUI = TriggerCreate("libLNYF_gt_SetGameTimeUI_Func");
+    TriggerAddEventTimer(libLNYF_gt_SetGameTimeUI, libGame_gv_openTheGatesTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Speed Boost Activated
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_SpeedBoostActivated_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    SoundPlayForPlayer(SoundLink("Doodad_LunarFestival_SpeedBoost", -1), c_maxPlayers, PlayerGroupSingle(UnitGetOwner(EventUnit())), 100.0, 0.0);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_SpeedBoostActivated_Init () {
+    libLNYF_gt_SpeedBoostActivated = TriggerCreate("libLNYF_gt_SpeedBoostActivated_Func");
+    TriggerAddEventUnitBehaviorChange(libLNYF_gt_SpeedBoostActivated, null, "CurrentlyAffectedByConveyors", c_unitBehaviorChangeCreate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Stun Activated or Reactivated
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_StunActivatedorReactivated_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    SoundPlayForPlayer(SoundLink("LunarFestival_Pickup_Stunned", -1), c_maxPlayers, PlayerGroupSingle(EventPlayerEffectUsedUnitOwner(c_effectPlayerTarget)), 100.0, 0.0);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_StunActivatedorReactivated_Init () {
+    libLNYF_gt_StunActivatedorReactivated = TriggerCreate("libLNYF_gt_StunActivatedorReactivated_Func");
+    TriggerAddEventPlayerEffectUsed(libLNYF_gt_StunActivatedorReactivated, c_playerAny, "LunarFestivalApplyStunBehavior");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Unit Enters Rough Region
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_UnitEntersRoughRegion_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((EventUnit() == libGame_gv_players[UnitGetOwner(EventUnit())].lv_heroUnit))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(EventUnit(), "LunarFestival_MountRocket_Slowed", EventUnit());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_UnitEntersRoughRegion_Init () {
+    libLNYF_gt_UnitEntersRoughRegion = TriggerCreate("libLNYF_gt_UnitEntersRoughRegion_Func");
+    TriggerAddEventUnitRegion(libLNYF_gt_UnitEntersRoughRegion, null, RegionFromName("Rough Area"), true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Unit Leaves Rough Region
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_UnitLeavesRoughRegion_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((EventUnit() == libGame_gv_players[UnitGetOwner(EventUnit())].lv_heroUnit))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(EventUnit(), "LunarFestival_MountRocket_MoveLoop", EventUnit());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_UnitLeavesRoughRegion_Init () {
+    libLNYF_gt_UnitLeavesRoughRegion = TriggerCreate("libLNYF_gt_UnitLeavesRoughRegion_Func");
+    TriggerAddEventUnitRegion(libLNYF_gt_UnitLeavesRoughRegion, null, RegionFromName("Rough Area"), false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Race Begins
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_RaceBegins_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    const int auto16E6C952_ae = 10;
+    int auto16E6C952_var;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto16E6C952_var = 1;
+    for ( ; auto16E6C952_var <= auto16E6C952_ae; auto16E6C952_var += 1 ) {
+        UnitCreateEffectUnit(libGame_gv_players[auto16E6C952_var].lv_heroUnit, "LunarFestival_MountRocket_MoveLoop", libGame_gv_players[auto16E6C952_var].lv_heroUnit);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_RaceBegins_Init () {
+    libLNYF_gt_RaceBegins = TriggerCreate("libLNYF_gt_RaceBegins_Func");
+    TriggerAddEventTimer(libLNYF_gt_RaceBegins, libGame_gv_openTheGatesTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Debug_HeroSpawned
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_Debug_HeroSpawned_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGame_gf_SendEventClearHeroSpecificUI();
+    PlayerGroupAdd(libLNYF_gv_progress.lv_players_RaceIncomplete, libGame_gf_DebugHeroSwappedPlayer());
+    PlayerGroupAdd(libLNYF_gv_leaderboard.lv_players_RaceUnfinished, libGame_gf_DebugHeroSwappedPlayer());
+    libNtve_gf_ChangeUnitDamage(libGame_gv_players[libGame_gf_DebugHeroSwappedPlayer()].lv_heroUnit, libNtve_ge_UnitDamageTakenDealt_Damage_Take, libNtve_ge_UnitDamageChangeOption_No);
+    UnitBehaviorAdd(libGame_gv_players[libGame_gf_DebugHeroSwappedPlayer()].lv_heroUnit, "LunarFestivalDisableAbilities", libGame_gv_players[libGame_gf_HeroSpawnPlayer()].lv_heroUnit, 1);
+    UnitBehaviorAdd(libGame_gv_players[libGame_gf_DebugHeroSwappedPlayer()].lv_heroUnit, "LunarFestivalPreGameMovementSuppression", libGame_gv_players[libGame_gf_HeroSpawnPlayer()].lv_heroUnit, 1);
+    UnitBehaviorAdd(libGame_gv_players[libGame_gf_DebugHeroSwappedPlayer()].lv_heroUnit, "DisableAbils", libGame_gv_players[libGame_gf_HeroSpawnPlayer()].lv_heroUnit, 1);
+    UnitBehaviorAdd(libGame_gv_players[libGame_gf_DebugHeroSwappedPlayer()].lv_heroUnit, "Mounted", libGame_gv_players[libGame_gf_DebugHeroSwappedPlayer()].lv_heroUnit, 1);
+    libGame_gv_players[libGame_gf_DebugHeroSwappedPlayer()].lv_cameraPlayerHasControl = false;
+    libGame_gv_players[libGame_gf_DebugHeroSwappedPlayer()].lv_cameraPlayerUnitGroupToFocusOn = libNtve_gf_ConvertUnitToUnitGroup(libGame_gv_players[libGame_gf_DebugHeroSwappedPlayer()].lv_heroUnit);
+    CameraUseHeightDisplacement(libGame_gf_DebugHeroSwappedPlayer(), true);
+    libGame_gf_CameraUpdateCameraForPlayer(libGame_gf_DebugHeroSwappedPlayer());
+    libNtve_gf_SendActorMessageToUnit(libGame_gv_players[libGame_gf_DebugHeroSwappedPlayer()].lv_heroUnit, "SetShowStatusBar");
+    libNtve_gf_SendActorMessageToUnit(libGame_gv_players[libGame_gf_DebugHeroSwappedPlayer()].lv_heroUnit, "SetWalkAnimMoveSpeed 30");
+    DialogControlSetVisible(libUIUI_gv_heroSpecificStatusContainer, PlayerGroupAll(), false);
+    libLNYF_gv_leaderboard.lv_maxPlayers += 1;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_Debug_HeroSpawned_Init () {
+    libLNYF_gt_Debug_HeroSpawned = TriggerCreate("libLNYF_gt_Debug_HeroSpawned_Func");
+    libGame_gf_DebugHeroSwapped(libLNYF_gt_Debug_HeroSpawned);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero Swap
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_gt_HeroSwap_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    string autoA100EE7C_val;
+
+    // Conditions
+    if (testConds) {
+        if (!((libSprt_gv_dEBUGDebugMessagesEnabled == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCore_gf_DataClearHeroDataAtIndex(EventPlayer());
+    libCore_gf_DataClearSkinDataAtIndex(EventPlayer());
+    autoA100EE7C_val = StringWord(EventChatMessage(false), 2);
+    if (autoA100EE7C_val == "Chen") {
+        libUIUI_gf_UIDebugPanelSpawnOrSwapHeroForPlayer(libCore_gf_GetIndexFromHero("Chen"), libCore_gf_DataSkinsGetSkinIndexFromSkinLink("ChenLunar"), libCore_gf_DataMountGetMountIndexFromMountLink("LunarFestivalRocket"), 0.0, EventPlayer(), EventPlayer());
+    }
+    else if (autoA100EE7C_val == "LiLi") {
+        libUIUI_gf_UIDebugPanelSpawnOrSwapHeroForPlayer(libCore_gf_GetIndexFromHero("LiLi"), libCore_gf_DataSkinsGetSkinIndexFromSkinLink("LiLiLunarLiLi"), libCore_gf_DataMountGetMountIndexFromMountLink("LunarFestivalRocket"), 0.0, EventPlayer(), EventPlayer());
+    }
+    else if (autoA100EE7C_val == "Illidan") {
+        libUIUI_gf_UIDebugPanelSpawnOrSwapHeroForPlayer(libCore_gf_GetIndexFromHero("Illidan"), libCore_gf_DataSkinsGetSkinIndexFromSkinLink("IllidanLunar"), libCore_gf_DataMountGetMountIndexFromMountLink("LunarFestivalRocket"), 0.0, EventPlayer(), EventPlayer());
+    }
+    else if (autoA100EE7C_val == "Li-Ming") {
+        libUIUI_gf_UIDebugPanelSpawnOrSwapHeroForPlayer(libCore_gf_GetIndexFromHero("Wizard"), libCore_gf_DataSkinsGetSkinIndexFromSkinLink("WizardSkinLunar"), libCore_gf_DataMountGetMountIndexFromMountLink("LunarFestivalRocket"), 0.0, EventPlayer(), EventPlayer());
+    }
+    else if (autoA100EE7C_val == "Jaina") {
+        libUIUI_gf_UIDebugPanelSpawnOrSwapHeroForPlayer(libCore_gf_GetIndexFromHero("Jaina"), libCore_gf_DataSkinsGetSkinIndexFromSkinLink("LunarJaina"), libCore_gf_DataMountGetMountIndexFromMountLink("LunarFestivalRocket"), 0.0, EventPlayer(), EventPlayer());
+    }
+    else if (autoA100EE7C_val == "Samuro") {
+        libUIUI_gf_UIDebugPanelSpawnOrSwapHeroForPlayer(libCore_gf_GetIndexFromHero("Samuro"), libCore_gf_DataSkinsGetSkinIndexFromSkinLink("SamuroMonkey"), libCore_gf_DataMountGetMountIndexFromMountLink("LunarFestivalRocket"), 0.0, EventPlayer(), EventPlayer());
+    }
+    else if (autoA100EE7C_val == "Chromie") {
+        libUIUI_gf_UIDebugPanelSpawnOrSwapHeroForPlayer(libCore_gf_GetIndexFromHero("Chromie"), libCore_gf_DataSkinsGetSkinIndexFromSkinLink("ChromieGenieVar2"), libCore_gf_DataMountGetMountIndexFromMountLink("LunarFestivalRocket"), 0.0, EventPlayer(), EventPlayer());
+    }
+    else if (autoA100EE7C_val == "Genji") {
+        libUIUI_gf_UIDebugPanelSpawnOrSwapHeroForPlayer(libCore_gf_GetIndexFromHero("Genji"), libCore_gf_DataSkinsGetSkinIndexFromSkinLink("GenjiOniVar2"), libCore_gf_DataMountGetMountIndexFromMountLink("LunarFestivalRocket"), 0.0, EventPlayer(), EventPlayer());
+    }
+    else if (autoA100EE7C_val == "Hanzo") {
+        libUIUI_gf_UIDebugPanelSpawnOrSwapHeroForPlayer(libCore_gf_GetIndexFromHero("Hanzo"), 0, libCore_gf_DataMountGetMountIndexFromMountLink("LunarFestivalRocket"), 0.0, EventPlayer(), EventPlayer());
+    }
+    else if (autoA100EE7C_val == "Kael'thas") {
+        libUIUI_gf_UIDebugPanelSpawnOrSwapHeroForPlayer(libCore_gf_GetIndexFromHero("Kaelthas"), libCore_gf_DataSkinsGetSkinIndexFromSkinLink("KaelthasUltimate"), libCore_gf_DataMountGetMountIndexFromMountLink("LunarFestivalRocket"), 0.0, EventPlayer(), EventPlayer());
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLNYF_gt_HeroSwap_Init () {
+    libLNYF_gt_HeroSwap = TriggerCreate("libLNYF_gt_HeroSwap_Func");
+    TriggerAddEventChatMessage(libLNYF_gt_HeroSwap, c_playerAny, "-HeroChoice", false);
+}
+
+void libLNYF_InitTriggers () {
+    libLNYF_gt_IncludeLunarFestival_Init();
+    libLNYF_gt_MapInitialization_Init();
+    libLNYF_gt_DriveAllAIPlayers_Init();
+    libLNYF_gt_PlayerDisconnects_Init();
+    libLNYF_gt_PlayerReconnects_Init();
+    libLNYF_gt_TeamAbandonedTheGameTimerExpires_Init();
+    libLNYF_gt_OpenTheGatesTimerStarted_Init();
+    libLNYF_gt_CountdownTimerExpires_Init();
+    libLNYF_gt_HeroSpawned_Init();
+    libLNYF_gt_GatesOpen_Init();
+    libLNYF_gt_ForceGameEnd_Init();
+    libLNYF_gt_GameOverTimerExpires_Init();
+    libLNYF_gt_LunarFestivalHeroCallback_Init();
+    libLNYF_gt_EnvelopeIsOpened_Init();
+    libLNYF_gt_BehaviorBlessingOn_Init();
+    libLNYF_gt_MovementLogic_Init();
+    libLNYF_gt_MovementModifier_Init();
+    libLNYF_gt_ProgressLoop_Init();
+    libLNYF_gt_PlayerReconnects_HideUI_Init();
+    libLNYF_gt_InitializeUI_Init();
+    libLNYF_gt_ShowTimerUI_Init();
+    libLNYF_gt_SetUI_Init();
+    libLNYF_gt_SetGameTimeUI_Init();
+    libLNYF_gt_SpeedBoostActivated_Init();
+    libLNYF_gt_StunActivatedorReactivated_Init();
+    libLNYF_gt_UnitEntersRoughRegion_Init();
+    libLNYF_gt_UnitLeavesRoughRegion_Init();
+    libLNYF_gt_RaceBegins_Init();
+    libLNYF_gt_Debug_HeroSpawned_Init();
+    libLNYF_gt_HeroSwap_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libLNYF_InitLib_completed = false;
+
+void libLNYF_InitLib () {
+    if (libLNYF_InitLib_completed) {
+        return;
+    }
+
+    libLNYF_InitLib_completed = true;
+
+    libLNYF_InitLibraries();
+    libLNYF_InitVariables();
+    libLNYF_InitTriggers();
+}
+

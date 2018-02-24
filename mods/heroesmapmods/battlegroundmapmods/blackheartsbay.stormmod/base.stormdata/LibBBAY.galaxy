@@ -795,6 +795,8 @@ void libBBAY_gf_MMBBUpdateHeldDoubloonDisplay () {
     // Variable Declarations
     int lv_orderCount;
     int lv_chaosCount;
+    int lv_orderRequiredCount;
+    int lv_chaosRequiredCount;
 
     // Automatic Variable Declarations
     // Variable Initialization
@@ -815,6 +817,22 @@ void libBBAY_gf_MMBBUpdateHeldDoubloonDisplay () {
     }
     else {
         DialogControlSetVisible(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayHeldDoubloonCounterLabel[libGame_gv_teamChaosIndex_C], PlayerGroupAll(), false);
+    }
+    lv_orderRequiredCount = (libBBAY_gv_mMBBCannonballsBallsSubmitMaxCurrent[libGame_gv_teamOrderIndex_C]-libBBAY_gv_mMBBCannonballsBallsSubmitted[libGame_gv_teamOrderIndex_C]);
+    if ((lv_orderRequiredCount <= lv_orderCount)) {
+        DialogControlSetAnimationState(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayDoubloonTurninReadyGlow[libGame_gv_teamOrderIndex_C], PlayerGroupAll(), "TurninReady", "IsReady");
+        DialogControlSendAnimationEvent(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayDoubloonTurninReadyGlow[libGame_gv_teamOrderIndex_C], PlayerGroupAll(), "TurninReadyAnim");
+    }
+    else {
+        DialogControlSetAnimationState(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayDoubloonTurninReadyGlow[libGame_gv_teamOrderIndex_C], PlayerGroupAll(), "TurninReady", "NotReady");
+    }
+    lv_chaosRequiredCount = (libBBAY_gv_mMBBCannonballsBallsSubmitMaxCurrent[libGame_gv_teamChaosIndex_C]-libBBAY_gv_mMBBCannonballsBallsSubmitted[libGame_gv_teamChaosIndex_C]);
+    if ((lv_chaosRequiredCount <= lv_chaosCount)) {
+        DialogControlSetAnimationState(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayDoubloonTurninReadyGlow[libGame_gv_teamChaosIndex_C], PlayerGroupAll(), "TurninReady", "IsReady");
+        DialogControlSendAnimationEvent(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayDoubloonTurninReadyGlow[libGame_gv_teamChaosIndex_C], PlayerGroupAll(), "TurninReadyAnim");
+    }
+    else {
+        DialogControlSetAnimationState(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayDoubloonTurninReadyGlow[libGame_gv_teamChaosIndex_C], PlayerGroupAll(), "TurninReady", "NotReady");
     }
 }
 
@@ -1099,7 +1117,6 @@ bool libBBAY_gt_MMBBCannonballsInit_Func (bool testConds, bool runActions) {
     if ((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true)) {
         TriggerEnable(libBBAY_gt_MMBB_DebugTriggerBombard, true);
         TriggerEnable(libBBAY_gt_MMBB_DebugCannonballsEventStart, true);
-        TriggerEnable(libBBAY_gt_MMBB_DebugCannonballsDisableEvent, true);
     }
 
     ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal MM1Off");
@@ -1312,7 +1329,7 @@ bool libBBAY_gt_MMBBCannonballCreated_Func (bool testConds, bool runActions) {
         return true;
     }
 
-    AIAddCollectable(EventUnit());
+    AIAddCollectable(EventUnit(), "CollectDoubloon", 1.0);
     return true;
 }
 
@@ -1327,6 +1344,13 @@ void libBBAY_gt_MMBBCannonballCreated_Init () {
 //--------------------------------------------------------------------------------------------------
 bool libBBAY_gt_MMBBCannonballsGatesAreOpenComplete_Func (bool testConds, bool runActions) {
     // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((libMapM_gv_mMMapMechanicDisabled == false))) {
+            return false;
+        }
+    }
+
     // Actions
     if (!runActions) {
         return true;
@@ -1372,7 +1396,7 @@ bool libBBAY_gt_MMBBCannonballsEventStart_Func (bool testConds, bool runActions)
 
     libBBAY_gf_MMBBMapMechanicsBlackheartsBayShowHidePanel(true);
     Wait((libBBAY_gv_mMBBCannonballsGhostShipSpawnTimer - 4.0), c_timeGame);
-    if ((libBBAY_gv_mMBBCannonballsMapEventDisabled == true)) {
+    if ((libMapM_gv_mMMapMechanicDisabled == true)) {
         return true;
     }
 
@@ -2252,38 +2276,6 @@ void libBBAY_gt_MMBBCannonballsGameOver_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: MMBB_Debug Cannonballs DisableEvent
-//--------------------------------------------------------------------------------------------------
-bool libBBAY_gt_MMBB_DebugCannonballsDisableEvent_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Conditions
-    if (testConds) {
-        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
-            return false;
-        }
-    }
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    TriggerEnable(TriggerGetCurrent(), false);
-    TriggerEnable(libBBAY_gt_MMBBCannonballsGatesAreOpenComplete, false);
-    libBBAY_gv_mMBBCannonballsMapEventDisabled = true;
-    TimerPause(libBBAY_gv_mMBBCannonballsTreasureChestTimer, true);
-    TriggerDebugOutput(1, StringExternal("Param/Value/lib_BBAY_F334DA22"), true);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libBBAY_gt_MMBB_DebugCannonballsDisableEvent_Init () {
-    libBBAY_gt_MMBB_DebugCannonballsDisableEvent = TriggerCreate("libBBAY_gt_MMBB_DebugCannonballsDisableEvent_Func");
-    TriggerEnable(libBBAY_gt_MMBB_DebugCannonballsDisableEvent, false);
-    TriggerAddEventChatMessage(libBBAY_gt_MMBB_DebugCannonballsDisableEvent, c_playerAny, "DisableEvent", false);
-}
-
-//--------------------------------------------------------------------------------------------------
 // Trigger: MMBB_Debug Cannonballs Event Start
 //--------------------------------------------------------------------------------------------------
 bool libBBAY_gt_MMBB_DebugCannonballsEventStart_Func (bool testConds, bool runActions) {
@@ -2291,6 +2283,10 @@ bool libBBAY_gt_MMBB_DebugCannonballsEventStart_Func (bool testConds, bool runAc
     // Conditions
     if (testConds) {
         if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+
+        if (!((libMapM_gv_mMMapMechanicDisabled == false))) {
             return false;
         }
     }
@@ -2321,6 +2317,10 @@ bool libBBAY_gt_MMBB_DebugTriggerBombard_Func (bool testConds, bool runActions) 
     // Conditions
     if (testConds) {
         if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+
+        if (!((libMapM_gv_mMMapMechanicDisabled == false))) {
             return false;
         }
     }
@@ -2384,7 +2384,6 @@ void libBBAY_InitTriggers () {
     libBBAY_gt_MMBBCannonballsShootingStart_Init();
     libBBAY_gt_MMBBCannonballsShootingEnd_Init();
     libBBAY_gt_MMBBCannonballsGameOver_Init();
-    libBBAY_gt_MMBB_DebugCannonballsDisableEvent_Init();
     libBBAY_gt_MMBB_DebugCannonballsEventStart_Init();
     libBBAY_gt_MMBB_DebugTriggerBombard_Init();
 }

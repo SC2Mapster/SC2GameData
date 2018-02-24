@@ -1,7 +1,6 @@
 include "TriggerLibs/NativeLib"
 include "TriggerLibs/HeroesLib"
 include "TriggerLibs/GameLib"
-include "TriggerLibs/AILib"
 include "TriggerLibs/UILib"
 include "TriggerLibs/SoundLib"
 include "TriggerLibs/GameDataHelperLib"
@@ -16,7 +15,6 @@ void libHAUR_InitLibraries () {
     libNtve_InitVariables();
     libCore_InitVariables();
     libGame_InitVariables();
-    libAIAI_InitVariables();
     libUIUI_InitVariables();
     libSond_InitVariables();
     libGDHL_InitVariables();
@@ -43,10 +41,6 @@ void libHAUR_InitVariables () {
     libHAUR_gv_aurielUI.lv_aurielBestowHopeTargetCutsceneSpecial = c_invalidDialogControlId;
     libHAUR_gv_aurielUI.lv_traitImageBar = c_invalidDialogControlId;
     libHAUR_gv_aurielUI.lv_traitImageMaxBar = c_invalidDialogControlId;
-    libHAUR_gv_heroAurielRayofHeavenMaxHealthStoredPercentage = 0.3;
-    libHAUR_gv_heroAurielRayofHeavenReservoirofHopeHealingPerStack = 75.0;
-    libHAUR_gv_heroAurielRayofHeavenNonHeroicDamageStoredFraction = 0.05;
-    libHAUR_gv_heroAurielRayofHeavenHeroicDamageStoredFraction = 0.35;
     for (init_i = 0; init_i <= libCore_gv_bALMaxPlayers; init_i += 1) {
         for (init_j = 0; init_j <= 3; init_j += 1) {
             libHAUR_gv_heroAurielResurrectDeadPlayerSpiritTimerTextTag[init_i][init_j] = c_textTagNone;
@@ -74,16 +68,6 @@ void libHAUR_InitVariables () {
     }
 }
 
-// Custom Script
-//--------------------------------------------------------------------------------------------------
-// Custom Script: #Include Auriel Tactical AI
-//--------------------------------------------------------------------------------------------------
-include "StormTactical.galaxy"
-include "AurielTactical.galaxy"
-
-void libHAUR_InitCustomScript () {
-}
-
 // Functions
 void libHAUR_gf_HeroAurielIncrementHeroCountFunction () {
     // Automatic Variable Declarations
@@ -96,16 +80,14 @@ void libHAUR_gf_HeroAurielIncrementHeroCountFunction () {
         TriggerEnable(libHAUR_gt_HeroAurielBestowHopeRemoveProxy, true);
         TriggerEnable(libHAUR_gt_HeroAurielBestowHopeToggleBestowHopeProxyDamageDealtTrigger, true);
         TriggerEnable(libHAUR_gt_HeroAurielBestowHopeProxyUnitSwapped, true);
-        TriggerEnable(libHAUR_gt_HeroAurielRayofHeavenSearingLightEnergyRestoredforDamage, true);
         TriggerEnable(libHAUR_gt_HeroAurielRayofHeavenAbilityUsed, true);
-        TriggerEnable(libHAUR_gt_HeroAurielRayofHeavenReservoirofHopeProcTextTag, true);
         TriggerEnable(libHAUR_gt_HeroAurielCrystalAegisOverlayController, true);
         TriggerEnable(libHAUR_gt_HeroAurielResurrectPlayerUnlocksResurrect, true);
         TriggerEnable(libHAUR_gt_HeroAurielResurrectPlayerRespecs, true);
         TriggerEnable(libHAUR_gt_HeroAurielResurrectPlayerRespawns, true);
         TriggerEnable(libHAUR_gt_HeroAurielResurrectEndofGameHideRevivingDialog, true);
-        TriggerEnable(libHAUR_gt_HeroAurielGlimmerofHopeTalentProc, true);
         TriggerEnable(libHAUR_gt_HeroAurielResurrectLostVikingsPlayAgainStart, true);
+        libHAUR_gf_HeroAurielRayofHeavenPopulateValuesfromData();
     }
 
 }
@@ -127,9 +109,7 @@ void libHAUR_gf_HeroAurielDecrementHeroCountFunction () {
         TriggerEnable(libHAUR_gt_HeroAurielBestowHopeHealingStoredFromProxyDamageDealt, false);
         TriggerEnable(libHAUR_gt_HeroAurielBestowHopeHealingStoredFromProxyDamageTaken, false);
         TriggerEnable(libHAUR_gt_HeroAurielBestowHopeProxyUnitSwapped, false);
-        TriggerEnable(libHAUR_gt_HeroAurielRayofHeavenSearingLightEnergyRestoredforDamage, false);
         TriggerEnable(libHAUR_gt_HeroAurielRayofHeavenAbilityUsed, false);
-        TriggerEnable(libHAUR_gt_HeroAurielRayofHeavenReservoirofHopeProcTextTag, false);
         TriggerEnable(libHAUR_gt_HeroAurielCrystalAegisOverlayController, false);
         TriggerEnable(libHAUR_gt_HeroAurielResurrectPlayerUnlocksResurrect, false);
         TriggerEnable(libHAUR_gt_HeroAurielResurrectCreateSpirit, false);
@@ -144,7 +124,6 @@ void libHAUR_gf_HeroAurielDecrementHeroCountFunction () {
         TriggerEnable(libHAUR_gt_HeroAurielResurrectSpiritTimerController, false);
         TriggerEnable(libHAUR_gt_HeroAurielResurrectPlayerRespecs, false);
         TriggerEnable(libHAUR_gt_HeroAurielResurrectEndofGameHideRevivingDialog, false);
-        TriggerEnable(libHAUR_gt_HeroAurielGlimmerofHopeTalentProc, false);
         TriggerEnable(libHAUR_gt_HeroAurielResurrectLostVikingsPlayAgainStart, false);
     }
 
@@ -182,6 +161,14 @@ text libHAUR_gf_AurielUIUnitDisplayName (unit lp_unit) {
     else {
         return UnitGetName(lp_unit);
     }
+}
+
+void libHAUR_gf_HeroAurielRayofHeavenPopulateValuesfromData () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHAUR_gv_heroAurielRayofHeavenHeroicDamageStoredFraction = StringToFixed(CatalogFieldValueGet(c_gameCatalogEffect, "AurielDamageVsHeroicTargetParent", "LeechFraction[" + IntToString(2) + "]", c_playerAny));
+    libHAUR_gv_heroAurielRayofHeavenNonHeroicDamageStoredFraction = StringToFixed(CatalogFieldValueGet(c_gameCatalogEffect, "AurielDamageVsNonHeroicTargetParent", "LeechFraction[" + IntToString(2) + "]", c_playerAny));
+    libHAUR_gv_heroAurielRayofHeavenReservoirofHopeHealingPerStack = StringToFixed(CatalogFieldValueGet(c_gameCatalogAccumulator, "AurielRayOfHeavenReservoirOfHopeAccumulator", "Scale", c_playerAny));
 }
 
 void libHAUR_gf_HeroAurielResurrectRevealSpirittoAurielandDeadPlayer (int lp_deadPlayer, unit lp_deadHero) {
@@ -322,133 +309,6 @@ int libHAUR_gf_HeroAurielResurrectCreateDeadPlayerSpiritTimer (int lp_aurielPlay
 }
 
 // Triggers
-//--------------------------------------------------------------------------------------------------
-// Trigger: HeroAI - Misc Mod Initialization
-//--------------------------------------------------------------------------------------------------
-bool libHAUR_gt_HeroAIMiscModInitialization_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_HeroAIInitializeHeroTierData, libHAUR_gt_HeroAIAddToTierDataAuriel);
-    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_HeroAIInitAbilities, libHAUR_gt_HeroAIInitAbilitiesAuriel);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libHAUR_gt_HeroAIMiscModInitialization_Init () {
-    libHAUR_gt_HeroAIMiscModInitialization = TriggerCreate("libHAUR_gt_HeroAIMiscModInitialization_Func");
-    TriggerAddEventMapInit(libHAUR_gt_HeroAIMiscModInitialization);
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: HeroAI - Add To Tier Data - Auriel
-//--------------------------------------------------------------------------------------------------
-bool libHAUR_gt_HeroAIAddToTierDataAuriel_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libAIAI_gf_HeroAIAddHeroToTierData(libAIAI_ge_HeroAIHeroTiers_TierHigh, "Auriel");
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libHAUR_gt_HeroAIAddToTierDataAuriel_Init () {
-    libHAUR_gt_HeroAIAddToTierDataAuriel = TriggerCreate("libHAUR_gt_HeroAIAddToTierDataAuriel_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: HeroAI - Init Abilities - Auriel
-//--------------------------------------------------------------------------------------------------
-bool libHAUR_gt_HeroAIInitAbilitiesAuriel_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    if ((UnitGetType(libCore_gv_segTriggerUnit) == "HeroAuriel")) {
-        libAIAI_gv_heroAIInitAbilitesHeroFound = true;
-        if ((PlayerHasTalent(libCore_gv_segTriggerPlayer, "AurielAngelicFlightTalent") == true)) {
-            libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_teleportAbility = AbilityCommand("StormInventory", c_abilInventoryCmdItemTarget);
-        }
-
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_hasTactical = true;
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_teleportItemName = "AurielAngelicFlight";
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_hasMount = true;
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_mountAbility = AbilityCommand("Mount", 0);
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_dismountAbility = AbilityCommand("Dismount", 0);
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_mountBehavior = "Mounted";
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[0] = AbilityCommand("AurielSacredSweep", 0);
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[0] = libAIAI_ge_HeroAISpellType_PointEnemy;
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[0] = 7.0;
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[1] = AbilityCommand("AurielDetainmentStrike", 0);
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[1] = libAIAI_ge_HeroAISpellType_PointEnemy;
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[1] = 8.0;
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[2] = AbilityCommand("AurielBestowHope", 0);
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[2] = libAIAI_ge_HeroAISpellType_TargetFriendly;
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[2] = 10.0;
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[3] = AbilityCommand("AurielResurrect", 0);
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[3] = libAIAI_ge_HeroAISpellType_TargetFriendly;
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[3] = 5.0;
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[4] = AbilityCommand("AurielCrystalAegis", 0);
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[4] = libAIAI_ge_HeroAISpellType_TargetFriendly;
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityRange[4] = 8.0;
-    }
-
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libHAUR_gt_HeroAIInitAbilitiesAuriel_Init () {
-    libHAUR_gt_HeroAIInitAbilitiesAuriel = TriggerCreate("libHAUR_gt_HeroAIInitAbilitiesAuriel_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: Hero - Auriel - Angelic Flight AI
-//--------------------------------------------------------------------------------------------------
-bool libHAUR_gt_HeroAurielAngelicFlightAI_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    int lv_aurielPlayer;
-    unit lv_auriel;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-    lv_aurielPlayer = libGame_gf_HeroGainTalentPlayer();
-    lv_auriel = libGame_gv_players[lv_aurielPlayer].lv_heroUnit;
-
-    // Conditions
-    if (testConds) {
-        if (!((UnitGetType(lv_auriel) == "HeroAuriel"))) {
-            return false;
-        }
-    }
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    if ((PlayerHasTalent(lv_aurielPlayer, "AurielAngelicFlightTalent") == true)) {
-        libAIAI_gv_aIHeroes[lv_aurielPlayer].lv_teleportAbility = AbilityCommand("StormInventory", c_abilInventoryCmdItemTarget);
-        libAIAI_gv_aIHeroes[lv_aurielPlayer].lv_maxTeleportDistance = 75.0;
-        libAIAI_gv_aIHeroes[lv_aurielPlayer].lv_teleportAbilityIsAnItem = true;
-    }
-
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libHAUR_gt_HeroAurielAngelicFlightAI_Init () {
-    libHAUR_gt_HeroAurielAngelicFlightAI = TriggerCreate("libHAUR_gt_HeroAurielAngelicFlightAI_Func");
-    libGame_gf_HeroGainTalent(libHAUR_gt_HeroAurielAngelicFlightAI);
-}
-
 //--------------------------------------------------------------------------------------------------
 // Trigger: Auriel UI Initialize
 //--------------------------------------------------------------------------------------------------
@@ -871,95 +731,56 @@ void libHAUR_gt_HeroAurielBestowHopeProxyUnitSwapped_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: Hero - Auriel - Ray of Heaven - Searing Light - Energy Restored for Damage
-//--------------------------------------------------------------------------------------------------
-bool libHAUR_gt_HeroAurielRayofHeavenSearingLightEnergyRestoredforDamage_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    fixed lv_damageDealt;
-    unit lv_auriel;
-    int lv_aurielPlayer;
-    unit lv_target;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-    lv_auriel = EventPlayerEffectUsedUnit(c_effectUnitCaster);
-    lv_aurielPlayer = UnitGetOwner(lv_auriel);
-    lv_target = EventPlayerEffectUsedUnit(c_effectUnitTarget);
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    lv_damageDealt = (EventPlayerEffectUsedAmountFixed(c_effectAmountBehaviorShield, false) + EventPlayerEffectUsedAmountFixed(c_effectAmountLifeChanged, false));
-    if ((UnitTypeTestAttribute(UnitGetType(lv_target), c_unitAttributeHeroic) == true)) {
-        UnitSetPropertyFixed(lv_auriel, c_unitPropEnergy, (UnitGetPropertyFixed(lv_auriel, c_unitPropEnergy, c_unitPropCurrent) + (lv_damageDealt * libHAUR_gv_heroAurielRayofHeavenHeroicDamageStoredFraction)));
-    }
-    else {
-        UnitSetPropertyFixed(lv_auriel, c_unitPropEnergy, (UnitGetPropertyFixed(lv_auriel, c_unitPropEnergy, c_unitPropCurrent) + (lv_damageDealt * libHAUR_gv_heroAurielRayofHeavenNonHeroicDamageStoredFraction)));
-    }
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libHAUR_gt_HeroAurielRayofHeavenSearingLightEnergyRestoredforDamage_Init () {
-    libHAUR_gt_HeroAurielRayofHeavenSearingLightEnergyRestoredforDamage = TriggerCreate("libHAUR_gt_HeroAurielRayofHeavenSearingLightEnergyRestoredforDamage_Func");
-    TriggerEnable(libHAUR_gt_HeroAurielRayofHeavenSearingLightEnergyRestoredforDamage, false);
-    TriggerAddEventPlayerEffectUsed(libHAUR_gt_HeroAurielRayofHeavenSearingLightEnergyRestoredforDamage, c_playerAny, "AurielRayOfHeavenSearingLightHeroDamage");
-    TriggerAddEventPlayerEffectUsed(libHAUR_gt_HeroAurielRayofHeavenSearingLightEnergyRestoredforDamage, c_playerAny, "AurielRayOfHeavenSearingLightNonHeroDamage");
-}
-
-//--------------------------------------------------------------------------------------------------
 // Trigger: Hero - Auriel - Ray of Heaven - Ability Used
 //--------------------------------------------------------------------------------------------------
 bool libHAUR_gt_HeroAurielRayofHeavenAbilityUsed_Func (bool testConds, bool runActions) {
     // Variable Declarations
     unit lv_auriel;
     int lv_aurielPlayer;
-    fixed lv_aurielGlimmerofHopeHealingStored;
-    fixed lv_aurielHealingEnergyStoredPercentage;
+    fixed lv_aurielCurrentEnergy_Raw;
+    fixed lv_aurielCurrentEnergy_Percent;
     fixed lv_aurielBaseEnergyCap;
 
     // Automatic Variable Declarations
     // Variable Initialization
-    lv_aurielHealingEnergyStoredPercentage = UnitGetPropertyFixed(EventUnit(), c_unitPropEnergy, c_unitPropCurrent);
+    lv_auriel = EventUnit();
+    lv_aurielPlayer = UnitGetOwner(lv_auriel);
+    lv_aurielCurrentEnergy_Raw = UnitGetPropertyFixed(lv_auriel, c_unitPropEnergy, c_unitPropCurrent);
+    lv_aurielCurrentEnergy_Percent = UnitGetPropertyFixed(lv_auriel, c_unitPropEnergyPercent, c_unitPropCurrent);
 
     // Actions
     if (!runActions) {
         return true;
     }
 
-    lv_auriel = EventUnit();
-    lv_aurielPlayer = UnitGetOwner(lv_auriel);
-    lv_aurielBaseEnergyCap = (UnitGetPropertyFixed(lv_auriel, c_unitPropEnergyMax, c_unitPropCurrent) - (libHAUR_gv_heroAurielRayofHeavenReservoirofHopeHealingPerStack * UnitBehaviorCount(lv_auriel, "AurielRayOfHeavenReservoirofHopeCasterStacks")));
-    CatalogFieldValueSetFixed(c_gameCatalogEffect, "AurielRayOfHeavenCreateHealer", "RechargeVitalRate", lv_aurielPlayer, UnitGetPropertyFixed(lv_auriel, c_unitPropEnergy, c_unitPropCurrent));
-    if ((PlayerHasTalent(lv_aurielPlayer, "AurielSearingLightRayOfHeavenTalent") == true)) {
-        CatalogFieldValueSetFixed(c_gameCatalogEffect, "AurielRayOfHeavenSearingLightHeroDamage", "Amount", lv_aurielPlayer, (UnitGetPropertyFixed(lv_auriel, c_unitPropEnergy, c_unitPropCurrent) * libHAUR_gv_heroAurielRayofHeavenSearingLightFractionOfEnergyConvertedToDamage));
-        CatalogFieldValueSetFixed(c_gameCatalogEffect, "AurielRayOfHeavenSearingLightNonHeroDamage", "Amount", lv_aurielPlayer, (UnitGetPropertyFixed(lv_auriel, c_unitPropEnergy, c_unitPropCurrent) * libHAUR_gv_heroAurielRayofHeavenSearingLightFractionOfEnergyConvertedToDamage));
-    }
-
-    if (((UnitGetPropertyFixed(lv_auriel, c_unitPropEnergyPercent, c_unitPropCurrent) == 100.0) && (PlayerHasTalent(lv_aurielPlayer, "AurielReservoirofHopeRayOfHeavenTalent") == true))) {
+    if ((lv_aurielCurrentEnergy_Percent == 100.0) && (PlayerHasTalent(lv_aurielPlayer, "AurielReservoirofHopeRayOfHeavenTalent") == true)) {
         UnitCreateEffectUnit(lv_auriel, "AurielRayOfHeavenReservoirOfHopeQuestIncrementToken", lv_auriel);
     }
 
-    if ((UnitGetPropertyFixed(lv_auriel, c_unitPropEnergy, c_unitPropCurrent) < (lv_aurielBaseEnergyCap * 0.5))) {
+    if ((UnitHasBehavior2(lv_auriel, "AurielRayOfHeavenGlimmerofHopePrimed") == true)) {
+        UnitSetPropertyFixed(lv_auriel, c_unitPropEnergy, (lv_aurielCurrentEnergy_Raw * libHAUR_gv_heroAurielRayofHeavenGlimmerofHopeStoredPercentage));
+        UnitBehaviorRemove(lv_auriel, "AurielRayOfHeavenGlimmerofHopePrimed", 1);
+    }
+    else {
+        UnitSetPropertyFixed(lv_auriel, c_unitPropEnergy, 0.0);
+    }
+    lv_aurielBaseEnergyCap = (UnitGetPropertyFixed(lv_auriel, c_unitPropEnergyMax, c_unitPropCurrent) - (libHAUR_gv_heroAurielRayofHeavenReservoirofHopeHealingPerStack * UnitGetTokenCount(lv_auriel, CatalogFieldValueGet(c_gameCatalogBehavior, "AurielRayOfHeavenReservoirOfHopeQuestToken", "TokenId", c_playerAny))));
+    CatalogFieldValueSetFixed(c_gameCatalogEffect, "AurielRayOfHeavenCreateHealer", "RechargeVitalRate", lv_aurielPlayer, lv_aurielCurrentEnergy_Raw);
+    if ((PlayerHasTalent(lv_aurielPlayer, "AurielSearingLightRayOfHeavenTalent") == true)) {
+        CatalogFieldValueSetFixed(c_gameCatalogEffect, "AurielRayOfHeavenSearingLightHeroDamage", "Amount", lv_aurielPlayer, (lv_aurielCurrentEnergy_Raw * libHAUR_gv_heroAurielRayofHeavenSearingLightFractionOfEnergyConvertedToDamage));
+        CatalogFieldValueSetFixed(c_gameCatalogEffect, "AurielRayOfHeavenSearingLightNonHeroDamage", "Amount", lv_aurielPlayer, (lv_aurielCurrentEnergy_Raw * libHAUR_gv_heroAurielRayofHeavenSearingLightFractionOfEnergyConvertedToDamage));
+    }
+
+    if ((lv_aurielCurrentEnergy_Raw < (lv_aurielBaseEnergyCap * 0.5))) {
         UnitCreateEffectPoint(lv_auriel, "AurielRayOfHeavenLowHealingStoredInitialSet", EventUnitTargetPoint());
     }
     else {
-        if ((UnitGetPropertyFixed(lv_auriel, c_unitPropEnergy, c_unitPropCurrent) >= lv_aurielBaseEnergyCap)) {
+        if ((lv_aurielCurrentEnergy_Raw >= lv_aurielBaseEnergyCap)) {
             UnitCreateEffectPoint(lv_auriel, "AurielRayOfHeavenMaxHealingStoredInitialSet", EventUnitTargetPoint());
         }
         else {
             UnitCreateEffectPoint(lv_auriel, "AurielRayOfHeavenHighHealingStoredInitialSet", EventUnitTargetPoint());
         }
-    }
-    if ((UnitHasBehavior2(lv_auriel, "AurielRayOfHeavenGlimmerofHopePrimed") == true)) {
-        lv_aurielGlimmerofHopeHealingStored = (lv_aurielHealingEnergyStoredPercentage * libHAUR_gv_heroAurielRayofHeavenGlimmerofHopeStoredPercentage);
-        UnitSetPropertyFixed(lv_auriel, c_unitPropEnergy, lv_aurielGlimmerofHopeHealingStored);
-        UnitBehaviorRemove(lv_auriel, "AurielRayOfHeavenGlimmerofHopePrimed", 1);
-    }
-    else {
-        UnitSetPropertyFixed(lv_auriel, c_unitPropEnergy, 0.0);
     }
     return true;
 }
@@ -969,81 +790,6 @@ void libHAUR_gt_HeroAurielRayofHeavenAbilityUsed_Init () {
     libHAUR_gt_HeroAurielRayofHeavenAbilityUsed = TriggerCreate("libHAUR_gt_HeroAurielRayofHeavenAbilityUsed_Func");
     TriggerEnable(libHAUR_gt_HeroAurielRayofHeavenAbilityUsed, false);
     TriggerAddEventUnitAbility(libHAUR_gt_HeroAurielRayofHeavenAbilityUsed, null, AbilityCommand("AurielRayOfHeaven", 0), c_abilEffectStageCast, false);
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: Hero - Auriel - Glimmer of Hope Talent Proc
-//--------------------------------------------------------------------------------------------------
-bool libHAUR_gt_HeroAurielGlimmerofHopeTalentProc_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    unit lv_unit;
-    int lv_player;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-    lv_unit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
-    lv_player = UnitGetOwner(lv_unit);
-
-    // Conditions
-    if (testConds) {
-        if (!((lv_player >= 1))) {
-            return false;
-        }
-
-        if (!((lv_player <= libCore_gv_bALMaxPlayers))) {
-            return false;
-        }
-
-        if (!((PlayerHasTalent(lv_player, "AurielGlimmerofHopeRayOfHeavenTalent") == true))) {
-            return false;
-        }
-    }
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    UnitCreateEffectUnit(lv_unit, "AurielRayOfHeavenGlimmerofHopeApplyPrimedBehavior", lv_unit);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libHAUR_gt_HeroAurielGlimmerofHopeTalentProc_Init () {
-    libHAUR_gt_HeroAurielGlimmerofHopeTalentProc = TriggerCreate("libHAUR_gt_HeroAurielGlimmerofHopeTalentProc_Func");
-    TriggerEnable(libHAUR_gt_HeroAurielGlimmerofHopeTalentProc, false);
-    TriggerAddEventPlayerEffectUsed(libHAUR_gt_HeroAurielGlimmerofHopeTalentProc, c_playerAny, "RegenGlobeImpactSet");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: Hero - Auriel - Ray of Heaven - Reservoir of Hope Proc Text Tag
-//--------------------------------------------------------------------------------------------------
-bool libHAUR_gt_HeroAurielRayofHeavenReservoirofHopeProcTextTag_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    int lv_aurielPlayer;
-    unit lv_auriel;
-    fixed lv_duration;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-    lv_aurielPlayer = EventPlayerEffectUsedUnitOwner(c_effectPlayerCaster);
-    lv_auriel = libGame_gv_players[lv_aurielPlayer].lv_heroUnit;
-    lv_duration = 1.5;
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libUIUI_gf_UIFloatingCombatTextCreateTextTagAtPosition(lv_aurielPlayer, lv_duration, StringExternal("Param/Value/lib_HAUR_390AA0CF"), UnitGetPosition(lv_auriel), 3.0, 0.0, libCore_ge_FloatingTextType_Countdown, false);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libHAUR_gt_HeroAurielRayofHeavenReservoirofHopeProcTextTag_Init () {
-    libHAUR_gt_HeroAurielRayofHeavenReservoirofHopeProcTextTag = TriggerCreate("libHAUR_gt_HeroAurielRayofHeavenReservoirofHopeProcTextTag_Func");
-    TriggerEnable(libHAUR_gt_HeroAurielRayofHeavenReservoirofHopeProcTextTag, false);
-    TriggerAddEventPlayerEffectUsed(libHAUR_gt_HeroAurielRayofHeavenReservoirofHopeProcTextTag, c_playerAny, "AurielRayOfHeavenReservoirOfHopeQuestIncrementToken");
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1750,7 +1496,6 @@ bool libHAUR_gt_HeroAurielResurrectRevivePlayer_Func (bool testConds, bool runAc
     libNtve_gf_StopTimer(libGame_gv_players[lv_targetPlayer].lv_respawnSoundCueTimer);
     libNtve_gf_StopTimer(libGame_gv_players[lv_targetPlayer].lv_respawnTimer);
     UnitCreateEffectUnit(lv_auriel, "AurielResurrectWingsDummy", lv_targetHero);
-    UnitCreateEffectUnit(lv_targetHero, "AbilityUseResponseSetDismountDecloak", lv_targetHero);
     UnitBehaviorRemove(lv_targetHero, "BaseHealingPadBuff", 1);
     UnitBehaviorRemove(lv_targetHero, "NearShop", 1);
     UnitBehaviorRemove(lv_targetHero, "HomeShieldProtection", 1);
@@ -2435,10 +2180,6 @@ void libHAUR_gt_HeroAurielResurrectEndofGameHideRevivingDialog_Init () {
 }
 
 void libHAUR_InitTriggers () {
-    libHAUR_gt_HeroAIMiscModInitialization_Init();
-    libHAUR_gt_HeroAIAddToTierDataAuriel_Init();
-    libHAUR_gt_HeroAIInitAbilitiesAuriel_Init();
-    libHAUR_gt_HeroAurielAngelicFlightAI_Init();
     libHAUR_gt_AurielUIInitialize_Init();
     libHAUR_gt_HeroAurielShieldofHopeSetShieldStrength_Init();
     libHAUR_gt_HeroAurielBestowHopeBestowHopeCast_Init();
@@ -2448,10 +2189,7 @@ void libHAUR_InitTriggers () {
     libHAUR_gt_HeroAurielBestowHopeHealingStoredFromProxyDamageDealt_Init();
     libHAUR_gt_HeroAurielBestowHopeHealingStoredFromProxyDamageTaken_Init();
     libHAUR_gt_HeroAurielBestowHopeProxyUnitSwapped_Init();
-    libHAUR_gt_HeroAurielRayofHeavenSearingLightEnergyRestoredforDamage_Init();
     libHAUR_gt_HeroAurielRayofHeavenAbilityUsed_Init();
-    libHAUR_gt_HeroAurielGlimmerofHopeTalentProc_Init();
-    libHAUR_gt_HeroAurielRayofHeavenReservoirofHopeProcTextTag_Init();
     libHAUR_gt_HeroAurielCrystalAegisOverlayController_Init();
     libHAUR_gt_HeroAurielResurrectPlayerUnlocksResurrect_Init();
     libHAUR_gt_HeroAurielResurrectPlayerRespecs_Init();
@@ -2484,7 +2222,6 @@ void libHAUR_InitLib () {
 
     libHAUR_InitLibraries();
     libHAUR_InitVariables();
-    libHAUR_InitCustomScript();
     libHAUR_InitTriggers();
 }
 

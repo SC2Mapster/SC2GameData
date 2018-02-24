@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<tree root="00000000746F6F52" period="4">
+	<node name="UpdateWaypoints" type="UpdateLaneVariables" id="6124111A080B002C" comment="Update our battle standard and next waypoint locations">
+		<property name="LaneIndex" value="Lane Index"/>
+		<property name="NextWaypointIndex" value="Next Waypoint Index"/>
+		<property name="NextWaypoint" value="Next Way Point"/>
+		<property name="MinRangeToWaypoint" valueSource="literal" value="4"/>
+		<property name="BattleStandard" value="Battle Standard"/>
+	</node>
+	<node name="LeashAttackMinionsToLane" type="FindBestTarget" id="7E734E4D515E7543" comment="Only attack minions closer to our battle standard than us. We don&apos;t need to ignore behind gate because we are far from lane (leashing).">
+		<property name="TargetTypes" valueSource="literal" value="Minion,Hallucination,Summoned"/>
+		<property name="ExcludeTypes" valueSource="literal" value="NoMinionAggro,Missile,Item,Stasis,Dead,Invulnerable,Benign"/>
+		<property name="MaxTargetDistance" valueSource="literal" value="5"/>
+		<property name="DistanceFactor" valueSource="literal" value="2"/>
+		<property name="ClipCenter" valueSource="variable" value="Battle Standard"/>
+		<property name="ClipRadius" valueSource="variable" value="Battle Standard Distance"/>
+		<property name="BumpMaxDistanceToWeaponRange" valueSource="literal" value="true"/>
+		<property name="OutputTarget" value="Leash Target"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
+	</node>
+	<node name="LeashAttackStructures" type="FindBestTarget" id="1701336F45787359" comment="Search for nearby structures to attack. We don&apos;t need to ignore behind gate because they will be attacked first.">
+		<property name="TargetTypes" valueSource="literal" value="AITargetableStructure"/>
+		<property name="ExcludeTypes" valueSource="literal" value="NoMinionAggro,Missile,Item,Stasis,Dead,Invulnerable,Benign"/>
+		<property name="RequireSameLaneForStructures" valueSource="literal" value="true"/>
+		<property name="MaxTargetDistance" valueSource="literal" value="7"/>
+		<property name="DistanceFactor" valueSource="literal" value="2"/>
+		<property name="BumpMaxDistanceToWeaponRange" valueSource="literal" value="true"/>
+		<property name="OutputTarget" value="Leash Target"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
+	</node>
+	<node name="LeashAttackHeroesInRange" type="FindBestTarget" id="747C5D6C69644F5E" comment="Only attack heroes within attack range. We don&apos;t need to ignore behind gate because gates will be attacked first.">
+		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
+		<property name="ExcludeTypes" valueSource="literal" value="NoMinionAggro,Missile,Item,Stasis,Dead,Invulnerable,Benign"/>
+		<property name="DistanceFactor" valueSource="literal" value="2"/>
+		<property name="BumpMaxDistanceToWeaponRange" valueSource="literal" value="true"/>
+		<property name="OutputTarget" value="Leash Target"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
+	</node>
+	<node name="LeashAttackHeroesToLane" type="FindBestTarget" id="117E5D6C7765525E" comment="Only attack heroes closer to our battle standard than us. We don&apos;t need to ignore behind gate because gates will be attacked first.">
+		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
+		<property name="ExcludeTypes" valueSource="literal" value="NoMinionAggro,Missile,Item,Stasis,Dead,Invulnerable,Benign"/>
+		<property name="MaxTargetDistance" valueSource="literal" value="7"/>
+		<property name="DistanceFactor" valueSource="literal" value="2"/>
+		<property name="ClipCenter" valueSource="variable" value="Battle Standard"/>
+		<property name="ClipRadius" valueSource="variable" value="Battle Standard Distance"/>
+		<property name="BumpMaxDistanceToWeaponRange" valueSource="literal" value="true"/>
+		<property name="OutputTarget" value="Leash Target"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
+	</node>
+	<node name="LeashDistanceCheck" type="UnitDistance" id="1601070D100F6F5B" comment="Check to see if we should leash or continue leashing">
+		<property name="Unit" valueSource="intrinsic" value="Self"/>
+		<property name="Point" valueSource="variable" value="Battle Standard"/>
+		<property name="AlreadyActive" value="Leashing"/>
+		<property name="MinRange" valueSource="literal" value="3" comment="Range to Stop leashing. We want this to be small to stop footmen bouncing between lane and hero. We want this to be large to allow AI to start fighting or advancing sooner, especially when there is a large swarm of AI."/>
+		<property name="MaxRange" valueSource="literal" value="8.5" comment="Range to start leashing at."/>
+		<property name="Invert" valueSource="literal" value="true"/>
+		<property name="OutputDistance" value="Battle Standard Distance"/>
+	</node>
+	<node name="LeashFindTarget" type="Or" id="6E1D230F01003128" comment="Find a target on the way back to lane.">
+		<insertChild id="7E734E4D515E7543"/><!-- LeashAttackMinionsToLane -->
+		<insertChild id="1701336F45787359"/><!-- LeashAttackStructures -->
+		<insertChild id="B503737B19F76212"/><!-- Ignore Sleeping -->
+		<insertChild id="4B6650A56DE8B34A"/><!-- Ignore Sleeping -->
+	</node>
+	<node name="LeashAttackTarget" type="Attack" id="11133309270A0659" comment="Attack the target if one was found.">
+		<property name="TargetUnit" valueSource="variable" value="Leash Target"/>
+	</node>
+	<node name="LeashToLane" type="MoveToPoint" id="4C6F546873040B2D" comment="Move back to our battle standard">
+		<property name="Target" valueSource="variable" value="Next Way Point"/>
+		<property name="Acquire" valueSource="literal" value="false"/>
+	</node>
+	<node name="LeashAttackToLane" type="IfElse" id="1A150D07270A0648" comment="Attack the target if one was found, otherwise return to lane.">
+		<variable name="Leash Target" type="Unit"/>
+		<insertChild id="6E1D230F01003128"/><!-- LeashFindTarget -->
+		<insertChild id="11133309270A0659"/><!-- LeashAttackTarget -->
+		<insertChild id="4C6F546873040B2D"/><!-- LeashToLane -->
+	</node>
+	<node name="Leash" type="And" id="000000687361654C" comment="If too far away from battle standard, move back to it, but still fight on the way.">
+		<variable name="Battle Standard Distance" type="Number" comment="The distance the unit is to their battle standard."/>
+		<variable name="Leashing" type="Boolean"/>
+		<insertChild id="1601070D100F6F5B"/><!-- LeashDistanceCheck -->
+		<insertChild id="1A150D07270A0648"/><!-- LeashAttackToLane -->
+	</node>
+	<node name="AttackMinions" type="FindBestTarget" id="694D6B100F1B1D2F" comment="Search for nearby minions to attack">
+		<property name="TargetTypes" valueSource="literal" value="Minion,Hallucination,Summoned"/>
+		<property name="ExcludeTypes" valueSource="literal" value="NoMinionAggro,Missile,Item,Stasis,Dead,Invulnerable,Benign"/>
+		<property name="FilterTargetsBehindGate" valueSource="literal" value="true"/>
+		<property name="MaxTargetDistance" valueSource="literal" value="5"/>
+		<property name="DistanceFactor" valueSource="literal" value="2"/>
+		<property name="BumpMaxDistanceToWeaponRange" valueSource="literal" value="true"/>
+		<property name="OutputTarget" value="Attack Target"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
+	</node>
+	<node name="AttackStructures" type="FindBestTarget" id="0736191615170133" comment="Search for nearby structures to attack. We don&apos;t need to ignore behind gate because they will be attacked first.">
+		<property name="RequireSameLaneForStructures" valueSource="literal" value="true"/>
+		<property name="TargetTypes" valueSource="literal" value="AITargetableStructure"/>
+		<property name="ExcludeTypes" valueSource="literal" value="NoMinionAggro,Missile,Item,Stasis,Dead,Invulnerable,Benign"/>
+		<property name="MaxTargetDistance" valueSource="literal" value="7"/>
+		<property name="DistanceFactor" valueSource="literal" value="2"/>
+		<property name="BumpMaxDistanceToWeaponRange" valueSource="literal" value="true"/>
+		<property name="OutputTarget" value="Attack Target"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
+	</node>
+	<node name="AttackHeroes" type="FindBestTarget" id="65486B6312111B33" comment="Search for nearby heroes to attack. We don&apos;t need to ignore behind gate because gates will be attacked first.">
+		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
+		<property name="ExcludeTypes" valueSource="literal" value="NoMinionAggro,Missile,Item,Stasis,Dead,Invulnerable,Benign"/>
+		<property name="MaxTargetDistance" valueSource="literal" value="7"/>
+		<property name="DistanceFactor" valueSource="literal" value="2"/>
+		<property name="BumpMaxDistanceToWeaponRange" valueSource="literal" value="true"/>
+		<property name="OutputTarget" value="Attack Target"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
+	</node>
+	<node name="WaitForStasisStructures" type="FindBestTarget" id="21755947686E6356" comment="Search for nearby stasis structures and move to attack range then hold.">
+		<property name="RequireSameLaneForStructures" valueSource="literal" value="true"/>
+		<property name="TargetTypes" valueSource="literal" value="AITargetableStructure"/>
+		<property name="RequiredTypes" valueSource="literal" value="Stasis"/>
+		<property name="ExcludeTypes" valueSource="literal" value="NoMinionAggro,Missile,Dead"/>
+		<property name="MaxTargetDistance" valueSource="literal" value="7"/>
+		<property name="DistanceFactor" valueSource="literal" value="2"/>
+		<property name="BumpMaxDistanceToWeaponRange" valueSource="literal" value="true"/>
+		<property name="OutputTarget" value="Attack Target"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
+	</node>
+	<node name="AttackFindTarget" type="Or" id="1D230C110020102F" comment="Find a target to attack in lane.">
+		<insertChild id="694D6B100F1B1D2F"/><!-- AttackMinions -->
+		<insertChild id="0736191615170133"/><!-- AttackStructures -->
+		<insertChild id="835364CAFA5D0BDB"/><!-- Ignore Sleeping -->
+		<insertChild id="21755947686E6356"/><!-- WaitForStasisStructures -->
+	</node>
+	<node name="AttackTarget" type="Attack" id="61546B6315111333" comment="Attack the target if one was found.">
+		<property name="TargetUnit" valueSource="variable" value="Attack Target"/>
+	</node>
+	<node name="AttackInLane" type="And" id="6E496B63041A150D" comment="Find a target and attack it.">
+		<variable name="Attack Target" type="Unit"/>
+		<insertChild id="1D230C110020102F"/><!-- AttackFindTarget -->
+		<insertChild id="61546B6315111333"/><!-- AttackTarget -->
+	</node>
+	<node name="Advance" type="MoveToPoint" id="0065636E61766441" comment="Move towards our next waypoint.">
+		<property name="Target" valueSource="variable" value="Next Way Point"/>
+		<property name="Acquire" valueSource="literal" value="true"/>
+	</node>
+	<node name="HoldPosition" type="MoveToUnit" id="69736F500A03063C" comment="If we can&apos;t path to the way point or the hero, just hang out">
+		<property name="Target" valueSource="intrinsic" value="Self"/>
+		<property name="Acquire" valueSource="literal" value="true"/>
+		<property name="HoldIfInRange" valueSource="literal" value="true"/>
+	</node>
+	<node name="Root" type="Select" id="00000000746F6F52" comment="Evaluate children in order.">
+		<variable name="Lane Index" type="Integer" value="-1"/>
+		<variable name="Next Waypoint Index" type="Integer" value="-1"/>
+		<variable name="Next Way Point" type="Point"/>
+		<variable name="Battle Standard" type="Point" comment="The point along the lane that is the most forward we have been."/>
+		<insertChild id="6124111A080B002C"/><!-- UpdateWaypoints -->
+		<insertChild id="000000687361654C"/><!-- Leash -->
+		<insertChild id="6E496B63041A150D"/><!-- AttackInLane -->
+		<insertChild id="0065636E61766441"/><!-- Advance -->
+		<insertChild id="69736F500A03063C"/><!-- HoldPosition -->
+	</node>
+	<node name="Ignore Sleeping" type="FilterBehaviorCategory" id="835364CAFA5D0BDB">
+		<property name="ExcludeCategories" valueSource="literal" value="Sleeping"/>
+		<insertChild id="65486B6312111B33"/><!-- AttackHeroes -->
+	</node>
+	<node name="Ignore Sleeping" type="FilterBehaviorCategory" id="B503737B19F76212">
+		<property name="ExcludeCategories" valueSource="literal" value="Sleeping"/>
+		<insertChild id="747C5D6C69644F5E"/><!-- LeashAttackHeroesInRange -->
+	</node>
+	<node name="Ignore Sleeping" type="FilterBehaviorCategory" id="4B6650A56DE8B34A">
+		<property name="ExcludeCategories" valueSource="literal" value="Sleeping"/>
+		<insertChild id="117E5D6C7765525E"/><!-- LeashAttackHeroesToLane -->
+	</node>
+</tree>

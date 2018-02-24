@@ -4,6 +4,7 @@ include "TriggerLibs/GameLib"
 include "TriggerLibs/MapMechanicsLib"
 include "TriggerLibs/AILib"
 include "TriggerLibs/UILib"
+include "TriggerLibs/StartingExperienceLib"
 include "TriggerLibs/SoundLib"
 include "LibAREN"
 
@@ -20,6 +21,7 @@ void libAMGT_InitLibraries () {
     libMapM_InitVariables();
     libAIAI_InitVariables();
     libUIUI_InitVariables();
+    libStEx_InitVariables();
     libSond_InitVariables();
     libAREN_InitVariables();
 }
@@ -309,20 +311,18 @@ void libAMGT_gf_ARMGardenSpawnMonsters () {
 
 void libAMGT_gf_ARMGardenVictorySequence (int lp_winningTeam, unit lp_loserTeamCore) {
     // Variable Declarations
-    int lv_fertileSoilIndexToGrow;
-    int lv_arenaLevelIndex;
-    unit lv_fertileSoilGarden;
-    point lv_plantTerrorSpawnPoint;
-    unit lv_plantTerror;
-    int lv_plantTerrorPlayer;
+    int lv_enemyTeam;
+    int lv_arenaLevel;
+    unit lv_fertileSoil;
+    int lv_plantTerrorOwner;
     const fixed lv_coreAnimationWaitExplodeTime = 2.8;
-    point lv_coreLocation;
-    int lv_itUnit;
-    fixed lv_offsetAngle;
-    unit lv_itHeroUnit;
-    int lv_itPlayer;
     const int lv_maxNumberOfShamblers_C = 9;
-    unit[lv_maxNumberOfShamblers_C + 1] lv_shamblerUnits;
+    unit lv_plantTerror;
+    point lv_plantTerrorSpawnPoint;
+    point lv_coreLocation;
+    unit[lv_maxNumberOfShamblers_C + 1] lv_shamblers;
+    int lv_unit;
+    fixed lv_offsetAngle;
     fixed lv_shamblerVarianceAngleUpperBound;
     fixed lv_shamblerVarianceAngleLowerBound;
     fixed lv_shamblerVarianceAngle;
@@ -336,26 +336,22 @@ void libAMGT_gf_ARMGardenVictorySequence (int lp_winningTeam, unit lp_loserTeamC
     const int autoDC6876AC_ai = 1;
 
     // Variable Initialization
+    lv_enemyTeam = libGame_gf_EnemyTeam(lp_winningTeam);
+    lv_arenaLevel = libAREN_gf_ArenaCurrentLevelIndex();
+    lv_fertileSoil = libAMGT_gv_fertilePlot[lv_enemyTeam][lv_arenaLevel];
+    lv_plantTerrorOwner = libGame_gf_ComputerPlayerInTeam(lp_winningTeam);
 
     // Implementation
     libAREN_gv_aRM_VictorySequencePlaying = true;
     libAREN_gv_aRM_RoundWinningTeam = lp_winningTeam;
     libAREN_gv_aRM_VictorySequenceDelay = 8.0;
     libAREN_gf_ARM_RoundOver();
-    lv_fertileSoilIndexToGrow = libGame_gf_EnemyTeam(lp_winningTeam);
-    lv_arenaLevelIndex = libAREN_gf_ArenaCurrentLevelIndex();
-    lv_fertileSoilGarden = libAMGT_gv_fertilePlot[lv_fertileSoilIndexToGrow][libAREN_gf_ArenaCurrentLevelIndex()];
-    lv_plantTerrorSpawnPoint = PointWithOffsetPolar(UnitGetPosition(lv_fertileSoilGarden), 2.0, UnitGetFacing(lv_fertileSoilGarden));
-    if ((lp_winningTeam == 1)) {
-        lv_plantTerrorPlayer = libCore_gv_cOMPUTER_TeamOrder;
-    }
-    else {
-        lv_plantTerrorPlayer = libCore_gv_cOMPUTER_TeamChaos;
-    }
-    UnitBehaviorAdd(lv_fertileSoilGarden, "UnitNotPuntableByRepulserField", lv_fertileSoilGarden, 1);
-    UnitSetOwner(lv_fertileSoilGarden, lv_plantTerrorPlayer, true);
-    libNtve_gf_PauseUnit(lv_fertileSoilGarden, false);
-    UnitCreate(1, "VehiclePlantHorror", 0, lv_plantTerrorPlayer, lv_plantTerrorSpawnPoint, UnitGetFacing(lv_fertileSoilGarden));
+    libStEx_gf_MoveUnit(lv_fertileSoil, libAMGT_gv_fertilePlotLocations[lv_enemyTeam][lv_arenaLevel], false);
+    lv_plantTerrorSpawnPoint = PointWithOffsetPolar(UnitGetPosition(lv_fertileSoil), 2.0, UnitGetFacing(lv_fertileSoil));
+    UnitBehaviorAdd(lv_fertileSoil, "UnitNotPuntableByRepulserField", lv_fertileSoil, 1);
+    UnitSetOwner(lv_fertileSoil, lv_plantTerrorOwner, true);
+    libNtve_gf_PauseUnit(lv_fertileSoil, false);
+    UnitCreate(1, "VehiclePlantHorror", 0, lv_plantTerrorOwner, lv_plantTerrorSpawnPoint, UnitGetFacing(lv_fertileSoil));
     lv_plantTerror = UnitLastCreated();
     libNtve_gf_SendActorMessageToUnit(lv_plantTerror, "SetMinimapVisibility");
     UnitBehaviorAdd(lv_plantTerror, "PlantHorrorVictorySequenceDisableAbilityBehavior", lv_plantTerror, 1);
@@ -367,9 +363,9 @@ void libAMGT_gf_ARMGardenVictorySequence (int lp_winningTeam, unit lp_loserTeamC
     UnitGroupAdd(libAMGT_gv_victoryPlantTerrorUnitGroup, lv_plantTerror);
     libNtve_gf_SendActorMessageToUnit(lp_loserTeamCore, "Create PlantHorrorVictorySequenceCoreFX");
     libGame_gf_BuildingDiesCameraShake(libGame_gv_gameOver_CameraPanTime_C, "Medium", libCore_gv_activeHumanPlayers);
-    libNtve_gf_SendActorMessageToUnit(lv_fertileSoilGarden, "Signal Victory");
-    lv_itUnit = 1;
-    for ( ; ( (autoFD37F8C8_ai >= 0 && lv_itUnit <= autoFD37F8C8_ae) || (autoFD37F8C8_ai < 0 && lv_itUnit >= autoFD37F8C8_ae) ) ; lv_itUnit += autoFD37F8C8_ai ) {
+    libNtve_gf_SendActorMessageToUnit(lv_fertileSoil, "Signal Victory");
+    lv_unit = 1;
+    for ( ; ( (autoFD37F8C8_ai >= 0 && lv_unit <= autoFD37F8C8_ae) || (autoFD37F8C8_ai < 0 && lv_unit >= autoFD37F8C8_ae) ) ; lv_unit += autoFD37F8C8_ai ) {
         lv_offsetAngle += (360.0/lv_maxNumberOfShamblers_C);
         lv_shamblerVarianceAngleLowerBound = (lv_offsetAngle - 35.0);
         lv_shamblerVarianceAngleUpperBound = (lv_offsetAngle + 35.0);
@@ -378,16 +374,16 @@ void libAMGT_gf_ARMGardenVictorySequence (int lp_winningTeam, unit lp_loserTeamC
         lv_coreLocation = PointWithOffsetPolar(UnitGetPosition(lp_loserTeamCore), lv_shamblerVarianceRange, lv_shamblerVarianceAngle);
         lv_shamblerTypeVariance = RandomInt(0, 1);
         if ((lv_shamblerTypeVariance >= 1)) {
-            libNtve_gf_UnitCreateFacingPoint(1, "Shambler", 0, lv_plantTerrorPlayer, lv_coreLocation, UnitGetPosition(lp_loserTeamCore));
+            libNtve_gf_UnitCreateFacingPoint(1, "Shambler", 0, lv_plantTerrorOwner, lv_coreLocation, UnitGetPosition(lp_loserTeamCore));
         }
         else {
-            libNtve_gf_UnitCreateFacingPoint(1, "ShamblerRanged", 0, lv_plantTerrorPlayer, lv_coreLocation, UnitGetPosition(lp_loserTeamCore));
+            libNtve_gf_UnitCreateFacingPoint(1, "ShamblerRanged", 0, lv_plantTerrorOwner, lv_coreLocation, UnitGetPosition(lp_loserTeamCore));
         }
         UnitGroupAdd(libAMGT_gv_victoryPlantTerrorUnitGroup, UnitLastCreated());
         UnitBehaviorAdd(UnitLastCreated(), "UnitNotPuntableByRepulserField", UnitLastCreated(), 1);
         UnitBehaviorAdd(UnitLastCreated(), "ShamblingHorrorVictorySequenceDamageLimiter", UnitLastCreated(), 1);
         libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "SetShowStatusBar");
-        lv_shamblerUnits[lv_itUnit] = UnitLastCreated();
+        lv_shamblers[lv_unit] = UnitLastCreated();
     }
     Wait(3.0, c_timeGame);
     UnitBehaviorAdd(lv_plantTerror, "PlantHorrorVictorySequenceDamageLimiter", lv_plantTerror, 1);
@@ -395,9 +391,9 @@ void libAMGT_gf_ARMGardenVictorySequence (int lp_winningTeam, unit lp_loserTeamC
     UnitBehaviorRemove(lv_plantTerror, "PlantHorrorDeactivated", 1);
     UnitBehaviorRemove(lv_plantTerror, "GenericVehicleBehaviorEmpty", 1);
     UnitIssueOrder(lv_plantTerror, OrderTargetingUnit(AbilityCommand("attack", 0), lp_loserTeamCore), c_orderQueueReplace);
-    lv_itUnit = 1;
-    for ( ; ( (autoDC6876AC_ai >= 0 && lv_itUnit <= autoDC6876AC_ae) || (autoDC6876AC_ai < 0 && lv_itUnit >= autoDC6876AC_ae) ) ; lv_itUnit += autoDC6876AC_ai ) {
-        UnitIssueOrder(lv_shamblerUnits[lv_itUnit], OrderTargetingUnit(AbilityCommand("attack", 0), lp_loserTeamCore), c_orderQueueReplace);
+    lv_unit = 1;
+    for ( ; ( (autoDC6876AC_ai >= 0 && lv_unit <= autoDC6876AC_ae) || (autoDC6876AC_ai < 0 && lv_unit >= autoDC6876AC_ae) ) ; lv_unit += autoDC6876AC_ai ) {
+        UnitIssueOrder(lv_shamblers[lv_unit], OrderTargetingUnit(AbilityCommand("attack", 0), lp_loserTeamCore), c_orderQueueReplace);
     }
 }
 
@@ -1391,6 +1387,10 @@ bool libAMGT_gt_ARMGardenLevelStart_Func (bool testConds, bool runActions) {
     libAMGT_gf_MapMechanicsGardenOfTerrorSetSeedCountForTeam(2, 0);
     libAMGT_gf_MapMechanicsGardenOfTerrorSetSeedCountForTeam(libGame_gv_teamOrderIndex_C, libAMGT_gv_aRMGardenTeamSeedsCollected[libGame_gv_teamOrderIndex_C]);
     libAMGT_gf_MapMechanicsGardenOfTerrorSetSeedCountForTeam(libGame_gv_teamChaosIndex_C, libAMGT_gv_aRMGardenTeamSeedsCollected[libGame_gv_teamChaosIndex_C]);
+    libAMGT_gv_fertilePlotLocations[libGame_gv_teamOrderIndex_C][libAREN_gf_ArenaCurrentLevelIndex()] = UnitGetPosition(libAMGT_gv_fertilePlot[libGame_gv_teamOrderIndex_C][libAREN_gf_ArenaCurrentLevelIndex()]);
+    libAMGT_gv_fertilePlotLocations[libGame_gv_teamChaosIndex_C][libAREN_gf_ArenaCurrentLevelIndex()] = UnitGetPosition(libAMGT_gv_fertilePlot[libGame_gv_teamChaosIndex_C][libAREN_gf_ArenaCurrentLevelIndex()]);
+    libStEx_gf_MoveUnit(libAMGT_gv_fertilePlot[libGame_gv_teamOrderIndex_C][libAREN_gf_ArenaCurrentLevelIndex()], Point(0.0, 0.0), false);
+    libStEx_gf_MoveUnit(libAMGT_gv_fertilePlot[libGame_gv_teamChaosIndex_C][libAREN_gf_ArenaCurrentLevelIndex()], Point(0.0, 0.0), false);
     return true;
 }
 
@@ -1478,7 +1478,7 @@ bool libAMGT_gt_ARMGardenSeedDropped_Func (bool testConds, bool runActions) {
 
     lv_seed = EventUnitCreatedUnit();
     SoundPlayAtPointForPlayer(SoundLink("UI_SeedPickup_Drop", -1), c_maxPlayers, PlayerGroupAll(), UnitGetPosition(EventUnitCreatedUnit()), 0.0, 100.0, 0.5);
-    AIAddCollectable(lv_seed);
+    AIAddCollectable(lv_seed, "CollectSeeds", 1.0);
     while (true) {
         if ((UnitIsAlive(lv_seed) == false)) {
             return true;

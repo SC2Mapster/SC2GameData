@@ -33,6 +33,8 @@ float4              p_vSplatAttenuationPlane;
 float2              p_fSplatAttenuationScalar_MinHeight;
 float3              p_vSplatTextureUVector;
 
+float               p_shadowInset;
+
 //==================================================================================================
 // VERTEX SHADER EMITTERS
 
@@ -63,7 +65,10 @@ float4 EmitModelHPosAsUV( Input vertIn ) {
 //--------------------------------------------------------------------------------------------------
 // Camera space position.
 float3 EmitModelViewPos( Input vertIn ) {
-    return mul( p_mViewTransform, vertIn.vPosition );          // As 3x4
+    float3 rvalue = mul( p_mViewTransform, vertIn.vPosition );          // As 3x4
+    if( b_iDepthOffset )
+        rvalue.y += p_DepthOffset;
+    return rvalue;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -297,6 +302,10 @@ void ModelVertexMain( in VertDecl streamIn, out VertexTransport vertOut ) {
         Skin( vertIn.vPosition, vertIn.vNormal.xyz, vertIn.vTangent.xyz, vertIn.vBinormal.xyz, vertIn.vBlendWeights, vertIn.vBlendIndices );
     #endif
 
+    #if b_useShadowInset
+        vertIn.vPosition.xyz -= vertIn.vNormal.xyz * p_shadowInset;
+    #endif
+
     // now vertex is in world space, generate procedural triplanar UV's in world space
     float3 vTriPlanarWeightsWorld = 0;
     if (b_iUseWorldTriPlanarWeights)
@@ -312,6 +321,8 @@ void ModelVertexMain( in VertDecl streamIn, out VertexTransport vertOut ) {
         vertIn.vPosition = ApplyWarps( vertIn.vPosition );
     
     vertOut.HPos = EmitModelHPos( vertIn );
+    if( b_iDepthOffset )
+        DepthOffsetHPos( vertOut.HPos );
     
     HALF4 interpTangent = EmitModelTangent( vertIn, vTriPlanarWeightsWorld );
     HALF3 interpBinormal = EmitModelBinormal( vertIn, interpTangent.xyz );

@@ -1,7 +1,6 @@
 include "TriggerLibs/NativeLib"
 include "TriggerLibs/HeroesLib"
 include "TriggerLibs/GameLib"
-include "TriggerLibs/AILib"
 include "TriggerLibs/UILib"
 include "TriggerLibs/SoundLib"
 include "TriggerLibs/GameDataHelperLib"
@@ -16,7 +15,6 @@ void libTrac_InitLibraries () {
     libNtve_InitVariables();
     libCore_InitVariables();
     libGame_InitVariables();
-    libAIAI_InitVariables();
     libUIUI_InitVariables();
     libSond_InitVariables();
     libGDHL_InitVariables();
@@ -42,16 +40,6 @@ void libTrac_InitVariables () {
             libTrac_gv_tracerRecallRecordVariable[init_i][init_j].lv_tempTextTag = c_textTagNone;
         }
     }
-}
-
-// Custom Script
-//--------------------------------------------------------------------------------------------------
-// Custom Script: #Include Tracer Tactical AI
-//--------------------------------------------------------------------------------------------------
-include "StormTactical.galaxy"
-include "TracerTactical.galaxy"
-
-void libTrac_InitCustomScript () {
 }
 
 // Functions
@@ -84,8 +72,6 @@ void libTrac_gf_HeroTracerIncrementHeroCountFunction () {
         TriggerEnable(libTrac_gt_HeroTracerMeleeSetFacing, true);
         TriggerEnable(libTrac_gt_HeroTracerUpdateRecallPointsonRevive, true);
         TriggerEnable(libTrac_gt_HeroTracerClearTargetViaEffect, true);
-        TriggerEnable(libTrac_gt_HeroAITracerMovementController, true);
-        TriggerEnable(libTrac_gt_HeroAITracerIsAttacking, true);
     }
 
 }
@@ -123,8 +109,6 @@ void libTrac_gf_HeroTracerDecrementHeroCountFunction () {
         TriggerEnable(libTrac_gt_HeroTracerCustomKillVO, false);
         TriggerEnable(libTrac_gt_HeroTracerUpdateRecallPointsonRevive, false);
         TriggerEnable(libTrac_gt_HeroTracerClearTargetViaEffect, false);
-        TriggerEnable(libTrac_gt_HeroAITracerMovementController, false);
-        TriggerEnable(libTrac_gt_HeroAITracerIsAttacking, false);
     }
 
 }
@@ -180,158 +164,41 @@ void libTrac_gf_HeroTracerResetAllRecallPointstoCurrentPosition (int lp_player, 
     }
 }
 
+void libTrac_gf_HeroTracerCreateorUpdateAIRecallTrackerUnit (unit lp_tracerUnit) {
+    // Variable Declarations
+    int lv_itIndex;
+    int lv_tracerPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_tracerPlayer = UnitGetOwner(lp_tracerUnit);
+
+    // Implementation
+    if ((UnitIsAlive(lp_tracerUnit) == true)) {
+        lv_itIndex = libTrac_gf_HeroTracerRecallDetermineIndex(lv_tracerPlayer);
+        if ((lv_itIndex >= 0)) {
+            if ((UnitIsValid(libTrac_gv_tracerRecallUnit[lv_tracerPlayer]) == false)) {
+                libNtve_gf_CreateUnitsWithDefaultFacing(1, "TracerRecallUnitAITracking", 0, lv_tracerPlayer, libTrac_gv_tracerRecallRecordVariable[lv_tracerPlayer][lv_itIndex].lv_position);
+                UnitSetPropertyFixed(libTrac_gv_tracerRecallUnit[lv_tracerPlayer], c_unitPropEnergyMax, libTrac_gv_tracerRecallRecordVariable[lv_tracerPlayer][lv_itIndex].lv_health);
+                UnitCreateEffectUnit(lp_tracerUnit, "TracerRecallUnitAddToTrackingList", UnitLastCreated());
+                libTrac_gv_tracerRecallUnit[lv_tracerPlayer] = UnitLastCreated();
+            }
+            else {
+                UnitSetPosition(libTrac_gv_tracerRecallUnit[lv_tracerPlayer], libTrac_gv_tracerRecallRecordVariable[lv_tracerPlayer][lv_itIndex].lv_position, false);
+                UnitSetPropertyFixed(libTrac_gv_tracerRecallUnit[lv_tracerPlayer], c_unitPropEnergyMax, libTrac_gv_tracerRecallRecordVariable[lv_tracerPlayer][lv_itIndex].lv_health);
+            }
+        }
+
+    }
+    else {
+        if ((UnitIsValid(libTrac_gv_tracerRecallUnit[lv_tracerPlayer]) == true)) {
+            UnitRemove(libTrac_gv_tracerRecallUnit[lv_tracerPlayer]);
+        }
+
+    }
+}
+
 // Triggers
-//--------------------------------------------------------------------------------------------------
-// Trigger: HeroAI - Misc Mod Initialization
-//--------------------------------------------------------------------------------------------------
-bool libTrac_gt_HeroAIMiscModInitialization_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_HeroAIInitializeHeroTierData, libTrac_gt_HeroAIAddToTierDataTracer);
-    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_HeroAIInitAbilities, libTrac_gt_HeroAIInitAbilitiesTracer);
-    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_HeroAIIsCurrentlyAttacking, libTrac_gt_HeroAITracerIsAttacking);
-    libAIAI_gf_HeroAIRegisterAOEwithWatchTrigger("TracerPulseBombGroundImpactPersistent", 2.5, 2.0, 0.0, false, false);
-    libAIAI_gf_HeroAIRegisterAOEwithWatchTrigger("TracerPulseBombUnitImpactPersistent", 2.5, 2.0, 0.0, true, false);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libTrac_gt_HeroAIMiscModInitialization_Init () {
-    libTrac_gt_HeroAIMiscModInitialization = TriggerCreate("libTrac_gt_HeroAIMiscModInitialization_Func");
-    TriggerAddEventMapInit(libTrac_gt_HeroAIMiscModInitialization);
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: HeroAI - Add To Tier Data - Tracer
-//--------------------------------------------------------------------------------------------------
-bool libTrac_gt_HeroAIAddToTierDataTracer_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    libAIAI_gf_HeroAIAddHeroToTierData(libAIAI_ge_HeroAIHeroTiers_TierHigh, "Tracer");
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libTrac_gt_HeroAIAddToTierDataTracer_Init () {
-    libTrac_gt_HeroAIAddToTierDataTracer = TriggerCreate("libTrac_gt_HeroAIAddToTierDataTracer_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: HeroAI - Init Abilities - Tracer
-//--------------------------------------------------------------------------------------------------
-bool libTrac_gt_HeroAIInitAbilitiesTracer_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    if ((UnitGetType(libCore_gv_segTriggerUnit) == "HeroTracer")) {
-        libAIAI_gv_heroAIInitAbilitesHeroFound = true;
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_attackAbility = AbilityCommand("TracerTargetingAttackClick", 0);
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_hasTactical = true;
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[0] = AbilityCommand("TracerBlink", 0);
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[0] = libAIAI_ge_HeroAISpellType_Other;
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[1] = AbilityCommand("TracerMelee", 0);
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[1] = libAIAI_ge_HeroAISpellType_PBaoeEnemy;
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[2] = AbilityCommand("TracerRecall", 0);
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[2] = libAIAI_ge_HeroAISpellType_Other;
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[3] = AbilityCommand("TracerPulseBomb", 0);
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[3] = libAIAI_ge_HeroAISpellType_PointEnemy;
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_castAbility[4] = AbilityCommand("TracerReload", 0);
-        libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_abilityType[4] = libAIAI_ge_HeroAISpellType_Other;
-    }
-
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libTrac_gt_HeroAIInitAbilitiesTracer_Init () {
-    libTrac_gt_HeroAIInitAbilitiesTracer = TriggerCreate("libTrac_gt_HeroAIInitAbilitiesTracer_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: HeroAI - Tracer Movement Controller
-//--------------------------------------------------------------------------------------------------
-bool libTrac_gt_HeroAITracerMovementController_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    unit lv_tracerUnit;
-    int lv_playerIndex;
-    unit lv_targetUnit;
-
-    // Automatic Variable Declarations
-    int auto852D9CE0_ae;
-
-    // Variable Initialization
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    auto852D9CE0_ae = libCore_gv_bALMaxPlayers;
-    lv_playerIndex = 1;
-    for ( ; lv_playerIndex <= auto852D9CE0_ae ; lv_playerIndex += 1 ) {
-        lv_tracerUnit = libGame_gv_players[lv_playerIndex].lv_heroUnit;
-        lv_targetUnit = libTrac_gv_heroTracerCurrentAttackTarget[lv_playerIndex];
-        if (((libAIAI_gf_HeroAIIsAIEnabledForPlayer(lv_playerIndex) == false) || (UnitGetType(lv_tracerUnit) != "HeroTracer") || (UnitIsValid(libGame_gv_players[lv_playerIndex].lv_activeVehicle) == true))) {
-            continue;
-        }
-
-        libAIAI_gf_AIMaintainDistancefromTarget(lv_playerIndex, lv_tracerUnit, lv_targetUnit, AbilityCommand("TracerAttack", 0), AbilityCommand("TracerAttack", 1));
-    }
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libTrac_gt_HeroAITracerMovementController_Init () {
-    libTrac_gt_HeroAITracerMovementController = TriggerCreate("libTrac_gt_HeroAITracerMovementController_Func");
-    TriggerEnable(libTrac_gt_HeroAITracerMovementController, false);
-    TriggerAddEventTimePeriodic(libTrac_gt_HeroAITracerMovementController, 0.0625, c_timeGame);
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: HeroAI - Tracer Is Attacking
-//--------------------------------------------------------------------------------------------------
-bool libTrac_gt_HeroAITracerIsAttacking_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    fixed lv_weaponRange;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    if ((UnitGetType(libCore_gv_segTriggerUnit) == "HeroTracer")) {
-        lv_weaponRange = libAIAI_gf_AIGetActiveWeaponRange(libCore_gv_segTriggerUnit);
-        if ((UnitIsAlive(libTrac_gv_heroTracerCurrentAttackTarget[libCore_gv_segTriggerPlayer]) == true) && (DistanceSquaredBetweenPoints(UnitGetPosition(libCore_gv_segTriggerUnit), UnitGetPosition(libTrac_gv_heroTracerCurrentAttackTarget[libCore_gv_segTriggerPlayer])) <= (lv_weaponRange * lv_weaponRange))) {
-            libAIAI_gv_heroAISegTriggerHeroIsAttacking = true;
-        }
-        else {
-            libAIAI_gv_heroAISegTriggerHeroIsAttacking = false;
-        }
-    }
-
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libTrac_gt_HeroAITracerIsAttacking_Init () {
-    libTrac_gt_HeroAITracerIsAttacking = TriggerCreate("libTrac_gt_HeroAITracerIsAttacking_Func");
-    TriggerEnable(libTrac_gt_HeroAITracerIsAttacking, false);
-}
-
 //--------------------------------------------------------------------------------------------------
 // Trigger: Hero - Tracer - Spawned
 //--------------------------------------------------------------------------------------------------
@@ -1089,7 +956,7 @@ void libTrac_gt_HeroTracerClearTargetViaEffect_Init () {
 //--------------------------------------------------------------------------------------------------
 bool libTrac_gt_HeroTracerUpdateRecallRecord_Func (bool testConds, bool runActions) {
     // Variable Declarations
-    int lv_i;
+    int lv_itIndex;
     int lv_player;
     unit lv_tracer;
 
@@ -1115,15 +982,15 @@ bool libTrac_gt_HeroTracerUpdateRecallRecord_Func (bool testConds, bool runActio
         TextTagDestroy(libTrac_gv_tracerRecallRecordVariable[lv_player][libTrac_gv_tracerRecallTrackCountMax].lv_tempTextTag);
     }
 
-    lv_i = libTrac_gv_tracerRecallTrackCountMax;
-    for ( ; ( (autoA53E1488_ai >= 0 && lv_i <= autoA53E1488_ae) || (autoA53E1488_ai < 0 && lv_i >= autoA53E1488_ae) ) ; lv_i += autoA53E1488_ai ) {
-        libTrac_gv_tracerRecallRecordVariable[lv_player][lv_i].lv_position = libTrac_gv_tracerRecallRecordVariable[lv_player][(lv_i - 1)].lv_position;
-        libTrac_gv_tracerRecallRecordVariable[lv_player][lv_i].lv_positionPathable = libTrac_gv_tracerRecallRecordVariable[lv_player][(lv_i - 1)].lv_positionPathable;
-        libTrac_gv_tracerRecallRecordVariable[lv_player][lv_i].lv_health = libTrac_gv_tracerRecallRecordVariable[lv_player][(lv_i - 1)].lv_health;
+    lv_itIndex = libTrac_gv_tracerRecallTrackCountMax;
+    for ( ; ( (autoA53E1488_ai >= 0 && lv_itIndex <= autoA53E1488_ae) || (autoA53E1488_ai < 0 && lv_itIndex >= autoA53E1488_ae) ) ; lv_itIndex += autoA53E1488_ai ) {
+        libTrac_gv_tracerRecallRecordVariable[lv_player][lv_itIndex].lv_position = libTrac_gv_tracerRecallRecordVariable[lv_player][(lv_itIndex - 1)].lv_position;
+        libTrac_gv_tracerRecallRecordVariable[lv_player][lv_itIndex].lv_positionPathable = libTrac_gv_tracerRecallRecordVariable[lv_player][(lv_itIndex - 1)].lv_positionPathable;
+        libTrac_gv_tracerRecallRecordVariable[lv_player][lv_itIndex].lv_health = libTrac_gv_tracerRecallRecordVariable[lv_player][(lv_itIndex - 1)].lv_health;
         if ((libTrac_gv_tracerRecallDebugMode == true)) {
-            libTrac_gv_tracerRecallRecordVariable[lv_player][lv_i].lv_tempTextTag = libTrac_gv_tracerRecallRecordVariable[lv_player][(lv_i - 1)].lv_tempTextTag;
-            TextTagSetText(libTrac_gv_tracerRecallRecordVariable[lv_player][lv_i].lv_tempTextTag, IntToText(lv_i));
-            libTrac_gv_tracerRecallRecordVariable[lv_player][lv_i].lv_debugUnit = libTrac_gv_tracerRecallRecordVariable[lv_player][(lv_i - 1)].lv_debugUnit;
+            libTrac_gv_tracerRecallRecordVariable[lv_player][lv_itIndex].lv_tempTextTag = libTrac_gv_tracerRecallRecordVariable[lv_player][(lv_itIndex - 1)].lv_tempTextTag;
+            TextTagSetText(libTrac_gv_tracerRecallRecordVariable[lv_player][lv_itIndex].lv_tempTextTag, IntToText(lv_itIndex));
+            libTrac_gv_tracerRecallRecordVariable[lv_player][lv_itIndex].lv_debugUnit = libTrac_gv_tracerRecallRecordVariable[lv_player][(lv_itIndex - 1)].lv_debugUnit;
         }
 
     }
@@ -1144,6 +1011,7 @@ bool libTrac_gt_HeroTracerUpdateRecallRecord_Func (bool testConds, bool runActio
         libTrac_gv_tracerRecallRecordVariable[lv_player][1].lv_positionPathable = false;
     }
     libTrac_gv_tracerRecallRecordVariable[lv_player][1].lv_health = UnitGetPropertyFixed(lv_tracer, c_unitPropLife, c_unitPropCurrent);
+    libTrac_gf_HeroTracerCreateorUpdateAIRecallTrackerUnit(lv_tracer);
     if ((libTrac_gv_tracerRecallDebugMode == true)) {
         UnitCreate(1, "TracerRecallDummyUnit", 0, lv_player, UnitGetPosition(lv_tracer), 270.0);
         libTrac_gv_tracerRecallRecordVariable[lv_player][1].lv_debugUnit = UnitLastCreated();
@@ -1375,6 +1243,37 @@ void libTrac_gt_HeroTracerUltimateEvolutionRecall_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Tracer - Ultimate Evolution Kill Recall Tracker
+//--------------------------------------------------------------------------------------------------
+bool libTrac_gt_HeroTracerUltimateEvolutionKillRecallTracker_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(libGDHL_gf_AbathurUltimateEvolutionEndedClonedUnit()) == "HeroTracer"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitBehaviorRemove(libGDHL_gf_AbathurUltimateEvolutionEndedClonedUnit(), "TracerRecallController", 1);
+    if ((UnitIsValid(libTrac_gv_tracerRecallUnit[libGDHL_gf_AbathurUltimateEvolutionEndedAbathurPlayer()]) == true)) {
+        UnitRemove(libTrac_gv_tracerRecallUnit[libGDHL_gf_AbathurUltimateEvolutionEndedAbathurPlayer()]);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libTrac_gt_HeroTracerUltimateEvolutionKillRecallTracker_Init () {
+    libTrac_gt_HeroTracerUltimateEvolutionKillRecallTracker = TriggerCreate("libTrac_gt_HeroTracerUltimateEvolutionKillRecallTracker_Func");
+    libGDHL_gf_AbathurUltimateEvolutionEnded(libTrac_gt_HeroTracerUltimateEvolutionKillRecallTracker);
+}
+
+//--------------------------------------------------------------------------------------------------
 // Trigger: Hero - Tracer - Update Recall Points on Revive
 //--------------------------------------------------------------------------------------------------
 bool libTrac_gt_HeroTracerUpdateRecallPointsonRevive_Func (bool testConds, bool runActions) {
@@ -1432,11 +1331,6 @@ void libTrac_gt_HeroTracerMeleeSetFacing_Init () {
 }
 
 void libTrac_InitTriggers () {
-    libTrac_gt_HeroAIMiscModInitialization_Init();
-    libTrac_gt_HeroAIAddToTierDataTracer_Init();
-    libTrac_gt_HeroAIInitAbilitiesTracer_Init();
-    libTrac_gt_HeroAITracerMovementController_Init();
-    libTrac_gt_HeroAITracerIsAttacking_Init();
     libTrac_gt_HeroTracerSpawned_Init();
     libTrac_gt_HeroTracerHeroWeaponUIInitialize_Init();
     libTrac_gt_HeroTracerPulseBombStuckOverlayOn_Init();
@@ -1460,6 +1354,7 @@ void libTrac_InitTriggers () {
     libTrac_gt_HeroTracerRecallCameraLock_Init();
     libTrac_gt_HeroTracerRecallDebugMode_Init();
     libTrac_gt_HeroTracerUltimateEvolutionRecall_Init();
+    libTrac_gt_HeroTracerUltimateEvolutionKillRecallTracker_Init();
     libTrac_gt_HeroTracerUpdateRecallPointsonRevive_Init();
     libTrac_gt_HeroTracerMeleeSetFacing_Init();
 }
@@ -1478,7 +1373,6 @@ void libTrac_InitLib () {
 
     libTrac_InitLibraries();
     libTrac_InitVariables();
-    libTrac_InitCustomScript();
     libTrac_InitTriggers();
 }
 

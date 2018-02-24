@@ -262,7 +262,9 @@ SPixelOut SplatPixelMain(VertexTransportRaw vertOut) {
 
         // update material interpolants
         if (b_iShadingMode == SHADINGMODE_STANDARD) {
-            if (b_useNormalMapping) {
+            // in medium and above settings (i.e., when vertex lighting mode is not Full), a high quality normal is reconstructed 
+            // using two additional depth samples; in low settings it is reconstructed using the less expensive partial derivatives
+            if (b_iVertexLightingMode != VERTEXLIGHTING_FULL) {
                 // sample two neighboring pixels to reconstruct the normal/tangent/binormal
                 float2 depthUVRight = float2((screenPos.x + 1.0) / p_vResolution.x, screenPos.y / p_vResolution.y);
                 float4 worldPosRight = mul(ReconstructViewPos(SampleDepth(depthUVRight), depthUVRight), p_mViewInvTransform44);
@@ -274,7 +276,6 @@ SPixelOut SplatPixelMain(VertexTransportRaw vertOut) {
                 float4 v2 = worldPosDown - worldPos;
 
                 float3 pixelNormal = normalize(cross(v2.xyz, v1.xyz));
-                //float3 pixelNormal = float3(0.0f, 0.0f, 1.0f);
                 float3 pixelBinormal = normalize(cross(p_vTangent, pixelNormal));
                 float3 pixelTangent = cross(pixelNormal, pixelBinormal);
 
@@ -290,7 +291,7 @@ SPixelOut SplatPixelMain(VertexTransportRaw vertOut) {
                     pixelBinormal.xyz));
             }
             else {
-                
+
 #ifdef COMPILING_SHADER_FOR_OPENGL
                 float3 pixelNormal = float3(0, 0, 1);
 #else

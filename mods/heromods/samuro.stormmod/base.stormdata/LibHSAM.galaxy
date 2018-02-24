@@ -76,12 +76,10 @@ void libHSAM_gf_HeroSamuroIncrementHeroCountFunction () {
         TriggerEnable(libHSAM_gt_SamuroBladestorm, true);
         TriggerEnable(libHSAM_gt_SamuroCriticalStrike, true);
         TriggerEnable(libHSAM_gt_SamuroGainsR2Talent, true);
-        TriggerEnable(libHSAM_gt_SamuroCutandRun, true);
         TriggerEnable(libHSAM_gt_SamuroGainsThreeBladeStyleTalent, true);
         TriggerEnable(libHSAM_gt_SamuroGainsCrushingBlowTalent, true);
         TriggerEnable(libHSAM_gt_SamuroWayofIllusion, true);
         TriggerEnable(libHSAM_gt_SamuroMirage, true);
-        TriggerEnable(libHSAM_gt_SamuroMirroredSteel, true);
         TriggerEnable(libHSAM_gt_SamuroMirrorImageSelectedOn, true);
         TriggerEnable(libHSAM_gt_SamuroMirrorImageSelectedOff, true);
         TriggerEnable(libHSAM_gt_SamuroGainsPhantomPainTalent, true);
@@ -97,6 +95,7 @@ void libHSAM_gf_HeroSamuroIncrementHeroCountFunction () {
         TriggerEnable(libHSAM_gt_SamuroGainsMapMechanicStack, true);
         TriggerEnable(libHSAM_gt_SamuroGainsWayofIllusion, true);
         TriggerEnable(libHSAM_gt_SamuroLosesWayofIllusion, true);
+        TriggerEnable(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, true);
     }
 
 }
@@ -123,12 +122,10 @@ void libHSAM_gf_HeroSamuroDecrementHeroCountFunction () {
         TriggerEnable(libHSAM_gt_SamuroBladestorm, false);
         TriggerEnable(libHSAM_gt_SamuroGainsR2Talent, false);
         TriggerEnable(libHSAM_gt_SamuroCriticalStrike, false);
-        TriggerEnable(libHSAM_gt_SamuroCutandRun, false);
         TriggerEnable(libHSAM_gt_SamuroGainsThreeBladeStyleTalent, false);
         TriggerEnable(libHSAM_gt_SamuroGainsCrushingBlowTalent, false);
         TriggerEnable(libHSAM_gt_SamuroWayofIllusion, false);
         TriggerEnable(libHSAM_gt_SamuroMirage, false);
-        TriggerEnable(libHSAM_gt_SamuroMirroredSteel, false);
         TriggerEnable(libHSAM_gt_SamuroMirrorImageSelectedOn, false);
         TriggerEnable(libHSAM_gt_SamuroMirrorImageSelectedOff, false);
         TriggerEnable(libHSAM_gt_SamuroGainsPhantomPainTalent, false);
@@ -144,6 +141,7 @@ void libHSAM_gf_HeroSamuroDecrementHeroCountFunction () {
         TriggerEnable(libHSAM_gt_SamuroGainsMapMechanicStack, false);
         TriggerEnable(libHSAM_gt_SamuroGainsWayofIllusion, false);
         TriggerEnable(libHSAM_gt_SamuroLosesWayofIllusion, false);
+        TriggerEnable(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, false);
     }
 
 }
@@ -994,8 +992,8 @@ bool libHSAM_gt_SamuroMirrorImageCreated_Func (bool testConds, bool runActions) 
     UnitBehaviorAdd(lv_mirrorImage, "Ultimate1Unlocked", libGame_gv_players[lv_samuroPlayer].lv_heroUnit, UnitBehaviorCount(lv_samuro, "Ultimate1Unlocked"));
     UnitBehaviorAdd(lv_mirrorImage, "Ultimate2Unlocked", libGame_gv_players[lv_samuroPlayer].lv_heroUnit, UnitBehaviorCount(lv_samuro, "Ultimate2Unlocked"));
     if ((UnitGetType(libGame_gv_players[lv_samuroPlayer].lv_heroUnit) == "HeroAbathur")) {
-        UnitBehaviorAdd(lv_mirrorImage, "UltimateEvolutionAlternateHero", libGame_gv_players[lv_samuroPlayer].lv_heroUnit, 1);
-        UnitBehaviorAdd(lv_mirrorImage, "AbathurUltimateEvolutionCleanupTarget", libGame_gv_players[lv_samuroPlayer].lv_heroUnit, 1);
+        UnitBehaviorAdd(lv_mirrorImage, "UltimateEvolutionAlternateHero", lv_samuro, 1);
+        UnitBehaviorAdd(lv_mirrorImage, "AbathurUltimateEvolutionCleanupTarget", lv_samuro, 1);
     }
 
     UnitXPAddXP(lv_mirrorImage, null, libCore_gf_GetTotalXPForLevel(lv_samuroLevel));
@@ -1330,6 +1328,74 @@ void libHSAM_gt_SamuroMirrorImageAttackOrderRedirectAI_Init () {
     libHSAM_gt_SamuroMirrorImageAttackOrderRedirectAI = TriggerCreate("libHSAM_gt_SamuroMirrorImageAttackOrderRedirectAI_Func");
     TriggerEnable(libHSAM_gt_SamuroMirrorImageAttackOrderRedirectAI, false);
     TriggerAddEventUnitAttacked2(libHSAM_gt_SamuroMirrorImageAttackOrderRedirectAI, null, "SamuroWeapon");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Samuro - Mirror Image Damage Taken Duplication
+//--------------------------------------------------------------------------------------------------
+bool libHSAM_gt_SamuroMirrorImageDamageTakenDuplication_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_damage;
+    unit lv_image;
+    int lv_imageOwner;
+    unit lv_caster;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_damage = (EventUnitDamageAmount() + EventUnitDamageBehaviorShield());
+    lv_image = EventUnit();
+    lv_imageOwner = UnitGetOwner(lv_image);
+    lv_caster = EventUnitDamageSourceUnit();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(lv_image) == "SamuroMirrorImage"))) {
+            return false;
+        }
+
+        if (!((EventUnitDamageEffect() != "HeroGenericFakeHeroDuplicationDamage"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitIsValid(libGame_gv_teams[libGame_gf_EnemyTeamNumberOfPlayer(lv_imageOwner)].lv_core) == true)) {
+        UnitDamage(libGame_gv_teams[libGame_gf_EnemyTeamNumberOfPlayer(lv_imageOwner)].lv_core, "HeroGenericFakeHeroDuplicationDamage", lv_image, lv_damage);
+    }
+    else {
+        UnitDamage(lv_caster, "HeroGenericFakeHeroDuplicationDamage", lv_image, lv_damage);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHSAM_gt_SamuroMirrorImageDamageTakenDuplication_Init () {
+    libHSAM_gt_SamuroMirrorImageDamageTakenDuplication = TriggerCreate("libHSAM_gt_SamuroMirrorImageDamageTakenDuplication_Func");
+    TriggerEnable(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, false);
+    TriggerAddEventUnitDamaged(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, UnitRefFromUnit(UnitGroupUnit(libHSAM_gv_mirrorImageUnitGroup[1], 1)), c_unitDamageTypeAny, c_unitDamageNonFatal, null);
+    TriggerAddEventUnitDamaged(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, UnitRefFromUnit(UnitGroupUnit(libHSAM_gv_mirrorImageUnitGroup[1], 2)), c_unitDamageTypeAny, c_unitDamageNonFatal, null);
+    TriggerAddEventUnitDamaged(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, UnitRefFromUnit(UnitGroupUnit(libHSAM_gv_mirrorImageUnitGroup[2], 1)), c_unitDamageTypeAny, c_unitDamageNonFatal, null);
+    TriggerAddEventUnitDamaged(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, UnitRefFromUnit(UnitGroupUnit(libHSAM_gv_mirrorImageUnitGroup[2], 2)), c_unitDamageTypeAny, c_unitDamageNonFatal, null);
+    TriggerAddEventUnitDamaged(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, UnitRefFromUnit(UnitGroupUnit(libHSAM_gv_mirrorImageUnitGroup[3], 1)), c_unitDamageTypeAny, c_unitDamageNonFatal, null);
+    TriggerAddEventUnitDamaged(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, UnitRefFromUnit(UnitGroupUnit(libHSAM_gv_mirrorImageUnitGroup[3], 2)), c_unitDamageTypeAny, c_unitDamageNonFatal, null);
+    TriggerAddEventUnitDamaged(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, UnitRefFromUnit(UnitGroupUnit(libHSAM_gv_mirrorImageUnitGroup[4], 1)), c_unitDamageTypeAny, c_unitDamageNonFatal, null);
+    TriggerAddEventUnitDamaged(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, UnitRefFromUnit(UnitGroupUnit(libHSAM_gv_mirrorImageUnitGroup[4], 2)), c_unitDamageTypeAny, c_unitDamageNonFatal, null);
+    TriggerAddEventUnitDamaged(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, UnitRefFromUnit(UnitGroupUnit(libHSAM_gv_mirrorImageUnitGroup[5], 1)), c_unitDamageTypeAny, c_unitDamageNonFatal, null);
+    TriggerAddEventUnitDamaged(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, UnitRefFromUnit(UnitGroupUnit(libHSAM_gv_mirrorImageUnitGroup[5], 2)), c_unitDamageTypeAny, c_unitDamageNonFatal, null);
+    TriggerAddEventUnitDamaged(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, UnitRefFromUnit(UnitGroupUnit(libHSAM_gv_mirrorImageUnitGroup[6], 1)), c_unitDamageTypeAny, c_unitDamageNonFatal, null);
+    TriggerAddEventUnitDamaged(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, UnitRefFromUnit(UnitGroupUnit(libHSAM_gv_mirrorImageUnitGroup[6], 2)), c_unitDamageTypeAny, c_unitDamageNonFatal, null);
+    TriggerAddEventUnitDamaged(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, UnitRefFromUnit(UnitGroupUnit(libHSAM_gv_mirrorImageUnitGroup[7], 1)), c_unitDamageTypeAny, c_unitDamageNonFatal, null);
+    TriggerAddEventUnitDamaged(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, UnitRefFromUnit(UnitGroupUnit(libHSAM_gv_mirrorImageUnitGroup[7], 2)), c_unitDamageTypeAny, c_unitDamageNonFatal, null);
+    TriggerAddEventUnitDamaged(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, UnitRefFromUnit(UnitGroupUnit(libHSAM_gv_mirrorImageUnitGroup[8], 1)), c_unitDamageTypeAny, c_unitDamageNonFatal, null);
+    TriggerAddEventUnitDamaged(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, UnitRefFromUnit(UnitGroupUnit(libHSAM_gv_mirrorImageUnitGroup[8], 2)), c_unitDamageTypeAny, c_unitDamageNonFatal, null);
+    TriggerAddEventUnitDamaged(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, UnitRefFromUnit(UnitGroupUnit(libHSAM_gv_mirrorImageUnitGroup[9], 1)), c_unitDamageTypeAny, c_unitDamageNonFatal, null);
+    TriggerAddEventUnitDamaged(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, UnitRefFromUnit(UnitGroupUnit(libHSAM_gv_mirrorImageUnitGroup[9], 2)), c_unitDamageTypeAny, c_unitDamageNonFatal, null);
+    TriggerAddEventUnitDamaged(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, UnitRefFromUnit(UnitGroupUnit(libHSAM_gv_mirrorImageUnitGroup[10], 1)), c_unitDamageTypeAny, c_unitDamageNonFatal, null);
+    TriggerAddEventUnitDamaged(libHSAM_gt_SamuroMirrorImageDamageTakenDuplication, UnitRefFromUnit(UnitGroupUnit(libHSAM_gv_mirrorImageUnitGroup[10], 2)), c_unitDamageTypeAny, c_unitDamageNonFatal, null);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1764,33 +1830,6 @@ void libHSAM_gt_SamuroMirage_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: Samuro - Mirrored Steel
-//--------------------------------------------------------------------------------------------------
-bool libHSAM_gt_SamuroMirroredSteel_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    int lv_thisPlayer;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-    lv_thisPlayer = UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster));
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    UnitCreateEffectUnit(libGame_gv_players[lv_thisPlayer].lv_heroUnit, "SamuroMirroredSteelReduceCooldown", libGame_gv_players[lv_thisPlayer].lv_heroUnit);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libHSAM_gt_SamuroMirroredSteel_Init () {
-    libHSAM_gt_SamuroMirroredSteel = TriggerCreate("libHSAM_gt_SamuroMirroredSteel_Func");
-    TriggerEnable(libHSAM_gt_SamuroMirroredSteel, false);
-    TriggerAddEventPlayerEffectUsed(libHSAM_gt_SamuroMirroredSteel, c_playerAny, "SamuroMirrorImageMirroredSteelDummy");
-}
-
-//--------------------------------------------------------------------------------------------------
 // Trigger: Samuro - Gains R2 Talent
 //--------------------------------------------------------------------------------------------------
 bool libHSAM_gt_SamuroGainsR2Talent_Func (bool testConds, bool runActions) {
@@ -1858,40 +1897,6 @@ void libHSAM_gt_SamuroGainsR2Talent_Init () {
     libHSAM_gt_SamuroGainsR2Talent = TriggerCreate("libHSAM_gt_SamuroGainsR2Talent_Func");
     TriggerEnable(libHSAM_gt_SamuroGainsR2Talent, false);
     libGame_gf_HeroGainTalent(libHSAM_gt_SamuroGainsR2Talent);
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: Samuro - Cut and Run
-//--------------------------------------------------------------------------------------------------
-bool libHSAM_gt_SamuroCutandRun_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    int lv_samuroPlayer;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-    lv_samuroPlayer = libGame_gf_HeroParticipatedInTakedownKillingPlayer();
-
-    // Conditions
-    if (testConds) {
-        if (!((PlayerHasTalent(lv_samuroPlayer, "SamuroWindWalkCutAndRun") == true))) {
-            return false;
-        }
-    }
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    UnitCreateEffectUnit(libGame_gv_players[lv_samuroPlayer].lv_heroUnit, "SamuroWindwalkCutAndRunResetCooldown", libGame_gv_players[lv_samuroPlayer].lv_heroUnit);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libHSAM_gt_SamuroCutandRun_Init () {
-    libHSAM_gt_SamuroCutandRun = TriggerCreate("libHSAM_gt_SamuroCutandRun_Func");
-    TriggerEnable(libHSAM_gt_SamuroCutandRun, false);
-    libGame_gf_HeroParticipatedInTakedown(libHSAM_gt_SamuroCutandRun);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -2216,6 +2221,7 @@ void libHSAM_InitTriggers () {
     libHSAM_gt_SamuroMirrorImageIllusionMasterAIToggleOn_Init();
     libHSAM_gt_SamuroMirrorImageIllusionMasterAIToggleOff_Init();
     libHSAM_gt_SamuroMirrorImageAttackOrderRedirectAI_Init();
+    libHSAM_gt_SamuroMirrorImageDamageTakenDuplication_Init();
     libHSAM_gt_SamuroCriticalStrike_Init();
     libHSAM_gt_SamuroBladestorm_Init();
     libHSAM_gt_SamuroWayofIllusion_Init();
@@ -2225,9 +2231,7 @@ void libHSAM_InitTriggers () {
     libHSAM_gt_SamuroGainsPhantomPainTalent_Init();
     libHSAM_gt_SamuroGainsCrushingBlowTalent_Init();
     libHSAM_gt_SamuroMirage_Init();
-    libHSAM_gt_SamuroMirroredSteel_Init();
     libHSAM_gt_SamuroGainsR2Talent_Init();
-    libHSAM_gt_SamuroCutandRun_Init();
     libHSAM_gt_SamuroControlGroupPanelInitialize_Init();
     libHSAM_gt_SamuroUICleanUpUIForDebugHeroSwap_Init();
     libHSAM_gt_SamuroUIInitialize_Init();

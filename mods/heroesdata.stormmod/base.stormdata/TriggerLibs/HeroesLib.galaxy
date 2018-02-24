@@ -40,7 +40,6 @@ void libCore_InitVariables () {
     libCore_gv_dEBUGDebuggingEnabled = GameCheatsEnabled(c_gameCheatCategoryDevelopment);
     libCore_gv_dEBUGDeathRecapEnabled = true;
     libCore_gv_dEBUGPingLimitEnabled = true;
-    libCore_gv_dEBUGHeroDataLoadRefactor = true;
     libCore_gv_sYSGameMode = libCore_ge_GameModes_Normal;
     libCore_gv_sYSStartGame = true;
     libCore_gv_sYSMinionSpawningOn = true;
@@ -87,11 +86,7 @@ void libCore_InitVariables () {
     libCore_gv_bALXPRadius = 12.75;
     libCore_gv_bALHeroKillCreditTimeWindow = 5.0;
     libCore_gv_bALDeathTimeScaler = 1.0;
-    libCore_gv_talents_RelentlessCCReduction20_C = 0.2;
-    libCore_gv_talents_RelentlessCCReduction40_C = 0.4;
-    libCore_gv_talents_RelentlessCCReduction60_C = 0.6;
     libCore_gv_talents_RelentlessCCReduction75_C = 0.75;
-    libCore_gv_talents_FuryOfTheStormBounceDamagePercent_C = 0.5;
     for (init_i = 0; init_i <= libCore_gv_bALMaxTeams; init_i += 1) {
         libCore_gv_data_XP_HeroXPModifier[init_i] = 1.0;
     }
@@ -891,7 +886,7 @@ void libCore_gf_DataLoadHeroDataIntoIndex (string lp_heroLink, int lp_index) {
         lv_numberOfLevelUpAbils = CatalogFieldValueCount(c_gameCatalogHero, lv_heroID, "LevelScalingArray", c_playerAny);
         if ((lv_numberOfLevelUpAbils > libCore_gv_dataHeroesMaxAbilitiesPerHero)) {
             TextExpressionSetToken("Param/Expression/lib_Core_4A30C9DA", "A", StringToText(lv_heroID));
-            TextExpressionSetToken("Param/Expression/lib_Core_4A30C9DA", "D", IntToText(lv_numberOfLevelUpAbilMods));
+            TextExpressionSetToken("Param/Expression/lib_Core_4A30C9DA", "D", IntToText(libCore_gv_dataHeroesMaxAbilitiesPerHero));
             TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_Core_4A30C9DA"), true);
             lv_numberOfLevelUpAbils = libCore_gv_dataHeroesMaxAbilitiesPerHero;
         }
@@ -1640,7 +1635,7 @@ void libCore_gf_DataMountsLoadMountDataIntoIndex (string lp_mountLink, fixed lp_
 
 }
 
-void libCore_gf_DataMountsAddMountIDToDataTable (string lp_mountLink, int lp_catalogIndex) {
+void libCore_gf_DataMountsAddMountIDToDataTable (string lp_mountLink, int lp_catalogIndex, int lp_variationRefIndex) {
     // Variable Declarations
     int lv_itVariation;
     string lv_mountLinkStr;
@@ -1669,11 +1664,12 @@ void libCore_gf_DataMountsAddMountIDToDataTable (string lp_mountLink, int lp_cat
     DataTableSetString(true, (lv_mountDataTableStr + "_ID"), lv_mountLinkStr);
     DataTableSetInt(true, (lv_mountDataTableStr + "_Index"), libCore_gv_dataMountsMountCount);
     DataTableSetInt(true, (lv_mountDataTableStr + "_CatalogIndex"), lp_catalogIndex);
+    DataTableSetInt(true, (lv_mountDataTableStr + "_VariationRefIndex"), lp_variationRefIndex);
     DataTableSetString(true, ("MountIndex_" + IntToString(libCore_gv_dataMountsMountCount)), lv_mountLinkStr);
     autoE8F7E14F_ae = (CatalogFieldValueCount(c_gameCatalogMount, lp_mountLink, "VariationArray", c_playerAny) - 1);
     lv_itVariation = 0;
     for ( ; ( (autoE8F7E14F_ai >= 0 && lv_itVariation <= autoE8F7E14F_ae) || (autoE8F7E14F_ai < 0 && lv_itVariation >= autoE8F7E14F_ae) ) ; lv_itVariation += autoE8F7E14F_ai ) {
-        libCore_gf_DataMountsAddMountIDToDataTable((CatalogFieldValueGet(c_gameCatalogMount, lp_mountLink, "VariationArray[" + IntToString(lv_itVariation) + "]", c_playerAny)), lp_catalogIndex);
+        libCore_gf_DataMountsAddMountIDToDataTable((CatalogFieldValueGet(c_gameCatalogMount, lp_mountLink, "VariationArray[" + IntToString(lv_itVariation) + "]", c_playerAny)), lp_catalogIndex, lp_catalogIndex);
     }
 }
 
@@ -2669,7 +2665,7 @@ color libCore_gf_GetAllianceColorFromGameUIData (string lp_overrideColor, int lp
     lv_bString = "";
 
     // Implementation
-    lv_fullColorString = CatalogFieldValueGet(c_gameCatalogGameUI, "Dflt", "OverrideColors[" + lp_overrideColor + "].ColorVariations[0].Value[0]", lp_player);
+    lv_fullColorString = CatalogFieldValueGet(c_gameCatalogGameUI, "Dflt", "OverrideColors[" + lp_overrideColor + "].Value[0]", lp_player);
     lv_commaPosition = StringFind(lv_fullColorString, ",", c_stringCase);
     lv_rString = StringSub(lv_fullColorString, 1, (lv_commaPosition - 1));
     lv_fullColorString = StringSub(lv_fullColorString, (lv_commaPosition + 1), StringLength(lv_fullColorString));
@@ -4541,7 +4537,7 @@ bool libCore_gt_DataInitializeMountData_Func (bool testConds, bool runActions) {
     lv_itMount = 1;
     for ( ; ( (autoEE185B55_ai >= 0 && lv_itMount <= autoEE185B55_ae) || (autoEE185B55_ai < 0 && lv_itMount >= autoEE185B55_ae) ) ; lv_itMount += autoEE185B55_ai ) {
         lv_mountLink = (CatalogFieldValueGet(c_gameCatalogConfig, "Config", "MountArray[" + IntToString((lv_itMount - 1)) + "].Mount", c_playerAny));
-        libCore_gf_DataMountsAddMountIDToDataTable(lv_mountLink, lv_itMount);
+        libCore_gf_DataMountsAddMountIDToDataTable(lv_mountLink, lv_itMount, 0);
     }
     return true;
 }
@@ -4990,7 +4986,6 @@ bool libCore_gt_InitializeData_Func (bool testConds, bool runActions) {
     TriggerExecute(libCore_gt_DataDeathTimes, true, true);
     TriggerExecute(libCore_gt_DataMinionScalingData, true, true);
     TriggerExecute(libCore_gt_DataMinionWaveCompositionData, true, true);
-    TriggerExecute(libAIAI_gt_HeroAIInitializeDifficultyLevelData, true, false);
     return true;
 }
 

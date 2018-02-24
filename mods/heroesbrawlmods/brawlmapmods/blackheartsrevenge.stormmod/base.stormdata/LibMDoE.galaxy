@@ -1209,8 +1209,7 @@ void libMDoE_gf_DoEs_ActivateTeleporters () {
 
             UnitBehaviorRemove(libMDoE_gv_mDoE_Teleporter[lv_waygateIndex].lv_entranceUnit, "UnitCannotBePinged", 1);
             libNtve_gf_SendActorMessageToUnit(libMDoE_gv_mDoE_Teleporter[lv_waygateIndex].lv_exitUnitOrder, "SetMinimapVisibility 1");
-            libAIAI_gf_HeroAIRegisterPortalPair(libAIAI_gf_HeroAITeamIndexOfFaction(libGame_ge_Faction_Order), libMDoE_gv_mDoE_Teleporter[lv_waygateIndex].lv_entranceUnit, libMDoE_gv_mDoE_Teleporter[lv_waygateIndex].lv_exitUnitOrder, 0.25, 0.0, "CaptureMacGuffinTwo");
-            libAIAI_gf_HeroAIRegisterPortalPair(libAIAI_gf_HeroAITeamIndexOfFaction(libGame_ge_Faction_Chaos), libMDoE_gv_mDoE_Teleporter[lv_waygateIndex].lv_entranceUnit, libMDoE_gv_mDoE_Teleporter[lv_waygateIndex].lv_exitUnitOrder, 0.25, 0.0, "CaptureMacGuffinTwo");
+            AIAddPortal(libCore_gv_cOMPUTER_Neutral, libMDoE_gv_mDoE_Teleporter[lv_waygateIndex].lv_entranceUnit, libMDoE_gv_mDoE_Teleporter[lv_waygateIndex].lv_exitUnitOrder, 0.25, 0.0, "CaptureMacGuffinTwo", null);
             if ((lv_waygateIndex == 1)) {
                 libNtve_gf_SendActorMessageToUnit(libMDoE_gv_mDoE_Teleporter[lv_waygateIndex].lv_entranceUnit, "MinimapIcon Assets\\Textures\\storm_ui_minimapicon_Ladder_Up.dds");
             }
@@ -2045,7 +2044,6 @@ bool libMDoE_gt_MDoEInit_Func (bool testConds, bool runActions) {
     libAREN_gv_aRM_PlayCrowdCheerSounds = false;
     libGame_gf_DisableEndofMatchAwards();
     libMDoE_gf_InitializeGameStartPathingBlockerLocations();
-    libAIAI_gv_heroAICustomChooseWaitForGameToStartPositionTrigger = libMDoE_gt_MDoE_CustomChooseWaitForGameStartPosition;
     libAtDe_gf_AtDe_UI_TeamScoreInit();
     libAtDe_gf_AttackDefendGameStarts();
     if ((libGame_gv_heroSpawnReady == true)) {
@@ -2062,83 +2060,6 @@ bool libMDoE_gt_MDoEInit_Func (bool testConds, bool runActions) {
 void libMDoE_gt_MDoEInit_Init () {
     libMDoE_gt_MDoEInit = TriggerCreate("libMDoE_gt_MDoEInit_Func");
     libGame_gf_MapMechanicInitialization(libMDoE_gt_MDoEInit);
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: MDoE_Custom Choose Wait For Game Start Position
-//--------------------------------------------------------------------------------------------------
-bool libMDoE_gt_MDoE_CustomChooseWaitForGameStartPosition_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    unitgroup lv_gateGroup;
-    point lv_lanePoint;
-    unit lv_coreGateUnit;
-    point lv_coreGatePosition;
-    point lv_direction;
-    point lv_normal;
-    point lv_behindCoreGate;
-    fixed lv_offset;
-    point lv_waitingPosition;
-    fixed lv_distance;
-    fixed lv_spreadDistance;
-    int lv_numberOfAIPlayersOnTeamAtGate;
-    fixed lv_bucketWidth;
-    fixed lv_distanceBehindGate;
-    bool lv_moveToGates;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-    lv_gateGroup = UnitGroupEmpty();
-    lv_spreadDistance = 15.0;
-    lv_numberOfAIPlayersOnTeamAtGate = 2;
-    lv_distanceBehindGate = 8.0;
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    lv_moveToGates = (TimerGetRemaining(libGame_gv_openTheGatesTimer) <= libAIAI_gv_aIHeroWaitForGameToStartMoveToGateTime);
-    if ((libGame_gv_players[libAIAI_gv_heroAITriggerCurrentPlayer].lv_faction == libGame_ge_Faction_Chaos)) {
-        lv_gateGroup = libNtve_gf_UnitsInRegionWithAllianceToPlayerMatchingCondition("TownGateL315BRUL", "TownGateL3BLURBRVisionBlocked", "", libCore_gv_cOMPUTER_TeamChaos, -1, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
-    }
-    else {
-        lv_gateGroup = libNtve_gf_UnitsInRegionWithAllianceToPlayerMatchingCondition("TownGateL2BLURTLVisionBlocked", "", "", libCore_gv_cOMPUTER_TeamOrder, -1, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
-    }
-    if ((lv_moveToGates == true) && (libMDoE_gv_mDoE_AIStartingGatesAssignments[libAIAI_gv_heroAITriggerCurrentPlayer] == -1)) {
-        libMDoE_gv_mDoE_AIStartingGatesAssignments[libAIAI_gv_heroAITriggerCurrentPlayer] = RandomInt(1, UnitGroupCount(lv_gateGroup, c_unitCountAlive));
-    }
-
-    if ((libMDoE_gv_mDoE_AIStartingGatesAssignments[libAIAI_gv_heroAITriggerCurrentPlayer] != -1)) {
-        lv_coreGateUnit = UnitGroupUnit(lv_gateGroup, libMDoE_gv_mDoE_AIStartingGatesAssignments[libAIAI_gv_heroAITriggerCurrentPlayer]);
-    }
-
-    lv_spreadDistance = (1.0 + (3.0 * IntToFixed(lv_numberOfAIPlayersOnTeamAtGate)));
-    lv_lanePoint = libGame_gv_players[libAIAI_gv_heroAITriggerCurrentPlayer].lv_spawnPoint;
-    if ((lv_coreGateUnit == null)) {
-        if ((libGame_gv_players[libAIAI_gv_heroAITriggerCurrentPlayer].lv_faction == libGame_ge_Faction_Order)) {
-            lv_coreGateUnit = libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core;
-        }
-        else {
-            lv_coreGateUnit = libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core;
-        }
-    }
-
-    lv_coreGatePosition = UnitGetPosition(lv_coreGateUnit);
-    lv_direction = AIGetDirection(lv_coreGatePosition, lv_lanePoint);
-    lv_behindCoreGate = libCore_gf_AdvancePointinDirection(lv_coreGatePosition, lv_direction, lv_distanceBehindGate);
-    lv_normal = Point(PointGetY(lv_direction), (-1.0 * PointGetX(lv_direction)));
-    lv_bucketWidth = (lv_spreadDistance / IntToFixed(lv_numberOfAIPlayersOnTeamAtGate));
-    lv_offset = (((0.5 + FixedToInt(RandomInt(0, 3))) * lv_bucketWidth) - (lv_spreadDistance / 2.0));
-    lv_waitingPosition = libCore_gf_AdvancePointinDirection(lv_behindCoreGate, lv_normal, lv_offset);
-    lv_waitingPosition = RegionRandomPoint(RegionCircle(lv_waitingPosition, 1.5));
-    libAIAI_gv_aIHeroes[libAIAI_gv_heroAITriggerCurrentPlayer].lv_waitForGameToStartPosition = lv_waitingPosition;
-    libAIAI_gv_heroAITriggerReturnInteger = 1;
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libMDoE_gt_MDoE_CustomChooseWaitForGameStartPosition_Init () {
-    libMDoE_gt_MDoE_CustomChooseWaitForGameStartPosition = TriggerCreate("libMDoE_gt_MDoE_CustomChooseWaitForGameStartPosition_Func");
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -3759,7 +3680,6 @@ void libMDoE_gt_EndRound_Init () {
 void libMDoE_InitTriggers () {
     libMDoE_gt_IncludeDocksEscort_Init();
     libMDoE_gt_MDoEInit_Init();
-    libMDoE_gt_MDoE_CustomChooseWaitForGameStartPosition_Init();
     libMDoE_gt_MDoE_InitTowerCannonGoals_Init();
     libMDoE_gt_MDoE_AddInterceptGoaltoHeroesLeavingSafeZone_Init();
     libMDoE_gt_MDoE_RemoveInterceptGoalfromHeroesinSafeZone_Init();

@@ -22,10 +22,10 @@
 		<variable name="Death And Decay Target Point" type="Point"/>
 		<variable name="Death And Decay Target Unit" type="Unit"/>
 		<variable name="Death And Decay Range" type="Number" value="11"/>
-		<variable name="Death And Decay AOE Radius" type="Number" value="2"/>
+		<variable name="Death And Decay AOE Radius" type="Number" valueSource="lookup" value="Effect,KelThuzadDeathAndDecayDamageSearch,AreaArray[0].Radius"/>
 		<variable name="Death And Decay Missile Radius" type="Number" value="0.5"/>
+		<variable name="Death and Decay Target is Hero" type="Boolean"/>
 		<insertChild id="8BF02FC5DB97A95A"/><!-- Danger Check -->
-		<insertChild id="7F91D42DB7438D1F"/><!-- Plaguelands Talent Completion Check -->
 		<insertChild id="00B5279963FC56BC"/><!-- Mana Filter -->
 		<insertChild id="F9A9095F89D47723"/><!-- The Damned Return -->
 		<insertChild id="4E10051F0B0A362F"/><!-- Cast -->
@@ -37,102 +37,64 @@
 	<node name="" type="Not" id="6264687F74466E49">
 		<insertChild id="2000086370656E61"/><!-- In Danger -->
 	</node>
-	<node name="In Danger" type="InDanger" id="2000086370656E61" comment="Check if we are in danger">
-		<property name="DangerPosition" valueSource="intrinsic" value="SelfPos"/>
-	</node>
+	<node name="In Danger" type="IsInDanger" id="2000086370656E61" comment="Check if we are in danger"/>
 	<node name="Cast" type="Ability" id="4E10051F0B0A362F">
 		<property name="Ability" valueSource="literal" value="KelThuzadDeathAndDecay"/>
 		<property name="TargetPoint" valueSource="variable" value="Death And Decay Target Point"/>
 	</node>
 	<node name="Frost Nova" type="And" id="766F4E74736F7227">
-		<variable name="FrostNovaTargetUnit" type="Unit"/>
-		<variable name="FrostNovaTargetUnitPoint" type="Point"/>
-		<variable name="FrostNovaSearchPoint" type="Point"/>
-		<variable name="FrostNovaTargetPoint" type="Point"/>
-		<variable name="FrostNovaAoERadius" type="Number" value="3"/>
-		<variable name="FrostNovaCritRadius" type="Number" value="1.5"/>
-		<variable name="FrostNovaRange" type="Number" value="9.5"/>
-		<insertChild id="047A737E48725140"/><!-- Target Selection -->
+		<variable name="Frost Nova Target Unit" type="Unit"/>
+		<variable name="Frost Nova Target Unit Point" type="Point"/>
+		<variable name="Frost Nova Search Point" type="Point"/>
+		<variable name="Frost Nova Target Point" type="Point"/>
+		<variable name="Frost Nova AoE Radius" type="Number" valueSource="lookup" value="Effect,KelThuzadFrostNovaOuterDamageSearch,AreaArray[0].Radius"/>
+		<variable name="Frost Nova Buffered Crit Radius" type="Number" value="1"/>
+		<variable name="Frost Nova Range" type="Number" valueSource="lookup" value="Abil,KelThuzadFrostNova,Range"/>
+		<insertChild id="047A737E48725140"/><!-- Mana Filter -->
 		<insertChild id="6867785B59113629"/><!-- Cast -->
 	</node>
 	<node name="Frost Nova Usable" type="AbilityUsable" id="760A2216121C2727">
 		<property name="Ability" valueSource="literal" value="KelThuzadFrostNova"/>
 		<insertChild id="766F4E74736F7227"/><!-- Frost Nova -->
 	</node>
-	<node name="Target Selection" type="Or" id="047A737E48725140">
-		<insertChild id="5D696040696F4610"/><!-- Crit multiple Heroes -->
-		<insertChild id="22021616391E2822"/><!-- Hit multiple heroes -->
-		<insertChild id="3A8B2F720E25B6D3"/><!-- Mana Filter -->
+	<node name="Mana Filter" type="Or" id="047A737E48725140">
+		<insertChild id="09C164B57684D604"/><!-- Critical Enemy Hero -->
+		<insertChild id="5D696040696F4610"/><!-- Freeze 2+ Heroes -->
+		<insertChild id="9D39490A35C1285B"/><!-- High -->
+		<insertChild id="F6638C25034AE91E"/><!-- Medium -->
+		<insertChild id="CA73F1475EF3647B"/><!-- Low -->
 	</node>
-	<node name="Crit multiple Heroes" type="FindBestAOEPoint" id="5D696040696F4610" comment="AoE Radius slightly smaller than normal crit radius to heighten chance of freezing at least 1 hero.">
+	<node name="Freeze 2+ Heroes" type="FindBestAOEPoint" id="5D696040696F4610" comment="AoE Radius slightly smaller than normal crit radius to heighten chance of freezing at least 1 hero.">
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.125"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.125"/>
 		<property name="MinTargets" valueSource="literal" value="2"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="FrostNovaRange"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="true"/>
-		<property name="AOERadius" valueSource="literal" value="1"/>
-		<property name="OutputTarget" value="FrostNovaTargetPoint"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Frost Nova Range"/>
+		<property name="AOERadius" valueSource="variable" value="Frost Nova Buffered Crit Radius"/>
+		<property name="OutputTarget" value="Frost Nova Target Point"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 	</node>
-	<node name="Hit multiple heroes" type="FindBestAOEPoint" id="22021616391E2822">
+	<node name="2+ Enemy Heroes" type="FindBestAOEPoint" id="22021616391E2822">
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.125"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.125"/>
 		<property name="MinTargets" valueSource="literal" value="2"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="FrostNovaRange"/>
-		<property name="AOERadius" valueSource="variable" value="FrostNovaAoERadius"/>
-		<property name="OutputTarget" value="FrostNovaSearchPoint"/>
-		<property name="DistanceFactor" valueSource="literal" value="1"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
-		<insertChild id="6B7470456474554A"/><!-- FrostNovaFindPrimaryUnit -->
-	</node>
-	<node name="FrostNovaFindPrimaryUnit" type="FindBestTarget" id="6B7470456474554A">
-		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.125"/>
-		<property name="SearchCenter" valueSource="variable" value="FrostNovaSearchPoint"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="FrostNovaAoERadius"/>
-		<property name="OutputTarget" value="FrostNovaTargetUnit"/>
-		<property name="ClipCenter" valueSource="intrinsic" value="SelfPos"/>
-		<property name="ClipRadius" valueSource="variable" value="FrostNovaRange"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
-		<insertChild id="CE7003C81075D66E"/><!--  -->
-	</node>
-	<node name="Frost Max Units" type="FindBestAOEPoint" id="737553557247293D" comment="Max distance set to .5 so at least that much of the crit circle will be inside the main target hero.">
-		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.125"/>
-		<property name="SearchCenter" valueSource="variable" value="FrostNovaTargetUnit"/>
-		<property name="MinTargets" valueSource="literal" value="2"/>
-		<property name="MaxTargetDistance" valueSource="literal" value="0.5"/>
-		<property name="AOERadius" valueSource="variable" value="FrostNovaAoERadius"/>
-		<property name="OutputTarget" value="FrostNovaTargetPoint"/>
-		<property name="DistanceFactor" valueSource="literal" value="1"/>
-		<property name="PreferredPoint" valueSource="intrinsic" value="SelfPos"/>
-		<property name="PreferredPointFactor" valueSource="literal" value="2"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
-	</node>
-	<node name="Find a Hero" type="FindBestTarget" id="1872747E48635840">
-		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.125"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="FrostNovaRange"/>
-		<property name="LifeFractionFactor" valueSource="literal" value="3"/>
-		<property name="OutputTarget" value="FrostNovaTargetUnit"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
-		<insertChild id="7060737F4D725140"/><!-- Convert Unit to future point -->
-	</node>
-	<node name="Convert Unit to future point" type="UnitPosition" id="7060737F4D725140">
-		<property name="InputUnit" valueSource="variable" value="FrostNovaTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.125"/>
-		<property name="OutputPosition" value="FrostNovaTargetPoint"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Frost Nova Range"/>
+		<property name="AOERadius" valueSource="variable" value="Frost Nova AoE Radius"/>
+		<property name="OutputTarget" value="Frost Nova Search Point"/>
+		<property name="MaxBestTargetOffset" valueSource="variable" value="Frost Nova Buffered Crit Radius"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
+		<insertChild id="DF64A1FB426C22C5"/><!-- 75% Enemy Hero -->
 	</node>
 	<node name="Cast" type="Ability" id="6867785B59113629">
 		<property name="Ability" valueSource="literal" value="KelThuzadFrostNova"/>
-		<property name="TargetPoint" valueSource="variable" value="FrostNovaTargetPoint"/>
+		<property name="TargetPoint" valueSource="variable" value="Frost Nova Target Point"/>
 	</node>
 	<node name="Chains" type="And" id="0000736E69616843">
-		<variable name="ChainsTargetSearchPoint" type="Point"/>
-		<variable name="ChainsTargetUnit" type="Unit"/>
-		<variable name="ChainsTargetPoint" type="Point"/>
-		<variable name="ChainsLinkHalfRange" type="Number" value="4.5"/>
-		<variable name="ChainsRange" type="Number" value="9"/>
-		<variable name="ChainsLinkRange" type="Number" value="9"/>
+		<variable name="Chains Target Search Point" type="Point"/>
+		<variable name="Chains Target Unit" type="Unit"/>
+		<variable name="Chains Target Point" type="Point"/>
+		<variable name="Chains Link Half Range" type="Number" value="4.5"/>
+		<variable name="Chains Range" type="Number" value="9"/>
+		<variable name="Chains Link Range" type="Number" value="9"/>
 		<insertChild id="7C8C648B65D8BB9A"/><!--  -->
 		<insertChild id="7E447D7061574769"/><!-- Cast -->
 	</node>
@@ -142,12 +104,11 @@
 	</node>
 	<node name="Find Point with 2 Enemy Heroes close enough" type="FindBestAOEPoint" id="7A070C271716033C" comment="Need to use Half Link Range as the Radius since we don&apos;t want to find units 2x the Link distance apart.">
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
 		<property name="MinTargets" valueSource="literal" value="2"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
-		<property name="AOERadius" valueSource="variable" value="ChainsLinkHalfRange"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="ChainsRange"/>
-		<property name="OutputTarget" value="ChainsTargetSearchPoint"/>
+		<property name="AOERadius" valueSource="variable" value="Chains Link Half Range"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Chains Range"/>
+		<property name="OutputTarget" value="Chains Target Search Point"/>
 		<property name="FilterTargetsBehindGate" valueSource="literal" value="false"/>
 		<property name="DistanceFactor" valueSource="literal" value="2"/>
 		<property name="RequiredTypes" valueSource="literal" value="Enemy"/>
@@ -157,32 +118,31 @@
 		<property name="TargetBlockingTypes" valueSource="literal" value="Enemy,Structure,Heroic"/>
 		<property name="MissileRadius" valueSource="literal" value="1"/>
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
-		<property name="ClipCenter" valueSource="variable" value="ChainsTargetSearchPoint"/>
-		<property name="ClipRadius" valueSource="variable" value="ChainsLinkRange"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="ChainsRange"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
+		<property name="ClipCenter" valueSource="variable" value="Chains Target Search Point"/>
+		<property name="ClipRadius" valueSource="variable" value="Chains Link Range"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Chains Range"/>
 		<property name="DistanceFactor" valueSource="literal" value="2"/>
-		<property name="OutputTarget" value="ChainsTargetUnit"/>
+		<property name="OutputTarget" value="Chains Target Unit"/>
 		<property name="FilterTargetsBehindGate" valueSource="literal" value="true"/>
 		<property name="ExcludeTypes" valueSource="literal" value="Missile,Stasis,Dead,Invulnerable,Benign"/>
 		<insertChild id="63484E65577C4B50"/><!-- Convert Unit to future point -->
 	</node>
 	<node name="Convert Unit to future point" type="UnitPosition" id="63484E65577C4B50">
-		<property name="InputUnit" valueSource="variable" value="ChainsTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
-		<property name="OutputPosition" value="ChainsTargetPoint"/>
+		<property name="InputUnit" valueSource="variable" value="Chains Target Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
+		<property name="OutputPosition" value="Chains Target Point"/>
 	</node>
 	<node name="Cast" type="Ability" id="7E447D7061574769">
 		<property name="Ability" valueSource="literal" value="KelThuzadChains"/>
-		<property name="TargetPoint" valueSource="variable" value="ChainsTargetPoint"/>
+		<property name="TargetPoint" valueSource="variable" value="Chains Target Point"/>
 	</node>
 	<node name="Chains Link" type="And" id="694C736E6961032D">
-		<variable name="ChainsLinkCastUnit" type="Unit"/>
-		<variable name="ChainsLinkCastPoint" type="Point"/>
-		<variable name="ChainsLinkTargetUnit" type="Unit"/>
-		<variable name="ChainsLinkTargetPoint" type="Point"/>
-		<variable name="ChainsLinkRange" type="Number" value="9"/>
+		<variable name="Chains Link Cast Unit" type="Unit"/>
+		<variable name="Chains Link Cast Point" type="Point"/>
+		<variable name="Chains Link Target Unit" type="Unit"/>
+		<variable name="Chains Link Target Point" type="Point"/>
+		<variable name="Chains Link Range" type="Number" value="9"/>
 		<insertChild id="958C41C8D37A4465"/><!-- Find Chains Link Source Unit -->
 		<insertChild id="617A5C4417250D33"/><!-- ChainsLinkUseAbilityOnTarget -->
 	</node>
@@ -193,44 +153,44 @@
 	<node name="Find Chained Enemy Hero" type="FindBestTarget" id="6E4B606E7F47403D">
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
 		<property name="MaxTargetDistance" valueSource="literal" value="30"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="true"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 		<property name="Behavior" valueSource="literal" value="KelThuzadChainsEnemySearchImpactTargetAB"/>
-		<property name="OutputTarget" value="ChainsLinkCastUnit"/>
+		<property name="OutputTarget" value="Chains Link Cast Unit"/>
 	</node>
 	<node name="ChainsLinkGetFindCastPoint" type="UnitPosition" id="6E4A656E7F473427">
-		<property name="InputUnit" valueSource="variable" value="ChainsLinkCastUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
-		<property name="OutputPosition" value="ChainsLinkCastPoint"/>
+		<property name="InputUnit" valueSource="variable" value="Chains Link Cast Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
+		<property name="OutputPosition" value="Chains Link Cast Point"/>
 	</node>
 	<node name="Find Other Hero" type="FindBestTarget" id="5251507D7E333E27">
 		<property name="TargetBlockingTypes" valueSource="literal" value="Enemy,Structure,Heroic"/>
 		<property name="MissileRadius" valueSource="literal" value="1"/>
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
-		<property name="SearchCenter" valueSource="variable" value="ChainsLinkCastPoint"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
+		<property name="SearchCenter" valueSource="variable" value="Chains Link Cast Point"/>
 		<property name="MinTargetDistance" valueSource="literal" value="0.1"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="ChainsLinkRange"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Chains Link Range"/>
 		<property name="LifeFractionFactor" valueSource="literal" value="1"/>
 		<property name="DistanceFactor" valueSource="literal" value="1"/>
-		<property name="OutputTarget" value="ChainsLinkTargetUnit"/>
+		<property name="OutputTarget" value="Chains Link Target Unit"/>
 		<property name="FilterTargetsBehindGate" valueSource="literal" value="true"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
 		<property name="MissilePierceCount" valueSource="literal" value="1"/>
 		<property name="RequiredTypes" valueSource="literal" value="Enemy"/>
 		<insertChild id="5751507D0A293E26"/><!-- Convert Unit to future point -->
 	</node>
 	<node name="Convert Unit to future point" type="UnitPosition" id="5751507D0A293E26">
-		<property name="InputUnit" valueSource="variable" value="ChainsLinkTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
-		<property name="OutputPosition" value="ChainsLinkTargetPoint"/>
+		<property name="InputUnit" valueSource="variable" value="Chains Link Target Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
+		<property name="OutputPosition" value="Chains Link Target Point"/>
 	</node>
 	<node name="ChainsLinkUseAbilityOnTarget" type="Ability" id="617A5C4417250D33">
 		<property name="Ability" valueSource="literal" value="KelThuzadChainsLink"/>
-		<property name="TargetPoint" valueSource="variable" value="ChainsLinkTargetPoint"/>
+		<property name="TargetPoint" valueSource="variable" value="Chains Link Target Point"/>
+		<property name="DoNotThrottle" valueSource="literal" value="true"/>
 	</node>
 	<node name="Shadow Fissure" type="And" id="6946770A16141B20">
-		<variable name="ShadowFissureTargetUnit" type="Unit"/>
-		<variable name="ShadowFissureTargetPoint" type="Point"/>
+		<variable name="Shadow Fissure Target Unit" type="Unit"/>
+		<variable name="Shadow Fissure Target Point" type="Point"/>
 		<insertChild id="17716449414267BC"/><!-- Mana Filter -->
 		<insertChild id="43383304081C2D0F"/><!-- Cast -->
 	</node>
@@ -240,61 +200,41 @@
 	</node>
 	<node name="Cast" type="Ability" id="43383304081C2D0F">
 		<property name="Ability" valueSource="literal" value="KelThuzadShadowFissure"/>
-		<property name="TargetPoint" valueSource="variable" value="ShadowFissureTargetPoint"/>
+		<property name="TargetPoint" valueSource="variable" value="Shadow Fissure Target Point"/>
 	</node>
 	<node name="Frozen Tomb" type="And" id="6F546E657A6F102B">
-		<variable name="FrozenTombTargetSearchPoint" type="Point"/>
-		<variable name="FrozenTombTargetUnit" type="Unit"/>
-		<variable name="FrozenTombAoEHalfRadius" type="Number" value="3"/>
-		<variable name="FrozenTombAoERadius" type="Number" value="6"/>
+		<variable name="Frozen Tomb Target Search Point" type="Point"/>
+		<variable name="Frozen Tomb Target Unit" type="Unit"/>
+		<variable name="Frozen Tomb AoE Half Radius" type="Number" value="2.75"/>
+		<variable name="Frozen Tomb AoE Radius" type="Number" valueSource="lookup" value="Effect,KelThuzadFrozenTombSearch,AreaArray[0].Radius"/>
+		<variable name="Frozen Tomb Range" type="Number" valueSource="lookup" value="Abil,KelThuzadFrozenTomb,Range"/>
 		<insertChild id="52AE2FDFE651A4F4"/><!-- Danger Check -->
 		<insertChild id="0EEC69256DC2B3D3"/><!-- Mana Filter -->
+		<insertChild id="A747EB13BD195B17"/><!-- Allies Near Target -->
 		<insertChild id="6762414F042B1E35"/><!-- Cast -->
 	</node>
 	<node name="Frozen Tomb Usable" type="AbilityUsable" id="0A380C04093A102B">
 		<property name="Ability" valueSource="literal" value="KelThuzadFrozenTomb"/>
 		<insertChild id="6F546E657A6F102B"/><!-- Frozen Tomb -->
 	</node>
-	<node name="Find 3 Heroes within range" type="FindBestAOEPoint" id="1123051A00686F62" comment="Half Radius to make sure potential targets are at most 6 apart (spell radius)">
-		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
-		<property name="MinTargets" valueSource="literal" value="3"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="true"/>
-		<property name="AOERadius" valueSource="variable" value="FrozenTombAoEHalfRadius"/>
-		<property name="MaxTargetDistance" valueSource="literal" value="14"/>
-		<property name="OutputTarget" value="FrozenTombTargetSearchPoint"/>
-		<insertChild id="54494D766D3D2D21"/><!-- Find Target Unit -->
-	</node>
-	<node name="Find Target Unit" type="FindBestTarget" id="54494D766D3D2D21">
-		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
-		<property name="ClipCenter" valueSource="variable" value="FrozenTombTargetSearchPoint"/>
-		<property name="ClipRadius" valueSource="variable" value="FrozenTombAoEHalfRadius"/>
-		<property name="MaxTargetDistance" valueSource="literal" value="14"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="true"/>
-		<property name="LifeFractionFactor" valueSource="literal" value="-1"/>
-		<property name="DistanceFactor" valueSource="literal" value="1"/>
-		<property name="OutputTarget" value="FrozenTombTargetUnit"/>
-		<insertChild id="1AC6A6812E81A48A"/><!--  -->
-	</node>
 	<node name="Cast" type="Ability" id="6762414F042B1E35">
 		<property name="Ability" valueSource="literal" value="KelThuzadFrozenTomb"/>
-		<property name="TargetUnit" valueSource="variable" value="FrozenTombTargetUnit"/>
+		<property name="TargetUnit" valueSource="variable" value="Frozen Tomb Target Unit"/>
 	</node>
 	<node name="Armor of the Archlich Defensive" type="And" id="1D0A07111D2C7F4A">
 		<insertChild id="7C6F4F6672080B26"/><!-- < 60% -->
 		<insertChild id="7F67685273650B2B"/><!-- In Combat -->
 		<insertChild id="78780B2000000B2B"/><!-- Is Threatened -->
-		<insertChild id="74684674170D1626"/><!-- Cast -->
+		<insertChild id="017187C6B6396ABB"/><!-- Cast -->
 	</node>
 	<node name="Armor of the Archlich Usable" type="AbilityUsable" id="786665706E797F4A">
 		<property name="Ability" valueSource="literal" value="KelThuzadArchlichArmor"/>
 		<insertChild id="1D0A07111D2C7F4A"/><!-- Armor of the Archlich Defensive -->
 	</node>
-	<node name="&lt; 60%" type="Health" id="7C6F4F6672080B26" comment="Want to use it above Critical Health so you will use it before getting murdered.">
+	<node name="&lt; 60%" type="LifeFraction" id="7C6F4F6672080B26" comment="Want to use it above Critical Health so you will use it before getting murdered.">
 		<property name="Target" valueSource="intrinsic" value="Self"/>
 		<property name="Comparison" valueSource="literal" value="LT"/>
-		<property name="Health" valueSource="literal" value="0.6"/>
+		<property name="LifeFraction" valueSource="literal" value="0.6"/>
 	</node>
 	<node name="Is Threatened" type="Or" id="78780B2000000B2B">
 		<insertChild id="7A64665573650D2F"/><!-- In Danger -->
@@ -304,21 +244,14 @@
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
 		<property name="MaxTargetDistance" valueSource="literal" value="8"/>
 		<property name="TargetCount" valueSource="literal" value="1"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 	</node>
-	<node name="In Danger" type="InDanger" id="7A64665573650D2F" comment="Check if we are in danger">
-		<property name="DangerPosition" valueSource="intrinsic" value="SelfPos"/>
-		<property name="EnemyRadius" valueSource="literal" value="8"/>
-		<property name="AllyRadius" valueSource="literal" value="12"/>
-	</node>
+	<node name="In Danger" type="IsInDanger" id="7A64665573650D2F" comment="Check if we are in danger"/>
 	<node name="In Combat" type="Validator" id="7F67685273650B2B">
 		<property name="Target" valueSource="intrinsic" value="Self"/>
 		<property name="Validator" valueSource="literal" value="CasterInCombat"/>
 	</node>
-	<node name="Cast" type="Ability" id="74684674170D1626">
-		<property name="Ability" valueSource="literal" value="KelThuzadArchlichArmor"/>
-	</node>
 	<node name="Glacial Spike" type="And" id="1C3D968FE2C40F49">
-		<variable name="GlacialSpikeRange" type="Number" value="8"/>
 		<insertChild id="B01F4E56AD280AE6"/><!-- Med Mana -->
 		<insertChild id="9CBE55CD7DEFBA6B"/><!--  -->
 		<insertChild id="5B0B2FD40976AA12"/><!--  -->
@@ -338,8 +271,8 @@
 		<property name="Ability" valueSource="literal" value="KelThuzadChainsLink"/>
 	</node>
 	<node name="" type="Or" id="5B0B2FD40976AA12">
-		<variable name="GlacialSpikeTargetUnit" type="Unit"/>
-		<variable name="GlacialSpikeTargetPoint" type="Point"/>
+		<variable name="Glacial Spike Target Unit" type="Unit"/>
+		<variable name="Glacial Spike Target Point" type="Point"/>
 		<insertChild id="840C1926E88D6AD1"/><!-- Find Close Enemies -->
 		<insertChild id="14B30CC1BBA929D3"/><!-- Find Midrange Enemy -->
 		<insertChild id="B1C2F6C8D0A92DD0"/><!-- Find Far Enemy -->
@@ -347,24 +280,26 @@
 	<node name="Find Close Enemies" type="FindBestTarget" id="840C1926E88D6AD1">
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
 		<property name="MaxTargetDistance" valueSource="literal" value="6"/>
-		<property name="DistanceFactor" valueSource="literal" value="5"/>
-		<property name="OutputTarget" value="GlacialSpikeTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
+		<property name="DistanceFactor" valueSource="literal" value="3"/>
+		<property name="OutputTarget" value="Glacial Spike Target Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 		<insertChild id="C28E312B47602920"/><!-- Cast at Max Range -->
 	</node>
 	<node name="Find Far Enemy" type="FindBestTarget" id="B1C2F6C8D0A92DD0">
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
 		<property name="MaxTargetDistance" valueSource="literal" value="17"/>
-		<property name="MinTargetDistance" valueSource="literal" value="11"/>
-		<property name="OutputTarget" value="GlacialSpikeTargetUnit"/>
+		<property name="MinTargetDistance" valueSource="literal" value="10"/>
+		<property name="OutputTarget" value="Glacial Spike Target Unit"/>
 		<property name="DistanceFactor" valueSource="literal" value="3"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 		<insertChild id="B6BC4E3AA2370CA4"/><!-- Cast at Max Range -->
 	</node>
 	<node name="Cast at Max Range" type="Ability" id="B6BC4E3AA2370CA4">
 		<property name="Ability" valueSource="literal" value="KelThuzadGlacialSpike"/>
 		<property name="UseMaxRange" valueSource="literal" value="true"/>
-		<property name="TargetUnit" valueSource="variable" value="GlacialSpikeTargetUnit"/>
+		<property name="TargetUnit" valueSource="variable" value="Glacial Spike Target Unit"/>
 	</node>
 	<node name="" type="Or" id="7C8C648B65D8BB9A">
 		<insertChild id="DA6AF9C9B09673E3"/><!-- Find Glacial Spike Target -->
@@ -374,19 +309,19 @@
 	<node name="Find Glacial Spike Target" type="FindBestTarget" id="DA6AF9C9B09673E3">
 		<property name="TargetTypes" valueSource="literal" value="Player"/>
 		<property name="UnitType" valueSource="literal" value="KelThuzadGlacialSpike"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="ChainsRange"/>
-		<property name="OutputTarget" value="ChainsTargetUnit"/>
-		<property name="TargetBlockingTypes" valueSource="literal" value="Enemy"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Chains Range"/>
+		<property name="OutputTarget" value="Chains Target Unit"/>
+		<property name="TargetBlockingTypes" valueSource="literal" value="Enemy,Structure,Heroic"/>
 		<property name="FilterTargetsBehindGate" valueSource="literal" value="true"/>
 		<property name="ExcludeTypes" valueSource="literal" value="Missile,Stasis,Dead,Benign"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
+		<property name="MissileRadius" valueSource="literal" value="1"/>
 		<insertChild id="0D4FFE05968E75C1"/><!-- Convert Unit to future point -->
 	</node>
 	<node name="Convert Unit to future point" type="UnitPosition" id="0D4FFE05968E75C1">
-		<property name="OutputPosition" value="ChainsTargetPoint"/>
-		<property name="InputUnit" valueSource="variable" value="ChainsTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
+		<property name="OutputPosition" value="Chains Target Point"/>
+		<property name="InputUnit" valueSource="variable" value="Chains Target Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
 		<insertChild id="FF352FCFDDD40E3B"/><!-- Find Secondary Target near Spike -->
 	</node>
 	<node name="" type="Or" id="78538FAC93F16300">
@@ -396,32 +331,32 @@
 	</node>
 	<node name="Find Glacial Spike" type="FindBestTarget" id="5279FFE084269848">
 		<property name="MaxTargetDistance" valueSource="literal" value="30"/>
-		<property name="OutputTarget" value="ChainsLinkCastUnit"/>
+		<property name="OutputTarget" value="Chains Link Cast Unit"/>
 		<property name="TargetTypes" valueSource="literal" value="Player"/>
 		<property name="UnitType" valueSource="literal" value="KelThuzadGlacialSpike"/>
 		<property name="Behavior" valueSource="literal" value="KelThuzadChainsEnemySearchImpactTargetAB"/>
 		<property name="ExcludeTypes" valueSource="literal" value="Missile,Stasis,Dead,Benign"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="true"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 	</node>
 	<node name="Find Glacial Spike Target" type="FindBestTarget" id="7AB5E2E6E8BBDB89">
 		<property name="TargetTypes" valueSource="literal" value="Player"/>
 		<property name="ExcludeTypes" valueSource="literal" value="Missile,Stasis,Dead,Benign"/>
 		<property name="UnitType" valueSource="literal" value="KelThuzadGlacialSpike"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
 		<property name="TargetBlockingTypes" valueSource="literal" value="Enemy,Structure,Heroic"/>
 		<property name="FilterTargetsBehindGate" valueSource="literal" value="true"/>
-		<property name="OutputTarget" value="ChainsLinkTargetUnit"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="ChainsLinkRange"/>
+		<property name="OutputTarget" value="Chains Link Target Unit"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Chains Link Range"/>
 		<property name="MinTargetDistance" valueSource="literal" value="0.1"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
-		<property name="SearchCenter" valueSource="variable" value="ChainsLinkCastPoint"/>
+		<property name="SearchCenter" valueSource="variable" value="Chains Link Cast Point"/>
 		<property name="MissileRadius" valueSource="literal" value="1"/>
+		<property name="MissilePierceCount" valueSource="literal" value="1"/>
 		<insertChild id="0F6AD2AFD16572CF"/><!-- Convert Unit to future point -->
 	</node>
 	<node name="Convert Unit to future point" type="UnitPosition" id="0F6AD2AFD16572CF">
-		<property name="OutputPosition" value="ChainsLinkTargetPoint"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
-		<property name="InputUnit" valueSource="variable" value="ChainsLinkTargetUnit"/>
+		<property name="OutputPosition" value="Chains Link Target Point"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
+		<property name="InputUnit" valueSource="variable" value="Chains Link Target Unit"/>
 	</node>
 	<node name="Shifting Malice Defensive" type="And" id="AC54CC441028B6EA">
 		<insertChild id="71D6FA7572F02D1B"/><!-- Critical Health -->
@@ -432,10 +367,10 @@
 		<property name="Ability" valueSource="literal" value="KelThuzadShiftingMalice"/>
 		<insertChild id="AC54CC441028B6EA"/><!-- Shifting Malice Defensive -->
 	</node>
-	<node name="Critical Health" type="Health" id="71D6FA7572F02D1B">
+	<node name="Critical Health" type="LifeFraction" id="71D6FA7572F02D1B">
 		<property name="Comparison" valueSource="literal" value="LT"/>
 		<property name="Target" valueSource="intrinsic" value="Self"/>
-		<property name="Health" valueSource="variable" value="Health_ReturnToSpawn"/>
+		<property name="LifeFraction" valueSource="variable" value="Health_ReturnToSpawn"/>
 	</node>
 	<node name="Enemies Nearby or In Danger" type="Or" id="DEABB81F79587D74">
 		<insertChild id="E8B99BB2DCE529CF"/><!-- In Danger -->
@@ -449,28 +384,25 @@
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
 		<property name="TargetCount" valueSource="literal" value="1"/>
 		<property name="MaxTargetDistance" valueSource="literal" value="4"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 	</node>
-	<node name="In Danger" type="InDanger" id="E8B99BB2DCE529CF">
-		<property name="EnemyRadius" valueSource="literal" value="8"/>
-		<property name="AllyRadius" valueSource="literal" value="12"/>
-		<property name="DangerPosition" valueSource="intrinsic" value="SelfPos"/>
-	</node>
+	<node name="In Danger" type="IsInDanger" id="E8B99BB2DCE529CF"/>
 	<node name="Find 1+ Hero Target" type="FindBestAOEPoint" id="6CD73F77C319303B">
 		<property name="TargetBlockingTypes" valueSource="literal" value="Enemy"/>
 		<property name="FilterTargetsBehindGate" valueSource="literal" value="true"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.625"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.625"/>
 		<property name="MissileRadius" valueSource="variable" value="Death And Decay Missile Radius"/>
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
 		<property name="MaxTargetDistance" valueSource="variable" value="Death And Decay Range"/>
 		<property name="AOERadius" valueSource="variable" value="Death And Decay AOE Radius"/>
 		<property name="OutputTarget" value="Death And Decay Target Point"/>
 		<property name="MinTargets" valueSource="literal" value="1"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
 		<property name="LifeFractionFactor" valueSource="literal" value="3"/>
 		<property name="MaxBestTargetOffset" valueSource="variable" value="Death And Decay Missile Radius"/>
+		<insertChild id="F5317757DCEC5265"/><!-- Target is Hero -->
 	</node>
 	<node name="Find 3+ of Any Targets" type="FindBestAOEPoint" id="F602DDC510CD71A7">
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.625"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.625"/>
 		<property name="MissileRadius" valueSource="variable" value="Death And Decay Missile Radius"/>
 		<property name="TargetBlockingTypes" valueSource="literal" value="Enemy"/>
 		<property name="FilterTargetsBehindGate" valueSource="literal" value="true"/>
@@ -478,66 +410,36 @@
 		<property name="OutputTarget" value="Death And Decay Target Point"/>
 		<property name="MinTargets" valueSource="literal" value="3"/>
 		<property name="AOERadius" valueSource="variable" value="Death And Decay AOE Radius"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
 		<property name="MaxBestTargetOffset" valueSource="variable" value="Death And Decay Missile Radius"/>
-	</node>
-	<node name="Plaguelands Talent Completion Check" type="Sequence" id="7F91D42DB7438D1F">
-		<property name="IgnoreChildFailures" valueSource="literal" value="true"/>
-		<insertChild id="5C58AC6D45343A93"/><!-- Has Plaguelands Complete -->
-	</node>
-	<node name="Has Plaguelands Complete" type="Validator" id="5C58AC6D45343A93">
-		<property name="Validator" valueSource="literal" value="KelThuzadThePlaguelandsComplete"/>
-		<property name="Target" valueSource="intrinsic" value="Self"/>
-		<insertChild id="A46818FC069F0EC5"/><!-- Increase Radius -->
-	</node>
-	<node name="Increase Radius" type="SetNumber" id="A46818FC069F0EC5">
-		<property name="Variable" value="Death And Decay AOE Radius"/>
-		<property name="Value" valueSource="literal" value="3"/>
 	</node>
 	<node name="Find Midrange Enemy" type="FindBestTarget" id="14B30CC1BBA929D3">
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
-		<property name="MaxTargetDistance" valueSource="literal" value="11"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
+		<property name="MaxTargetDistance" valueSource="literal" value="10"/>
 		<property name="MinTargetDistance" valueSource="literal" value="6"/>
-		<property name="OutputTarget" value="GlacialSpikeTargetUnit"/>
+		<property name="OutputTarget" value="Glacial Spike Target Unit"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 		<insertChild id="2B8C36C92D2F57D1"/><!-- Find point between target and caster -->
 	</node>
 	<node name="Cast at Max Range" type="Ability" id="C28E312B47602920">
 		<property name="Ability" valueSource="literal" value="KelThuzadGlacialSpike"/>
-		<property name="TargetUnit" valueSource="variable" value="GlacialSpikeTargetUnit"/>
+		<property name="TargetUnit" valueSource="variable" value="Glacial Spike Target Unit"/>
 		<property name="UseMaxRange" valueSource="literal" value="true"/>
 	</node>
 	<node name="Find point between target and caster" type="FindPointOnLine" id="2B8C36C92D2F57D1">
-		<property name="SourceUnit" valueSource="variable" value="GlacialSpikeTargetUnit"/>
+		<property name="SourceUnit" valueSource="variable" value="Glacial Spike Target Unit"/>
 		<property name="DestinationUnit" valueSource="intrinsic" value="Self"/>
 		<property name="DistanceOffset" valueSource="literal" value="2"/>
-		<property name="OutputTarget" value="GlacialSpikeTargetPoint"/>
+		<property name="OutputTarget" value="Glacial Spike Target Point"/>
 		<insertChild id="FBD1CA222A887559"/><!-- Place Spike at point -->
 	</node>
 	<node name="Place Spike at point" type="Ability" id="FBD1CA222A887559">
 		<property name="Ability" valueSource="literal" value="KelThuzadGlacialSpike"/>
-		<property name="TargetPoint" valueSource="variable" value="GlacialSpikeTargetPoint"/>
-	</node>
-	<node name="" type="Or" id="CE7003C81075D66E">
-		<insertChild id="4E4CAE70BD2E8F51"/><!-- Freeze Max Units -->
-		<insertChild id="737553557247293D"/><!-- Frost Max Units -->
-	</node>
-	<node name="Freeze Max Units" type="FindBestAOEPoint" id="4E4CAE70BD2E8F51" comment="Max distance set to .5 so at least that much of the crit circle will be inside the main target hero.">
-		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.125"/>
-		<property name="SearchCenter" valueSource="variable" value="FrostNovaTargetUnit"/>
-		<property name="MaxTargetDistance" valueSource="literal" value="0.5"/>
-		<property name="MinTargets" valueSource="literal" value="2"/>
-		<property name="AOERadius" valueSource="variable" value="FrostNovaCritRadius"/>
-		<property name="OutputTarget" value="FrostNovaTargetPoint"/>
-		<property name="DistanceFactor" valueSource="literal" value="1"/>
-		<property name="PreferredPoint" valueSource="intrinsic" value="SelfPos"/>
-		<property name="PreferredPointFactor" valueSource="literal" value="2"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
+		<property name="TargetPoint" valueSource="variable" value="Glacial Spike Target Point"/>
 	</node>
 	<node name="Targeting Selection" type="Or" id="C8023BA9007814D9">
 		<insertChild id="6CD73F77C319303B"/><!-- Find 1+ Hero Target -->
-		<insertChild id="53B2DF1FD8A5A70D"/><!-- Find 2+ Mercs -->
+		<insertChild id="53B2DF1FD8A5A70D"/><!-- Find 2+ Mercs or Map Creatures -->
 		<insertChild id="F602DDC510CD71A7"/><!-- Find 3+ of Any Targets -->
 	</node>
 	<node name="Enemy Hero Nearby" type="UnitCount" id="EBC0D6BA7D7718C1">
@@ -545,13 +447,14 @@
 		<property name="MaxTargetDistance" valueSource="literal" value="8"/>
 		<property name="TargetCount" valueSource="literal" value="1"/>
 		<property name="Comparison" valueSource="literal" value="LE"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 	</node>
 	<node name="Danger Check" type="And" id="8BF02FC5DB97A95A">
 		<insertChild id="6264687F74466E49"/><!--  -->
 		<insertChild id="0E46ED2BCCB860B4"/><!--  -->
 	</node>
-	<node name="Over 50%" type="Health" id="A1327991F4CC9CA2">
-		<property name="Health" valueSource="literal" value="0.5"/>
+	<node name="Over 50%" type="LifeFraction" id="A1327991F4CC9CA2">
+		<property name="LifeFraction" valueSource="literal" value="0.5"/>
 		<property name="Target" valueSource="intrinsic" value="Self"/>
 	</node>
 	<node name="" type="Or" id="0E46ED2BCCB860B4">
@@ -567,8 +470,8 @@
 		<insertChild id="C18C87A67E77E226"/><!-- High Mana -->
 		<insertChild id="C8023BA9007814D9"/><!-- Targeting Selection -->
 	</node>
-	<node name="Find 2+ Mercs" type="FindBestAOEPoint" id="53B2DF1FD8A5A70D">
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.625"/>
+	<node name="Find 2+ Mercs or Map Creatures" type="FindBestAOEPoint" id="53B2DF1FD8A5A70D">
+		<property name="PredictionSeconds" valueSource="literal" value="0.625"/>
 		<property name="MissileRadius" valueSource="variable" value="Death And Decay Missile Radius"/>
 		<property name="TargetBlockingTypes" valueSource="literal" value="Enemy"/>
 		<property name="FilterTargetsBehindGate" valueSource="literal" value="true"/>
@@ -576,8 +479,7 @@
 		<property name="OutputTarget" value="Death And Decay Target Point"/>
 		<property name="MinTargets" valueSource="literal" value="2"/>
 		<property name="AOERadius" valueSource="variable" value="Death And Decay AOE Radius"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
-		<property name="TargetTypes" valueSource="literal" value="Creep"/>
+		<property name="TargetTypes" valueSource="literal" value="Creep,MapCreature"/>
 		<property name="MaxBestTargetOffset" valueSource="variable" value="Death And Decay Missile Radius"/>
 	</node>
 	<node name="Medium" type="And" id="FB1CDF7C3D273698">
@@ -590,34 +492,22 @@
 	</node>
 	<node name="Targeting Selection" type="Or" id="E01EC28BCB9CC97D">
 		<insertChild id="DFB7B6D570D1F286"/><!-- Find 1+ Hero Target -->
-		<insertChild id="C0505DF36A7C5050"/><!-- Find 2+ Mercs -->
+		<insertChild id="A5E784B5D0A288AE"/><!-- Find 2+ Mercs or Map Creatures -->
+		<insertChild id="1447B84AD3C43EE3"/><!-- Find 5+ of Any Targets -->
 	</node>
 	<node name="Find 1+ Hero Target" type="FindBestAOEPoint" id="DFB7B6D570D1F286">
 		<property name="TargetBlockingTypes" valueSource="literal" value="Enemy"/>
 		<property name="FilterTargetsBehindGate" valueSource="literal" value="true"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.625"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.625"/>
 		<property name="MissileRadius" valueSource="variable" value="Death And Decay Missile Radius"/>
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
 		<property name="MaxTargetDistance" valueSource="variable" value="Death And Decay Range"/>
 		<property name="AOERadius" valueSource="variable" value="Death And Decay AOE Radius"/>
 		<property name="OutputTarget" value="Death And Decay Target Point"/>
 		<property name="MinTargets" valueSource="literal" value="1"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
 		<property name="LifeFractionFactor" valueSource="literal" value="3"/>
 		<property name="MaxBestTargetOffset" valueSource="variable" value="Death And Decay Missile Radius"/>
-	</node>
-	<node name="Find 2+ Mercs" type="FindBestAOEPoint" id="C0505DF36A7C5050">
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.625"/>
-		<property name="MissileRadius" valueSource="variable" value="Death And Decay Missile Radius"/>
-		<property name="TargetBlockingTypes" valueSource="literal" value="Enemy"/>
-		<property name="FilterTargetsBehindGate" valueSource="literal" value="true"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="Death And Decay Range"/>
-		<property name="OutputTarget" value="Death And Decay Target Point"/>
-		<property name="MinTargets" valueSource="literal" value="2"/>
-		<property name="AOERadius" valueSource="variable" value="Death And Decay AOE Radius"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
-		<property name="TargetTypes" valueSource="literal" value="Creep"/>
-		<property name="MaxBestTargetOffset" valueSource="variable" value="Death And Decay Missile Radius"/>
+		<insertChild id="4B54F6115215F9F5"/><!-- Target is Hero -->
 	</node>
 	<node name="Targeting Selection" type="Or" id="7111953C4C4F05DD">
 		<insertChild id="0EBFC28A847B11AF"/><!-- Find 1+ Hero Target -->
@@ -625,33 +515,29 @@
 	<node name="Find 1+ Hero Target" type="FindBestAOEPoint" id="0EBFC28A847B11AF">
 		<property name="TargetBlockingTypes" valueSource="literal" value="Enemy"/>
 		<property name="FilterTargetsBehindGate" valueSource="literal" value="true"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.625"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.625"/>
 		<property name="MissileRadius" valueSource="variable" value="Death And Decay Missile Radius"/>
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
 		<property name="MaxTargetDistance" valueSource="variable" value="Death And Decay Range"/>
 		<property name="AOERadius" valueSource="variable" value="Death And Decay AOE Radius"/>
 		<property name="OutputTarget" value="Death And Decay Target Point"/>
 		<property name="MinTargets" valueSource="literal" value="1"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
 		<property name="LifeFractionFactor" valueSource="literal" value="3"/>
 		<property name="MaxBestTargetOffset" valueSource="variable" value="Death And Decay Missile Radius"/>
+		<insertChild id="18F9124F7CBE3653"/><!-- Target is Hero -->
 	</node>
 	<node name="Mana Filter" type="Or" id="17716449414267BC">
-		<insertChild id="DDEE2071C15B894D"/><!-- High -->
 		<insertChild id="68BE8D0443759F05"/><!-- Medium -->
 		<insertChild id="9BA2BA7D035C68BE"/><!-- Low -->
-	</node>
-	<node name="High" type="And" id="DDEE2071C15B894D">
-		<insertChild id="8131F04D58972676"/><!-- High Mana -->
-		<insertChild id="37B98013832505F8"/><!-- Targeting Selection -->
+		<insertChild id="A82B5392877883BA"/><!-- Movement Impaired -->
 	</node>
 	<node name="Low" type="And" id="9BA2BA7D035C68BE">
 		<insertChild id="F15E60E47787D995"/><!-- Low Mana -->
-		<insertChild id="298ED6B15CC1631F"/><!-- Targeting Selection -->
+		<insertChild id="087E07EC6B3E783C"/><!-- Targeting Selection -->
 	</node>
 	<node name="Medium" type="And" id="68BE8D0443759F05">
 		<insertChild id="D7586760C7E204A7"/><!-- Med Mana -->
-		<insertChild id="087E07EC6B3E783C"/><!-- Targeting Selection -->
+		<insertChild id="37B98013832505F8"/><!-- Targeting Selection -->
 	</node>
 	<node name="Targeting Selection" type="Or" id="37B98013832505F8">
 		<insertChild id="11580EC9B8502B70"/><!-- Movement Impaired -->
@@ -661,9 +547,10 @@
 		<property name="MaxLifeFraction" valueSource="literal" value="0.75"/>
 		<property name="LifeFractionFactor" valueSource="literal" value="3"/>
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="OutputTarget" value="ShadowFissureTargetUnit"/>
+		<property name="OutputTarget" value="Shadow Fissure Target Unit"/>
 		<property name="MaxTargetDistance" valueSource="literal" value="500"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.625"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.625"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 		<insertChild id="ED7BB957D9EC3F6E"/><!--  -->
 	</node>
 	<node name="Targeting Selection" type="Or" id="087E07EC6B3E783C">
@@ -674,57 +561,50 @@
 		<property name="MaxLifeFraction" valueSource="literal" value="0.5"/>
 		<property name="LifeFractionFactor" valueSource="literal" value="3"/>
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="OutputTarget" value="ShadowFissureTargetUnit"/>
+		<property name="OutputTarget" value="Shadow Fissure Target Unit"/>
 		<property name="MaxTargetDistance" valueSource="literal" value="500"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.625"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.625"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 		<insertChild id="1A49B4817C1108F2"/><!--  -->
 	</node>
 	<node name="Find Very Weak Hero" type="FindBestTarget" id="A0DD21690A9F6539">
 		<property name="MaxLifeFraction" valueSource="literal" value="0.25"/>
 		<property name="LifeFractionFactor" valueSource="literal" value="3"/>
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="OutputTarget" value="ShadowFissureTargetUnit"/>
+		<property name="OutputTarget" value="Shadow Fissure Target Unit"/>
 		<property name="MaxTargetDistance" valueSource="literal" value="500"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.625"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.625"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 		<insertChild id="C102BD6025FCE959"/><!--  -->
 	</node>
-	<node name="Targeting Selection" type="Or" id="298ED6B15CC1631F">
-		<insertChild id="A82B5392877883BA"/><!-- Movement Impaired -->
-	</node>
 	<node name="" type="UnitPosition" id="ED7BB957D9EC3F6E">
-		<property name="OutputPosition" value="ShadowFissureTargetPoint"/>
-		<property name="InputUnit" valueSource="variable" value="ShadowFissureTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.625"/>
+		<property name="OutputPosition" value="Shadow Fissure Target Point"/>
+		<property name="InputUnit" valueSource="variable" value="Shadow Fissure Target Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.625"/>
 	</node>
 	<node name="" type="UnitPosition" id="1A49B4817C1108F2">
-		<property name="OutputPosition" value="ShadowFissureTargetPoint"/>
-		<property name="InputUnit" valueSource="variable" value="ShadowFissureTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.625"/>
+		<property name="OutputPosition" value="Shadow Fissure Target Point"/>
+		<property name="InputUnit" valueSource="variable" value="Shadow Fissure Target Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.625"/>
 	</node>
 	<node name="" type="UnitPosition" id="C102BD6025FCE959">
-		<property name="OutputPosition" value="ShadowFissureTargetPoint"/>
-		<property name="InputUnit" valueSource="variable" value="ShadowFissureTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.625"/>
+		<property name="OutputPosition" value="Shadow Fissure Target Point"/>
+		<property name="InputUnit" valueSource="variable" value="Shadow Fissure Target Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.625"/>
 	</node>
 	<node name="Mana Filter" type="Or" id="0EEC69256DC2B3D3">
-		<insertChild id="BC2F46C0C61DA6C9"/><!-- High -->
+		<insertChild id="F6D2073AE1656D0D"/><!-- Find 3 Heroes within range -->
 		<insertChild id="97DFD669B0DD3707"/><!-- Medium -->
 		<insertChild id="3242CD90CA9D40D6"/><!-- Low -->
-	</node>
-	<node name="High" type="And" id="BC2F46C0C61DA6C9">
-		<insertChild id="D25680FD06BE181C"/><!-- High Mana -->
-		<insertChild id="7ABCC5919DADEE36"/><!-- Allies Nearby -->
-		<insertChild id="259434552AC95A00"/><!--  -->
+		<insertChild id="8C62480BA05374D2"/><!-- Find Critical Health Hero -->
 	</node>
 	<node name="Medium" type="And" id="97DFD669B0DD3707">
 		<insertChild id="EF2991A9BC68EE7C"/><!-- Med Mana -->
-		<insertChild id="77264DE9E820502D"/><!-- Allies Nearby -->
-		<insertChild id="0DCC9C90B5CD5657"/><!--  -->
+		<insertChild id="E95AC690EE421C0A"/><!-- Find 75% Health Hero -->
 	</node>
 	<node name="Low" type="And" id="3242CD90CA9D40D6">
 		<insertChild id="3B6F10C190361500"/><!-- Low Mana -->
-		<insertChild id="6047FE578D45ED5C"/><!-- Allies Nearby -->
-		<insertChild id="2D763624ECB18A1B"/><!--  -->
+		<insertChild id="C2DA3C83CE3A0992"/><!-- Find 50% Health Hero -->
 	</node>
 	<node name="Danger Check" type="And" id="52AE2FDFE651A4F4">
 		<insertChild id="B76774DD9C9546F8"/><!--  -->
@@ -733,9 +613,7 @@
 	<node name="" type="Not" id="B76774DD9C9546F8">
 		<insertChild id="1AFE185D8762CF56"/><!-- In Danger -->
 	</node>
-	<node name="In Danger" type="InDanger" id="1AFE185D8762CF56" comment="Check if we are in danger">
-		<property name="DangerPosition" valueSource="intrinsic" value="SelfPos"/>
-	</node>
+	<node name="In Danger" type="IsInDanger" id="1AFE185D8762CF56" comment="Check if we are in danger"/>
 	<node name="" type="Or" id="3119C00EFC6A7C53">
 		<insertChild id="2244585BC01B4D9D"/><!-- At Most 1 Enemy Hero Nearby -->
 		<insertChild id="C3F0684DFEFA00A2"/><!-- Over 50% -->
@@ -745,167 +623,105 @@
 		<property name="MaxTargetDistance" valueSource="literal" value="10"/>
 		<property name="TargetCount" valueSource="literal" value="1"/>
 		<property name="Comparison" valueSource="literal" value="LE"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 	</node>
-	<node name="Over 50%" type="Health" id="C3F0684DFEFA00A2">
-		<property name="Health" valueSource="literal" value="0.5"/>
+	<node name="Over 50%" type="LifeFraction" id="C3F0684DFEFA00A2">
+		<property name="LifeFraction" valueSource="literal" value="0.5"/>
 		<property name="Target" valueSource="intrinsic" value="Self"/>
 	</node>
-	<node name="Allies Nearby" type="UnitCount" id="7ABCC5919DADEE36">
-		<property name="TargetTypes" valueSource="literal" value="Ally"/>
-		<property name="RequiredTypes" valueSource="literal" value="Heroic"/>
-		<property name="TargetCount" valueSource="literal" value="1"/>
-		<property name="SearchCenter" valueSource="variable" value="FrozenTombTargetSearchPoint"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
-		<property name="MaxTargetDistance" valueSource="literal" value="10"/>
-	</node>
-	<node name="" type="Or" id="259434552AC95A00">
-		<insertChild id="1123051A00686F62"/><!-- Find 3 Heroes within range -->
-		<insertChild id="E95AC690EE421C0A"/><!-- Find Damaged Hero -->
-	</node>
-	<node name="Find Damaged Hero" type="FindBestTarget" id="E95AC690EE421C0A">
+	<node name="Find 75% Health Hero" type="FindBestTarget" id="E95AC690EE421C0A">
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
-		<property name="MaxTargetDistance" valueSource="literal" value="14"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="true"/>
-		<property name="LifeFractionFactor" valueSource="literal" value="1"/>
-		<property name="DistanceFactor" valueSource="literal" value="1"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.5"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Frozen Tomb Range"/>
 		<property name="MaxLifeFraction" valueSource="literal" value="0.75"/>
-		<property name="OutputTarget" value="FrozenTombTargetUnit"/>
+		<property name="OutputTarget" value="Frozen Tomb Target Unit"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 		<insertChild id="34ECF59DB82F2F23"/><!--  -->
 	</node>
 	<node name="" type="UnitPosition" id="34ECF59DB82F2F23">
-		<property name="OutputPosition" value="FrozenTombTargetSearchPoint"/>
-		<property name="InputUnit" valueSource="variable" value="FrozenTombTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
+		<property name="OutputPosition" value="Frozen Tomb Target Search Point"/>
+		<property name="InputUnit" valueSource="variable" value="Frozen Tomb Target Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.5"/>
 		<insertChild id="DCC8D49D9CA3C6FD"/><!-- Make sure there's someone nearby to Freeze -->
 	</node>
 	<node name="Make sure there&apos;s someone nearby to Freeze" type="UnitCount" id="DCC8D49D9CA3C6FD">
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.5"/>
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="SearchCenter" valueSource="variable" value="FrozenTombTargetSearchPoint"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="FrozenTombAoERadius"/>
+		<property name="SearchCenter" valueSource="variable" value="Frozen Tomb Target Search Point"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Frozen Tomb AoE Radius"/>
 		<property name="RequiredTypes" valueSource="literal" value="Enemy"/>
 		<property name="TargetCount" valueSource="literal" value="2"/>
 		<property name="Comparison" valueSource="literal" value="GE"/>
 	</node>
-	<node name="" type="UnitPosition" id="1AC6A6812E81A48A">
-		<property name="OutputPosition" value="FrozenTombTargetSearchPoint"/>
-		<property name="InputUnit" valueSource="variable" value="FrozenTombTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
-	</node>
-	<node name="" type="Or" id="0DCC9C90B5CD5657">
-		<insertChild id="510495096865D93E"/><!-- Find 3 Heroes within range -->
-		<insertChild id="C2DA3C83CE3A0992"/><!-- Find Half Health Hero -->
-	</node>
-	<node name="Find 3 Heroes within range" type="FindBestAOEPoint" id="510495096865D93E" comment="Half Radius to make sure potential targets are at most 6 apart (spell radius)">
+	<node name="Find 50% Health Hero" type="FindBestTarget" id="C2DA3C83CE3A0992">
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
-		<property name="MinTargets" valueSource="literal" value="3"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="true"/>
-		<property name="AOERadius" valueSource="variable" value="FrozenTombAoEHalfRadius"/>
-		<property name="MaxTargetDistance" valueSource="literal" value="14"/>
-		<property name="OutputTarget" value="FrozenTombTargetSearchPoint"/>
-		<insertChild id="015FEFA7952F5DE1"/><!-- Find Target Unit -->
-	</node>
-	<node name="Find Target Unit" type="FindBestTarget" id="015FEFA7952F5DE1">
-		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
-		<property name="ClipCenter" valueSource="variable" value="FrozenTombTargetSearchPoint"/>
-		<property name="ClipRadius" valueSource="variable" value="FrozenTombAoEHalfRadius"/>
-		<property name="MaxTargetDistance" valueSource="literal" value="14"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="true"/>
-		<property name="LifeFractionFactor" valueSource="literal" value="-1"/>
-		<property name="DistanceFactor" valueSource="literal" value="1"/>
-		<property name="OutputTarget" value="FrozenTombTargetUnit"/>
-		<insertChild id="F73683F90992F15F"/><!--  -->
-	</node>
-	<node name="" type="UnitPosition" id="F73683F90992F15F">
-		<property name="OutputPosition" value="FrozenTombTargetSearchPoint"/>
-		<property name="InputUnit" valueSource="variable" value="FrozenTombTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
-	</node>
-	<node name="Find Half Health Hero" type="FindBestTarget" id="C2DA3C83CE3A0992">
-		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
-		<property name="MaxTargetDistance" valueSource="literal" value="14"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="true"/>
-		<property name="LifeFractionFactor" valueSource="literal" value="1"/>
-		<property name="DistanceFactor" valueSource="literal" value="1"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.5"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Frozen Tomb Range"/>
 		<property name="MaxLifeFraction" valueSource="literal" value="0.5"/>
-		<property name="OutputTarget" value="FrozenTombTargetUnit"/>
+		<property name="OutputTarget" value="Frozen Tomb Target Unit"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 		<insertChild id="884F8CF23C990431"/><!--  -->
 	</node>
 	<node name="" type="UnitPosition" id="884F8CF23C990431">
-		<property name="OutputPosition" value="FrozenTombTargetSearchPoint"/>
-		<property name="InputUnit" valueSource="variable" value="FrozenTombTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
+		<property name="OutputPosition" value="Frozen Tomb Target Search Point"/>
+		<property name="InputUnit" valueSource="variable" value="Frozen Tomb Target Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.5"/>
 		<insertChild id="3C1340BE288D6248"/><!-- Make sure there's someone nearby to Freeze -->
 	</node>
 	<node name="Make sure there&apos;s someone nearby to Freeze" type="UnitCount" id="3C1340BE288D6248">
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.5"/>
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="SearchCenter" valueSource="variable" value="FrozenTombTargetSearchPoint"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="FrozenTombAoERadius"/>
+		<property name="SearchCenter" valueSource="variable" value="Frozen Tomb Target Search Point"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Frozen Tomb AoE Radius"/>
 		<property name="RequiredTypes" valueSource="literal" value="Enemy"/>
 		<property name="TargetCount" valueSource="literal" value="2"/>
 		<property name="Comparison" valueSource="literal" value="GE"/>
 	</node>
-	<node name="" type="Or" id="2D763624ECB18A1B">
-		<insertChild id="F6D2073AE1656D0D"/><!-- Find 3 Heroes within range -->
-		<insertChild id="8C62480BA05374D2"/><!-- Find Low Health Hero -->
-	</node>
 	<node name="Find 3 Heroes within range" type="FindBestAOEPoint" id="F6D2073AE1656D0D" comment="Half Radius to make sure potential targets are at most 6 apart (spell radius)">
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.5"/>
 		<property name="MinTargets" valueSource="literal" value="3"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="true"/>
-		<property name="AOERadius" valueSource="variable" value="FrozenTombAoEHalfRadius"/>
-		<property name="MaxTargetDistance" valueSource="literal" value="14"/>
-		<property name="OutputTarget" value="FrozenTombTargetSearchPoint"/>
+		<property name="AOERadius" valueSource="variable" value="Frozen Tomb AoE Half Radius"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Frozen Tomb Range"/>
+		<property name="OutputTarget" value="Frozen Tomb Target Search Point"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 		<insertChild id="D1D244E12973E025"/><!-- Find Target Unit -->
 	</node>
 	<node name="Find Target Unit" type="FindBestTarget" id="D1D244E12973E025">
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
-		<property name="ClipCenter" valueSource="variable" value="FrozenTombTargetSearchPoint"/>
-		<property name="ClipRadius" valueSource="variable" value="FrozenTombAoEHalfRadius"/>
-		<property name="MaxTargetDistance" valueSource="literal" value="14"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="true"/>
-		<property name="LifeFractionFactor" valueSource="literal" value="-1"/>
-		<property name="DistanceFactor" valueSource="literal" value="1"/>
-		<property name="OutputTarget" value="FrozenTombTargetUnit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.5"/>
+		<property name="ClipCenter" valueSource="variable" value="Frozen Tomb Target Search Point"/>
+		<property name="ClipRadius" valueSource="variable" value="Frozen Tomb AoE Half Radius"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Frozen Tomb Range"/>
+		<property name="OutputTarget" value="Frozen Tomb Target Unit"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 		<insertChild id="22ED501D9DFFDFD6"/><!--  -->
 	</node>
 	<node name="" type="UnitPosition" id="22ED501D9DFFDFD6">
-		<property name="OutputPosition" value="FrozenTombTargetSearchPoint"/>
-		<property name="InputUnit" valueSource="variable" value="FrozenTombTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
+		<property name="OutputPosition" value="Frozen Tomb Target Search Point"/>
+		<property name="InputUnit" valueSource="variable" value="Frozen Tomb Target Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.5"/>
 	</node>
-	<node name="Find Low Health Hero" type="FindBestTarget" id="8C62480BA05374D2">
+	<node name="Find Critical Health Hero" type="FindBestTarget" id="8C62480BA05374D2">
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
-		<property name="MaxTargetDistance" valueSource="literal" value="14"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="true"/>
-		<property name="LifeFractionFactor" valueSource="literal" value="1"/>
-		<property name="DistanceFactor" valueSource="literal" value="1"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.5"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Frozen Tomb Range"/>
 		<property name="MaxLifeFraction" valueSource="literal" value="0.25"/>
-		<property name="OutputTarget" value="FrozenTombTargetUnit"/>
+		<property name="OutputTarget" value="Frozen Tomb Target Unit"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 		<insertChild id="3553F4B8019605FB"/><!--  -->
 	</node>
 	<node name="" type="UnitPosition" id="3553F4B8019605FB">
-		<property name="OutputPosition" value="FrozenTombTargetSearchPoint"/>
-		<property name="InputUnit" valueSource="variable" value="FrozenTombTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
+		<property name="OutputPosition" value="Frozen Tomb Target Search Point"/>
+		<property name="InputUnit" valueSource="variable" value="Frozen Tomb Target Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.5"/>
 		<insertChild id="73DF3CCF309DB3D7"/><!-- Make sure there's someone nearby to Freeze -->
 	</node>
 	<node name="Make sure there&apos;s someone nearby to Freeze" type="UnitCount" id="73DF3CCF309DB3D7">
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.5"/>
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="SearchCenter" valueSource="variable" value="FrozenTombTargetSearchPoint"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="FrozenTombAoERadius"/>
+		<property name="SearchCenter" valueSource="variable" value="Frozen Tomb Target Search Point"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Frozen Tomb AoE Radius"/>
 		<property name="RequiredTypes" valueSource="literal" value="Enemy"/>
 		<property name="TargetCount" valueSource="literal" value="2"/>
 		<property name="Comparison" valueSource="literal" value="GE"/>
@@ -923,19 +739,18 @@
 		<property name="TargetBlockingTypes" valueSource="literal" value="Enemy,Structure,Heroic"/>
 		<property name="MissileRadius" valueSource="literal" value="1"/>
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
-		<property name="SearchCenter" valueSource="variable" value="ChainsLinkCastUnit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
+		<property name="SearchCenter" valueSource="variable" value="Chains Link Cast Unit"/>
 		<property name="MinTargetDistance" valueSource="literal" value="0.1"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="ChainsLinkRange"/>
-		<property name="OutputTarget" value="ChainsLinkTargetUnit"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Chains Link Range"/>
+		<property name="OutputTarget" value="Chains Link Target Unit"/>
 		<property name="FilterTargetsBehindGate" valueSource="literal" value="true"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
 		<insertChild id="3B53133DDA2D6FEB"/><!-- Convert Unit to future point -->
 	</node>
 	<node name="Convert Unit to future point" type="UnitPosition" id="3B53133DDA2D6FEB">
-		<property name="InputUnit" valueSource="variable" value="ChainsLinkTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
-		<property name="OutputPosition" value="ChainsLinkTargetPoint"/>
+		<property name="InputUnit" valueSource="variable" value="Chains Link Target Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
+		<property name="OutputPosition" value="Chains Link Target Point"/>
 	</node>
 	<node name="Hero Initial Target" type="And" id="5A7181C9422F13F9">
 		<insertChild id="6E4B606E7F47403D"/><!-- Find Chained Enemy Hero -->
@@ -946,207 +761,179 @@
 		<property name="TargetBlockingTypes" valueSource="literal" value="Enemy,Structure,Heroic"/>
 		<property name="MissileRadius" valueSource="literal" value="1"/>
 		<property name="TargetTypes" valueSource="literal" value="Structure"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
-		<property name="SearchCenter" valueSource="variable" value="ChainsLinkCastPoint"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
+		<property name="SearchCenter" valueSource="variable" value="Chains Link Cast Point"/>
 		<property name="MinTargetDistance" valueSource="literal" value="0.1"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="ChainsLinkRange"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Chains Link Range"/>
 		<property name="LifeFractionFactor" valueSource="literal" value="1"/>
 		<property name="DistanceFactor" valueSource="literal" value="1"/>
-		<property name="OutputTarget" value="ChainsLinkTargetUnit"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
+		<property name="OutputTarget" value="Chains Link Target Unit"/>
 		<property name="MissilePierceCount" valueSource="literal" value="1"/>
 		<property name="RequiredTypes" valueSource="literal" value="Enemy"/>
 		<property name="FilterTargetsBehindGate" valueSource="literal" value="true"/>
 		<insertChild id="D85126BD0B4BB7CE"/><!-- Convert Unit to future point -->
 	</node>
 	<node name="Convert Unit to future point" type="UnitPosition" id="D85126BD0B4BB7CE">
-		<property name="InputUnit" valueSource="variable" value="ChainsLinkTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
-		<property name="OutputPosition" value="ChainsLinkTargetPoint"/>
+		<property name="InputUnit" valueSource="variable" value="Chains Link Target Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
+		<property name="OutputPosition" value="Chains Link Target Point"/>
 	</node>
 	<node name="Find Structure Target" type="FindBestTarget" id="65D7D6CFFE95324E">
 		<property name="TargetTypes" valueSource="literal" value="Structure"/>
 		<property name="UnitType" valueSource="literal" value=""/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="ChainsRange"/>
-		<property name="OutputTarget" value="ChainsTargetUnit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Chains Range"/>
+		<property name="OutputTarget" value="Chains Target Unit"/>
 		<property name="FilterTargetsBehindGate" valueSource="literal" value="true"/>
 		<property name="ExcludeTypes" valueSource="literal" value="Missile,Stasis,Dead,Invulnerable,Benign"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
 		<property name="RequiredTypes" valueSource="literal" value="Enemy"/>
 		<property name="TargetBlockingTypes" valueSource="literal" value="Enemy,Structure,Heroic"/>
+		<property name="MissileRadius" valueSource="literal" value="1"/>
 		<insertChild id="8966AC6CC9BBD246"/><!-- Convert Unit to future point -->
 	</node>
 	<node name="Convert Unit to future point" type="UnitPosition" id="8966AC6CC9BBD246">
-		<property name="OutputPosition" value="ChainsTargetPoint"/>
-		<property name="InputUnit" valueSource="variable" value="ChainsTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
+		<property name="OutputPosition" value="Chains Target Point"/>
+		<property name="InputUnit" valueSource="variable" value="Chains Target Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
 		<insertChild id="E59C1D0ABD04FD48"/><!-- Find Secondary Target near Structure -->
-	</node>
-	<node name="Mana Filter" type="Or" id="3A8B2F720E25B6D3">
-		<insertChild id="9D39490A35C1285B"/><!-- High -->
-		<insertChild id="F6638C25034AE91E"/><!-- Medium -->
-		<insertChild id="CA73F1475EF3647B"/><!-- Low -->
 	</node>
 	<node name="High" type="And" id="9D39490A35C1285B">
 		<insertChild id="AA33141425D6140E"/><!-- High Mana -->
-		<insertChild id="1872747E48635840"/><!-- Find a Hero -->
+		<insertChild id="D1E940D960BD8564"/><!-- 1+ Enemy Heroes -->
 	</node>
 	<node name="Medium" type="And" id="F6638C25034AE91E">
 		<insertChild id="0849B01CD98040A3"/><!-- Med Mana -->
-		<insertChild id="DF64A1FB426C22C5"/><!-- Find a damaged hero -->
+		<insertChild id="278CE520F8C14E22"/><!--  -->
 	</node>
 	<node name="Low" type="And" id="CA73F1475EF3647B">
 		<insertChild id="0A1B4BC3094B4119"/><!-- Low Mana -->
-		<insertChild id="1E5D1C1676CD686F"/><!-- Find a 50% Hero -->
+		<insertChild id="209567703531564E"/><!-- 2+ 75% Enemy Heroes -->
+		<insertChild id="1E5D1C1676CD686F"/><!-- 50% Enemy Hero -->
 	</node>
-	<node name="Find a damaged hero" type="FindBestTarget" id="DF64A1FB426C22C5">
+	<node name="75% Enemy Hero" type="FindBestTarget" id="DF64A1FB426C22C5">
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.125"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="FrostNovaRange"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.125"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Frost Nova Range"/>
 		<property name="LifeFractionFactor" valueSource="literal" value="3"/>
-		<property name="OutputTarget" value="FrostNovaTargetUnit"/>
+		<property name="OutputTarget" value="Frost Nova Target Unit"/>
 		<property name="MaxLifeFraction" valueSource="literal" value="0.75"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 		<insertChild id="D4CFC02C3EC847D4"/><!-- Convert Unit to future point -->
 	</node>
 	<node name="Convert Unit to future point" type="UnitPosition" id="D4CFC02C3EC847D4">
-		<property name="InputUnit" valueSource="variable" value="FrostNovaTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.125"/>
-		<property name="OutputPosition" value="FrostNovaTargetPoint"/>
+		<property name="InputUnit" valueSource="variable" value="Frost Nova Target Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.125"/>
+		<property name="OutputPosition" value="Frost Nova Target Point"/>
 	</node>
-	<node name="Find a 50% Hero" type="FindBestTarget" id="1E5D1C1676CD686F">
+	<node name="50% Enemy Hero" type="FindBestTarget" id="1E5D1C1676CD686F">
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.125"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="FrostNovaRange"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.125"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Frost Nova Range"/>
 		<property name="LifeFractionFactor" valueSource="literal" value="3"/>
-		<property name="OutputTarget" value="FrostNovaTargetUnit"/>
+		<property name="OutputTarget" value="Frost Nova Target Unit"/>
 		<property name="MaxLifeFraction" valueSource="literal" value="0.5"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 		<insertChild id="C0CE26774FA90A36"/><!-- Convert Unit to future point -->
 	</node>
 	<node name="Convert Unit to future point" type="UnitPosition" id="C0CE26774FA90A36">
-		<property name="InputUnit" valueSource="variable" value="FrostNovaTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.125"/>
-		<property name="OutputPosition" value="FrostNovaTargetPoint"/>
+		<property name="InputUnit" valueSource="variable" value="Frost Nova Target Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.125"/>
+		<property name="OutputPosition" value="Frost Nova Target Point"/>
 	</node>
-	<node name="Allies Nearby" type="UnitCount" id="77264DE9E820502D">
-		<property name="TargetTypes" valueSource="literal" value="Ally"/>
-		<property name="RequiredTypes" valueSource="literal" value="Heroic"/>
-		<property name="TargetCount" valueSource="literal" value="1"/>
-		<property name="SearchCenter" valueSource="variable" value="FrozenTombTargetSearchPoint"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
-		<property name="MaxTargetDistance" valueSource="literal" value="10"/>
-	</node>
-	<node name="Allies Nearby" type="UnitCount" id="6047FE578D45ED5C">
-		<property name="TargetTypes" valueSource="literal" value="Ally"/>
-		<property name="RequiredTypes" valueSource="literal" value="Heroic"/>
-		<property name="TargetCount" valueSource="literal" value="1"/>
-		<property name="SearchCenter" valueSource="variable" value="FrozenTombTargetSearchPoint"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.5"/>
-		<property name="MaxTargetDistance" valueSource="literal" value="10"/>
-	</node>
-	<node name="High Mana" type="Energy" id="AA33141425D6140E">
-		<property name="Energy" valueSource="literal" value="0.7"/>
+	<node name="High Mana" type="EnergyFraction" id="AA33141425D6140E">
+		<property name="EnergyFraction" valueSource="literal" value="0.7"/>
 		<property name="Target" valueSource="intrinsic" value="Self"/>
 	</node>
-	<node name="Med Mana" type="Energy" id="0849B01CD98040A3">
-		<property name="Energy" valueSource="literal" value="0.5"/>
+	<node name="Med Mana" type="EnergyFraction" id="0849B01CD98040A3">
+		<property name="EnergyFraction" valueSource="literal" value="0.5"/>
 		<property name="Target" valueSource="intrinsic" value="Self"/>
 	</node>
-	<node name="Low Mana" type="Energy" id="0A1B4BC3094B4119">
-		<property name="Energy" valueSource="literal" value="0.3"/>
+	<node name="Low Mana" type="EnergyFraction" id="0A1B4BC3094B4119">
+		<property name="EnergyFraction" valueSource="literal" value="0.3"/>
 		<property name="Target" valueSource="intrinsic" value="Self"/>
 	</node>
-	<node name="High Mana" type="Energy" id="C18C87A67E77E226">
-		<property name="Energy" valueSource="literal" value="0.7"/>
+	<node name="High Mana" type="EnergyFraction" id="C18C87A67E77E226">
+		<property name="EnergyFraction" valueSource="literal" value="0.7"/>
 		<property name="Target" valueSource="intrinsic" value="Self"/>
 	</node>
-	<node name="Med Mana" type="Energy" id="B7E51B3039FA5241">
-		<property name="Energy" valueSource="literal" value="0.5"/>
+	<node name="Med Mana" type="EnergyFraction" id="B7E51B3039FA5241">
+		<property name="EnergyFraction" valueSource="literal" value="0.5"/>
 		<property name="Target" valueSource="intrinsic" value="Self"/>
 	</node>
-	<node name="Low Mana" type="Energy" id="D3A384F73CD5B826">
-		<property name="Energy" valueSource="literal" value="0.3"/>
+	<node name="Low Mana" type="EnergyFraction" id="D3A384F73CD5B826">
+		<property name="EnergyFraction" valueSource="literal" value="0.3"/>
 		<property name="Target" valueSource="intrinsic" value="Self"/>
 	</node>
-	<node name="Low Mana" type="Energy" id="F15E60E47787D995">
-		<property name="Energy" valueSource="literal" value="0.3"/>
+	<node name="Low Mana" type="EnergyFraction" id="F15E60E47787D995">
+		<property name="EnergyFraction" valueSource="literal" value="0.3"/>
 		<property name="Target" valueSource="intrinsic" value="Self"/>
 	</node>
-	<node name="Low Mana" type="Energy" id="3B6F10C190361500">
-		<property name="Energy" valueSource="literal" value="0.3"/>
+	<node name="Low Mana" type="EnergyFraction" id="3B6F10C190361500">
+		<property name="EnergyFraction" valueSource="literal" value="0.3"/>
 		<property name="Target" valueSource="intrinsic" value="Self"/>
 	</node>
-	<node name="Med Mana" type="Energy" id="D7586760C7E204A7">
-		<property name="Energy" valueSource="literal" value="0.5"/>
+	<node name="Med Mana" type="EnergyFraction" id="D7586760C7E204A7">
+		<property name="EnergyFraction" valueSource="literal" value="0.5"/>
 		<property name="Target" valueSource="intrinsic" value="Self"/>
 	</node>
-	<node name="Med Mana" type="Energy" id="EF2991A9BC68EE7C">
-		<property name="Energy" valueSource="literal" value="0.5"/>
+	<node name="Med Mana" type="EnergyFraction" id="EF2991A9BC68EE7C">
+		<property name="EnergyFraction" valueSource="literal" value="0.5"/>
 		<property name="Target" valueSource="intrinsic" value="Self"/>
 	</node>
-	<node name="High Mana" type="Energy" id="8131F04D58972676">
-		<property name="Energy" valueSource="literal" value="0.7"/>
-		<property name="Target" valueSource="intrinsic" value="Self"/>
-	</node>
-	<node name="High Mana" type="Energy" id="D25680FD06BE181C">
-		<property name="Energy" valueSource="literal" value="0.7"/>
-		<property name="Target" valueSource="intrinsic" value="Self"/>
-	</node>
-	<node name="Med Mana" type="Energy" id="B01F4E56AD280AE6">
-		<property name="Energy" valueSource="literal" value="0.5"/>
+	<node name="Med Mana" type="EnergyFraction" id="B01F4E56AD280AE6">
+		<property name="EnergyFraction" valueSource="literal" value="0.5"/>
 		<property name="Target" valueSource="intrinsic" value="Self"/>
 	</node>
 	<node name="Movement Impaired" type="FilterBehaviorCategory" id="A82B5392877883BA">
-		<property name="Categories" valueSource="literal" value="Slow,Stun,KnockedOut,Sleeping,User5"/>
+		<property name="Categories" valueSource="literal" value="Slow,Stun,KnockedOut,Sleeping,DebuffRoot"/>
 		<insertChild id="A0DD21690A9F6539"/><!-- Find Very Weak Hero -->
 	</node>
 	<node name="Find Very Weak Hero" type="FindBestTarget" id="3526B8EE1C42837A">
 		<property name="MaxLifeFraction" valueSource="literal" value="0.25"/>
 		<property name="LifeFractionFactor" valueSource="literal" value="3"/>
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="OutputTarget" value="ShadowFissureTargetUnit"/>
+		<property name="OutputTarget" value="Shadow Fissure Target Unit"/>
 		<property name="MaxTargetDistance" valueSource="literal" value="500"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.625"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.625"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 		<insertChild id="F7AA3DF40AF51B1D"/><!--  -->
 	</node>
 	<node name="" type="UnitPosition" id="F7AA3DF40AF51B1D">
-		<property name="OutputPosition" value="ShadowFissureTargetPoint"/>
-		<property name="InputUnit" valueSource="variable" value="ShadowFissureTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.625"/>
+		<property name="OutputPosition" value="Shadow Fissure Target Point"/>
+		<property name="InputUnit" valueSource="variable" value="Shadow Fissure Target Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.625"/>
 	</node>
 	<node name="Movement Impaired" type="FilterBehaviorCategory" id="02D0496F9C23301B">
-		<property name="Categories" valueSource="literal" value="Slow,Stun,KnockedOut,Sleeping,User5"/>
+		<property name="Categories" valueSource="literal" value="Slow,Stun,KnockedOut,Sleeping,DebuffRoot"/>
 		<insertChild id="CE4952D9F19371CC"/><!-- Find Weak Hero -->
 	</node>
 	<node name="Movement Impaired" type="FilterBehaviorCategory" id="11580EC9B8502B70">
-		<property name="Categories" valueSource="literal" value="Slow,Stun,KnockedOut,Sleeping,User5"/>
+		<property name="Categories" valueSource="literal" value="Slow,Stun,KnockedOut,Sleeping,DebuffRoot"/>
 		<insertChild id="352308498D427C6C"/><!-- Find Wounded Hero -->
 	</node>
 	<node name="Find Weak Hero" type="FindBestTarget" id="6BB817999A038ED7">
 		<property name="MaxLifeFraction" valueSource="literal" value="0.5"/>
 		<property name="LifeFractionFactor" valueSource="literal" value="3"/>
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="OutputTarget" value="ShadowFissureTargetUnit"/>
+		<property name="OutputTarget" value="Shadow Fissure Target Unit"/>
 		<property name="MaxTargetDistance" valueSource="literal" value="500"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.625"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.625"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 		<insertChild id="113B2536BBC88381"/><!--  -->
 	</node>
 	<node name="" type="UnitPosition" id="113B2536BBC88381">
-		<property name="OutputPosition" value="ShadowFissureTargetPoint"/>
-		<property name="InputUnit" valueSource="variable" value="ShadowFissureTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="1.625"/>
+		<property name="OutputPosition" value="Shadow Fissure Target Point"/>
+		<property name="InputUnit" valueSource="variable" value="Shadow Fissure Target Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.625"/>
 	</node>
 	<node name="Find Secondary Target near Spike" type="UnitCount" id="FF352FCFDDD40E3B">
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
 		<property name="RequiredTypes" valueSource="literal" value="Enemy"/>
 		<property name="MissileRadius" valueSource="literal" value="1"/>
 		<property name="TargetBlockingTypes" valueSource="literal" value="Enemy,Structure,Heroic"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
-		<property name="SearchCenter" valueSource="variable" value="ChainsTargetUnit"/>
+		<property name="SearchCenter" valueSource="variable" value="Chains Target Unit"/>
 		<property name="MinTargetDistance" valueSource="literal" value="0.1"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="ChainsLinkRange"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Chains Link Range"/>
 		<property name="FilterTargetsBehindGate" valueSource="literal" value="true"/>
 		<property name="TargetCount" valueSource="literal" value="1"/>
 	</node>
@@ -1155,10 +942,9 @@
 		<property name="RequiredTypes" valueSource="literal" value="Enemy"/>
 		<property name="MissileRadius" valueSource="literal" value="1"/>
 		<property name="TargetBlockingTypes" valueSource="literal" value="Enemy,Structure,Heroic"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
-		<property name="SearchCenter" valueSource="variable" value="ChainsTargetUnit"/>
+		<property name="SearchCenter" valueSource="variable" value="Chains Target Unit"/>
 		<property name="MinTargetDistance" valueSource="literal" value="0.1"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="ChainsLinkRange"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Chains Link Range"/>
 		<property name="FilterTargetsBehindGate" valueSource="literal" value="true"/>
 		<property name="TargetCount" valueSource="literal" value="1"/>
 		<property name="MissilePierceCount" valueSource="literal" value="1"/>
@@ -1170,37 +956,36 @@
 	<node name="Find Chained Enemy Structure" type="FindBestTarget" id="E2342EA4F66E8A4B">
 		<property name="TargetTypes" valueSource="literal" value="Structure"/>
 		<property name="MaxTargetDistance" valueSource="literal" value="30"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="true"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
 		<property name="Behavior" valueSource="literal" value="KelThuzadChainsEnemySearchImpactTargetAB"/>
-		<property name="OutputTarget" value="ChainsLinkCastUnit"/>
+		<property name="OutputTarget" value="Chains Link Cast Unit"/>
 		<property name="RequiredTypes" valueSource="literal" value="Enemy"/>
 	</node>
 	<node name="Find Nearby Enemy Hero" type="FindBestTarget" id="F3A1EDE4C4D84EBC">
 		<property name="TargetBlockingTypes" valueSource="literal" value="Enemy,Structure,Heroic"/>
 		<property name="MissileRadius" valueSource="literal" value="1"/>
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
-		<property name="SearchCenter" valueSource="variable" value="ChainsLinkCastUnit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
+		<property name="SearchCenter" valueSource="variable" value="Chains Link Cast Unit"/>
 		<property name="MinTargetDistance" valueSource="literal" value="0.1"/>
-		<property name="MaxTargetDistance" valueSource="variable" value="ChainsLinkRange"/>
-		<property name="OutputTarget" value="ChainsLinkTargetUnit"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Chains Link Range"/>
+		<property name="OutputTarget" value="Chains Link Target Unit"/>
 		<property name="FilterTargetsBehindGate" valueSource="literal" value="true"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
 		<property name="MissilePierceCount" valueSource="literal" value="1"/>
 		<insertChild id="A8F197B1B768228A"/><!-- Convert Unit to future point -->
 	</node>
 	<node name="Convert Unit to future point" type="UnitPosition" id="A8F197B1B768228A">
-		<property name="InputUnit" valueSource="variable" value="ChainsLinkTargetUnit"/>
-		<property name="EstimateFutureSeconds" valueSource="literal" value="0.125"/>
-		<property name="OutputPosition" value="ChainsLinkTargetPoint"/>
+		<property name="InputUnit" valueSource="variable" value="Chains Link Target Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="0.125"/>
+		<property name="OutputPosition" value="Chains Link Target Point"/>
 	</node>
 	<node name="Shifting Malice Usable" type="AbilityUsable" id="98D2064847F3C31C">
 		<property name="Ability" valueSource="literal" value="KelThuzadShiftingMalice"/>
 		<insertChild id="0B819F14A92F36BB"/><!-- Shifting Malice Offensive -->
 	</node>
 	<node name="Shifting Malice Offensive" type="And" id="0B819F14A92F36BB">
-		<variable name="MaliceTargetUnit" type="Unit"/>
-		<variable name="MaxTargetHealth" type="Number" value="0.2"/>
+		<variable name="Malice Target Unit" type="Unit"/>
+		<variable name="Max Target Health" type="Number" value="0.2"/>
 		<insertChild id="A2B6B46E4AC9E4EB"/><!-- Uprade Check -->
 		<insertChild id="BF0A955C27089AA8"/><!-- Find Killable Target -->
 		<insertChild id="FA853F5E3E660C1F"/><!-- Cast -->
@@ -1216,29 +1001,28 @@
 	</node>
 	<node name="Increase Damage Threshold" type="SetNumber" id="D5CCEDB6DB3EF120">
 		<property name="Value" valueSource="literal" value="0.35"/>
-		<property name="Variable" value="MaxTargetHealth"/>
+		<property name="Variable" value="Max Target Health"/>
 	</node>
 	<node name="Find Killable Target" type="FindBestTarget" id="BF0A955C27089AA8">
 		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
 		<property name="MissileRadius" valueSource="literal" value="1"/>
 		<property name="FilterTargetsInDangerousArea" valueSource="literal" value="true"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
 		<property name="MaxTargetDistance" valueSource="literal" value="7"/>
-		<property name="OutputTarget" value="MaliceTargetUnit"/>
-		<property name="MaxLifeFraction" valueSource="variable" value="MaxTargetHealth"/>
+		<property name="OutputTarget" value="Malice Target Unit"/>
+		<property name="MaxLifeFraction" valueSource="variable" value="Max Target Health"/>
 		<property name="LifeFractionFactor" valueSource="literal" value="5"/>
 		<property name="MissilePierceCount" valueSource="literal" value="9001"/>
 	</node>
 	<node name="Cast" type="Ability" id="FA853F5E3E660C1F">
 		<property name="Ability" valueSource="literal" value="KelThuzadShiftingMalice"/>
-		<property name="TargetUnit" valueSource="variable" value="MaliceTargetUnit"/>
+		<property name="TargetUnit" valueSource="variable" value="Malice Target Unit"/>
 	</node>
 	<node name="Armor of the Archlich Usable" type="AbilityUsable" id="858F383BDFDF7B9F">
 		<property name="Ability" valueSource="literal" value="KelThuzadArchlichArmor"/>
 		<insertChild id="E5B5DF48D918E92C"/><!-- Armor of the Archlich Offensive -->
 	</node>
 	<node name="Armor of the Archlich Offensive" type="And" id="E5B5DF48D918E92C">
-		<variable name="Armor of the Archlich Range" type="Number" value="6"/>
+		<variable name="Armor of the Archlich Range" type="Number" valueSource="lookup" value="Effect,KelThuzadArchlichArmorSearch,AreaArray[0].Radius"/>
 		<insertChild id="273993E466F8B13F"/><!--  -->
 		<insertChild id="0F2F221F8CFB317A"/><!-- Cast -->
 	</node>
@@ -1247,7 +1031,6 @@
 		<property name="MaxTargetDistance" valueSource="variable" value="Armor of the Archlich Range"/>
 		<property name="TargetCount" valueSource="literal" value="3"/>
 		<property name="RequiredTypes" valueSource="literal" value="Enemy"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
 	</node>
 	<node name="Cast" type="Ability" id="0F2F221F8CFB317A">
 		<property name="Ability" valueSource="literal" value="KelThuzadArchlichArmor"/>
@@ -1262,7 +1045,6 @@
 		<property name="MaxTargetDistance" valueSource="variable" value="Armor of the Archlich Range"/>
 		<property name="TargetCount" valueSource="literal" value="1"/>
 		<property name="RequiredTypes" valueSource="literal" value="Enemy"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
 		<property name="MaxLifeFraction" valueSource="literal" value="0.4"/>
 	</node>
 	<node name="2+ Wounded Heroes" type="UnitCount" id="B0E2D43824BDE210">
@@ -1270,7 +1052,6 @@
 		<property name="MaxTargetDistance" valueSource="variable" value="Armor of the Archlich Range"/>
 		<property name="TargetCount" valueSource="literal" value="2"/>
 		<property name="RequiredTypes" valueSource="literal" value="Enemy"/>
-		<property name="AddSelfRadiusToMaxTargetDistance" valueSource="literal" value="false"/>
 		<property name="MaxLifeFraction" valueSource="literal" value="0.7"/>
 	</node>
 	<node name="The Damned Return" type="Sequence" id="F9A9095F89D47723">
@@ -1284,6 +1065,7 @@
 	<node name="The Damned Return" type="And" id="BC516E53F38D6CD5">
 		<variable name="Damned Return Range" type="Number" value="9"/>
 		<variable name="Damned Return Point" type="Point"/>
+		<insertChild id="40126581A95FF23E"/><!-- Target is Hero -->
 		<insertChild id="0C4A13349D11639D"/><!-- Move In By 2 -->
 		<insertChild id="852C79083017B668"/><!-- Cast at Target Point or at Max Range -->
 	</node>
@@ -1294,23 +1076,133 @@
 		<property name="OutputTarget" value="Damned Return Point"/>
 	</node>
 	<node name="Cast at Target Point or at Max Range" type="Or" id="852C79083017B668">
-		<insertChild id="83F17C48415A513A"/><!-- Inside Spell Range -->
+		<insertChild id="877E783CCBF38F54"/><!-- Inside Spell Range -->
 		<insertChild id="165C2BD2A604775C"/><!-- The Damned Return -->
-	</node>
-	<node name="Inside Spell Range" type="UnitDistance" id="83F17C48415A513A">
-		<property name="Unit" valueSource="intrinsic" value="Self"/>
-		<property name="Point" valueSource="variable" value="Damned Return Point"/>
-		<property name="MinRange" valueSource="variable" value="Damned Return Range"/>
-		<property name="MaxRange" valueSource="variable" value="Damned Return Range"/>
-		<insertChild id="3A22CF6204868F34"/><!-- The Damned Return -->
 	</node>
 	<node name="The Damned Return" type="Ability" id="3A22CF6204868F34">
 		<property name="Ability" valueSource="literal" value="KelThuzadSpawnShade"/>
 		<property name="TargetPoint" valueSource="variable" value="Damned Return Point"/>
+		<property name="DoNotThrottle" valueSource="literal" value="true"/>
 	</node>
 	<node name="The Damned Return" type="Ability" id="165C2BD2A604775C">
 		<property name="Ability" valueSource="literal" value="KelThuzadSpawnShade"/>
 		<property name="TargetPoint" valueSource="variable" value="Damned Return Point"/>
 		<property name="UseMaxRange" valueSource="literal" value="true"/>
+		<property name="DoNotThrottle" valueSource="literal" value="true"/>
+	</node>
+	<node name="Cast" type="AbilityEnqueue" id="017187C6B6396ABB">
+		<property name="Ability" valueSource="literal" value="KelThuzadArchlichArmor"/>
+	</node>
+	<node name="Critical Enemy Hero" type="FindBestTarget" id="09C164B57684D604">
+		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.125"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Frost Nova Range"/>
+		<property name="LifeFractionFactor" valueSource="literal" value="3"/>
+		<property name="OutputTarget" value="Frost Nova Target Unit"/>
+		<property name="MaxLifeFraction" valueSource="literal" value="0.25"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
+		<insertChild id="C0579FF6022E613F"/><!-- Convert Unit to future point -->
+	</node>
+	<node name="Convert Unit to future point" type="UnitPosition" id="C0579FF6022E613F">
+		<property name="InputUnit" valueSource="variable" value="Frost Nova Target Unit"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.125"/>
+		<property name="OutputPosition" value="Frost Nova Target Point"/>
+	</node>
+	<node name="2+ 75% Enemy Heroes" type="FindBestAOEPoint" id="209567703531564E">
+		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.125"/>
+		<property name="MinTargets" valueSource="literal" value="2"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Frost Nova Range"/>
+		<property name="AOERadius" valueSource="variable" value="Frost Nova AoE Radius"/>
+		<property name="OutputTarget" value="Frost Nova Search Point"/>
+		<property name="MaxBestTargetOffset" valueSource="variable" value="Frost Nova Buffered Crit Radius"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
+	</node>
+	<node name="1+ Enemy Heroes" type="FindBestAOEPoint" id="D1E940D960BD8564">
+		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.125"/>
+		<property name="MinTargets" valueSource="literal" value="1"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Frost Nova Range"/>
+		<property name="AOERadius" valueSource="variable" value="Frost Nova AoE Radius"/>
+		<property name="OutputTarget" value="Frost Nova Search Point"/>
+		<property name="MaxBestTargetOffset" valueSource="variable" value="Frost Nova Buffered Crit Radius"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
+	</node>
+	<node name="Allies Near Target" type="UnitCount" id="A747EB13BD195B17">
+		<property name="TargetTypes" valueSource="literal" value="Ally"/>
+		<property name="RequiredTypes" valueSource="literal" value="Heroic"/>
+		<property name="TargetCount" valueSource="literal" value="1"/>
+		<property name="SearchCenter" valueSource="variable" value="Frozen Tomb Target Search Point"/>
+		<property name="MaxTargetDistance" valueSource="literal" value="10"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
+	</node>
+	<node name="Find 5+ of Any Targets" type="FindBestAOEPoint" id="1447B84AD3C43EE3">
+		<property name="PredictionSeconds" valueSource="literal" value="0.625"/>
+		<property name="MissileRadius" valueSource="variable" value="Death And Decay Missile Radius"/>
+		<property name="TargetBlockingTypes" valueSource="literal" value="Enemy"/>
+		<property name="FilterTargetsBehindGate" valueSource="literal" value="true"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Death And Decay Range"/>
+		<property name="OutputTarget" value="Death And Decay Target Point"/>
+		<property name="MinTargets" valueSource="literal" value="5"/>
+		<property name="AOERadius" valueSource="variable" value="Death And Decay AOE Radius"/>
+		<property name="MaxBestTargetOffset" valueSource="variable" value="Death And Decay Missile Radius"/>
+	</node>
+	<node name="Find 2+ Mercs or Map Creatures" type="FindBestAOEPoint" id="A5E784B5D0A288AE">
+		<property name="PredictionSeconds" valueSource="literal" value="0.625"/>
+		<property name="MissileRadius" valueSource="variable" value="Death And Decay Missile Radius"/>
+		<property name="TargetBlockingTypes" valueSource="literal" value="Enemy"/>
+		<property name="FilterTargetsBehindGate" valueSource="literal" value="true"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Death And Decay Range"/>
+		<property name="OutputTarget" value="Death And Decay Target Point"/>
+		<property name="MinTargets" valueSource="literal" value="2"/>
+		<property name="AOERadius" valueSource="variable" value="Death And Decay AOE Radius"/>
+		<property name="TargetTypes" valueSource="literal" value="Creep,MapCreature"/>
+		<property name="MaxBestTargetOffset" valueSource="variable" value="Death And Decay Missile Radius"/>
+	</node>
+	<node name="Target is Hero" type="SetBoolean" id="F5317757DCEC5265">
+		<property name="Variable" value="Death and Decay Target is Hero"/>
+		<property name="Value" valueSource="literal" value="true"/>
+	</node>
+	<node name="Target is Hero" type="SetBoolean" id="4B54F6115215F9F5">
+		<property name="Variable" value="Death and Decay Target is Hero"/>
+		<property name="Value" valueSource="literal" value="true"/>
+	</node>
+	<node name="Target is Hero" type="SetBoolean" id="18F9124F7CBE3653">
+		<property name="Variable" value="Death and Decay Target is Hero"/>
+		<property name="Value" valueSource="literal" value="true"/>
+	</node>
+	<node name="Target is Hero" type="CompareBoolean" id="40126581A95FF23E">
+		<property name="LeftHandSide" valueSource="variable" value="Death and Decay Target is Hero"/>
+		<property name="RightHandSide" valueSource="literal" value="true"/>
+	</node>
+	<node name="2 Creeps" type="FindBestAOEPoint" id="975A9BD5D1020539">
+		<property name="TargetTypes" valueSource="literal" value="Creep"/>
+		<property name="PredictionSeconds" valueSource="literal" value="1.125"/>
+		<property name="MinTargets" valueSource="literal" value="2"/>
+		<property name="MaxTargetDistance" valueSource="variable" value="Frost Nova Range"/>
+		<property name="AOERadius" valueSource="variable" value="Frost Nova AoE Radius"/>
+		<property name="OutputTarget" value="Frost Nova Target Point"/>
+		<property name="MaxBestTargetOffset" valueSource="variable" value="Frost Nova Buffered Crit Radius"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
+		<property name="RequiredTypes" valueSource="literal" value="Enemy"/>
+	</node>
+	<node name="Enemy Hero Nearby" type="UnitCount" id="A273399EA2AB28D2">
+		<property name="TargetTypes" valueSource="literal" value="Heroic"/>
+		<property name="MaxTargetDistance" valueSource="literal" value="8"/>
+		<property name="TargetCount" valueSource="literal" value="1"/>
+		<property name="Comparison" valueSource="literal" value="LE"/>
+		<property name="AddUnitRadiusToMaxTargetDistance" valueSource="intrinsic" value="Self"/>
+		<insertChild id="975A9BD5D1020539"/><!-- 2 Creeps -->
+	</node>
+	<node name="" type="Or" id="278CE520F8C14E22">
+		<insertChild id="22021616391E2822"/><!-- 2+ Enemy Heroes -->
+		<insertChild id="A273399EA2AB28D2"/><!-- Enemy Hero Nearby -->
+	</node>
+	<node name="Inside Spell Range" type="Distance" id="877E783CCBF38F54">
+		<property name="SourceUnit" valueSource="intrinsic" value="Self"/>
+		<property name="TargetPoint" valueSource="variable" value="Damned Return Point"/>
+		<property name="Distance" valueSource="variable" value="Damned Return Range"/>
+		<property name="Comparison" valueSource="literal" value="LE"/>
+		<insertChild id="3A22CF6204868F34"/><!-- The Damned Return -->
 	</node>
 </tree>

@@ -38,7 +38,7 @@ HALF4 Displace( in VertexTransport vertOut, inout HALF3 vDeferredNormal, inout H
         HALF fStub = 0;
         HALF3 vNormal;
         HALF3 vTextureNormal;
-        if ( b_useNormalMapping ) {
+        if ( b_useNormalMapping && !b_cloakingPath ) {
             if (b_iDisplacementUseConstantColor)
                 vTextureNormal = p_cDisplacementConstantColor;
             else
@@ -82,8 +82,21 @@ HALF4 Displace( in VertexTransport vertOut, inout HALF3 vDeferredNormal, inout H
                 vDisplacedUV = vUV;         // We're about to sample from an object in front of the displacement area. In this case, cancel the displacement.
         }
 
-        // Displace.
-        return sample2D( p_sDisplacementSrc, vDisplacedUV );
+        if( b_cloakingPath ) {
+            float3 fresnelDirectionVec = INTERPOLANT_EyeToVertex;
+
+            float fResult = 1 - abs( dot( INTERPOLANT_Normal.xyz, fresnelDirectionVec ) );
+            fResult = pow( max( fResult, 0.0000001 ), 2);
+            float4 dispColor = sample2D( p_sDisplacementSrc, vDisplacedUV );
+            fResult = saturate(fResult) * 0.15;
+            if( p_vStrength2D.x ) 
+                return saturate(dispColor + fResult);
+            else
+                return saturate(dispColor);
+        } else {
+            // Displace.
+            return sample2D( p_sDisplacementSrc, vDisplacedUV );
+        }
         
     } else if ( b_iDisplacementPass == PASS_COPYBACK ) {
         // Copy back to main buffer.

@@ -18,7 +18,8 @@
 //--------------------------------------------------------------------------------------------------
 // Shadow map UV coordinates.
 float4 EmitShadowMapUV( float3 position ) {
-    return mul( float4(position, 1.0), p_mShadowTransform );
+    float4 val = mul( float4(position, 1.0), p_mShadowTransform );
+    return val / val.w;
 }
 
 #endif  // VERTEX_SHADER

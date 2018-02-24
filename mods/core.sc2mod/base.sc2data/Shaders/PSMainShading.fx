@@ -262,6 +262,27 @@ HALF4 ApplyDebugRenderMode( VertexTransport vertOut, HALF4 cResult ) {
     return cResult;
 }
 
+//--------------------------------------------------------------------------------------------------
+HALF4 EmitPSFogColor( VertexTransportRaw vertOut ) {
+    // If we get here must have no triplanars
+    return HALF4(float3(0,0,0), FogDensity( INTERPOLANT_WorldPos ) );
+}
+
+//--------------------------------------------------------------------------------------------------
+float3  EmitPSViewPos (VertexTransportRaw vertOut) {
+    return mul(INTERPOLANT_WorldPos, p_mViewTransform);
+}
+
+//--------------------------------------------------------------------------------------------------
+float3  EmitPSEyeToVertex (VertexTransportRaw vertOut) {
+    return normalize(INTERPOLANT_WorldPos - p_vEyePos);
+}
+
+//--------------------------------------------------------------------------------------------------
+HALF3  EmitPSHalfVec (VertexTransportRaw vertOut) {
+    return ComputeHalfVector(INTERPOLANT_WorldPos, p_directionalLights[0].vDirection);
+}
+
 #endif  // PIXEL_SHADER
 
 #endif  // PS_MAINSHADING

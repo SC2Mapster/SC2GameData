@@ -50,7 +50,6 @@ VertexTransport DeferredLightVertexMain( Input vertIn ) {
 
 texDecl2D(p_sDiffuseMap);
 texDecl2D(p_sSpecularMap);
-texDecl2D(p_sSSAO);
 float4      p_vPositionRecipRadius;
 HALF4       p_cColorAttenMultiplier;
 HALF3       p_vDirection;
@@ -58,13 +57,6 @@ HALF3       p_vFalloffBiasScaleAndHotSpotMultiplier;
 float4      p_vUVToViewPos;
 float       p_fShadowMapSize;
 float4x4    p_mPTransform;                // Projection transform.
-
-/*
-sampler2D   p_sStereoscopicTexture;
-float       p_fInvProj00;
-float       p_fStereoSeparation;
-float       p_fStereoConvergence;
-*/
 
 #define LIGHT_DEBUG_NONE            0
 #define LIGHT_DEBUG_COLORS          1
@@ -119,14 +111,6 @@ HALF4 DeferredLightPixelMain( in VertexTransportRaw vertRaw ) : COLOR {
     vViewPos.yw = HALF2( PIXEL_DEPTH, 1.0f );
     vViewPos.xz = vViewPos.xz * ( PIXEL_DEPTH * p_mPTransform[1][3] + p_mPTransform[3][3] );
 
-    /*
-    if ( b_iStereoscopicCorrection ) {
-        float4 stereoSide = tex2D( p_sStereoscopicTexture, float2( 1.0f / 16.0f, 0.5 ) );
-        //return stereoSide;
-        vViewPos.x += stereoSide * p_fInvProj00 * ( -p_fStereoSeparation * vViewPos.y + p_fStereoSeparation * p_fStereoConvergence ); 
-    }
-    */
-
     // :TODO: Work in view space, not world space.
     // Back to world space
     float3 vPos = mul( p_mInvViewTransform, vViewPos ).xyz;
@@ -148,9 +132,6 @@ HALF4 DeferredLightPixelMain( in VertexTransportRaw vertRaw ) : COLOR {
     // Since spot light shadows have a fixed viewpoint, just use the shadow map UV for the shadow map noise.
     HALF4 cShadowColor = ShadowIntensity( vertOut, vShadowMapUV, vShadowMapUV.xy * p_fShadowMapSize / 32.0f, HALF2( 0.0f, 0.0f ), texSampler(p_sDiffuseMap), texTexture(p_sDiffuseMap) );
 
-    if ( b_iAffectedByAO )
-        cShadowColor *= sample2D( p_sSSAO, vOffsetUV ).a;
-        
     if ( b_iDebugMode == LIGHTING_ONLY ) {
         cDiffuse = 1.0f;
         cSpecular = 1.0f;

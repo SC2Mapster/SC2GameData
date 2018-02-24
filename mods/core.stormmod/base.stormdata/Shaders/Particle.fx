@@ -80,7 +80,6 @@ HALF3       p_vBillboardUp;
 float4      p_vSystemTime_ElementScale_FlipbookMidKeyTime_FlipbookColumnCount[MAX_BATCHED_PARTICLES];
 HALF3       p_fFlipbookFrames[MAX_BATCHED_PARTICLES];
 ArrayDecl(HALF2) p_vFlipbookCellSize[MAX_BATCHED_PARTICLES];
-ArrayDecl(float) p_fParticleBatchIndexRemappingTable[MAX_BATCH_INDEX_REMAPPING_TABLE_SIZE];
 
 //==================================================================================================
 // VERTEX SHADER EMITTERS
@@ -99,7 +98,10 @@ float4 EmitParticleHPosAsUV( Input vertIn ) {
 //--------------------------------------------------------------------------------------------------
 // Camera space position.
 float3 EmitParticleViewPos( Input vertIn ) {
-    return mul( p_mViewTransform, float4(vertIn.vPosition.xyz, 1.0) );          // As 3x4
+    float3 rvalue = mul( p_mViewTransform, float4(vertIn.vPosition.xyz, 1.0) );          // As 3x4
+    if( b_iDepthOffset )
+        rvalue.y += p_DepthOffset;
+    return rvalue;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -245,7 +247,9 @@ void CalculatePositionAndVelocity(inout Input vertIn, float4 vSizeAndAge, int iB
     float3 vOffsetFromOrigin;
     float3 vInstantaneousVelocity;
 
-    float fTime = p_vSystemTime_ElementScale_FlipbookMidKeyTime_FlipbookColumnCount[iBatchIndex].x - vertIn.vBirthDeathAndDrag.x;
+    float fTime = p_vSystemTime_ElementScale_FlipbookMidKeyTime_FlipbookColumnCount[iBatchIndex].x - vertIn.vBirthDeathAndDrag.x;    
+    fTime = max(0.0f, fTime);  // avoid negative time skew on older cards (Bug 187607)
+
     float3 vInitialVelocity = vertIn.vInterpolator1.xyz;
     float fInvMass = vertIn.vInterpolator1.w;
     float fMass = 1.0f / fInvMass;
@@ -351,11 +355,9 @@ void ParticleVertexMain( in Input vertIn, out VertexTransport vertOut ) {
     vertIn.cColor1 = vertIn.cColor1.zyxw;
     vertIn.cColor2 = vertIn.cColor2.zyxw;
     iBatchIndex = (int)(vertIn.iBatchIndex.x + 0.1);
-    iBatchIndex = (int)(floatRef(p_fParticleBatchIndexRemappingTable[iBatchIndex]) + 0.1);
 #else
 #if !CPP_SHADER
     iBatchIndex = (int)(vertIn.iBatchIndex.x + 0.1);
-    iBatchIndex = (int)(floatRef(p_fParticleBatchIndexRemappingTable[iBatchIndex]) + 0.1);
 #endif
 #endif
 
@@ -386,8 +388,6 @@ void ParticleVertexMain( in Input vertIn, out VertexTransport vertOut ) {
     
     vertIn.vPosition.xyz += vertIn.vNoiseVector.xyz;
 
-    // :TODO: :NOTE: How about some code reuse here huh?
-
     if( b_iInstanceType == PARTICLE_SINGLE_AXIS ) {
         
         // fixed vUp dir           
@@ -404,8 +404,7 @@ void ParticleVertexMain( in Input vertIn, out VertexTransport vertOut ) {
         vParticleNormal = normalize(cross(vRight, vForward));
         vParticleTangent = vRight;
         vParticleBinormal = vForward;
-    }
-    else if( b_iInstanceType == PARTICLE_FACE_TRAVEL_DIR 
+    } else if( b_iInstanceType == PARTICLE_FACE_TRAVEL_DIR 
           || b_iInstanceType == PARTICLE_FACE_WORLD_DIR 
           || b_iInstanceType == PARTICLE_EMITTER_ORIENTED 
           || b_iInstanceType == PARTICLE_PHYSICS_ORIENTED 
@@ -423,8 +422,7 @@ void ParticleVertexMain( in Input vertIn, out VertexTransport vertOut ) {
 
         half3x3 mRotation = MakeRotation( vOffsetAngle.w, vDirectionVector );		
         vertIn.vPosition.xyz = vertIn.vPosition.xyz + mul( vSizeAndAge.xyz * vOffsetAngle.xyz, mRotation );
-    }
-    else if( b_iInstanceType == PARTICLE_TERRAIN_ORIENTED ) {
+    } else if( b_iInstanceType == PARTICLE_TERRAIN_ORIENTED ) {
         // vInterpolator1 = particle DIRECTION
         // vInterpolator2 = terrain Normal
         
@@ -455,8 +453,7 @@ void ParticleVertexMain( in Input vertIn, out VertexTransport vertOut ) {
         vParticleNormal = (cameraDistFromParticlePlane > 0) ? vParticleNormal : -vParticleNormal;
         vParticleTangent = (cameraDistFromParticlePlane > 0) ? vParticleTangent : -vParticleTangent;
         vParticleBinormal = (cameraDistFromParticlePlane > 0) ? vParticleBinormal : -vParticleBinormal;
-    }
-    else if( b_iInstanceType == PARTICLE_TERRAIN_DIR_ORIENTED ) {
+    } else if( b_iInstanceType == PARTICLE_TERRAIN_DIR_ORIENTED ) {
         // vInterpolator1 = particle velocity
         // vInterpolator2 = terrain Normal
         
@@ -483,8 +480,7 @@ void ParticleVertexMain( in Input vertIn, out VertexTransport vertOut ) {
         vParticleNormal = (cameraDistFromParticlePlane > 0) ? vParticleNormal : -vParticleNormal;
         vParticleTangent = (cameraDistFromParticlePlane > 0) ? vParticleTangent : -vParticleTangent;
         vParticleBinormal = (cameraDistFromParticlePlane > 0) ? vParticleBinormal : -vParticleBinormal;
-    }
-    else if( b_iInstanceType == PARTICLE_TAIL || b_iInstanceType == PARTICLE_TRAIL) {
+    } else if( b_iInstanceType == PARTICLE_TAIL || b_iInstanceType == PARTICLE_TRAIL) {
          vertIn.vInterpolator1.xyz += vertIn.vNoiseVector.xyz;
     
         float fMag = length( vertIn.vInterpolator1.xyz );
@@ -513,8 +509,7 @@ void ParticleVertexMain( in Input vertIn, out VertexTransport vertOut ) {
         vParticleNormal = normalize( cross(vRight, vDirectionVector) ); 
         vParticleTangent = vRight;
         vParticleBinormal = -vDirectionVector;  
-    }
-    else if(b_iInstanceType == PARTICLE_PINNED) {
+    } else if(b_iInstanceType == PARTICLE_PINNED) {
          if (b_localSpace)
             vertIn.vInterpolator2.xyz = mul(float4(vertIn.vInterpolator2.xyz, 1), p_mPRWorldTransform[iBatchIndex]).xyz;
 
@@ -537,8 +532,7 @@ void ParticleVertexMain( in Input vertIn, out VertexTransport vertOut ) {
         vParticleNormal = cross(vRight, vForward); 
         vParticleTangent = vRight;
         vParticleBinormal = -vForward;  
-    }
-    else {
+    } else {
         // regular billboard		
         HALF fAngle = GenerateRotation(vSizeAndAge.w, vInputRotation, iBatchIndex);
        
@@ -546,12 +540,7 @@ void ParticleVertexMain( in Input vertIn, out VertexTransport vertOut ) {
         float3 right = p_vBillboardRight.xyz;
         float3 up = p_vBillboardUp.xyz;
         if ( b_useModelInstancing ) {
-            #ifdef COMPILING_SHADER_FOR_OPENGL
-                float4x4 mInstanceTransfrom = p_mParticleInstanceTransform[iBatchIndex];
-            #else
-                float4x4 mInstanceTransfrom = p_mParticleInstanceTransform[(int)floatRef(p_fParticleBatchIndexRemappingTable[vertIn.iBatchIndex.x])];
-            #endif
-            
+            float4x4 mInstanceTransfrom = p_mParticleInstanceTransform[iBatchIndex];
             vertIn.vPosition.xyz = mul(float4(vertIn.vPosition.xyz, 1), mInstanceTransfrom).xyz;
         }
 
@@ -570,11 +559,7 @@ void ParticleVertexMain( in Input vertIn, out VertexTransport vertOut ) {
 
     // transform instanced particles, bill board particles are handled already
     if (b_useModelInstancing && b_iInstanceType!=PARTICLE_BILLBOARD) {
-        #ifdef COMPILING_SHADER_FOR_OPENGL
-            vertIn.vPosition.xyz = mul(float4(vertIn.vPosition.xyz, 1), p_mParticleInstanceTransform[iBatchIndex]).xyz;
-        #else
-            vertIn.vPosition.xyz = mul(float4(vertIn.vPosition.xyz, 1), p_mParticleInstanceTransform[(int)floatRef( p_fParticleBatchIndexRemappingTable[vertIn.iBatchIndex.x])]).xyz;
-        #endif
+        vertIn.vPosition.xyz = mul(float4(vertIn.vPosition.xyz, 1), p_mParticleInstanceTransform[iBatchIndex]).xyz;
     }
 
     if ( b_enableVertexWarps == 1 )
@@ -648,6 +633,9 @@ void ParticleVertexMain( in Input vertIn, out VertexTransport vertOut ) {
     GenInterpolant( ShadowDiffuse, EmitShadowDiffuse( vParticleNormal, HALF4(0,0,0,0), cVertexShadowSpecularLighting, cVertexShadowSpecularLighting2 ) );
     GenInterpolant( Specular, EmitSpecular(cVertexSpecularLighting) );
     GenInterpolant( ShadowSpecular, EmitShadowSpecular(cVertexShadowSpecularLighting) );
+
+    if( b_iDepthOffset )
+        DepthOffsetHPos( vertOut.HPos );
 
 #ifdef COMPILING_SHADER_FOR_OPENGL
     vertOut.HPos.y *= -1.0;

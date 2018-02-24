@@ -512,7 +512,7 @@ void RibbonVertexMain( in VertDecl vertLayout, out VertexTransport vertOut ) {
 
         // make sure our tangent doesn't flip directions on us
         //vTangent = dot(vTangent, vPrevSegmentDir) < 0 ? -vTangent : vTangent;
-   }
+    }
 
     vTangent = SafeNormalize(vTangent, float3(1,0,0));
     
@@ -543,18 +543,13 @@ void RibbonVertexMain( in VertDecl vertLayout, out VertexTransport vertOut ) {
             HALF3 vSegment = normalize(vTangent - cameraDir * dot( vTangent, p_vCameraDirection));
 
             // Billboard direction is perpendicular to flattened vSegment.
-            vBinormal = cross(cameraDir, vSegment);
+            vBinormal = cross(vSegment, cameraDir);
         }
         else {
             vBinormal = SafeNormalize(cross( vTangent.xyz, vertIn.vUp.xyz), float3(0,1,0));
         }
 
-        // compute normal from tangent and binormal for non-billboard ribbons
-        // spline ribbons and normal ribbons have different inputs so must be crossed differently
-        if (b_gpuSplineRibbon)
-            vNormal = SafeNormalize(cross( vBinormal, vTangent ), float3(0,0,1));
-        else
-            vNormal = SafeNormalize(cross( vTangent, vBinormal ), float3(0,0,1));       
+        vNormal = SafeNormalize(cross( vTangent, vBinormal ), float3(0,0,1));       
     }
 
     HALF fAngle;
@@ -569,8 +564,8 @@ void RibbonVertexMain( in VertDecl vertLayout, out VertexTransport vertOut ) {
     if ( b_iRibbonType == RIBBON_BILLBOARD || b_iRibbonType == RIBBON_PLANAR ) {
         vOffset = vertIn.vOffset.y * vBinormal;
         vVertexNormal = vNormal;
-        vVertexTangent = vTangent;
-        vVertexBinormal = vBinormal;        
+        vVertexTangent = -vBinormal;
+        vVertexBinormal = -vTangent;        
     } 
     else if ( b_iRibbonType == RIBBON_CYLINDER || b_iRibbonType == RIBBON_STAR ) {
         // Make a basis around the vSegment.

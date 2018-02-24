@@ -31,12 +31,138 @@ void libOVER_InitVariables () {
     libOVER_InitVariables_completed = true;
 
     libOVER_gv_itemsOnGround = UnitGroupEmpty();
-    libOVER_gv_data_XP_TrioGroupCampCapture_C = 345.0;
-    libOVER_gv_data_XP_IndividualCampCapture_C = 625.0;
-    libOVER_gv_data_XP_TurretCampCapture_C = 460.0;
+    libOVER_gv_data_XP_TrioGroupCampCapture = 345.0;
+    libOVER_gv_data_XP_IndividualCampCapture = 625.0;
+    libOVER_gv_data_XP_TurretCampCapture = 460.0;
 }
 
 // Functions
+void libOVER_gf_HeroPicksUpItem (unit lp_unit, unit lp_pickUpItem, point lp_dropPoint) {
+    // Variable Declarations
+    unit lv_pickupUnit;
+    int lv_textTag;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_textTag = c_textTagNone;
+
+    // Implementation
+    UnitGroupRemove(libOVER_gv_itemsOnGround, lp_pickUpItem);
+    RemoveUnitOfInterest(lp_pickUpItem, "PickupOverwatchItem", libNtve_ge_GoalTeam_Both);
+    TextTagDestroy(libCore_gf_TextTagStoredForUnit(lp_pickUpItem, 1));
+    UnitKill(lp_pickUpItem);
+    if ((UnitHasBehavior2(lp_unit, "HasMapMechanicInstantAbility2") == true)) {
+        UnitBehaviorRemove(lp_unit, "HasMapMechanicInstantAbility", c_unitBehaviorCountAll);
+        UnitBehaviorRemove(lp_unit, "HasMapMechanicInstantAbility2", c_unitBehaviorCountAll);
+        libNtve_gf_CreateUnitsWithDefaultFacing(1, "DragonSpiritsPickup", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Neutral, lp_dropPoint);
+        TextTagCreate(StringExternal("Param/Value/lib_OVER_A7B7F96E"), 24, lp_dropPoint, 3.0, false, false, PlayerGroupAll());
+    }
+    else if ((UnitHasBehavior2(lp_unit, "MapMechanicStack") == true)) {
+        UnitBehaviorRemove(lp_unit, "MapMechanicStack", 1);
+        libNtve_gf_CreateUnitsWithDefaultFacing(1, "TurretPickup", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Neutral, lp_dropPoint);
+        TextTagCreate(StringExternal("Param/Value/lib_OVER_EE97DF36"), 24, lp_dropPoint, 3.0, false, false, PlayerGroupAll());
+    }
+    else if ((UnitHasBehavior2(lp_unit, "HasMapMechanicTargetAbility2") == true)) {
+        UnitBehaviorRemove(lp_unit, "HasMapMechanicTargetAbility2", 1);
+        libNtve_gf_CreateUnitsWithDefaultFacing(1, "HealingPulsePickup", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Neutral, lp_dropPoint);
+        TextTagCreate(StringExternal("Param/Value/lib_OVER_1F5EA6C2"), 24, lp_dropPoint, 3.0, false, false, PlayerGroupAll());
+    }
+    else if (true) {
+        return ;
+    }
+    lv_pickupUnit = UnitLastCreated();
+    lv_textTag = TextTagLastCreated();
+    UnitGroupAdd(libOVER_gv_itemsOnGround, lv_pickupUnit);
+    AddUnitOfInterest(lv_pickupUnit, 0.0, 0.0, "PickupOverwatchItem", libNtve_ge_GoalTeam_Both, 0);
+    libCore_gf_StoreTextTagForUnit(lv_pickupUnit, 1, lv_textTag);
+    TextTagAttachToUnit(lv_textTag, lv_pickupUnit, 3.0);
+    libOVER_gf_ShareVisionofItemPickup(lv_pickupUnit);
+}
+
+void libOVER_gf_HeroDiesWithItem (string lp_itemType, point lp_dropPoint, text lp_itemText) {
+    // Variable Declarations
+    unit lv_pickupUnit;
+    int lv_textTag;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_textTag = c_textTagNone;
+
+    // Implementation
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, lp_itemType, c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Neutral, lp_dropPoint);
+    lv_pickupUnit = UnitLastCreated();
+    UnitGroupAdd(libOVER_gv_itemsOnGround, lv_pickupUnit);
+    AddUnitOfInterest(lv_pickupUnit, 0.0, 0.0, "PickupOverwatchItem", libNtve_ge_GoalTeam_Both, 0);
+    TextExpressionSetToken("Param/Expression/lib_OVER_F1896F11", "A", lp_itemText);
+    TextTagCreate(TextExpressionAssemble("Param/Expression/lib_OVER_F1896F11"), 24, UnitGetPosition(lv_pickupUnit), 3.0, false, false, PlayerGroupAll());
+    lv_textTag = TextTagLastCreated();
+    libCore_gf_StoreTextTagForUnit(lv_pickupUnit, 1, lv_textTag);
+    TextTagAttachToUnit(lv_textTag, lv_pickupUnit, 3.0);
+    libOVER_gf_ShareVisionofItemPickup(lv_pickupUnit);
+}
+
+trigger auto_libOVER_gf_ShareVisionofItemPickup_Trigger = null;
+unit auto_libOVER_gf_ShareVisionofItemPickup_lp_pickupUnit;
+
+void libOVER_gf_ShareVisionofItemPickup (unit lp_pickupUnit) {
+    auto_libOVER_gf_ShareVisionofItemPickup_lp_pickupUnit = lp_pickupUnit;
+
+    if (auto_libOVER_gf_ShareVisionofItemPickup_Trigger == null) {
+        auto_libOVER_gf_ShareVisionofItemPickup_Trigger = TriggerCreate("auto_libOVER_gf_ShareVisionofItemPickup_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libOVER_gf_ShareVisionofItemPickup_Trigger, false, false);
+}
+
+bool auto_libOVER_gf_ShareVisionofItemPickup_TriggerFunc (bool testConds, bool runActions) {
+    unit lp_pickupUnit = auto_libOVER_gf_ShareVisionofItemPickup_lp_pickupUnit;
+
+    // Variable Declarations
+    timer lv_visionTimer;
+    int lv_team;
+    int lv_player;
+    bool[libCore_gv_bALMaxTeams + 1] lv_visionShared;
+
+    // Automatic Variable Declarations
+    const int autoB6ACF539_ae = libGame_gv_teamChaosIndex_C;
+    const int autoB6ACF539_ai = 1;
+    const int autoBF2C8976_ae = libGame_gv_teamChaosIndex_C;
+    const int autoBF2C8976_ai = 1;
+
+    // Variable Initialization
+    lv_visionTimer = TimerCreate();
+
+    // Implementation
+    TimerStart(lv_visionTimer, 5.0, false, c_timeGame);
+    while ((TimerGetRemaining(lv_visionTimer) > 0.0)) {
+        if ((UnitIsAlive(lp_pickupUnit) == true)) {
+            lv_team = libGame_gv_teamOrderIndex_C;
+            for ( ; ( (autoB6ACF539_ai >= 0 && lv_team <= autoB6ACF539_ae) || (autoB6ACF539_ai < 0 && lv_team >= autoB6ACF539_ae) ) ; lv_team += autoB6ACF539_ai ) {
+                lv_player = libGame_gf_ComputerPlayerInTeam(lv_team);
+                if ((libNtve_gf_UnitIsVisibleToPlayer(lp_pickupUnit, lv_player) == true) && (lv_visionShared[lv_team] == false)) {
+                    lv_visionShared[lv_team] = true;
+                    libNtve_gf_ShareVisionofUnit(lp_pickupUnit, true, lv_player);
+                    TextTagShow(libCore_gf_TextTagStoredForUnit(lp_pickupUnit, 1), libGame_gf_PlayersOnTeamHeroes(lv_team, false), true);
+                }
+
+            }
+        }
+        else {
+            return true;
+        }
+        Wait(0.0625, c_timeGame);
+    }
+    lv_team = libGame_gv_teamOrderIndex_C;
+    for ( ; ( (autoBF2C8976_ai >= 0 && lv_team <= autoBF2C8976_ae) || (autoBF2C8976_ai < 0 && lv_team >= autoBF2C8976_ae) ) ; lv_team += autoBF2C8976_ai ) {
+        if ((UnitIsAlive(lp_pickupUnit) == true) && (lv_visionShared[lv_team] == false)) {
+            libNtve_gf_ShareVisionofUnit(lp_pickupUnit, true, libGame_gf_ComputerPlayerInTeam(lv_team));
+            TextTagShow(libCore_gf_TextTagStoredForUnit(lp_pickupUnit, 1), libGame_gf_PlayersOnTeamHeroes(libGame_gf_TeamNumberOfPlayer(lv_team), false), true);
+        }
+
+    }
+    return true;
+}
+
 void libOVER_gf_InitBossMercCampBossCamp1 () {
     // Variable Declarations
     int lv_campType;
@@ -55,10 +181,8 @@ void libOVER_gf_InitBossMercCampBossCamp1 () {
     libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_respawnTime = 300.0;
     libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_numberOfCreeps = 1;
     libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_creepUnitTypes[1] = "JungleGraveGolemDefender";
-    libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_xPAwardForCapture = libOVER_gv_data_XP_BossCampCapture_C;
+    libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_xPAwardForCapture = libOVER_gv_data_XP_BossCampCapture;
     libMapM_gv_dataJungleCampMercData[lv_campType].lv_numberOfMinionsSpawned = 0;
-    libAIAI_gv_aIHeroBossCamp1MinimumNumberNeeded = 4;
-    libAIAI_gv_aIHeroBossCamp1TotalLevelNeeded = 50;
     libMapM_gf_DataInitializeScalingDataForDefender(libMapM_ge_JungleCampDefenderTypes_BossCamp1, "OverwatchBossScaling");
 }
 
@@ -84,20 +208,15 @@ void libOVER_gf_InitTrioGroupMercCampSiegeCamp3 () {
     libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_creepUnitTypes[1] = "MercDefenderMeleeBruiser";
     libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_creepUnitTypes[2] = "MercDefenderMeleeBruiser2";
     libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_creepUnitTypes[3] = "MercDefenderMeleeBruiser3";
-    libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_xPAwardForCapture = libOVER_gv_data_XP_TrioGroupCampCapture_C;
+    libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_xPAwardForCapture = libOVER_gv_data_XP_TrioGroupCampCapture;
     libMapM_gv_dataJungleCampMercData[lv_campType].lv_numberOfMinionsSpawned = 0;
-    libAIAI_gv_aIHeroSiegeCamp3MinimumNumberNeeded = 1;
-    libAIAI_gv_aIHeroSiegeCamp3TotalLevelNeeded = 4;
     libMapM_gf_DataInitializeScalingDataForDefender(libMapM_ge_JungleCampDefenderTypes_SiegeCamp3, "MeleeDefenderBruiserScaling");
     libUIUI_gf_PingCreateNewPingTarget("MercDefenderMeleeBruiser", false, StringExternal("Param/Value/lib_OVER_1602808D"), StringExternal("Param/Value/lib_OVER_287C8195"), StringExternal("Param/Value/lib_OVER_26F20FBE"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
     libUIUI_gf_PingSetHumanAISourceHeroVOForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libCore_ge_HeroVOEvents_PingAttackMercCamp, libCore_ge_HeroVOEvents_AIMercCapture);
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libUIUI_gt_PingCallbackPlayerPingsMercCamp);
     libUIUI_gf_PingCreateNewPingTarget("MercDefenderMeleeBruiser2", false, StringExternal("Param/Value/lib_OVER_6478F204"), StringExternal("Param/Value/lib_OVER_D98A9A48"), StringExternal("Param/Value/lib_OVER_BC208D48"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
     libUIUI_gf_PingSetHumanAISourceHeroVOForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libCore_ge_HeroVOEvents_PingAttackMercCamp, libCore_ge_HeroVOEvents_AIMercCapture);
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libUIUI_gt_PingCallbackPlayerPingsMercCamp);
     libUIUI_gf_PingCreateNewPingTarget("MercDefenderMeleeBruiser3", false, StringExternal("Param/Value/lib_OVER_96D84681"), StringExternal("Param/Value/lib_OVER_B001954E"), StringExternal("Param/Value/lib_OVER_B11F0D0A"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
     libUIUI_gf_PingSetHumanAISourceHeroVOForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libCore_ge_HeroVOEvents_PingAttackMercCamp, libCore_ge_HeroVOEvents_AIMercCapture);
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libUIUI_gt_PingCallbackPlayerPingsMercCamp);
     libUIUI_gf_PingCreateNewPingTarget("DragonSpiritsPickup", false, StringExternal("Param/Value/lib_OVER_D0031FCE"), StringExternal("Param/Value/lib_OVER_B7533A08"), StringExternal("Param/Value/lib_OVER_C19333DA"), SoundLink("UI_Game_Ping_General", -1), SoundLink("UI_Game_Ping_General", -1));
 }
 
@@ -112,6 +231,7 @@ void libOVER_gf_InitIndividualMercCampBruiserCamp3 () {
     // Implementation
     TriggerEnable(libOVER_gt_PlayerPicksUpHealingPulse, true);
     TriggerEnable(libOVER_gt_PlayerDiesWithHealingPulse, true);
+    TriggerEnable(libOVER_gt_BioticEmitterScaling, true);
     libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_campTypeMinimapLabel = StringExternal("Param/Value/lib_OVER_10917A4A");
     libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_campTypeMinimapTitleLabel = StringExternal("Param/Value/lib_OVER_D10BAD20");
     libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_customTextTagTitle = StringExternal("Param/Value/lib_OVER_6A3E7449");
@@ -121,14 +241,11 @@ void libOVER_gf_InitIndividualMercCampBruiserCamp3 () {
     libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_respawnTime = 180.0;
     libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_numberOfCreeps = 1;
     libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_creepUnitTypes[1] = "MercDefenderMeleeIndividual";
-    libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_xPAwardForCapture = libOVER_gv_data_XP_IndividualCampCapture_C;
+    libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_xPAwardForCapture = libOVER_gv_data_XP_IndividualCampCapture;
     libMapM_gv_dataJungleCampMercData[lv_campType].lv_numberOfMinionsSpawned = 0;
     libMapM_gf_DataInitializeScalingDataForDefender(libMapM_ge_JungleCampDefenderTypes_BruiserCamp3, "MercDefenderIndividualCampScaling");
-    libAIAI_gv_aIHeroBruiserCamp3MinimumNumberNeeded = 2;
-    libAIAI_gv_aIHeroBruiserCamp3TotalLevelNeeded = 12;
     libUIUI_gf_PingCreateNewPingTarget("MercDefenderMeleeIndividual", false, StringExternal("Param/Value/lib_OVER_EF6E1819"), StringExternal("Param/Value/lib_OVER_C2289DE7"), StringExternal("Param/Value/lib_OVER_23AB7604"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
     libUIUI_gf_PingSetHumanAISourceHeroVOForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libCore_ge_HeroVOEvents_PingAttackMercCamp, libCore_ge_HeroVOEvents_AIMercCapture);
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libUIUI_gt_PingCallbackPlayerPingsMercCamp);
     libUIUI_gf_PingCreateNewPingTarget("HealingPulsePickup", false, StringExternal("Param/Value/lib_OVER_A2872802"), StringExternal("Param/Value/lib_OVER_BA373CE2"), StringExternal("Param/Value/lib_OVER_4E0E5943"), SoundLink("UI_Game_Ping_General", -1), SoundLink("UI_Game_Ping_General", -1));
 }
 
@@ -154,67 +271,37 @@ void libOVER_gf_InitTurretMercCampSiegeCamp1 () {
     libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_numberOfCreeps = 2;
     libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_creepUnitTypes[1] = "OverwatchTurret";
     libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_creepUnitTypes[2] = "OverwatchMechanic";
-    libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_xPAwardForCapture = libOVER_gv_data_XP_TurretCampCapture_C;
+    libMapM_gv_dataJungleCampDefenderData[lv_campType].lv_xPAwardForCapture = libOVER_gv_data_XP_TurretCampCapture;
     libMapM_gv_dataJungleCampMercData[lv_campType].lv_numberOfMinionsSpawned = 0;
     libMapM_gf_DataInitializeScalingDataForDefender(libMapM_ge_JungleCampDefenderTypes_SiegeCamp1, "OverwatchTurretScaling");
     libMapM_gf_DataInitializeScalingDataForMerc(libMapM_ge_JungleCampMercTypes_SiegeCamp1, "OverwatchMechanicScaling");
-    libAIAI_gv_aIHeroSiegeCamp1MinimumNumberNeeded = 2;
-    libAIAI_gv_aIHeroSiegeCamp1TotalLevelNeeded = 8;
     libUIUI_gf_PingCreateNewPingTarget("TurretPickup", false, StringExternal("Param/Value/lib_OVER_E59B469A"), StringExternal("Param/Value/lib_OVER_F88686E8"), StringExternal("Param/Value/lib_OVER_3AF565FD"), SoundLink("UI_Game_Ping_General", -1), SoundLink("UI_Game_Ping_General", -1));
     libUIUI_gf_PingCreateNewPingTarget("OverwatchTurretPlayer", false, StringExternal("Param/Value/lib_OVER_80BD7C33"), StringExternal("Param/Value/lib_OVER_A3E0517E"), StringExternal("Param/Value/lib_OVER_DD14DDAA"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
     libUIUI_gf_PingCreateNewPingTarget("OverwatchTurret", false, StringExternal("Param/Value/lib_OVER_2F368079"), StringExternal("Param/Value/lib_OVER_9464E0AD"), StringExternal("Param/Value/lib_OVER_87C571B3"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
     libUIUI_gf_PingSetHumanAISourceHeroVOForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libCore_ge_HeroVOEvents_PingAttackMercCamp, libCore_ge_HeroVOEvents_AIMercCapture);
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libUIUI_gt_PingCallbackPlayerPingsMercCamp);
     libUIUI_gf_PingCreateNewPingTarget("OverwatchMechanic", false, StringExternal("Param/Value/lib_OVER_8F5D8AB1"), StringExternal("Param/Value/lib_OVER_9F471E44"), StringExternal("Param/Value/lib_OVER_32D81809"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
     libUIUI_gf_PingSetHumanAISourceHeroVOForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libCore_ge_HeroVOEvents_PingAttackMercCamp, libCore_ge_HeroVOEvents_AIMercCapture);
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libUIUI_gt_PingCallbackPlayerPingsMercCamp);
 }
 
 // Triggers
 //--------------------------------------------------------------------------------------------------
-// Trigger: Initialize OW Merc Data
-//--------------------------------------------------------------------------------------------------
-bool libOVER_gt_InitializeOWMercData_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    TriggerEnable(TriggerGetCurrent(), false);
-    libAIAI_gv_aIHeroEnemiesNearCampDistance = 15.0;
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libOVER_gt_InitializeOWMercData_Init () {
-    libOVER_gt_InitializeOWMercData = TriggerCreate("libOVER_gt_InitializeOWMercData_Func");
-    TriggerAddEventMapInit(libOVER_gt_InitializeOWMercData);
-}
-
-//--------------------------------------------------------------------------------------------------
 // Trigger: Scaling Timer Expires
 //--------------------------------------------------------------------------------------------------
 bool libOVER_gt_ScalingTimerExpires_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    int lv_campType;
-
     // Automatic Variable Declarations
-    // Variable Initialization
-
     // Actions
     if (!runActions) {
         return true;
     }
 
-    libOVER_gv_data_XP_TurretCampCapture_C += 10.0;
-    libOVER_gv_data_XP_BossCampCapture_C += 10.0;
-    libOVER_gv_data_XP_TrioGroupCampCapture_C += 10.0;
-    libOVER_gv_data_XP_IndividualCampCapture_C += 10.0;
-    libMapM_gv_dataJungleCampDefenderData[(libMapM_ge_JungleCampDefenderTypes_SiegeCamp1)].lv_xPAwardForCapture = libOVER_gv_data_XP_TurretCampCapture_C;
-    libMapM_gv_dataJungleCampDefenderData[(libMapM_ge_JungleCampDefenderTypes_BossCamp1)].lv_xPAwardForCapture = libOVER_gv_data_XP_TurretCampCapture_C;
-    libMapM_gv_dataJungleCampDefenderData[(libMapM_ge_JungleCampDefenderTypes_SiegeCamp3)].lv_xPAwardForCapture = libOVER_gv_data_XP_TrioGroupCampCapture_C;
-    libMapM_gv_dataJungleCampDefenderData[(libMapM_ge_JungleCampDefenderTypes_BruiserCamp3)].lv_xPAwardForCapture = libOVER_gv_data_XP_IndividualCampCapture_C;
+    libOVER_gv_data_XP_TurretCampCapture += 10.0;
+    libOVER_gv_data_XP_BossCampCapture += 10.0;
+    libOVER_gv_data_XP_TrioGroupCampCapture += 10.0;
+    libOVER_gv_data_XP_IndividualCampCapture += 10.0;
+    libMapM_gv_dataJungleCampDefenderData[(libMapM_ge_JungleCampDefenderTypes_SiegeCamp1)].lv_xPAwardForCapture = libOVER_gv_data_XP_TurretCampCapture;
+    libMapM_gv_dataJungleCampDefenderData[(libMapM_ge_JungleCampDefenderTypes_BossCamp1)].lv_xPAwardForCapture = libOVER_gv_data_XP_TurretCampCapture;
+    libMapM_gv_dataJungleCampDefenderData[(libMapM_ge_JungleCampDefenderTypes_SiegeCamp3)].lv_xPAwardForCapture = libOVER_gv_data_XP_TrioGroupCampCapture;
+    libMapM_gv_dataJungleCampDefenderData[(libMapM_ge_JungleCampDefenderTypes_BruiserCamp3)].lv_xPAwardForCapture = libOVER_gv_data_XP_IndividualCampCapture;
     return true;
 }
 
@@ -337,14 +424,13 @@ void libOVER_gt_BossEatsPlayer_Init () {
 //--------------------------------------------------------------------------------------------------
 bool libOVER_gt_PlayerPicksUpHealingPulse_Func (bool testConds, bool runActions) {
     // Variable Declarations
-    unit lv_caster;
-    unit lv_pickupUnit;
-    point lv_positionOfItem;
+    unit lv_casterUnit;
+    unit lv_targetUnit;
 
     // Automatic Variable Declarations
     // Variable Initialization
-    lv_caster = EventPlayerEffectUsedUnit(c_effectUnitCaster);
-    lv_positionOfItem = UnitGetPosition(EventPlayerEffectUsedUnit(c_effectUnitTarget));
+    lv_casterUnit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_targetUnit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
 
     // Conditions
     if (testConds) {
@@ -352,7 +438,7 @@ bool libOVER_gt_PlayerPicksUpHealingPulse_Func (bool testConds, bool runActions)
             return false;
         }
 
-        if (!((UnitGroupHasUnit(libOVER_gv_itemsOnGround, EventPlayerEffectUsedUnit(c_effectUnitTarget)) == true))) {
+        if (!((UnitGroupHasUnit(libOVER_gv_itemsOnGround, lv_targetUnit) == true))) {
             return false;
         }
     }
@@ -362,50 +448,8 @@ bool libOVER_gt_PlayerPicksUpHealingPulse_Func (bool testConds, bool runActions)
         return true;
     }
 
-    UnitCreateEffectUnit(lv_caster, "CaptureMacguffinTargetIsHealingPulseModifyPlayerProperties", lv_caster);
-    UnitGroupRemove(libOVER_gv_itemsOnGround, EventPlayerEffectUsedUnit(c_effectUnitTarget));
-    RemoveUnitOfInterest(EventPlayerEffectUsedUnit(c_effectUnitTarget), "PickupOverwatchItem", libNtve_ge_GoalTeam_Both);
-    TextTagDestroy(libCore_gf_TextTagStoredForUnit(EventPlayerEffectUsedUnit(c_effectUnitTarget), 1));
-    if ((UnitHasBehavior2(lv_caster, "HasMapMechanicInstantAbility2") == true)) {
-        UnitBehaviorRemove(lv_caster, "HasMapMechanicInstantAbility", 1);
-        UnitBehaviorRemove(lv_caster, "HasMapMechanicInstantAbility2", 1);
-        libNtve_gf_CreateUnitsWithDefaultFacing(1, "DragonSpiritsPickup", c_unitCreateIgnorePlacement, 0, lv_positionOfItem);
-        lv_pickupUnit = UnitLastCreated();
-        UnitGroupAdd(libOVER_gv_itemsOnGround, lv_pickupUnit);
-        AddUnitOfInterest(lv_pickupUnit, 0.0, 0.0, "PickupOverwatchItem", libNtve_ge_GoalTeam_Both, 0);
-        TextTagCreate(StringExternal("Param/Value/lib_OVER_A7B7F96E"), 24, UnitGetPosition(lv_pickupUnit), 3.0, true, false, PlayerGroupAll());
-        TextTagSetFogVisibility(TextTagLastCreated(), c_visTypeFog);
-        libCore_gf_StoreTextTagForUnit(lv_pickupUnit, 1, TextTagLastCreated());
-    }
-    else {
-        if ((UnitHasBehavior2(lv_caster, "MapMechanicStack") == true)) {
-            UnitBehaviorRemove(lv_caster, "MapMechanicStack", 1);
-            libNtve_gf_CreateUnitsWithDefaultFacing(1, "TurretPickup", c_unitCreateIgnorePlacement, 0, lv_positionOfItem);
-            lv_pickupUnit = UnitLastCreated();
-            UnitGroupAdd(libOVER_gv_itemsOnGround, lv_pickupUnit);
-            AddUnitOfInterest(lv_pickupUnit, 0.0, 0.0, "PickupOverwatchItem", libNtve_ge_GoalTeam_Both, 0);
-            TextTagCreate(StringExternal("Param/Value/lib_OVER_EE97DF36"), 24, UnitGetPosition(lv_pickupUnit), 3.0, true, false, PlayerGroupAll());
-            TextTagSetFogVisibility(TextTagLastCreated(), c_visTypeFog);
-            libCore_gf_StoreTextTagForUnit(UnitLastCreated(), 1, TextTagLastCreated());
-        }
-        else {
-            if ((UnitHasBehavior2(lv_caster, "HasMapMechanicInstantAbility1") == true)) {
-                UnitBehaviorRemove(lv_caster, "HasMapMechanicInstantAbility", 1);
-                UnitBehaviorRemove(lv_caster, "HasMapMechanicInstantAbility1", 1);
-                libNtve_gf_CreateUnitsWithDefaultFacing(1, "HealingPulsePickup", c_unitCreateIgnorePlacement, 0, lv_positionOfItem);
-                lv_pickupUnit = UnitLastCreated();
-                UnitGroupAdd(libOVER_gv_itemsOnGround, lv_pickupUnit);
-                AddUnitOfInterest(lv_pickupUnit, 0.0, 0.0, "PickupOverwatchItem", libNtve_ge_GoalTeam_Both, 0);
-                TextTagCreate(StringExternal("Param/Value/lib_OVER_1F5EA6C2"), 24, UnitGetPosition(lv_pickupUnit), 3.0, true, false, PlayerGroupAll());
-                TextTagSetFogVisibility(TextTagLastCreated(), c_visTypeFog);
-                libCore_gf_StoreTextTagForUnit(lv_pickupUnit, 1, TextTagLastCreated());
-            }
-
-        }
-    }
-    UnitKill(EventPlayerEffectUsedUnit(c_effectUnitTarget));
-    UnitBehaviorAdd(EventPlayerEffectUsedUnit(c_effectUnitCaster), "HasMapMechanicInstantAbility", EventPlayerEffectUsedUnit(c_effectUnitCaster), 1);
-    UnitBehaviorAdd(EventPlayerEffectUsedUnit(c_effectUnitCaster), "HasMapMechanicInstantAbility1", EventPlayerEffectUsedUnit(c_effectUnitCaster), 1);
+    libOVER_gf_HeroPicksUpItem(lv_casterUnit, lv_targetUnit, UnitGetPosition(lv_targetUnit));
+    UnitBehaviorAdd(lv_casterUnit, "HasMapMechanicTargetAbility2", lv_casterUnit, 1);
     return true;
 }
 
@@ -421,31 +465,26 @@ void libOVER_gt_PlayerPicksUpHealingPulse_Init () {
 //--------------------------------------------------------------------------------------------------
 bool libOVER_gt_PlayerDiesWithHealingPulse_Func (bool testConds, bool runActions) {
     // Variable Declarations
-    unit lv_pickupUnit;
     unit lv_heroKilledUnit;
 
     // Automatic Variable Declarations
     // Variable Initialization
     lv_heroKilledUnit = libGame_gf_HeroKilledUnit();
 
+    // Conditions
+    if (testConds) {
+        if (!((UnitHasBehavior2(lv_heroKilledUnit, "HasMapMechanicTargetAbility2") == true))) {
+            return false;
+        }
+    }
+
     // Actions
     if (!runActions) {
         return true;
     }
 
-    if ((UnitHasBehavior2(lv_heroKilledUnit, "HasMapMechanicInstantAbility") == true) && (UnitHasBehavior2(lv_heroKilledUnit, "HasMapMechanicInstantAbility1") == true)) {
-        UnitBehaviorRemove(lv_heroKilledUnit, "HasMapMechanicInstantAbility", 1);
-        UnitBehaviorRemove(lv_heroKilledUnit, "HasMapMechanicInstantAbility1", 1);
-        libNtve_gf_CreateUnitsWithDefaultFacing(1, "HealingPulsePickup", c_unitCreateIgnorePlacement, 0, libGame_gf_HeroKilledLocation());
-        lv_pickupUnit = UnitLastCreated();
-        UnitGroupAdd(libOVER_gv_itemsOnGround, lv_pickupUnit);
-        AddUnitOfInterest(lv_pickupUnit, 0.0, 0.0, "PickupOverwatchItem", libNtve_ge_GoalTeam_Both, 0);
-        TextTagCreate(StringExternal("Param/Value/lib_OVER_F1896F11"), 24, UnitGetPosition(lv_pickupUnit), 3.0, true, false, PlayerGroupAll());
-        TextTagSetFogVisibility(TextTagLastCreated(), c_visTypeFog);
-        TextTagAttachToUnit(TextTagLastCreated(), lv_pickupUnit, 3.0);
-        libCore_gf_StoreTextTagForUnit(lv_pickupUnit, 1, TextTagLastCreated());
-    }
-
+    UnitBehaviorRemove(lv_heroKilledUnit, "HasMapMechanicTargetAbility2", 1);
+    libOVER_gf_HeroDiesWithItem("HealingPulsePickup", libGame_gf_HeroKilledLocation(), StringExternal("Param/Value/lib_OVER_AFDE5102"));
     return true;
 }
 
@@ -457,18 +496,38 @@ void libOVER_gt_PlayerDiesWithHealingPulse_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
+// Trigger: Biotic Emitter Scaling
+//--------------------------------------------------------------------------------------------------
+bool libOVER_gt_BioticEmitterScaling_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitXPAddXP(EventUnitCreatedUnit(), "BioticEmitterScaling", libGame_gv_teams[libGame_gf_TeamNumberOfPlayer(UnitGetOwner(EventUnit()))].lv_teamLevel);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libOVER_gt_BioticEmitterScaling_Init () {
+    libOVER_gt_BioticEmitterScaling = TriggerCreate("libOVER_gt_BioticEmitterScaling_Func");
+    TriggerEnable(libOVER_gt_BioticEmitterScaling, false);
+    TriggerAddEventUnitCreated(libOVER_gt_BioticEmitterScaling, null, "MapMechanicAbilityTarget2", null);
+}
+
+//--------------------------------------------------------------------------------------------------
 // Trigger: Player Picks Up Dragon Spirits
 //--------------------------------------------------------------------------------------------------
 bool libOVER_gt_PlayerPicksUpDragonSpirits_Func (bool testConds, bool runActions) {
     // Variable Declarations
-    unit lv_caster;
-    unit lv_pickupUnit;
-    point lv_positionOfItem;
+    unit lv_casterUnit;
+    unit lv_targetUnit;
 
     // Automatic Variable Declarations
     // Variable Initialization
-    lv_caster = EventPlayerEffectUsedUnit(c_effectUnitCaster);
-    lv_positionOfItem = UnitGetPosition(EventPlayerEffectUsedUnit(c_effectUnitTarget));
+    lv_casterUnit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_targetUnit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
 
     // Conditions
     if (testConds) {
@@ -476,7 +535,7 @@ bool libOVER_gt_PlayerPicksUpDragonSpirits_Func (bool testConds, bool runActions
             return false;
         }
 
-        if (!((UnitGroupHasUnit(libOVER_gv_itemsOnGround, EventPlayerEffectUsedUnit(c_effectUnitTarget)) == true))) {
+        if (!((UnitGroupHasUnit(libOVER_gv_itemsOnGround, lv_targetUnit) == true))) {
             return false;
         }
     }
@@ -486,50 +545,10 @@ bool libOVER_gt_PlayerPicksUpDragonSpirits_Func (bool testConds, bool runActions
         return true;
     }
 
-    UnitCreateEffectUnit(lv_caster, "CaptureMacguffinTargetIsDragonSpiritsModifyPlayerProperties", lv_caster);
-    UnitGroupRemove(libOVER_gv_itemsOnGround, EventPlayerEffectUsedUnit(c_effectUnitTarget));
-    RemoveUnitOfInterest(EventPlayerEffectUsedUnit(c_effectUnitTarget), "PickupOverwatchItem", libNtve_ge_GoalTeam_Both);
-    TextTagDestroy(libCore_gf_TextTagStoredForUnit(EventPlayerEffectUsedUnit(c_effectUnitTarget), 1));
-    if ((UnitHasBehavior2(lv_caster, "HasMapMechanicInstantAbility2") == true)) {
-        UnitBehaviorRemove(lv_caster, "HasMapMechanicInstantAbility", 1);
-        UnitBehaviorRemove(lv_caster, "HasMapMechanicInstantAbility2", 1);
-        libNtve_gf_CreateUnitsWithDefaultFacing(1, "DragonSpiritsPickup", c_unitCreateIgnorePlacement, 0, lv_positionOfItem);
-        lv_pickupUnit = UnitLastCreated();
-        UnitGroupAdd(libOVER_gv_itemsOnGround, lv_pickupUnit);
-        AddUnitOfInterest(lv_pickupUnit, 0.0, 0.0, "PickupOverwatchItem", libNtve_ge_GoalTeam_Both, 0);
-        TextTagCreate(StringExternal("Param/Value/lib_OVER_B4E3B4F7"), 24, UnitGetPosition(lv_pickupUnit), 3.0, true, false, PlayerGroupAll());
-        TextTagSetFogVisibility(TextTagLastCreated(), c_visTypeFog);
-        libCore_gf_StoreTextTagForUnit(lv_pickupUnit, 1, TextTagLastCreated());
-    }
-    else {
-        if ((UnitHasBehavior2(lv_caster, "MapMechanicStack") == true)) {
-            UnitBehaviorRemove(lv_caster, "MapMechanicStack", 1);
-            libNtve_gf_CreateUnitsWithDefaultFacing(1, "TurretPickup", c_unitCreateIgnorePlacement, 0, lv_positionOfItem);
-            lv_pickupUnit = UnitLastCreated();
-            UnitGroupAdd(libOVER_gv_itemsOnGround, lv_pickupUnit);
-            AddUnitOfInterest(lv_pickupUnit, 0.0, 0.0, "PickupOverwatchItem", libNtve_ge_GoalTeam_Both, 0);
-            TextTagCreate(StringExternal("Param/Value/lib_OVER_7E996412"), 24, UnitGetPosition(lv_pickupUnit), 3.0, true, false, PlayerGroupAll());
-            TextTagSetFogVisibility(TextTagLastCreated(), c_visTypeFog);
-            libCore_gf_StoreTextTagForUnit(UnitLastCreated(), 1, TextTagLastCreated());
-        }
-        else {
-            if ((UnitHasBehavior2(lv_caster, "HasMapMechanicInstantAbility1") == true)) {
-                UnitBehaviorRemove(lv_caster, "HasMapMechanicInstantAbility", 1);
-                UnitBehaviorRemove(lv_caster, "HasMapMechanicInstantAbility1", 1);
-                libNtve_gf_CreateUnitsWithDefaultFacing(1, "HealingPulsePickup", c_unitCreateIgnorePlacement, 0, lv_positionOfItem);
-                lv_pickupUnit = UnitLastCreated();
-                UnitGroupAdd(libOVER_gv_itemsOnGround, lv_pickupUnit);
-                AddUnitOfInterest(lv_pickupUnit, 0.0, 0.0, "PickupOverwatchItem", libNtve_ge_GoalTeam_Both, 0);
-                TextTagCreate(StringExternal("Param/Value/lib_OVER_BE8F460F"), 24, UnitGetPosition(lv_pickupUnit), 3.0, true, false, PlayerGroupAll());
-                TextTagSetFogVisibility(TextTagLastCreated(), c_visTypeFog);
-                libCore_gf_StoreTextTagForUnit(lv_pickupUnit, 1, TextTagLastCreated());
-            }
-
-        }
-    }
-    UnitKill(EventPlayerEffectUsedUnit(c_effectUnitTarget));
-    UnitBehaviorAdd(EventPlayerEffectUsedUnit(c_effectUnitCaster), "HasMapMechanicInstantAbility", EventPlayerEffectUsedUnit(c_effectUnitCaster), 1);
-    UnitBehaviorAdd(EventPlayerEffectUsedUnit(c_effectUnitCaster), "HasMapMechanicInstantAbility2", EventPlayerEffectUsedUnit(c_effectUnitCaster), 1);
+    UnitCreateEffectUnit(lv_casterUnit, "CaptureMacguffinTargetIsDragonSpiritsModifyPlayerProperties", lv_casterUnit);
+    libOVER_gf_HeroPicksUpItem(lv_casterUnit, lv_targetUnit, UnitGetPosition(lv_targetUnit));
+    UnitBehaviorAdd(lv_casterUnit, "HasMapMechanicInstantAbility", lv_casterUnit, 1);
+    UnitBehaviorAdd(lv_casterUnit, "HasMapMechanicInstantAbility2", lv_casterUnit, 1);
     return true;
 }
 
@@ -545,29 +564,31 @@ void libOVER_gt_PlayerPicksUpDragonSpirits_Init () {
 //--------------------------------------------------------------------------------------------------
 bool libOVER_gt_PlayerDiesWithDragonSpirits_Func (bool testConds, bool runActions) {
     // Variable Declarations
-    unit lv_pickupUnit;
+    unit lv_heroKilledUnit;
 
     // Automatic Variable Declarations
     // Variable Initialization
+    lv_heroKilledUnit = libGame_gf_HeroKilledUnit();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitHasBehavior2(lv_heroKilledUnit, "HasMapMechanicInstantAbility") == true))) {
+            return false;
+        }
+
+        if (!((UnitHasBehavior2(lv_heroKilledUnit, "HasMapMechanicInstantAbility2") == true))) {
+            return false;
+        }
+    }
 
     // Actions
     if (!runActions) {
         return true;
     }
 
-    if ((UnitHasBehavior2(libGame_gf_HeroKilledUnit(), "HasMapMechanicInstantAbility") == true) && (UnitHasBehavior2(libGame_gf_HeroKilledUnit(), "HasMapMechanicInstantAbility2") == true)) {
-        UnitBehaviorRemove(libGame_gf_HeroKilledUnit(), "HasMapMechanicInstantAbility", 1);
-        UnitBehaviorRemove(libGame_gf_HeroKilledUnit(), "HasMapMechanicInstantAbility2", 1);
-        libNtve_gf_CreateUnitsWithDefaultFacing(1, "DragonSpiritsPickup", c_unitCreateIgnorePlacement, 0, libGame_gf_HeroKilledLocation());
-        lv_pickupUnit = UnitLastCreated();
-        UnitGroupAdd(libOVER_gv_itemsOnGround, lv_pickupUnit);
-        AddUnitOfInterest(lv_pickupUnit, 0.0, 0.0, "PickupOverwatchItem", libNtve_ge_GoalTeam_Both, 0);
-        TextTagCreate(StringExternal("Param/Value/lib_OVER_392ABC97"), 24, UnitGetPosition(lv_pickupUnit), 3.0, true, false, PlayerGroupAll());
-        TextTagSetFogVisibility(TextTagLastCreated(), c_visTypeFog);
-        TextTagAttachToUnit(TextTagLastCreated(), lv_pickupUnit, 3.0);
-        libCore_gf_StoreTextTagForUnit(lv_pickupUnit, 1, TextTagLastCreated());
-    }
-
+    UnitBehaviorRemove(lv_heroKilledUnit, "HasMapMechanicInstantAbility", 1);
+    UnitBehaviorRemove(lv_heroKilledUnit, "HasMapMechanicInstantAbility2", 1);
+    libOVER_gf_HeroDiesWithItem("DragonSpiritsPickup", libGame_gf_HeroKilledLocation(), StringExternal("Param/Value/lib_OVER_D8EF563E"));
     return true;
 }
 
@@ -611,14 +632,13 @@ void libOVER_gt_PlayerCreatesTurretFromMapMechanicAbility_Init () {
 //--------------------------------------------------------------------------------------------------
 bool libOVER_gt_PlayerPicksUpTurretItem_Func (bool testConds, bool runActions) {
     // Variable Declarations
-    unit lv_caster;
-    unit lv_pickupUnit;
-    point lv_positionOfItem;
+    unit lv_casterUnit;
+    unit lv_targetUnit;
 
     // Automatic Variable Declarations
     // Variable Initialization
-    lv_caster = EventPlayerEffectUsedUnit(c_effectUnitCaster);
-    lv_positionOfItem = UnitGetPosition(EventPlayerEffectUsedUnit(c_effectUnitTarget));
+    lv_casterUnit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_targetUnit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
 
     // Conditions
     if (testConds) {
@@ -626,7 +646,7 @@ bool libOVER_gt_PlayerPicksUpTurretItem_Func (bool testConds, bool runActions) {
             return false;
         }
 
-        if (!((UnitGroupHasUnit(libOVER_gv_itemsOnGround, EventPlayerEffectUsedUnit(c_effectUnitTarget)) == true))) {
+        if (!((UnitGroupHasUnit(libOVER_gv_itemsOnGround, lv_targetUnit) == true))) {
             return false;
         }
     }
@@ -636,48 +656,8 @@ bool libOVER_gt_PlayerPicksUpTurretItem_Func (bool testConds, bool runActions) {
         return true;
     }
 
-    UnitGroupRemove(libOVER_gv_itemsOnGround, EventPlayerEffectUsedUnit(c_effectUnitTarget));
-    RemoveUnitOfInterest(EventPlayerEffectUsedUnit(c_effectUnitTarget), "PickupOverwatchItem", libNtve_ge_GoalTeam_Both);
-    if ((UnitHasBehavior2(lv_caster, "HasMapMechanicInstantAbility2") == true)) {
-        UnitBehaviorRemove(lv_caster, "HasMapMechanicInstantAbility", 1);
-        UnitBehaviorRemove(lv_caster, "HasMapMechanicInstantAbility2", 1);
-        libNtve_gf_CreateUnitsWithDefaultFacing(1, "DragonSpiritsPickup", c_unitCreateIgnorePlacement, 0, lv_positionOfItem);
-        lv_pickupUnit = UnitLastCreated();
-        UnitGroupAdd(libOVER_gv_itemsOnGround, lv_pickupUnit);
-        AddUnitOfInterest(lv_pickupUnit, 0.0, 0.0, "PickupOverwatchItem", libNtve_ge_GoalTeam_Both, 0);
-        TextTagCreate(StringExternal("Param/Value/lib_OVER_072B01C6"), 24, UnitGetPosition(lv_pickupUnit), 3.0, true, false, PlayerGroupAll());
-        TextTagSetFogVisibility(TextTagLastCreated(), c_visTypeFog);
-        libCore_gf_StoreTextTagForUnit(lv_pickupUnit, 1, TextTagLastCreated());
-    }
-    else {
-        if ((UnitHasBehavior2(lv_caster, "MapMechanicStack") == true)) {
-            UnitBehaviorRemove(lv_caster, "MapMechanicStack", 1);
-            libNtve_gf_CreateUnitsWithDefaultFacing(1, "TurretPickup", c_unitCreateIgnorePlacement, 0, lv_positionOfItem);
-            lv_pickupUnit = UnitLastCreated();
-            UnitGroupAdd(libOVER_gv_itemsOnGround, lv_pickupUnit);
-            AddUnitOfInterest(lv_pickupUnit, 0.0, 0.0, "PickupOverwatchItem", libNtve_ge_GoalTeam_Both, 0);
-            TextTagCreate(StringExternal("Param/Value/lib_OVER_F58EF2C8"), 24, UnitGetPosition(lv_pickupUnit), 3.0, true, false, PlayerGroupAll());
-            TextTagSetFogVisibility(TextTagLastCreated(), c_visTypeFog);
-            libCore_gf_StoreTextTagForUnit(UnitLastCreated(), 1, TextTagLastCreated());
-        }
-        else {
-            if ((UnitHasBehavior2(lv_caster, "HasMapMechanicInstantAbility1") == true)) {
-                UnitBehaviorRemove(lv_caster, "HasMapMechanicInstantAbility", 1);
-                UnitBehaviorRemove(lv_caster, "HasMapMechanicInstantAbility1", 1);
-                libNtve_gf_CreateUnitsWithDefaultFacing(1, "HealingPulsePickup", c_unitCreateIgnorePlacement, 0, lv_positionOfItem);
-                lv_pickupUnit = UnitLastCreated();
-                UnitGroupAdd(libOVER_gv_itemsOnGround, lv_pickupUnit);
-                AddUnitOfInterest(lv_pickupUnit, 0.0, 0.0, "PickupOverwatchItem", libNtve_ge_GoalTeam_Both, 0);
-                TextTagCreate(StringExternal("Param/Value/lib_OVER_CE527E10"), 24, UnitGetPosition(lv_pickupUnit), 3.0, true, false, PlayerGroupAll());
-                TextTagSetFogVisibility(TextTagLastCreated(), c_visTypeFog);
-                libCore_gf_StoreTextTagForUnit(lv_pickupUnit, 1, TextTagLastCreated());
-            }
-
-        }
-    }
-    TextTagDestroy(libCore_gf_TextTagStoredForUnit(EventPlayerEffectUsedUnit(c_effectUnitTarget), 1));
-    UnitKill(EventPlayerEffectUsedUnit(c_effectUnitTarget));
-    UnitBehaviorAdd(EventPlayerEffectUsedUnit(c_effectUnitCaster), "MapMechanicStack", EventPlayerEffectUsedUnit(c_effectUnitCaster), 1);
+    libOVER_gf_HeroPicksUpItem(lv_casterUnit, lv_targetUnit, UnitGetPosition(lv_targetUnit));
+    UnitBehaviorAdd(lv_casterUnit, "MapMechanicStack", lv_casterUnit, 1);
     return true;
 }
 
@@ -693,28 +673,26 @@ void libOVER_gt_PlayerPicksUpTurretItem_Init () {
 //--------------------------------------------------------------------------------------------------
 bool libOVER_gt_PlayerDiesWithTurretItem_Func (bool testConds, bool runActions) {
     // Variable Declarations
-    unit lv_pickupUnit;
+    unit lv_heroKilledUnit;
 
     // Automatic Variable Declarations
     // Variable Initialization
+    lv_heroKilledUnit = libGame_gf_HeroKilledUnit();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitHasBehavior2(lv_heroKilledUnit, "MapMechanicStack") == true))) {
+            return false;
+        }
+    }
 
     // Actions
     if (!runActions) {
         return true;
     }
 
-    if ((UnitHasBehavior2(libGame_gf_HeroKilledUnit(), "MapMechanicStack") == true)) {
-        UnitBehaviorRemove(libGame_gf_HeroKilledUnit(), "MapMechanicStack", 1);
-        libNtve_gf_CreateUnitsWithDefaultFacing(1, "TurretPickup", c_unitCreateIgnorePlacement, 0, libGame_gf_HeroKilledLocation());
-        lv_pickupUnit = UnitLastCreated();
-        UnitGroupAdd(libOVER_gv_itemsOnGround, lv_pickupUnit);
-        AddUnitOfInterest(lv_pickupUnit, 0.0, 0.0, "PickupOverwatchItem", libNtve_ge_GoalTeam_Both, 0);
-        TextTagCreate(StringExternal("Param/Value/lib_OVER_140C7EB9"), 24, UnitGetPosition(lv_pickupUnit), 3.0, true, false, PlayerGroupAll());
-        TextTagSetFogVisibility(TextTagLastCreated(), c_visTypeFog);
-        TextTagAttachToUnit(TextTagLastCreated(), lv_pickupUnit, 3.0);
-        libCore_gf_StoreTextTagForUnit(lv_pickupUnit, 1, TextTagLastCreated());
-    }
-
+    UnitBehaviorRemove(lv_heroKilledUnit, "MapMechanicStack", 1);
+    libOVER_gf_HeroDiesWithItem("TurretPickup", libGame_gf_HeroKilledLocation(), StringExternal("Param/Value/lib_OVER_97E6FCFF"));
     return true;
 }
 
@@ -812,12 +790,10 @@ void libOVER_gt_MercCampCaptured_Init () {
 bool libOVER_gt_ItemSpawned_Func (bool testConds, bool runActions) {
     // Variable Declarations
     unit lv_itemUnit;
-    timer lv_visionTimer;
 
     // Automatic Variable Declarations
     // Variable Initialization
     lv_itemUnit = EventPlayerEffectUsedUnit(c_effectUnitSource);
-    lv_visionTimer = TimerCreate();
 
     // Actions
     if (!runActions) {
@@ -828,37 +804,17 @@ bool libOVER_gt_ItemSpawned_Func (bool testConds, bool runActions) {
     AddUnitOfInterest(lv_itemUnit, 0.0, 0.0, "PickupOverwatchItem", libNtve_ge_GoalTeam_Both, 0);
     Wait(0.5, c_timeGame);
     if ((UnitGetType(lv_itemUnit) == "HealingPulsePickup")) {
-        TextTagCreate(StringExternal("Param/Value/lib_OVER_6B0FC639"), 24, UnitGetPosition(lv_itemUnit), 3.0, false, true, PlayerGroupAll());
+        TextTagCreate(StringExternal("Param/Value/lib_OVER_6B0FC639"), 24, UnitGetPosition(lv_itemUnit), 3.0, false, false, PlayerGroupAll());
     }
     else if ((UnitGetType(lv_itemUnit) == "DragonSpiritsPickup")) {
-        TextTagCreate(StringExternal("Param/Value/lib_OVER_0FF3B904"), 24, UnitGetPosition(lv_itemUnit), 3.0, false, true, PlayerGroupAll());
+        TextTagCreate(StringExternal("Param/Value/lib_OVER_0FF3B904"), 24, UnitGetPosition(lv_itemUnit), 3.0, false, false, PlayerGroupAll());
     }
     else if ((UnitGetType(lv_itemUnit) == "TurretPickup")) {
-        TextTagCreate(StringExternal("Param/Value/lib_OVER_8D4D576D"), 24, UnitGetPosition(lv_itemUnit), 3.0, false, true, PlayerGroupAll());
+        TextTagCreate(StringExternal("Param/Value/lib_OVER_8D4D576D"), 24, UnitGetPosition(lv_itemUnit), 3.0, false, false, PlayerGroupAll());
     }
     TextTagAttachToUnit(TextTagLastCreated(), lv_itemUnit, 3.0);
     libCore_gf_StoreTextTagForUnit(lv_itemUnit, 1, TextTagLastCreated());
-    TimerStart(lv_visionTimer, 5.0, false, c_timeGame);
-    while ((TimerGetRemaining(lv_visionTimer) > 0.0)) {
-        if ((UnitIsAlive(lv_itemUnit) == true) && (libNtve_gf_UnitIsVisibleToPlayer(lv_itemUnit, libCore_gv_cOMPUTER_TeamOrder) == true)) {
-            libNtve_gf_ShareVisionofUnit(lv_itemUnit, true, libCore_gv_cOMPUTER_TeamOrder);
-            TextTagShow(libCore_gf_TextTagStoredForUnit(lv_itemUnit, 1), GameAttributePlayersForTeam(libGame_gv_teamOrderIndex_C), true);
-        }
-
-        if ((UnitIsAlive(lv_itemUnit) == true) && (libNtve_gf_UnitIsVisibleToPlayer(lv_itemUnit, libCore_gv_cOMPUTER_TeamChaos) == true)) {
-            libNtve_gf_ShareVisionofUnit(lv_itemUnit, true, libCore_gv_cOMPUTER_TeamChaos);
-            TextTagShow(libCore_gf_TextTagStoredForUnit(lv_itemUnit, 1), GameAttributePlayersForTeam(libGame_gv_teamChaosIndex_C), true);
-        }
-
-        Wait(0.5, c_timeGame);
-    }
-    if ((UnitIsAlive(lv_itemUnit) == true)) {
-        libNtve_gf_ShareVisionofUnit(lv_itemUnit, true, libCore_gv_cOMPUTER_TeamOrder);
-        libNtve_gf_ShareVisionofUnit(lv_itemUnit, true, libCore_gv_cOMPUTER_TeamChaos);
-        TextTagShow(libCore_gf_TextTagStoredForUnit(lv_itemUnit, 1), GameAttributePlayersForTeam(libGame_gv_teamOrderIndex_C), true);
-        TextTagShow(libCore_gf_TextTagStoredForUnit(lv_itemUnit, 1), GameAttributePlayersForTeam(libGame_gv_teamChaosIndex_C), true);
-    }
-
+    libOVER_gf_ShareVisionofItemPickup(lv_itemUnit);
     return true;
 }
 
@@ -869,11 +825,11 @@ void libOVER_gt_ItemSpawned_Init () {
 }
 
 void libOVER_InitTriggers () {
-    libOVER_gt_InitializeOWMercData_Init();
     libOVER_gt_ScalingTimerExpires_Init();
     libOVER_gt_BossEatsPlayer_Init();
     libOVER_gt_PlayerPicksUpHealingPulse_Init();
     libOVER_gt_PlayerDiesWithHealingPulse_Init();
+    libOVER_gt_BioticEmitterScaling_Init();
     libOVER_gt_PlayerPicksUpDragonSpirits_Init();
     libOVER_gt_PlayerDiesWithDragonSpirits_Init();
     libOVER_gt_PlayerCreatesTurretFromMapMechanicAbility_Init();

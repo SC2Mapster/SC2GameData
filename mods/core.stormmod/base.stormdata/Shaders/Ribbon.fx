@@ -45,11 +45,14 @@ struct VertDecl
     HALF4   cColor0					    : COLOR0_;
     HALF4   cColor1                     : COLOR1_;
     HALF4   cColor2                     : TEXCOORD2_;
-    HALF3   vRotation                   : TEXCOORD3_;
+    HALF4   vRotation                   : TEXCOORD3_;
     HALF2	vOffset					    : NORMAL_;
     HALF3   vUp                         : TEXCOORD4_;
     float4  vInitialVelocity            : TEXCOORD5_;       
     BatchIndexType  iBatchIndex         : TEXCOORD6_;
+#if b_iRibbonSimTech == RIBBON_SIM_GPUONLY
+    half    vExtraU                     : TEXCOORD7_;
+#endif
 #if b_iRibbonSimTech == RIBBON_SIM_MIXED_PRECOMPUTED_TANGENT || b_iRibbonSimTech == RIBBON_SIM_LEGACY
     float3  vPositionPrev               : TEXCOORD7_;  
 #endif     
@@ -67,13 +70,14 @@ struct Input
     HALF4   cColor0;		
     HALF4   cColor1;
     HALF4   cColor2;
-    HALF3   vRotation;
+    HALF4   vRotation;
     HALF2   vOffset;
     HALF3   vUp;
     float4  vInitialVelocity;
     BatchIndexType iBatchIndex;
     float3  vPositionPrev;
     float3  vPositionNext;
+    half    vExtraU;
 };
 
 Input TranslateVertexLayout (VertDecl layout)
@@ -95,6 +99,10 @@ Input TranslateVertexLayout (VertDecl layout)
 #if b_iRibbonSimTech == RIBBON_SIM_SPLINE_RIBBON || b_iRibbonSimTech == RIBBON_SIM_LEGACY
 	input.vUV              = layout.vUV;
 #endif
+#if b_iRibbonSimTech == RIBBON_SIM_GPUONLY
+    input.vExtraU          = layout.vExtraU;
+#endif
+
 #if b_iRibbonSimTech != RIBBON_SIM_SPLINE_RIBBON
 	input.vSize            = layout.vSize;
 	input.cColor0          = layout.cColor0;
@@ -122,7 +130,7 @@ struct VertLayout
     HALF4   cColor0;
     HALF4   cColor1;
     HALF4   cColor2;
-    HALF3   vRotation;
+    HALF4   vRotation;
     HALF2	vOffset;
     HALF3   vUp;
     float4  vInitialVelocity;
@@ -183,7 +191,6 @@ float3      p_vSplineRibbonSize[MAX_BATCHED_RIBBONS];           // matches vSize
 float4      p_vSplineRibbonColor0[MAX_BATCHED_RIBBONS];         // matches cColor0
 float4      p_vSplineRibbonColor1[MAX_BATCHED_RIBBONS];         // matches cColor0
 float4      p_vSplineRibbonColor2[MAX_BATCHED_RIBBONS];         // matches cColor0
-ArrayDecl(float)       p_fRibbonBatchIndexRemappingTable[MAX_BATCH_INDEX_REMAPPING_TABLE_SIZE];
 float4x4    p_mInvPRWorldTransform[MAX_BATCHED_RIBBONS];
 
 //==================================================================================================
@@ -205,12 +212,15 @@ float4 EmitRibbonHPosAsUV( Input vertIn ) {
 //--------------------------------------------------------------------------------------------------
 // Camera space vPosition.
 float3 EmitRibbonViewPos( Input vertIn ) {
-    return mul( p_mViewTransform, float4(vertIn.vPosition.xyz, 1) );          // As 3x4
+    float3 rvalue = mul( p_mViewTransform, float4(vertIn.vPosition.xyz, 1.0) );          // As 3x4
+    if( b_iDepthOffset )
+        rvalue.y += p_DepthOffset;
+    return rvalue;
 }
 
 //--------------------------------------------------------------------------------------------------
 // UVs.
-HALF4 EmitRibbonUV( Input vertIn, int index, HALF3 vVertexNormal, int b_iUVMapping[8] ) {
+HALF4 EmitRibbonUV( Input vertIn, int index, HALF3 vVertexNormal, half2 uv2, half2 uv3, int b_iUVMapping[8] ) {
     // note: we're swizzling x and y here. this is because it allows for more effecient vb building inside CRibbon::RenderBatches()
     return GenUV(
             vertIn.vPosition.xyz,            // No local space available.
@@ -218,9 +228,9 @@ HALF4 EmitRibbonUV( Input vertIn, int index, HALF3 vVertexNormal, int b_iUVMappi
             vVertexNormal,
             vVertexNormal, 
             vertIn.vUV.yx, 
-            vertIn.vUV.yx,               // No vUV 1.
-            vertIn.vUV.xy, 
-            vertIn.vUV.xy, 
+            vertIn.vUV.yx, 
+            uv2.yx,
+            uv3.xy, 
             index,
             0,
             float3(0,0,0), 
@@ -311,21 +321,21 @@ void RibbonVertexMain( in VertDecl vertLayout, out VertexTransport vertOut ) {
     iBatchIndex = (unsigned int)(vertIn.iBatchIndex.x + 0.1);
     // remap to the proper index -- gpu spline ribbons don't need to do this step
     if (!b_gpuSplineRibbon) {
-        iBatchIndex = (unsigned int)(floatRef(p_fRibbonBatchIndexRemappingTable[iBatchIndex]) + 0.1);
+        iBatchIndex = (unsigned int)(floatRef(iBatchIndex) + 0.1);
     }
 #else
 #if !CPP_SHADER
     iBatchIndex = vertIn.iBatchIndex.x;
     // remap to the proper index -- gpu spline ribbons don't need to do this step
     if (!b_gpuSplineRibbon) {
-        iBatchIndex = floatRef(p_fRibbonBatchIndexRemappingTable[iBatchIndex]);
+        iBatchIndex = floatRef(iBatchIndex);
     }
 #endif
 #endif
 
     if (b_compressedVertex) {
         vertIn.vSize = (vertIn.vSize + 1.0f) * 0.5f;
-        vertIn.vRotation = (vertIn.vRotation + 1.0f) * 0.5f;
+        vertIn.vRotation.xyz = (vertIn.vRotation.xyz + 1.0f) * 0.5f;
 
         vertIn.vUV.y = vertIn.vSize.x;
 
@@ -474,11 +484,25 @@ void RibbonVertexMain( in VertDecl vertLayout, out VertexTransport vertOut ) {
     if (b_computeUFromAge) {
         if (b_gpuSplineRibbon) {
             vertIn.vUV.x = 1.0f - fAge;
-        }
-        else {
+        } else {
             vertIn.vUV.x = 1.0f - (p_vGPURibbonValues[iBatchIndex].y * fAge + p_vGPURibbonValues[iBatchIndex].z);
         }
     }
+
+    half2 uv2;
+    uv2.x = 1.f - vertIn.vRotation.w;
+    uv2.y = vertIn.vUV.y;
+
+    half2 uv3;
+#ifndef CPP_SHADER
+#if b_iRibbonSimTech == RIBBON_SIM_GPUONLY
+    // Swapping 'U' and 'V' here to match swizzle in EmitRibbonUV(...)
+    uv3.x = vertIn.vUV.y;
+    uv3.y = -vertIn.vExtraU;
+#else
+    uv3 = vertIn.vUV;
+#endif
+#endif
 
     fSize = InterpolateValue(
         fAge, 
@@ -503,7 +527,7 @@ void RibbonVertexMain( in VertDecl vertLayout, out VertexTransport vertOut ) {
 
         // make sure our tangent doesn't flip directions on us
         //vTangent = dot(vTangent, vPrevSegmentDir) < 0 ? -vTangent : vTangent;
-   }
+    }
 
     vTangent = SafeNormalize(vTangent, float3(1,0,0));
     
@@ -534,18 +558,13 @@ void RibbonVertexMain( in VertDecl vertLayout, out VertexTransport vertOut ) {
             HALF3 vSegment = normalize(vTangent - cameraDir * dot( vTangent, p_vCameraDirection));
 
             // Billboard direction is perpendicular to flattened vSegment.
-            vBinormal = cross(cameraDir, vSegment);
+            vBinormal = cross(vSegment, cameraDir);
         }
         else {
             vBinormal = SafeNormalize(cross( vTangent.xyz, vertIn.vUp.xyz), float3(0,1,0));
         }
 
-        // compute normal from tangent and binormal for non-billboard ribbons
-        // spline ribbons and normal ribbons have different inputs so must be crossed differently
-        if (b_gpuSplineRibbon)
-            vNormal = SafeNormalize(cross( vBinormal, vTangent ), float3(0,0,1));
-        else
-            vNormal = SafeNormalize(cross( vTangent, vBinormal ), float3(0,0,1));       
+        vNormal = SafeNormalize(cross( vTangent, vBinormal ), float3(0,0,1));       
     }
 
     HALF fAngle;
@@ -560,8 +579,8 @@ void RibbonVertexMain( in VertDecl vertLayout, out VertexTransport vertOut ) {
     if ( b_iRibbonType == RIBBON_BILLBOARD || b_iRibbonType == RIBBON_PLANAR ) {
         vOffset = vertIn.vOffset.y * vBinormal;
         vVertexNormal = vNormal;
-        vVertexTangent = vTangent;
-        vVertexBinormal = vBinormal;        
+        vVertexTangent = -vBinormal;
+        vVertexBinormal = -vTangent;        
     } 
     else if ( b_iRibbonType == RIBBON_CYLINDER || b_iRibbonType == RIBBON_STAR ) {
         // Make a basis around the vSegment.
@@ -624,10 +643,10 @@ void RibbonVertexMain( in VertDecl vertLayout, out VertexTransport vertOut ) {
         [unroll]
 #endif
         for ( int i = 0; i < b_iUVEmitterCount / 2; i++ ) {
-            GenInterpolantUV( i, HALF4( EmitRibbonUV( vertIn, i * 2, vVertexNormal, b_iUVMapping).xy, EmitRibbonUV( vertIn, (i * 2) + 1, vVertexNormal, b_iUVMapping ).xy ) );
+            GenInterpolantUV( i, HALF4( EmitRibbonUV( vertIn, i * 2, vVertexNormal, uv2, uv3, b_iUVMapping).xy, EmitRibbonUV( vertIn, (i * 2) + 1, vVertexNormal, uv2, uv3, b_iUVMapping ).xy ) );
         }
         if(b_iUVEmitterCount % 2)
-            GenInterpolantUV( b_iUVEmitterCount / 2, EmitRibbonUV( vertIn, b_iUVEmitterCount-1, vVertexNormal, b_iUVMapping) );
+            GenInterpolantUV( b_iUVEmitterCount / 2, EmitRibbonUV( vertIn, b_iUVEmitterCount-1, vVertexNormal, uv2, uv3, b_iUVMapping) );
     }
     else
     {
@@ -635,12 +654,16 @@ void RibbonVertexMain( in VertDecl vertLayout, out VertexTransport vertOut ) {
         [unroll]
 #endif
         for ( int i = 0; i < b_iUVEmitterCount; i++ ) {
-            GenInterpolantUV( i, EmitRibbonUV( vertIn, i, vVertexNormal, b_iUVMapping ) );
+            GenInterpolantUV( i, EmitRibbonUV( vertIn, i, vVertexNormal, uv2, uv3, b_iUVMapping ) );
         }
     }
 
     GenInterpolant( ParallaxVector, EmitParallaxVector(   vertIn.vPosition.xyz, p_vEyePos, 
                                                         INTERPOLANT_Normal.xyz, INTERPOLANT_Tangent.xyz, INTERPOLANT_Binormal.xyz ) );
+
+    if( b_iDepthOffset )
+        DepthOffsetHPos( vertOut.HPos );
+
 #ifdef COMPILING_SHADER_FOR_OPENGL
     vertOut.HPos.y *= -1.0;
     vertOut.HPos.z = 2.0 * (vertOut.HPos.z - (0.5 * vertOut.HPos.w));

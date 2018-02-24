@@ -84,10 +84,6 @@ bool gv_enemyHeroSpawned;
 int gv_fortToggleTextTag;
 int gv_minionToggleTextTag;
 int gv_heroChangeTextTag;
-fixed gv_moveStartRange;
-fixed gv_moveStopRange;
-int gv_guardTargetingRange;
-int gv_guardPositionRange;
 bool gv_shortCooldownToggle;
 fixed[gv_heroMaxLevel_C + 1] gv_heroLevelTime;
 bool gv_minionOn;
@@ -133,10 +129,6 @@ void InitGlobals () {
     gv_fortToggleTextTag = c_textTagNone;
     gv_minionToggleTextTag = c_textTagNone;
     gv_heroChangeTextTag = c_textTagNone;
-    gv_moveStartRange = 50.0;
-    gv_moveStopRange = 8.0;
-    gv_guardTargetingRange = 7;
-    gv_guardPositionRange = 5;
     gv_minionOn = true;
     gv_allyHeroLoaded = true;
     gv_enemyHeroLoaded = true;
@@ -196,7 +188,6 @@ void gf_DespawnAllyHero ();
 void gf_SpawnEnemyHero ();
 void gf_DespawnEnemyHero ();
 void gf_TemporarilyDisableButtonPressedTriggers (bool lp_enableShortly);
-void gf_HeroAIChangeStateDefendMidlane (int lp_trigPlayer, point lp_position, int lp_priority);
 void gf_TurnMinionsOnOff (bool lp_onOff, bool lp_message);
 void gf_DisplaySetHeroLevelUI ();
 void gf_CloseSetHeroLevelUI ();
@@ -230,9 +221,6 @@ trigger gt_HookupLaneData;
 trigger gt_HookupJungleCreepData;
 trigger gt_HookupTownData;
 trigger gt_HookupRegionData;
-trigger gt_HeroAIReturnToDefendMidlane;
-trigger gt_HeroAIDefendMidlaneExit;
-trigger gt_HeroAIDefendPointLogic;
 trigger gt_CompleteQuestsButtonPressed;
 trigger gt_MinionsButtonPressed;
 trigger gt_ShortCDButtonPressed;
@@ -537,18 +525,6 @@ bool auto_gf_TemporarilyDisableButtonPressedTriggers_TriggerFunc (bool testConds
     return true;
 }
 
-void gf_HeroAIChangeStateDefendMidlane (int lp_trigPlayer, point lp_position, int lp_priority) {
-    // Variable Declarations
-    fixed lv_angleOffset;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-
-    // Implementation
-    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_wantsToDoCustomMapLogic = true;
-    libAIAI_gf_HeroAIChangeStateDefendObjective(lp_trigPlayer, null, lp_position, gv_moveStartRange, gv_moveStopRange, gv_guardTargetingRange, gv_guardPositionRange, null, lp_priority, gt_HeroAIDefendMidlaneExit, gt_HeroAIReturnToDefendMidlane);
-}
-
 trigger auto_gf_TurnMinionsOnOff_Trigger = null;
 bool auto_gf_TurnMinionsOnOff_lp_onOff;
 bool auto_gf_TurnMinionsOnOff_lp_message;
@@ -598,6 +574,12 @@ bool auto_gf_TurnMinionsOnOff_TriggerFunc (bool testConds, bool runActions) {
             libGame_gf_AnnouncementAddItemForPlayerGroup(libCore_gv_playerGroupFromPlayer[gv_pLAYER_TryMe_C], libGame_ge_AnnouncementPriorities_Normal, libCore_ge_AnnouncerVOEvents_Null, "AllyTownKilled", StringExternal("Param/Value/80D135EB"), null, null, null, null, libGame_gv_announcement_StandardTimerDuration_C, false);
         }
 
+        RemovePointOfInterest(PointFromName("Lane 1 - Waypoint 2"), "MidLaneBeacon", libNtve_ge_GoalTeam_Both);
+        libAIAI_gf_HeroAIDisableAIForPlayer(2);
+        libAIAI_gf_HeroAIDisableAIForPlayer(6);
+        Wait(0.125, c_timeGame);
+        libAIAI_gf_HeroAIEnableAIForPlayer(2);
+        libAIAI_gf_HeroAIEnableAIForPlayer(6);
     }
     else {
         autoC1FC2B6C_g = UnitGroup(null, libCore_gv_cOMPUTER_TeamOrder, RegionEntireMap(), UnitFilter((1 << c_targetFilterMinion), 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterSummoned - 32))), 0);
@@ -622,6 +604,7 @@ bool auto_gf_TurnMinionsOnOff_TriggerFunc (bool testConds, bool runActions) {
             UIDisplayMessage(PlayerGroupSingle(gv_pLAYER_TryMe_C), c_messageAreaChat, StringExternal("Param/Value/CE2070C5"));
         }
 
+        AddPointOfInterest(PointFromName("Lane 1 - Waypoint 2"), 0.0, 0.0, "MidLaneBeacon", libNtve_ge_GoalTeam_Both, 0);
     }
     return true;
 }
@@ -1341,7 +1324,7 @@ bool gt_InitializeMap_Func (bool testConds, bool runActions) {
         UnitSetState(libGame_gv_teams[lv_itTeam].lv_core, c_unitStateTargetable, false);
     }
     TriggerEnable(libGame_gt_ConfineHeroesToBaseUntilCountdownEnds, false);
-    TriggerEnable(libGame_gt_ConfineOtherStuffToBaseUntilCountdownEnds, false);
+    TriggerEnable(libGame_gt_ConfineOtherUnitsToBaseUntilCountdownEnds, false);
     TimerStart(libGame_gv_gameTimer, c_timerDurationInfinite, false, c_timeGame);
     Wait(1.5, c_timeGame);
     libSond_gf_HeroVOPlayTryMeModeIntro(gv_pLAYER_TryMe_C, PlayerGroupSingle(gv_pLAYER_TryMe_C));
@@ -1353,7 +1336,6 @@ bool gt_InitializeMap_Func (bool testConds, bool runActions) {
     }
     TriggerExecute(gt_TargetDummyInitialize, true, true);
     gf_ApplyBankSetting();
-    TriggerExecute(gt_HeroAIDefendPointLogic, true, false);
     TriggerExecute(gt_AutoTestTrigger, true, false);
     AINotifyGameStarted();
     return true;
@@ -1657,81 +1639,6 @@ bool gt_HookupRegionData_Func (bool testConds, bool runActions) {
 //--------------------------------------------------------------------------------------------------
 void gt_HookupRegionData_Init () {
     gt_HookupRegionData = TriggerCreate("gt_HookupRegionData_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: HeroAI - Return To Defend Midlane
-//--------------------------------------------------------------------------------------------------
-bool gt_HeroAIReturnToDefendMidlane_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    gf_HeroAIChangeStateDefendMidlane(libAIAI_gv_heroAICustomStateCurrentPlayer, libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_hSMapStateCurrentTargetPoint, libAIAI_gv_aIHeroes[libAIAI_gv_heroAICustomStateCurrentPlayer].lv_statePriority);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void gt_HeroAIReturnToDefendMidlane_Init () {
-    gt_HeroAIReturnToDefendMidlane = TriggerCreate("gt_HeroAIReturnToDefendMidlane_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: HeroAI - Defend Midlane Exit
-//--------------------------------------------------------------------------------------------------
-bool gt_HeroAIDefendMidlaneExit_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    if ((gv_minionOn == true)) {
-        libAIAI_gv_heroAICustomStateReturnBoolean = true;
-        libAIAI_gf_HeroAILeaveCurrentObjective(libAIAI_gv_heroAICustomStateCurrentPlayer);
-        return true;
-    }
-
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void gt_HeroAIDefendMidlaneExit_Init () {
-    gt_HeroAIDefendMidlaneExit = TriggerCreate("gt_HeroAIDefendMidlaneExit_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: HeroAI - Defend Point Logic
-//--------------------------------------------------------------------------------------------------
-bool gt_HeroAIDefendPointLogic_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    while (true) {
-        if ((gv_minionOn == false)) {
-            if ((gv_allyHeroSpawned == true) && (libAIAI_gf_HeroAIIsHigherPriority(gv_pLAYER_AI_Ally_C, libAIAI_ge_HeroAIPriority_PushLaneAttackCore) == true) && (UnitGetPropertyFixed(libGame_gv_players[gv_pLAYER_AI_Ally_C].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) >= libAIAI_gv_aIHeroes[gv_pLAYER_AI_Ally_C].lv_startOffensiveHealth)) {
-                gf_HeroAIChangeStateDefendMidlane(gv_pLAYER_AI_Ally_C, PointFromId(14), libAIAI_ge_HeroAIPriority_PushLaneAttackCore);
-            }
-
-            if ((gv_allyHeroSpawned == true) && (libAIAI_gf_HeroAIIsHigherPriority(gv_pLAYER_AI_Enemy_C, libAIAI_ge_HeroAIPriority_PushLaneAttackCore) == true) && (UnitGetPropertyFixed(libGame_gv_players[gv_pLAYER_AI_Enemy_C].lv_heroUnit, c_unitPropLifePercent, c_unitPropCurrent) >= libAIAI_gv_aIHeroes[gv_pLAYER_AI_Enemy_C].lv_startOffensiveHealth)) {
-                gf_HeroAIChangeStateDefendMidlane(gv_pLAYER_AI_Enemy_C, PointFromId(14), libAIAI_ge_HeroAIPriority_PushLaneAttackCore);
-            }
-
-        }
-
-        Wait(1.0, c_timeGame);
-    }
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void gt_HeroAIDefendPointLogic_Init () {
-    gt_HeroAIDefendPointLogic = TriggerCreate("gt_HeroAIDefendPointLogic_Func");
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -2559,7 +2466,7 @@ bool gt_TargetDummyLeavesItsArea_Func (bool testConds, bool runActions) {
 void gt_TargetDummyLeavesItsArea_Init () {
     gt_TargetDummyLeavesItsArea = TriggerCreate("gt_TargetDummyLeavesItsArea_Func");
     TriggerAddEventUnitBehaviorChangeFromCategory(gt_TargetDummyLeavesItsArea, UnitRefFromUnit(UnitFromId(46)), c_behaviorCategoryStun, c_unitBehaviorChangeDeactivate);
-    TriggerAddEventUnitBehaviorChangeFromCategory(gt_TargetDummyLeavesItsArea, UnitRefFromUnit(UnitFromId(46)), c_behaviorCategoryUser15, c_unitBehaviorChangeDeactivate);
+    TriggerAddEventUnitBehaviorChangeFromCategory(gt_TargetDummyLeavesItsArea, UnitRefFromUnit(UnitFromId(46)), c_behaviorCategoryPushOrPull, c_unitBehaviorChangeDeactivate);
     TriggerAddEventUnitBehaviorChange(gt_TargetDummyLeavesItsArea, UnitRefFromUnit(UnitFromId(46)), "StitchesGorgePostGorgeTargetEjection", c_unitBehaviorChangeDeactivate);
 }
 
@@ -2723,9 +2630,6 @@ void InitTriggers () {
     gt_HookupJungleCreepData_Init();
     gt_HookupTownData_Init();
     gt_HookupRegionData_Init();
-    gt_HeroAIReturnToDefendMidlane_Init();
-    gt_HeroAIDefendMidlaneExit_Init();
-    gt_HeroAIDefendPointLogic_Init();
     gt_CompleteQuestsButtonPressed_Init();
     gt_MinionsButtonPressed_Init();
     gt_ShortCDButtonPressed_Init();

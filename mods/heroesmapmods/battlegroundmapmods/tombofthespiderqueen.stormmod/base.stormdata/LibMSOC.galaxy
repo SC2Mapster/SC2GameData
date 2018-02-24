@@ -69,6 +69,9 @@ void libMSOC_InitVariables () {
     for (init_i1 = 0; init_i1 <= libCore_gv_bALMaxTeams; init_i1 += 1) {
         libMSOC_gv_mMTombSpiderQueenPanel.lv_theCryptsTeamSoulCounterLabel2[init_i1] = c_invalidDialogControlId;
     }
+    for (init_i1 = 0; init_i1 <= libCore_gv_bALMaxTeams; init_i1 += 1) {
+        libMSOC_gv_mMTombSpiderQueenPanel.lv_theCryptsTurninGlow[init_i1] = c_invalidDialogControlId;
+    }
     libMSOC_gv_mMTombSpiderQueenPanel.lv_theCryptsSoulEaterFrame = c_invalidDialogControlId;
     libMSOC_gv_mMTombSpiderQueenPanel.lv_theCryptsSoulEaterCooldownFrame = c_invalidDialogControlId;
     libMSOC_gv_mMTombSpiderQueenPanel.lv_theCryptsSoulEaterCooldownLabel = c_invalidDialogControlId;
@@ -652,6 +655,24 @@ void libMSOC_gf_MMCountsUpdateDisplay (int lp_orderCount, int lp_chaosCount) {
     libNtve_gf_SetDialogItemText(libMSOC_gv_mMTombSpiderQueenPanel.lv_theCryptsTeamSoulCounterLabel2[libGame_gv_teamChaosIndex_C], IntToText(lp_chaosCount), PlayerGroupAll());
 }
 
+void libMSOC_gf_MMTombSpiderQueenUICheckTurnInStatus (int lp_heldCount, int lp_teamNumber) {
+    // Variable Declarations
+    int lv_countNeeded;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_countNeeded = (libMSOC_gv_mMTombSpiderQueenActivationAmountRequired[lp_teamNumber]-libMSOC_gv_mMTombSpiderQueenSoulsTotal[lp_teamNumber]);
+    if ((lp_heldCount >= lv_countNeeded)) {
+        DialogControlSetAnimationState(libMSOC_gv_mMTombSpiderQueenPanel.lv_theCryptsTurninGlow[lp_teamNumber], PlayerGroupAll(), "TurninReady", "IsReady");
+        DialogControlSendAnimationEvent(DialogControlLastCreated(), PlayerGroupAll(), "TurninReadyAnim");
+    }
+    else {
+        DialogControlSetAnimationState(libMSOC_gv_mMTombSpiderQueenPanel.lv_theCryptsTurninGlow[lp_teamNumber], PlayerGroupAll(), "TurninReady", "NotReady");
+    }
+}
+
 void libMSOC_gf_MMTombSpiderQueenUIShowHidePanel (bool lp_showHide) {
     // Automatic Variable Declarations
     // Implementation
@@ -947,32 +968,11 @@ void libMSOC_gf_MMTombSpiderQueenUIInit (int lp_parentPanel) {
         lv_currentPanelLayer += 1;
         lv_panels[lv_currentPanelLayer] = DialogControlLastCreated();
         libMSOC_gv_mMTombSpiderQueenPanel.lv_theCryptsTeamSoulFrame[lv_itTeam] = DialogControlLastCreated();
-        DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeImage, "BackgroundBlue");
-        DialogControlSetVisible(DialogControlLastCreated(), libGame_gv_teams[lv_enemyTeam].lv_teamPlayerGroupNoNPCPlayers, false);
-        if ((lv_itTeam == libGame_gv_teamChaosIndex_C)) {
-            DialogControlSetVisible(DialogControlLastCreated(), libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], false);
-        }
-
-        DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeImage, "SoulIconBlue");
-        DialogControlSetVisible(DialogControlLastCreated(), libGame_gv_teams[lv_enemyTeam].lv_teamPlayerGroupNoNPCPlayers, false);
-        if ((lv_itTeam == libGame_gv_teamChaosIndex_C)) {
-            DialogControlSetVisible(DialogControlLastCreated(), libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], false);
-        }
-
-        DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeImage, "BackgroundRed");
-        DialogControlSetVisible(DialogControlLastCreated(), libGame_gv_teams[lv_itTeam].lv_teamPlayerGroupNoNPCPlayers, false);
-        if ((lv_itTeam == libGame_gv_teamOrderIndex_C)) {
-            DialogControlSetVisible(DialogControlLastCreated(), libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], false);
-        }
-
-        DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeImage, "SoulIconRed");
-        DialogControlSetVisible(DialogControlLastCreated(), libGame_gv_teams[lv_itTeam].lv_teamPlayerGroupNoNPCPlayers, false);
-        if ((lv_itTeam == libGame_gv_teamOrderIndex_C)) {
-            DialogControlSetVisible(DialogControlLastCreated(), libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], false);
-        }
-
         DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeLabel, "SoulCounter");
         libMSOC_gv_mMTombSpiderQueenPanel.lv_theCryptsTeamSoulCounterLabel[lv_itTeam] = DialogControlLastCreated();
+        DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypePanel, "MapMechanicGlowContainer");
+        libMSOC_gv_mMTombSpiderQueenPanel.lv_theCryptsTurninGlow[lv_itTeam] = DialogControlLastCreated();
+        DialogControlSetAnimationState(DialogControlLastCreated(), PlayerGroupAll(), "TurninReady", "NotReady");
         DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeLabel, "TeamSoulCounter");
         libNtve_gf_SetDialogItemText(DialogControlLastCreated(), IntToText(0), PlayerGroupAll());
         libMSOC_gv_mMTombSpiderQueenPanel.lv_theCryptsTeamSoulCounterLabel2[lv_itTeam] = DialogControlLastCreated();
@@ -1450,7 +1450,7 @@ bool libMSOC_gt_MMTombSpiderQueenGateOpen_Func (bool testConds, bool runActions)
 
     // Conditions
     if (testConds) {
-        if (!((EventTimer() == libGame_gv_openTheGatesTimer))) {
+        if (!((libMapM_gv_mMMapMechanicDisabled == false))) {
             return false;
         }
     }
@@ -1499,7 +1499,7 @@ bool libMSOC_gt_MMTombSpiderQueenGateOpen_Func (bool testConds, bool runActions)
 void libMSOC_gt_MMTombSpiderQueenGateOpen_Init () {
     libMSOC_gt_MMTombSpiderQueenGateOpen = TriggerCreate("libMSOC_gt_MMTombSpiderQueenGateOpen_Func");
     TriggerEnable(libMSOC_gt_MMTombSpiderQueenGateOpen, false);
-    TriggerAddEventTimer(libMSOC_gt_MMTombSpiderQueenGateOpen, null);
+    TriggerAddEventTimer(libMSOC_gt_MMTombSpiderQueenGateOpen, libGame_gv_openTheGatesTimer);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1639,6 +1639,10 @@ bool libMSOC_gt_MMTombSpiderQueenSpawnSoulsCarrierDies_Func (bool testConds, boo
     // Automatic Variable Declarations
     // Conditions
     if (testConds) {
+        if (!((libMapM_gv_mMMapMechanicDisabled == false))) {
+            return false;
+        }
+
         if (!((UnitGetType(EventPlayerEffectUsedUnit(c_effectUnitCaster)) == "RangedMinion"))) {
             return false;
         }
@@ -1742,19 +1746,25 @@ bool libMSOC_gt_MMTombSpiderQueenSoulSpawned_Func (bool testConds, bool runActio
     // Variable Initialization
     lv_gemUnit = EventUnit();
 
-    // Conditions
-    if (testConds) {
-        if (!(((UnitGetType(lv_gemUnit) == "ItemSoulPickup") || (UnitGetType(lv_gemUnit) == "ItemSoulPickupFive") || (UnitGetType(lv_gemUnit) == "ItemSoulPickupTwenty")))) {
-            return false;
-        }
-    }
-
     // Actions
     if (!runActions) {
         return true;
     }
 
-    AIAddCollectable(lv_gemUnit);
+    if ((UnitGetType(lv_gemUnit) == "ItemSoulPickup")) {
+        AIAddCollectable(lv_gemUnit, "PickUpSpiderGem", 1.0);
+    }
+    else {
+        if ((UnitGetType(lv_gemUnit) == "ItemSoulPickupFive")) {
+            AIAddCollectable(lv_gemUnit, "PickUpSpiderGem", 5.0);
+        }
+        else {
+            if ((UnitGetType(lv_gemUnit) == "ItemSoulPickupTwenty")) {
+                AIAddCollectable(lv_gemUnit, "PickUpSpiderGem", 20.0);
+            }
+
+        }
+    }
     return true;
 }
 
@@ -1834,6 +1844,7 @@ bool libMSOC_gt_MMTombSpiderQueenSoulStacksChange_Func (bool testConds, bool run
     int lv_i;
     unit lv_heroUnit;
     int[libCore_gv_bALMaxTeams + 1] lv_teamStacks;
+    int lv_itTeam;
 
     // Automatic Variable Declarations
     unitgroup auto229D3E2F_g;
@@ -1844,6 +1855,8 @@ bool libMSOC_gt_MMTombSpiderQueenSoulStacksChange_Func (bool testConds, bool run
     const int autoDABAB2F7_ai = 1;
     const int autoC20274EB_ae = libCore_gv_bALMaxPlayers;
     const int autoC20274EB_ai = 1;
+    const int auto5683D28E_ae = libCore_gv_bALMaxTeams;
+    const int auto5683D28E_ai = 1;
 
     // Variable Initialization
     lv_triggeringPlayer = UnitGetOwner(EventUnit());
@@ -1889,6 +1902,10 @@ bool libMSOC_gt_MMTombSpiderQueenSoulStacksChange_Func (bool testConds, bool run
         lv_teamStacks[libGame_gf_TeamNumberOfPlayer(lv_i)] += libMSOC_gv_mMTombSpiderQueenGemsHeldForPlayer[lv_i];
     }
     libMSOC_gf_MMCountsUpdateDisplay(lv_teamStacks[libGame_gv_teamOrderIndex_C], lv_teamStacks[libGame_gv_teamChaosIndex_C]);
+    lv_itTeam = 1;
+    for ( ; ( (auto5683D28E_ai >= 0 && lv_itTeam <= auto5683D28E_ae) || (auto5683D28E_ai < 0 && lv_itTeam >= auto5683D28E_ae) ) ; lv_itTeam += auto5683D28E_ai ) {
+        libMSOC_gf_MMTombSpiderQueenUICheckTurnInStatus(lv_teamStacks[lv_itTeam], lv_itTeam);
+    }
     return true;
 }
 
@@ -2628,35 +2645,6 @@ void libMSOC_gt_HarrisonJonesVictory_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: MMTombSpiderQueen - DisableEvent
-//--------------------------------------------------------------------------------------------------
-bool libMSOC_gt_MMTombSpiderQueenDisableEvent_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Conditions
-    if (testConds) {
-        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
-            return false;
-        }
-    }
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    TriggerEnable(TriggerGetCurrent(), false);
-    libMSOC_gv_mMTombSpiderQueenDisableEvent = true;
-    TriggerDebugOutput(1, StringExternal("Param/Value/lib_MSOC_2BE31CC1"), true);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libMSOC_gt_MMTombSpiderQueenDisableEvent_Init () {
-    libMSOC_gt_MMTombSpiderQueenDisableEvent = TriggerCreate("libMSOC_gt_MMTombSpiderQueenDisableEvent_Func");
-    TriggerAddEventChatMessage(libMSOC_gt_MMTombSpiderQueenDisableEvent, c_playerAny, "DisableEvent", true);
-}
-
-//--------------------------------------------------------------------------------------------------
 // Trigger: MMTombSpiderQueen Debug Event Start
 //--------------------------------------------------------------------------------------------------
 bool libMSOC_gt_MMTombSpiderQueenDebugEventStart_Func (bool testConds, bool runActions) {
@@ -3039,7 +3027,6 @@ void libMSOC_InitTriggers () {
     libMSOC_gt_MMTombSpiderQueenUIHandler_Init();
     libMSOC_gt_MMTombSpiderQueenHarrisonJonesProcced_Init();
     libMSOC_gt_HarrisonJonesVictory_Init();
-    libMSOC_gt_MMTombSpiderQueenDisableEvent_Init();
     libMSOC_gt_MMTombSpiderQueenDebugEventStart_Init();
     libMSOC_gt_MMTombSpiderQueenDebugEnemyEventStart_Init();
     libMSOC_gt_MMTombSpiderQueenDebugSpiderSpawnRunMode_Init();

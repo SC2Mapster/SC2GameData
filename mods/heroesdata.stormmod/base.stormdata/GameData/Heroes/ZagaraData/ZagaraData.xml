@@ -64,17 +64,6 @@
         <AbilClassEnableArray index="CAbilMove" value="1"/>
         <AbilClassEnableArray index="CAbilStop" value="1"/>
     </CAbilMorph>
-    <CAbilEffectInstant id="ZagaraCancelBanelingBarrage">
-        <Effect value="SummonBanelingsRemoveChannelBehavior"/>
-        <Flags index="ClearLastAttackTargetOutOfRange" value="1"/>
-        <Flags index="ClearLastMoveTarget" value="1"/>
-        <Flags index="Transient" value="1"/>
-        <Cost>
-            <Cooldown Location="Unit" TimeStart="0.75" TimeUse="0.75"/>
-        </Cost>
-        <CmdButtonArray index="Execute" DefaultButtonFace="ZagaraCancelBanelingBarrage" Requirements="ZagarahasImprovedBanelingandUsingBanelingBarrage"/>
-        <ParentAbil value="ZagaraBanelingBarrage"/>
-    </CAbilEffectInstant>
     <CAbilEffectTarget id="ZagaraFuzzyExitNydusWorm">
         <Effect value="ZagaraFuzzyExitNydusWormSearchArea"/>
         <Range value="500"/>
@@ -301,6 +290,20 @@
         <ApplicationRule value="Add"/>
         <Scale value="0.05"/>
     </CAccumulatorToken>
+    <CActorEventMacro id="DevouringMawHeightMacro">
+        <On Terms="ActorCreation" Send="StatusSet Sinking 0"/>
+        <On Terms="Signal.*.SinkingDevouredStart" Send="StatusIncrement StatusBarHide"/>
+        <On Terms="Behavior.DevouringMawTargetBehaviorFinalStun.Off" Send="StatusDecrement StatusBarHide"/>
+        <On Terms="Signal.*.SinkingDevouredStart; ValidateUnit NotMounted" Send="StatusSet Sinking 1"/>
+        <On Terms="Signal.*.SinkingDevouredStart; ValidateUnit NotMounted" Send="RefClear ::Host"/>
+        <On Terms="Signal.*.SinkingDevouredStart; ValidateUnit NotMounted" Send="RefSetFromMsg ::Host ::Sender"/>
+        <On Terms="Signal.*.SinkingDevouredStart; ValidateUnit NotMounted" Send="HostSiteOpsSet ::Host SOpAttachOrigin"/>
+        <!-- Billboarded units such as Falstad need a different setup or they end up broken and/or not billboarded, they have to be done on a per unit basis in the Units actor -->
+        <On Terms="Behavior.DevouringMawTargetBehaviorFinalStun.Off" Send="Signal ResetHost"/>
+        <On Terms="Behavior.DevouringMawTargetBehaviorFinalStun.Off" Send="StatusSet Sinking 0"/>
+        <On Terms="Effect.ZagaraDevouringMawTargetBehaviorSpecialDeathStateDummy.Start" Send="Signal ResetHost"/>
+        <On Terms="Effect.ZagaraDevouringMawTargetBehaviorSpecialDeathStateDummy.Start" Send="StatusSet Sinking 0"/>
+    </CActorEventMacro>
     <CActorSound id="ZagaraInfestActivateSound" parent="SoundOneShot">
         <Filter index="Ally" value="1"/>
         <Filter index="Neutral" value="1"/>
@@ -339,10 +342,6 @@
         <Host Subject="_Unit"/>
         <HostSiteOps Ops="SOpAttachOriginStationary" HoldPosition="1" HoldRotation="1"/>
     </CActorModel>
-    <CActorSimple id="ZagaraLeavingNydusWormUnstoppable" parent="StormUnstoppable">
-        <On Terms="Behavior.ZagaraLeavingNydusWorm.On" Send="Create"/>
-        <On Terms="Behavior.ZagaraLeavingNydusWorm.Off" Send="Destroy"/>
-    </CActorSimple>
     <CActorSound id="ZagaraCreepTumorBirthVOX" parent="SoundOneShot">
         <Sound value="Zagara_VOX_CastingD"/>
     </CActorSound>
@@ -1060,10 +1059,6 @@
     <CActorSound id="ZagaraDevouringMawCreateWormSound" parent="SoundOneShot">
         <Sound value="Zagara_DevouringMaw_WormSpawnSound"/>
     </CActorSound>
-    <CActorModel id="ZagaraDevouringMawStun" parent="StormStun">
-        <On Terms="Behavior.DevouringMawTargetBehavior.On" Send="Create"/>
-        <On Terms="Behavior.DevouringMawTargetBehavior.Off" Send="AnimBracketStop BSD"/>
-    </CActorModel>
     <!-- this guy is created at the Devouring Maw effect but not in the actor scope directly, this way we can steal the unit actor model and attach it to ourself -->
     <!-- the mover moves this guy into the ground and then back out later on. the unit model comes along for the ride. -->
     <CActorModel id="DevouringMawTargetHeightModel">
@@ -1239,7 +1234,7 @@
     </CBehaviorBuff>
     <CBehaviorBuff id="ZagaraProtectiveCoatingCarry" parent="StormArmorPermanent">
         <InfoIcon value="Assets\Textures\storm_temp_btn-ability-protoss-shieldbattery-color.dds"/>
-        <BehaviorCategories index="User2" value="1"/>
+        <BehaviorCategories index="BuffResistant" value="1"/>
         <DisableValidatorArray value="OnCreep"/>
         <ArmorModification AllArmorBonus="20"/>
     </CBehaviorBuff>
@@ -1329,11 +1324,8 @@
         </DamageResponse>
     </CBehaviorBuff>
     <CBehaviorBuff id="UnitImmuneToDevouringMaw"/>
-    <CBehaviorBuff id="DevouringMawTargetBehavior">
-        <Alignment value="Negative"/>
-        <InfoIcon value="Assets\Textures\storm_temp_btn-ability-zerg-frenzied.dds"/>
-        <BehaviorCategories index="Stun" value="1"/>
-        <BehaviorCategories index="User6" value="1"/>
+    <CBehaviorBuff id="DevouringMawTargetBehavior" parent="StormEaten">
+        <InfoIcon value="Assets\Textures\storm_ui_icon_zagara_devouringmaw.dds"/>
         <RemoveValidatorArray value="TargetNotExtendedDeathGhost"/>
         <RemoveValidatorArray value="TargetisnotImmunetoStasis"/>
         <Duration value="4.0625"/>
@@ -1342,17 +1334,9 @@
         <InitialEffect value="ZagaraDevouringMawLaunchMissile"/>
         <FinalEffect value="ZagaraDevouringMawTargetBehaviorFinalSet"/>
         <Modification>
-            <StateFlags index="Benign" value="1"/>
             <StateFlags index="Passive" value="1"/>
-            <StateFlags index="Stasis" value="1"/>
-            <StateFlags index="OrdersPaused" value="1"/>
-            <StateFlags index="SuppressCollision" value="1"/>
-            <StateFlags index="SuppressItemUsage" value="1"/>
-            <StateFlags index="Unstoppable" value="1"/>
             <AbilClassEnableArray index="CAbilArmMagazine" value="1"/>
             <AbilClassDisableArray index="CAbilAttack" value="1"/>
-            <AbilClassDisableArray index="CAbilEffectInstant" value="1"/>
-            <AbilClassDisableArray index="CAbilEffectTarget" value="1"/>
             <AbilClassDisableArray index="CAbilMorph" value="1"/>
             <AbilClassDisableArray index="CAbilMove" value="1"/>
             <AbilLinkEnableArray value="SgtHammerSiegeMode"/>
@@ -1369,22 +1353,15 @@
         <DisplayDuration index="Enemy" value="1"/>
         <Duration value="4.0625"/>
     </CBehaviorBuff>
-    <CBehaviorBuff id="DevouringMawTargetBehaviorFinalStun">
+    <CBehaviorBuff id="DevouringMawTargetBehaviorFinalStun" parent="StormEaten">
         <Duration value="0.25"/>
         <Modification PushPriority="5000" AlliedPushPriority="5000">
             <ModifyFlags index="SuppressMoving" value="1"/>
             <StateFlags index="Passive" value="1"/>
-            <StateFlags index="Stasis" value="1"/>
-            <StateFlags index="SuppressCollision" value="1"/>
             <AbilClassDisableArray index="CAbilAttack" value="1"/>
-            <AbilClassDisableArray index="CAbilEffectInstant" value="1"/>
-            <AbilClassDisableArray index="CAbilEffectTarget" value="1"/>
             <AbilClassDisableArray index="CAbilMorph" value="1"/>
             <AbilClassDisableArray index="CAbilMove" value="1"/>
-            <AbilLinkEnableArray value="SgtHammerSiegeMode"/>
-            <AbilLinkEnableArray value="SgtHammerTankMode"/>
         </Modification>
-        <BehaviorCategories index="User6" value="1"/>
     </CBehaviorBuff>
     <CBehaviorBuff id="DevouringMawWormBehavior">
         <Modification>
@@ -1468,7 +1445,6 @@
         <Birth value="Footprint4x4CreepSourceStart"/>
         <Grown value="Footprint1x1ZagaraCreepSourceGrownEndlessCreep"/>
     </CBehaviorCreepSource>
-    <CBehaviorBuff id="ZagaraBanelingBarrageMastery1CarryBehavior" parent="CarryBehaviorParent"/>
     <CBehaviorBuff id="ZagaraBanelingExplode">
         <Period value="0.125"/>
         <PeriodicEffect value="ZagaraBanelingTargetSearch"/>
@@ -1535,7 +1511,6 @@
             <DamageDealtFraction index="Basic" value="1"/>
         </Modification>
     </CBehaviorBuff>
-    <CBehaviorBuff id="ZagaraHydraliskMutaliskTalentCarryBehavior" parent="CarryBehaviorParent"/>
     <CBehaviorBuff id="ZagaraHydraliskTimedLife" parent="StormTimedLife">
         <Duration value="8"/>
     </CBehaviorBuff>
@@ -1550,8 +1525,8 @@
             <BehaviorLinkDisableArray value="SpellShieldPrimed"/>
             <CollideDisableFlags index="Pushable" value="1"/>
         </Modification>
-        <InitialEffect value="ZagaraNydusNetworkInsideSet"/>
-        <FinalEffect value="ZagaraNydusNetworkFinalSet"/>
+        <InitialEffect value="HeroGenericCleanseRemoveCCBehaviorCategoriesTarget"/>
+        <FinalEffect value="ZagaraNydusNetworkApplyLeavingBehavior"/>
     </CBehaviorBuff>
     <CBehaviorBuff id="ZagaraExitNydusWormRegen">
         <Modification>
@@ -1601,7 +1576,6 @@
         <Grown value="Footprint1x1ZagaraCreepSourceGrownEndlessCreep"/>
         <DisableValidatorArray value="ZagaraHasBaseCreepBehavior"/>
     </CBehaviorCreepSource>
-    <CBehaviorBuff id="ZagaraEnvenomedSpinesCarryBehavior" parent="CarryBehaviorParent"/>
     <CBehaviorBuff id="ZagaraEnvenomedSpinesDebuff" parent="StormDot">
         <Face value="ZagaraEnvenomedSpinesTalent"/>
         <Duration value="5"/>
@@ -1617,6 +1591,7 @@
         <Max value="65535"/>
         <SortIndex value="20"/>
     </CBehaviorTokenCounter>
+    <CButton id="BurrowDown"/>
     <CButton id="ZagaraInfestedDropBileDropTalentToken" parent="StormButtonParent">
         <TooltipAppender/>
         <Icon value="Assets\Textures\storm_ui_icon_zagara_infesteddrop.dds"/>
@@ -1684,10 +1659,6 @@
     </CButton>
     <CButton id="ZagaraDevouringMawTyrantMawTalent" parent="StormButtonParent">
         <Icon value="Assets\Textures\storm_ui_icon_zagara_devouringmaw.dds"/>
-        <HotkeyAlias value="BanelingBarrageMastery1Talent"/>
-    </CButton>
-    <CButton id="ZagaraCancelBanelingBarrage" parent="StormButtonParent">
-        <Icon value="Assets\Textures\hud_btn_bg_ability_cancel.dds"/>
     </CButton>
     <CButton id="ZagaraCreepTumorEndlessCreepTalent" parent="StormButtonParent">
         <Icon value="Assets\Textures\storm_ui_icon_zagara_nydusworm.dds"/>
@@ -1697,7 +1668,6 @@
     </CButton>
     <CButton id="ZagaraCreepTumorBurrowedTumorTalentSimple" parent="StormButtonParent">
         <Icon value="Assets\Textures\storm_ui_icon_zagara_creep.dds"/>
-        <HotkeyAlias value="CreepTumorMastery1Talent"/>
     </CButton>
     <CButton id="ZagaraCreepTumorMetabolicBoostTalent" parent="StormButtonParent">
         <Icon value="Assets\Textures\storm_ui_icon_zagara_creep.dds"/>
@@ -2135,7 +2105,7 @@
         <PeriodCount value="1"/>
         <PeriodicValidator value="CasterNotDeadOrStunnedorSilenced"/>
         <PeriodicEffectArray value="SummonBanelingsBigBanelingLaunchDummy"/>
-        <PeriodicOffsetArray value="0,-15.75,0" Y="-15.75"/>
+        <PeriodicOffsetArray Y="-15.75"/>
         <PeriodicPeriodArray value="0"/>
     </CEffectCreatePersistent>
     <CEffectSet id="SummonBanelingsLaunchDummy"/>
@@ -2155,15 +2125,10 @@
         <PeriodCount value="1"/>
         <PeriodicValidator value="HasZagaraBanelingChannel"/>
         <PeriodicEffectArray value="SummonBanelingsLaunchDummy"/>
-        <PeriodicOffsetArray value="0,-15.75,0" Y="-15.75"/>
+        <PeriodicOffsetArray Y="-15.75"/>
         <PeriodicPeriodArray value="0"/>
         <PeriodicPeriodArray value="0.25"/>
     </CEffectCreatePersistent>
-    <CEffectRemoveBehavior id="SummonBanelingsRemoveChannelBehavior">
-        <WhichUnit Value="Caster"/>
-        <BehaviorLink value="ZagaraBanelingBarrageChannel"/>
-        <Count value="1"/>
-    </CEffectRemoveBehavior>
     <CEffectCreatePersistent id="ZagaraBanelingCreatePersistentSuicideReveal">
         <ExpireDelay value="1"/>
         <RevealRadius value="3"/>
@@ -2261,14 +2226,14 @@
         <Flags index="RandomOffset" value="1"/>
         <PeriodCount value="2"/>
         <PeriodicEffectArray value="InfestedDropPathableSwitch"/>
-        <PeriodicOffsetArray value="-2,0,0" X="-2"/>
-        <PeriodicOffsetArray value="2,0,0" X="2"/>
-        <PeriodicOffsetArray value="1.5,1.5,0" X="1.5" Y="1.5"/>
-        <PeriodicOffsetArray value="1.5,-1.5,0" X="1.5" Y="-1.5"/>
-        <PeriodicOffsetArray value="0,2,0" Y="2"/>
-        <PeriodicOffsetArray value="0,-2,0" Y="-2"/>
-        <PeriodicOffsetArray value="-1.5,1.5,0" X="-1.5" Y="1.5"/>
-        <PeriodicOffsetArray value="-1.5,-1.5,0" X="-1.5" Y="-1.5"/>
+        <PeriodicOffsetArray X="-2"/>
+        <PeriodicOffsetArray X="2"/>
+        <PeriodicOffsetArray X="1.5" Y="1.5"/>
+        <PeriodicOffsetArray X="1.5" Y="-1.5"/>
+        <PeriodicOffsetArray Y="2"/>
+        <PeriodicOffsetArray Y="-2"/>
+        <PeriodicOffsetArray X="-1.5" Y="1.5"/>
+        <PeriodicOffsetArray X="-1.5" Y="-1.5"/>
         <OffsetRandMode value="RandomNoRepeat"/>
     </CEffectCreatePersistent>
     <CEffectDamage id="ZagaraRoachAttackDamage" parent="StormWeapon">
@@ -2316,7 +2281,7 @@
         <EffectArray value="ZagaraSummonHydraliskIssueAttackOrder"/>
     </CEffectSet>
     <CEffectSwitch id="SummonHydraliskMutaliskSwitch">
-        <CaseArray Validator="HasZagaraHydraliskMutaliskTalentCarryBehavior" Effect="SummonMutaliskPersistent"/>
+        <CaseArray Validator="ZagaraHasMutalisk" Effect="SummonMutaliskPersistent"/>
         <CaseDefault value="SummonHydraliskPersistent"/>
     </CEffectSwitch>
     <CEffectCreatePersistent id="SummonHydraliskPersistent">
@@ -2515,10 +2480,6 @@
     <CEffectApplyBehavior id="ZagaraNydusNetworkApplyLeavingBehavior">
         <Behavior value="ZagaraLeavingNydusWorm"/>
     </CEffectApplyBehavior>
-    <CEffectSet id="ZagaraNydusNetworkFinalSet">
-        <EffectArray value="RemoveDisableInventoryBehavior"/>
-        <EffectArray value="ZagaraNydusNetworkApplyLeavingBehavior"/>
-    </CEffectSet>
     <CEffectApplyBehavior id="ZagaraNydusWormPreLoadSoundTimerApplyBehavior">
         <Behavior value="ZagaraNydusWormPreLoadSoundTimer"/>
     </CEffectApplyBehavior>
@@ -2604,10 +2565,6 @@
         <EffectArray value="CameraShakeHeavyCasterDummySet"/>
         <EffectArray value="ZagaraCreepTumorCreepQueenMasterySet"/>
     </CEffectSet>
-    <CEffectSet id="ZagaraNydusNetworkInsideSet">
-        <EffectArray value="ApplyDisableInventoryBehavior"/>
-        <EffectArray value="HeroGenericCleanseRemoveCCBehaviorCategoriesTarget"/>
-    </CEffectSet>
     <!-- Rapid Incubation -->
     <CEffectCreateHealer id="RapidIncubationManaCreateHealer">
         <ImpactUnit Value="Caster"/>
@@ -2646,12 +2603,9 @@
         <Behavior value="ZagaraInfestBuff"/>
     </CEffectApplyBehavior>
     <CEffectDamage id="ZagaraWeaponEnvenomedSpinesPeriodicDamage" parent="StormSpellDot">
-        <DamageModifierSource Value="Caster"/>
-        <Visibility value="Hidden"/>
         <Amount value="46"/>
     </CEffectDamage>
     <CEffectApplyBehavior id="ZagaraWeaponEnvenomedSpinesApplyBehavior">
-        <ValidatorArray value="DoesNotHaveImmuneToDoTsBehavior"/>
         <ValidatorArray value="CasterNotBlindedandTargetNotEvading"/>
         <Behavior value="ZagaraEnvenomedSpinesDebuff"/>
     </CEffectApplyBehavior>
@@ -2864,6 +2818,7 @@
         </Shape>
     </CFootprint>
     <CHero id="Zagara" parent="LegacyVOHero">
+        <AIComplexityTier value="Mid"/>
         <AttributeId value="Zaga"/>
         <Role value="Specialist"/>
         <RolesMultiClass value="Specialist"/>
@@ -3443,9 +3398,6 @@
     <CRequirement id="ZagaraInNydusWorm">
         <NodeArray index="Show" Link="EqCountBehaviorZagaraInsideNydusWormCompleteOnlyAtUnit1"/>
     </CRequirement>
-    <CRequirement id="ZagarahasImprovedBanelingandUsingBanelingBarrage">
-        <NodeArray index="Show" Link="AndEqCountBehaviorZagaraBanelingBarrageChannelCompleteOnlyAtUnit1EqCountBehaviorZagaraBanelingBarrageMastery1CarryBehaviorCompleteOnly1"/>
-    </CRequirement>
     <CRequirementCountBehavior id="CountBehaviorZagaraInsideNydusWormQueuedOnly">
         <Flags index="TechTreeCheat" value="0"/>
         <Count Link="ZagaraInsideNydusWorm"/>
@@ -3462,10 +3414,6 @@
         <Flags index="TechTreeCheat" value="0"/>
         <Count Link="ZagaraInfestedDropBileDropTracker" State="CompleteOnly"/>
     </CRequirementCountBehavior>
-    <CRequirementAnd id="AndEqCountBehaviorZagaraBanelingBarrageChannelCompleteOnlyAtUnit1EqCountBehaviorZagaraBanelingBarrageMastery1CarryBehaviorCompleteOnly1">
-        <OperandArray value="EqCountBehaviorZagaraBanelingBarrageChannelCompleteOnlyAtUnit1"/>
-        <OperandArray value="EqCountBehaviorZagaraBanelingBarrageMastery1CarryBehaviorCompleteOnly1"/>
-    </CRequirementAnd>
     <CRequirementCountBehavior id="CountBehaviorZagaraBanelingBarrageChannelCompleteOnlyAtUnit">
         <Flags index="TechTreeCheat" value="0"/>
         <Count Link="ZagaraBanelingBarrageChannel" State="CompleteOnlyAtUnit"/>
@@ -3488,11 +3436,6 @@
         <Flags index="TechTreeCheat" value="0"/>
         <Tooltip value=""/>
         <Count Link="Ultimate2Unlocked" State="InProgressOrBetterAtUnit"/>
-    </CRequirementCountBehavior>
-    <CRequirementCountBehavior id="CountBehaviorZagaraBanelingBarrageMastery1CarryBehaviorCompleteOnly">
-        <Flags index="TechTreeCheat" value="0"/>
-        <Tooltip value=""/>
-        <Count Link="ZagaraBanelingBarrageMastery1CarryBehavior" State="CompleteOnly"/>
     </CRequirementCountBehavior>
     <CRequirementCountBehavior id="CountBehaviorZagaraInsideNydusWormCompleteOnlyAtUnit">
         <Flags index="TechTreeCheat" value="0"/>
@@ -3522,11 +3465,6 @@
     <CRequirementEq id="EqCountBehaviorZagaraInsideNydusWormCompleteOnlyAtUnit1">
         <Tooltip value=""/>
         <OperandArray index="0" value="CountBehaviorZagaraInsideNydusWormCompleteOnlyAtUnit"/>
-        <OperandArray index="1" value="1"/>
-    </CRequirementEq>
-    <CRequirementEq id="EqCountBehaviorZagaraBanelingBarrageMastery1CarryBehaviorCompleteOnly1">
-        <Tooltip value=""/>
-        <OperandArray index="0" value="CountBehaviorZagaraBanelingBarrageMastery1CarryBehaviorCompleteOnly"/>
         <OperandArray index="1" value="1"/>
     </CRequirementEq>
     <CRequirementEq id="EqCountBehaviorZagaraPassiveBuffWeaponCompleteOnlyAtUnit0">
@@ -3818,9 +3756,6 @@
     </CTalent>
     <CTalent id="ZagaraMasteryMutalisk">
         <Face value="ZagaraHunterKillerMutaliskTalent"/>
-        <RankArray>
-            <BehaviorArray value="ZagaraHydraliskMutaliskTalentCarryBehavior"/>
-        </RankArray>
         <Abil value="ZagaraSummonHydralisk"/>
         <AbilityModificationArray>
             <Modifications>
@@ -4074,9 +4009,7 @@
     <CTalent id="ZagaraMasteryEnvenomedSpines">
         <Face value="ZagaraEnvenomedSpinesTalent"/>
         <Abil value="ZagaraEnvenomedSpines"/>
-        <RankArray Item="ZagaraEnvenomedSpines">
-            <BehaviorArray value="ZagaraEnvenomedSpinesCarryBehavior"/>
-        </RankArray>
+        <RankArray Item="ZagaraEnvenomedSpines"/>
         <Active value="1"/>
     </CTalent>
     <CUnit id="ZagaraWeaponEnvenomedSpinesMissile" parent="MISSILE_INVULNERABLE">
@@ -4137,7 +4070,6 @@
         <AbilArray Link="ZagaraSummonHydralisk"/>
         <AbilArray Link="ZagaraSummonNydusWorm"/>
         <AbilArray Link="ZagaraDevouringMaw"/>
-        <AbilArray Link="ZagaraCancelBanelingBarrage"/>
         <AbilArray Link="ZagaraInfestedDrop"/>
         <AbilArray Link="ZagaraEnterNydusWorm"/>
         <AbilArray Link="ZagaraExitNydusWorm"/>
@@ -4153,9 +4085,6 @@
             </LayoutButtons>
             <LayoutButtons Face="ZagaraDevouringMaw" Type="AbilCmd" Row="0" Column="3">
                 <AbilCmd index="0" value="ZagaraDevouringMaw,Execute"/>
-            </LayoutButtons>
-            <LayoutButtons Face="ZagaraCancelBanelingBarrage" Type="AbilCmd" Row="0" Column="0">
-                <AbilCmd index="0" value="ZagaraCancelBanelingBarrage,Execute"/>
             </LayoutButtons>
             <LayoutButtons Face="ZagaraBanelingBarrage" Type="AbilCmd" Row="0" Column="0">
                 <AbilCmd index="0" value="ZagaraBanelingBarrage,Execute"/>
@@ -4174,10 +4103,15 @@
         </CardLayouts>
         <Radius value="1.1875"/>
         <InnerRadius value="1"/>
-        <TacticalAIThink value="AIThinkZagara"/>
+        <AIThinkTree value="AI/Zagara.aitree"/>
         <AIEvalFactor value="1.1"/>
         <InitializerFunction value="libGDHL_gf_HeroZagaraIncrementHeroCountFunction"/>
         <DestructionFunction value="libGDHL_gf_HeroZagaraDecrementHeroCountFunction"/>
+        <HeroPlaystyleFlags index="EnergyImportant" value="1"/>
+        <HeroPlaystyleFlags index="SoloLaner" value="1"/>
+        <HeroPlaystyleFlags index="TowerPusher" value="1"/>
+        <HeroPlaystyleFlags index="WaveClearer" value="1"/>
+        <HeroPlaystyleFlags index="RoleSpecialist" value="1"/>
     </CUnit>
     <CUnit id="ZagaraNydusWormPlacement"/>
     <CUnit id="ZagaraRapidIncubationItem" parent="ITEM">
@@ -4390,6 +4324,18 @@
         <Mover value="ZagaraRoachAttackMover"/>
     </CUnit>
     <CUnit id="ZagaraEnvenomedSpines" parent="ITEM"/>
+    <CValidatorUnitCompareChargeUsed id="ZagaraHasNoCreepTumorChargesUsed">
+        <ChargeLink value="Abil/ZagaraSummonCreepTumor"/>
+        <Location value="Unit"/>
+        <Ability value="ZagaraSummonCreepTumor"/>
+    </CValidatorUnitCompareChargeUsed>
+    <CValidatorUnitCompareChargeUsed id="ZagarahasLE1ChargeofBanelingBarrageUsed">
+        <Compare value="LE"/>
+        <ChargeLink value="Abil/ZagaraBanelingBarrage"/>
+        <Location value="Unit"/>
+        <Ability value="ZagaraBanelingBarrage"/>
+        <Value value="1"/>
+    </CValidatorUnitCompareChargeUsed>
     <CValidatorPlayerTalent id="ZagaraDoesNotHaveNydusNetwork">
         <WhichPlayer Value="Caster"/>
         <Value value="ZagaraHeroicAbilityNydusAssault"/>
@@ -4477,12 +4423,6 @@
         <Behavior value="UnitImmuneToDevouringMaw"/>
     </CValidatorUnitCompareBehaviorCount>
     <!-- VALIDATORS -->
-    <CValidatorCombine id="CasterNotDeadAndCasterNotStunnedAndZagaraBanelingMastery1CarryBehavior">
-        <Type value="And"/>
-        <CombineArray value="CasterNotStunned"/>
-        <CombineArray value="CasterNotDead"/>
-        <CombineArray value="HasZagaraBanelingBarrageMastery1CarryBehavior"/>
-    </CValidatorCombine>
     <CValidatorUnitCompareSpeed id="BanelingTargetMovingGTAcceptedSpeed">
         <Compare value="LE"/>
         <Value value="0.1015"/>
@@ -4498,11 +4438,6 @@
     <CValidatorUnitType id="IsDevouringMaw">
         <Value value="ZagaraDevouringMaw"/>
     </CValidatorUnitType>
-    <CValidatorUnitCompareBehaviorCount id="HasZagaraBanelingBarrageMastery1CarryBehavior">
-        <WhichUnit Value="Caster"/>
-        <Value value="1"/>
-        <Behavior value="ZagaraBanelingBarrageMastery1CarryBehavior"/>
-    </CValidatorUnitCompareBehaviorCount>
     <CValidatorUnitCompareBehaviorCount id="HasZagaraBanelingChannel">
         <WhichUnit Value="Caster"/>
         <Value value="1"/>
@@ -4519,11 +4454,6 @@
         <CombineArray value="TargetNotDead"/>
         <CombineArray value="CasterNotInCombat2Loops"/>
     </CValidatorCombine>
-    <CValidatorUnitCompareBehaviorCount id="HasZagaraHydraliskMutaliskTalentCarryBehavior">
-        <WhichUnit Value="Caster"/>
-        <Value value="1"/>
-        <Behavior value="ZagaraHydraliskMutaliskTalentCarryBehavior"/>
-    </CValidatorUnitCompareBehaviorCount>
     <CValidatorUnitCompareBehaviorCount id="HasZagaraVirophage">
         <WhichUnit Value="Caster"/>
         <Value value="1"/>
@@ -4543,10 +4473,6 @@
         <CombineArray value="IsZagaraBaneling"/>
         <CombineArray value="IsZagaraHydralisk"/>
     </CValidatorCombine>
-    <CValidatorUnitCompareBehaviorCount id="NoZagaraBanelingBarrageMastery1CarryBehavior">
-        <WhichUnit Value="Caster"/>
-        <Behavior value="ZagaraBanelingBarrageMastery1CarryBehavior"/>
-    </CValidatorUnitCompareBehaviorCount>
     <CValidatorUnitCompareBehaviorCount id="TargetNotInDevouringMaw">
         <Behavior value="DevouringMawTargetBehavior"/>
     </CValidatorUnitCompareBehaviorCount>

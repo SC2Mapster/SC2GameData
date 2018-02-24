@@ -52,7 +52,6 @@ VertexOutput HDRVertexMain( Input input ) {
 texDecl2D(p_sSrcMap);
 texDecl2D(p_sBloomMap);
 texDecl2D(p_sLuminanceMap);
-texDecl2D(p_sAccumulationBuffer);
 texDecl3D(p_sColorMap);
 
 HALF    p_fSaturation;
@@ -116,14 +115,6 @@ HALF4 HDRPixelMain( VertexOutput input ) : COLOR {
            cColor += bloom;
         }
 
-        /*
-        if ( b_addMotionBlur ) {
-            // Add accumulation and blur it a bit.
-            cColor +=   (   tex2D( p_sAccumulationBuffer, input.vUV1.xy ) + tex2D( p_sAccumulationBuffer, input.vUV1.zw ) +
-                            tex2D( p_sAccumulationBuffer, input.vUV2.xy ) + tex2D( p_sAccumulationBuffer, input.vUV2.zw ) ) * 0.25f;
-        }
-        */
-        
         float fSrcL = dot( c_vLuminanceWeights, cColor );
 
         // White shift.

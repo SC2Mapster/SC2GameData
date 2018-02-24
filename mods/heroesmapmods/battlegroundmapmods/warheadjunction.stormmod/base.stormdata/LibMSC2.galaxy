@@ -2,7 +2,6 @@ include "TriggerLibs/NativeLib"
 include "TriggerLibs/HeroesLib"
 include "TriggerLibs/GameLib"
 include "TriggerLibs/MapMechanicsLib"
-include "TriggerLibs/AILib"
 include "TriggerLibs/UILib"
 include "TriggerLibs/SoundLib"
 
@@ -17,7 +16,6 @@ void libMSC2_InitLibraries () {
     libCore_InitVariables();
     libGame_InitVariables();
     libMapM_InitVariables();
-    libAIAI_InitVariables();
     libUIUI_InitVariables();
     libSond_InitVariables();
 }
@@ -38,6 +36,7 @@ void libMSC2_InitVariables () {
 
     libMSC2_gv_mMSC2NukePickupRange_C = 2.0;
     libMSC2_gv_mMSC2EventState = libMSC2_ge_MMSC2EventStates_NoEvent;
+    libMSC2_gv_mMSC2FourWarheadsSpawn = true;
     libMSC2_gv_mMSC2TerrazineMainEventTimer = TimerCreate();
     libMSC2_gv_mMSC2BuiltWarheadsActive = UnitGroupEmpty();
     for (init_i = 0; init_i <= libMSC2_gv_mMSC2BuiltWarheadsCountMax_C; init_i += 1) {
@@ -1455,7 +1454,6 @@ bool libMSC2_gt_MMSC2Init_Func (bool testConds, bool runActions) {
 
     ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal MM1Off");
     TriggerExecute(libMSC2_gt_InitNukeSilos, true, false);
-    libAIAI_gf_HeroAIRegisterAOEwithWatchTrigger("NukeDroppingCreatePersistent", 7.5, 4.25, 0.0, false, false);
     autoF90BEC4C_g = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamOrderIndex_C, false);
     lv_itPlayer = -1;
     while (true) {
@@ -1492,10 +1490,8 @@ bool libMSC2_gt_MMSC2InitializePingData_Func (bool testConds, bool runActions) {
 
     libUIUI_gf_PingCreateNewPingTarget("SlimeBossDefender", false, StringExternal("Param/Value/lib_MSC2_53939EF3"), StringExternal("Param/Value/lib_MSC2_5633745D"), StringExternal("Param/Value/lib_MSC2_60CAAF90"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
     libUIUI_gf_PingSetHumanAISourceHeroVOForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libCore_ge_HeroVOEvents_PingAttackMercCamp, libCore_ge_HeroVOEvents_AIMercCapture);
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libUIUI_gt_PingCallbackPlayerPingsMercCamp);
     libUIUI_gf_PingCreateNewPingTarget("SlimeBossPodlingDefender", false, StringExternal("Param/Value/lib_MSC2_0B790D50"), StringExternal("Param/Value/lib_MSC2_AB16673E"), StringExternal("Param/Value/lib_MSC2_BFD8415A"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
     libUIUI_gf_PingSetHumanAISourceHeroVOForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libCore_ge_HeroVOEvents_PingAttackMercCamp, libCore_ge_HeroVOEvents_AIMercCapture);
-    libUIUI_gf_PingSetCustomResponseTriggerForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libUIUI_gt_PingCallbackPlayerPingsMercCamp);
     libUIUI_gf_PingCreateNewPingTarget("SlimeBossLaner", false, null, StringExternal("Param/Value/lib_MSC2_5FB25289"), StringExternal("Param/Value/lib_MSC2_8E57D195"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
     libUIUI_gf_PingSetAllyEnemyTargetHeroVOForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libCore_ge_HeroVOEvents_PingAttackHere, libCore_ge_HeroVOEvents_PingAttackHere);
     libUIUI_gf_PingCreateNewPingTarget("SlimeBossPodlingLaner", false, null, StringExternal("Param/Value/lib_MSC2_13ABDFE1"), StringExternal("Param/Value/lib_MSC2_3C4CE2DE"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
@@ -1516,6 +1512,13 @@ void libMSC2_gt_MMSC2InitializePingData_Init () {
 //--------------------------------------------------------------------------------------------------
 bool libMSC2_gt_MMSC2GatesOpened_Func (bool testConds, bool runActions) {
     // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((libMapM_gv_mMMapMechanicDisabled == false))) {
+            return false;
+        }
+    }
+
     // Actions
     if (!runActions) {
         return true;
@@ -1576,8 +1579,14 @@ bool libMSC2_gt_MMSC2MainThread_Func (bool testConds, bool runActions) {
         while (!((UnitGroupCount(libMSC2_gv_mMSC2BuiltWarheadsActive, c_unitCountAlive) == 0))) {
             Wait(0.25, c_timeGame);
         }
+        libMSC2_gv_mMSC2EventTracker = (libMSC2_gv_mMSC2EventTracker + 1);
         TimerStart(libMSC2_gv_mMSC2TerrazineMainEventTimer, (libMSC2_gv_mMSC2RepeatEventDelay_C + libMSC2_gv_mMSC2EventWarningDelayGasCanister_C + libMSC2_gv_mMSC2NukeExpireDuration_C), false, c_timeGame);
-        libMSC2_gv_mMSC2FourWarheadsSpawn = !(libMSC2_gv_mMSC2FourWarheadsSpawn);
+        if ((libMSC2_gv_mMSC2EventTracker == 3)) {
+            libMSC2_gv_mMSC2FourWarheadsSpawn = true;
+        }
+        else {
+            libMSC2_gv_mMSC2FourWarheadsSpawn = false;
+        }
         libMSC2_gv_mMSC2EventState = libMSC2_ge_MMSC2EventStates_NoEvent;
         libMSC2_gv_mMSC2SpecialSpawnLane = libMSC2_gf_MMSC2DetermineDoubleWarheadSpawnLane();
         TimerStart(libMSC2_gv_mMSC2ObjectivePreviewTimer, libMSC2_gv_mMSC2ObjectivePreviewDelay_C, false, c_timeGame);
@@ -2594,6 +2603,10 @@ bool libMSC2_gt_MMSC2DebugEventStart_Func (bool testConds, bool runActions) {
         if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
             return false;
         }
+
+        if (!((libMapM_gv_mMMapMechanicDisabled == false))) {
+            return false;
+        }
     }
 
     // Actions
@@ -2612,33 +2625,6 @@ bool libMSC2_gt_MMSC2DebugEventStart_Func (bool testConds, bool runActions) {
 void libMSC2_gt_MMSC2DebugEventStart_Init () {
     libMSC2_gt_MMSC2DebugEventStart = TriggerCreate("libMSC2_gt_MMSC2DebugEventStart_Func");
     TriggerAddEventChatMessage(libMSC2_gt_MMSC2DebugEventStart, c_playerAny, "EVENTSTART", false);
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: Debug - Disable Event
-//--------------------------------------------------------------------------------------------------
-bool libMSC2_gt_DebugDisableEvent_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Conditions
-    if (testConds) {
-        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
-            return false;
-        }
-    }
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    TimerPause(libMSC2_gv_mMSC2TerrazineMainEventTimer, true);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libMSC2_gt_DebugDisableEvent_Init () {
-    libMSC2_gt_DebugDisableEvent = TriggerCreate("libMSC2_gt_DebugDisableEvent_Func");
-    TriggerAddEventChatMessage(libMSC2_gt_DebugDisableEvent, c_playerAny, "-disableevent", true);
 }
 
 void libMSC2_InitTriggers () {
@@ -2671,7 +2657,6 @@ void libMSC2_InitTriggers () {
     libMSC2_gt_MMSC2UIModInitialize_Init();
     libMSC2_gt_MMSC2UIHandler_Init();
     libMSC2_gt_MMSC2DebugEventStart_Init();
-    libMSC2_gt_DebugDisableEvent_Init();
 }
 
 //--------------------------------------------------------------------------------------------------

@@ -32,6 +32,8 @@ HALF        p_fFOWSmoothing;
 float4      p_vBlurDepthCameraConstants;
 float4      p_vBlurDepthRadiusConstants;
 
+HALF        p_fHaloRadiusRcp;
+
 float4      p_vPostProcessViewport;      // xy is top left, zw is bottom right. Used for blur and DoF
 
 #include "PSDOF.fx"
@@ -51,6 +53,8 @@ float4      p_vPostProcessViewport;      // xy is top left, zw is bottom right. 
 #define MODE_AntiAliasing           10
 #define MODE_FOWSmoothing           11
 #define MODE_HaloCopy               12
+#define MODE_HaloPrepare            13
+#define MODE_HaloBlur               14
 
 
 #define CHANNEL_ALL                 0
@@ -198,6 +202,10 @@ HALF4 PostProcessGaussianBlur( VertexTransport vertOut ) {
 
     if ( b_iSampleCountPS ) {
         // Sample offsets stored in uniforms
+#if __bsl__
+        // Inspector Bug ID: 186629
+        [unroll]
+#endif
         for ( int i = 1; i <= b_iSampleCount; i++ ) {
             if( b_iShowSingleTap >= b_iSampleCount*2 || (b_iShowSingleTap%b_iSampleCount) == i-1 ) {
                 if( b_iDepthScaledBlur )
@@ -207,8 +215,11 @@ HALF4 PostProcessGaussianBlur( VertexTransport vertOut ) {
             }
         }
     } else {
-
         // Sample positions stored in interpolants
+#if __bsl__
+        // Inspector Bug ID: 186629
+        [unroll]
+#endif
         for ( int i = 0; i < b_iSampleInterpolantCount; i++ ) {
             if( b_iShowSingleTap >= b_iSampleCount*2 || (b_iShowSingleTap%b_iSampleCount) == i*2 )
                 fTotalWeight += GaussSample(READ_INTERPOLANT_GaussianBlurSample(i).xy,floatRef(p_fBlurWeights[i * 2 + 1]),cResult,vNormalDepth);
@@ -240,34 +251,6 @@ HALF4 PostProcessGaussianBlur( VertexTransport vertOut ) {
 }
 
 //--------------------------------------------------------------------------------------------------
-float4 PostProcessScreenSpaceParticle (VertexTransport vertOut) {
-    float4 vResult;
-
-    vResult = sample2D(p_sSrcMap, READ_INTERPOLANT_UV(0).xy);
-
-    // only for standard screen space particles
-    float fogDensity = 0;
-    //float fogDensity = vResult.r;
-
-    // use a screen space texture instead
-    float4 vParticleTexture = 0;
-    if (b_iParticleScreenTexture) {
-        float2 vUv = mul(p_mParticleTextureTransform, float4( READ_INTERPOLANT_UV(0).x, READ_INTERPOLANT_UV(0).y, 0.0f, 1.0f ) );
-        vParticleTexture = sample2D(p_sParticleTexture, vUv.xy);
-    }
-
-    vResult.xyz = vResult.xyz*p_vParticleAmbientLight.xyz + vResult.xyz;
-
-    // screen space textured particles need to get fog density from the frame buffer red channel
-    if (b_iParticleScreenTexture) {
-        vResult.xyz = lerp(vParticleTexture.xyz, p_vParticleFogColor.xyz, fogDensity);
-    }
-
-    vResult.a = step(p_fParticleThreshold, vResult.a);
-    return vResult;
-}
-
-//--------------------------------------------------------------------------------------------------
 HALF4 PostProcessFOWSmoothing( VertexTransport vertOut ) {
     HALF4 vResult;
     vResult  = 2 * sample2D(p_sSrcMap, READ_INTERPOLANT_UV(0).xy);
@@ -296,6 +279,154 @@ HALF4 PostProcessHaloCopy( VertexTransport vertOut ) {
 }
 
 //==================================================================================================
+// Halo Prepare
+
+#define HALO_RADIUS_MULTIPLIER  32.0
+
+HALF4 HaloSample (HALF2 vUV, float fDepth, HALF4 cDefault) {
+    if ( b_iConstrainToViewport ) {
+        vUV = max( vUV, p_vPostProcessViewport.xy );
+        vUV = min( vUV, p_vPostProcessViewport.zw );
+    }
+    if (b_iLayeredBlur) {
+        float4 vNormalDepth = SampleNormalDepth( texSampler(p_sNormalDepthMap), texTexture(p_sNormalDepthMap), vUV );
+        if( fDepth <= vNormalDepth.a )
+            return cDefault;
+    }
+    return sample2D(p_sSrcMap, vUV);
+}
+
+void HaloPrepareSingle (in HALF4 cInput, in HALF fOffset, inout HALF4 cResult) {
+
+    if (b_iBlurAllChannels) {
+        HALF testValue = (1.0 - cInput.a) + fOffset;
+        if (testValue < cResult.a) {
+            cResult.a = testValue;
+            cResult.rgb = cInput.rgb;
+        }
+    }
+    else {
+        HALF testValue = (1.0 - cInput.r) + fOffset;
+        cResult.r = min(cResult.r, testValue);
+    }
+}
+
+HALF4 PostProcessHaloPrepare( VertexTransport vertOut ) {
+    HALF2 vUV = READ_INTERPOLANT_UV(0).xy;
+    HALF4 cResult = sample2D( p_sSrcMap, vUV );
+
+    float fDepth = 0;
+    if ( b_iLayeredBlur ) {
+        fDepth = SampleNormalDepth( texSampler(p_sNormalDepthMap), texTexture(p_sNormalDepthMap), vUV ).a;
+        fDepth +=  0.01f;   // Add some slack
+    }
+
+    if (b_iBlurAllChannels)
+        cResult.a = (1.0 - cResult.a);
+    else
+        cResult.r = (1.0 - cResult.r);
+
+    HALF texOffset = p_vRecipSrcSizeOffset.y;
+    HALF radius = 1.0 / HALO_RADIUS_MULTIPLIER;
+    for (int i = 1; i < b_iTapCount; i++) {
+        HALF4 input = HaloSample(vUV + HALF2(0, texOffset), fDepth, HALF4(0, 0, 0, 0));
+        HaloPrepareSingle(input, radius, cResult);
+
+        input = HaloSample(vUV - HALF2(0, texOffset), fDepth, HALF4(0, 0, 0, 0));
+        HaloPrepareSingle(input, radius, cResult);
+
+        texOffset += p_vRecipSrcSizeOffset.y;
+        radius += 1.0 / HALO_RADIUS_MULTIPLIER;
+    }
+
+    return cResult;
+}
+
+//==================================================================================================
+// Halo Blur
+
+#define HALOBLUR_GAUSSIAN   0
+#define HALOBLUR_LINEAR     1
+#define HALOBLUR_QUADRATIC  2
+#define HALOBLUR_SHARP      3
+
+#define HALO_ADD            0
+#define HALO_MUL            1
+#define HALO_ALPHA          2
+
+void HaloBlurSingle (in HALF4 cInput, in HALF fDimSq, inout HALF fMinSq, inout HALF4 cResult) {
+    HALF testSq, test; 
+    
+    test = (b_iBlurAllChannels) ? cInput.a : cInput.r;
+    test *= HALO_RADIUS_MULTIPLIER;
+    testSq = test * test + fDimSq;
+
+    if (testSq < fMinSq) {
+        fMinSq = testSq;
+        if (b_iBlurAllChannels)
+            cResult.rgb = cInput.rgb;
+        else
+            cResult.r = cInput.r;
+    }
+}
+
+HALF4 PostProcessHaloBlur( VertexTransport vertOut ) {
+    HALF2 vUV = READ_INTERPOLANT_UV(0).xy;
+    HALF4 cResult = sample2D( p_sSrcMap, vUV );
+    HALF minSq = (b_iBlurAllChannels) ? cResult.a : cResult.r;
+    minSq = minSq * minSq * HALO_RADIUS_MULTIPLIER * HALO_RADIUS_MULTIPLIER;
+
+    float fDepth = 0.0;
+    if ( b_iLayeredBlur ) {
+        fDepth = SampleNormalDepth( texSampler(p_sNormalDepthMap), texTexture(p_sNormalDepthMap), vUV ).a;
+        fDepth +=  0.01f;   // Add some slack
+    }
+
+    // If we're inside the blurred object, don't write anything
+    clip(minSq - 0.001);
+    
+    HALF offset = p_vRecipSrcSizeOffset.x;
+    for (int i = 1; i < b_iTapCount; i++) {
+        HALF valSq = i * i;
+
+        HALF4 testValue = HaloSample(vUV + HALF2(offset, 0), fDepth, HALF4(0, 0, 0, 1.0));
+        HaloBlurSingle(testValue, valSq, minSq, cResult);
+
+        testValue = HaloSample(vUV - HALF2(offset, 0), fDepth, HALF4(0, 0, 0, 1.0));
+        HaloBlurSingle(testValue, valSq, minSq, cResult);
+
+        offset += p_vRecipSrcSizeOffset.x;
+    }
+
+    // If we're outside of max radius, don't write
+    clip(b_iTapCount * b_iTapCount - minSq);
+
+    // Use halo mode to determine strength
+    HALF strength;
+    if (b_iHaloBlurMode == HALOBLUR_GAUSSIAN) {
+        float weight = exp(-minSq * p_fHaloRadiusRcp);
+        strength = max(weight, 0.0);
+    }
+    else if (b_iHaloBlurMode == HALOBLUR_LINEAR) {
+        strength = max(1.0 - (sqrt(minSq) * p_fHaloRadiusRcp), 0.0);
+    }
+    else if (b_iHaloBlurMode == HALOBLUR_QUADRATIC) {
+        strength = max(1.0 - (minSq * p_fHaloRadiusRcp), 0.0);
+    }
+    else if (b_iHaloBlurMode == HALOBLUR_SHARP) {
+        strength = max(1.0 - (minSq * minSq * minSq * minSq * p_fHaloRadiusRcp), 0.0);
+    }
+
+    if (b_iBlurAllChannels) {
+        cResult.a = strength;
+    }
+    else {
+        cResult = HALF4(strength, strength, strength, strength);
+    }
+    return cResult;
+}
+
+//==================================================================================================
 // Main post-processing entry point.
 HALF4 PostProcess( VertexTransport vertOut ) {
     HALF4 cResult;
@@ -308,10 +439,11 @@ HALF4 PostProcess( VertexTransport vertOut ) {
     PostProcessMode( SSAO );
     PostProcessMode( ConvertToGradient );
     PostProcessMode( DepthEncode );
-    PostProcessMode( ScreenSpaceParticle );
     PostProcessMode( AntiAliasing );
     PostProcessMode( FOWSmoothing );
     PostProcessMode( HaloCopy );
+    PostProcessMode( HaloPrepare );
+    PostProcessMode( HaloBlur );
 
     if ( b_iTakeMin ) {
         HALF4 cOperand = sample2D( p_sOperandMap, READ_INTERPOLANT_UV(0).xy );
@@ -326,6 +458,10 @@ HALF4 PostProcess( VertexTransport vertOut ) {
         cResult = cResult.b;
     else if ( b_iInputChannelFilter == CHANNEL_ALPHA )
         cResult = cResult.a;
+
+    if (b_iHaloRastermode == HALO_ALPHA && b_iInputChannelFilter != CHANNEL_ALL) {
+        cResult.rgb = HALF3(1.0, 1.0, 1.0);
+    }
 
     if ( b_iScaleOutput )
         cResult *= p_vScale;
@@ -344,6 +480,10 @@ HALF4 PostProcess( VertexTransport vertOut ) {
         
     if ( b_iPostMaskModulate )
         cResult *= p_vPostMaskColor;
+
+    if (b_iHaloRastermode == HALO_MUL) {
+        cResult = lerp(HALF4(1.0, 1.0, 1.0, 1.0), cResult, cResult.a);
+    }
 
     if (b_iAlphaTest)
     {

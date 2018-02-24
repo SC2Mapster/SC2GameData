@@ -31,8 +31,6 @@
 #define NO_LOCAL_LIGHTS_MODE		0		// Local lighting disabled.
 #define DEFERRED_LIGHTING_MODE		1		// Deferred lighting - light quality high or above.
 #define SINGLEPASS_LIGHTING_MODE	2		// All lighting in a single pass - used for low quality vertex lighting.
-#define MULTIPASS_POINTLIGHT_MODE	3		// One light per object pass - used for medium quality lighting.
-#define MULTIPASS_SPOTLIGHT_MODE	4		// One light per object pass - used for medium quality lighting.
 
 #define VERTEXLIGHTING_NONE         0
 #define VERTEXLIGHTING_FULL         1
@@ -139,36 +137,7 @@ void Lighting(  VertexTransport vertOut,
 
     HALF3 cLightDiffuseSpecular = 0;
 
-    // Various modes for lighting.
-	if ( b_iLightingMode == MULTIPASS_POINTLIGHT_MODE ) {
-		// Multipassed point lights.
-		ComputePointLight(	vertOut,
-                            vNormalWS, 
-                            vPositionWS, 
-                            p_pointLights[0].vPositionRecipRadius.xyz, 
-                            p_pointLights[0].vPositionRecipRadius.w, 
-							p_pointLights[0].cColorAttenMultiplier.a,
-                            b_iUseSpecular, fSpecularity, cLightDiffuseSpecular );
-        if ( b_iAffectedByAO )
-            cShadowColor *= fAmbientOcclusion;
-		AddLightContribution( b_iUseSpecular, p_pointLights[0].cColorAttenMultiplier.rgb, cLightDiffuseSpecular, cShadowColor, p_vSpecColorSpecularity.rgb, curTotalDiffuse, curTotalSpecular, curTotalSpecular2 );
-	} else if ( b_iLightingMode == MULTIPASS_SPOTLIGHT_MODE ) {
-		// Multipassed spot lights.
-		ComputeSpotLight(	vertOut,
-                            vNormalWS, 
-                            vPositionWS, 
-                            p_spotLights[0].vPositionRecipRadius.xyz, 
-                            p_spotLights[0].vDirection, 
-							p_spotLights[0].vPositionRecipRadius.w, 
-							p_spotLights[0].cColorAttenMultiplier.a, 
-							p_spotLights[0].vSpotFalloffBiasScaleAndHotSpotMultiplier.x, 
-							p_spotLights[0].vSpotFalloffBiasScaleAndHotSpotMultiplier.y,
-							p_spotLights[0].vSpotFalloffBiasScaleAndHotSpotMultiplier.z, 
-							b_iUseSpecular, fSpecularity, cLightDiffuseSpecular );
-        if ( b_iAffectedByAO )
-            cShadowColor *= fAmbientOcclusion;
-		AddLightContribution( b_iUseSpecular, p_spotLights[0].cColorAttenMultiplier.rgb, cLightDiffuseSpecular, cShadowColor, p_vSpecColorSpecularity.rgb, curTotalDiffuse, curTotalSpecular, curTotalSpecular2 );
-	} else {	
+    {	
 	
 	    HALF3 cAmbient;
 	    HALF3 cDirectional[MAX_DIRECTIONAL_LIGHTS];
