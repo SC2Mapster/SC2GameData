@@ -1,0 +1,273 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/MapMechanicsLib"
+include "TriggerLibs/GameDataHelperLib"
+
+include "LibHFEN_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Fenix
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libHFEN_InitLibraries () {
+    libNtve_InitVariables();
+    libGame_InitVariables();
+    libMapM_InitVariables();
+    libGDHL_InitVariables();
+}
+
+// Variable Initialization
+bool libHFEN_InitVariables_completed = false;
+
+void libHFEN_InitVariables () {
+    if (libHFEN_InitVariables_completed) {
+        return;
+    }
+
+    libHFEN_InitVariables_completed = true;
+
+    libHFEN_gv_heroFenixRapidRechargeHealingModifier = CatalogReferenceGetAsFixed("Effect,FenixRapidRechargeHealingDummyModifyUnit,XP", c_playerAny);
+}
+
+// Functions
+void libHFEN_gf_HeroFenixIncrementHeroCountFunction () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHFEN_gv_heroFenixTriggerRegistrationVariable += 1;
+    if ((libHFEN_gv_heroFenixTriggerRegistrationVariable == 1)) {
+        TriggerEnable(libHFEN_gt_FenixDivertPowerWeaponsSetDamageBuff, true);
+        TriggerEnable(libHFEN_gt_FenixRapidRechargeOn, true);
+        TriggerEnable(libHFEN_gt_FenixRapidRechargeOff, true);
+        TriggerEnable(libHFEN_gt_FenixWarpWarpConduitCooldownReset, true);
+    }
+
+}
+
+void libHFEN_gf_HeroFenixDecrementHeroCountFunction () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHFEN_gv_heroFenixTriggerRegistrationVariable -= 1;
+    if ((libHFEN_gv_heroFenixTriggerRegistrationVariable < 0)) {
+        libHFEN_gv_heroFenixTriggerRegistrationVariable = 0;
+    }
+
+    if ((libHFEN_gv_heroFenixTriggerRegistrationVariable == 0)) {
+        TriggerEnable(libHFEN_gt_FenixDivertPowerWeaponsSetDamageBuff, false);
+        TriggerEnable(libHFEN_gt_FenixRapidRechargeOn, false);
+        TriggerEnable(libHFEN_gt_FenixRapidRechargeShieldHealing, false);
+        TriggerEnable(libHFEN_gt_FenixRapidRechargeOff, false);
+        TriggerEnable(libHFEN_gt_FenixWarpWarpConduitCooldownReset, false);
+    }
+
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: Fenix - Divert Power Weapons - Set Damage Buff
+//--------------------------------------------------------------------------------------------------
+bool libHFEN_gt_FenixDivertPowerWeaponsSetDamageBuff_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_fenixPlayer;
+    unit lv_fenixUnit;
+    fixed lv_currentShields;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_fenixPlayer = EventPlayerEffectUsedUnitOwner(c_effectPlayerCaster);
+    lv_fenixUnit = libGame_gv_players[lv_fenixPlayer].lv_heroUnit;
+    lv_currentShields = UnitGetPropertyFixed(lv_fenixUnit, c_unitPropShieldsPercent, c_unitPropCurrent);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    CatalogFieldValueModifyFixed(c_gameCatalogBehavior, "FenixDivertPowerWeapons", "Modification.DamageDealtFraction[" + IntToString(c_unitDamageTypeBasic) + "]", lv_fenixPlayer, (lv_currentShields / 125.0), c_upgradeOperationSet);
+    UnitSetPropertyFixed(lv_fenixUnit, c_unitPropShieldsPercent, 0.0);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHFEN_gt_FenixDivertPowerWeaponsSetDamageBuff_Init () {
+    libHFEN_gt_FenixDivertPowerWeaponsSetDamageBuff = TriggerCreate("libHFEN_gt_FenixDivertPowerWeaponsSetDamageBuff_Func");
+    TriggerEnable(libHFEN_gt_FenixDivertPowerWeaponsSetDamageBuff, false);
+    TriggerAddEventPlayerEffectUsed(libHFEN_gt_FenixDivertPowerWeaponsSetDamageBuff, c_playerAny, "FenixDivertPowerWeaponsCastSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Fenix - Rapid Recharge - On
+//--------------------------------------------------------------------------------------------------
+bool libHFEN_gt_FenixRapidRechargeOn_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gf_HeroGainTalentGainedTalent() == "FenixRapidRecharge"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(libHFEN_gt_FenixRapidRechargeShieldHealing, true);
+    libHFEN_gv_heroFenixRapidRechargeRegistrationVariable += 1;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHFEN_gt_FenixRapidRechargeOn_Init () {
+    libHFEN_gt_FenixRapidRechargeOn = TriggerCreate("libHFEN_gt_FenixRapidRechargeOn_Func");
+    TriggerEnable(libHFEN_gt_FenixRapidRechargeOn, false);
+    libGame_gf_HeroGainTalent(libHFEN_gt_FenixRapidRechargeOn);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Fenix - Rapid Recharge - Shield Healing
+//--------------------------------------------------------------------------------------------------
+bool libHFEN_gt_FenixRapidRechargeShieldHealing_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_fenixPlayer;
+    unit lv_fenixUnit;
+    fixed lv_healingReceived;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_fenixPlayer = UnitGetOwner(EventUnit());
+    lv_fenixUnit = libGame_gv_players[lv_fenixPlayer].lv_heroUnit;
+    lv_healingReceived = EventUnitHealAmount();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(lv_fenixUnit) == "HeroFenix"))) {
+            return false;
+        }
+
+        if (!((PlayerHasTalent(lv_fenixPlayer, "FenixRapidRecharge") == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    CatalogFieldValueModifyFixed(c_gameCatalogEffect, "FenixRapidRechargeShieldHealer", "RechargeVitalRate", lv_fenixPlayer, (lv_healingReceived * libHFEN_gv_heroFenixRapidRechargeHealingModifier), c_upgradeOperationSet);
+    UnitCreateEffectUnit(lv_fenixUnit, "FenixRapidRechargeShieldHealer", lv_fenixUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHFEN_gt_FenixRapidRechargeShieldHealing_Init () {
+    libHFEN_gt_FenixRapidRechargeShieldHealing = TriggerCreate("libHFEN_gt_FenixRapidRechargeShieldHealing_Func");
+    TriggerEnable(libHFEN_gt_FenixRapidRechargeShieldHealing, false);
+    TriggerAddEventUnitHealed(libHFEN_gt_FenixRapidRechargeShieldHealing, null, c_unitVitalLife, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Fenix - Rapid Recharge - Off
+//--------------------------------------------------------------------------------------------------
+bool libHFEN_gt_FenixRapidRechargeOff_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_localPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_localPlayer = libGame_gf_HeroRespecsTalentsPlayer();
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerHasTalent(lv_localPlayer, "FenixRapidRecharge") == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libHFEN_gv_heroFenixRapidRechargeRegistrationVariable -= 1;
+    if ((libHFEN_gv_heroFenixRapidRechargeRegistrationVariable == 0)) {
+        TriggerEnable(libHFEN_gt_FenixRapidRechargeShieldHealing, false);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHFEN_gt_FenixRapidRechargeOff_Init () {
+    libHFEN_gt_FenixRapidRechargeOff = TriggerCreate("libHFEN_gt_FenixRapidRechargeOff_Func");
+    TriggerEnable(libHFEN_gt_FenixRapidRechargeOff, false);
+    libGame_gf_HeroRespecsTalents(libHFEN_gt_FenixRapidRechargeOff);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Fenix - Warp - Warp Conduit - Cooldown Reset
+//--------------------------------------------------------------------------------------------------
+bool libHFEN_gt_FenixWarpWarpConduitCooldownReset_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_fenixPlayer;
+    unit lv_unit;
+    unit lv_vehicle;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_fenixPlayer = libGame_gf_HeroParticipatedInTakedownKillingPlayer();
+    lv_unit = libGame_gv_players[lv_fenixPlayer].lv_heroUnit;
+    lv_vehicle = libGame_gv_players[lv_fenixPlayer].lv_activeVehicle;
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerHasTalent(lv_fenixPlayer, "FenixWarpConduit") == true))) {
+            return false;
+        }
+
+        if (!(((UnitGetType(lv_unit) == "HeroFenix") || (UnitGetType(lv_vehicle) == "HeroFenix")))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(lv_unit, "FenixWarpWarpConduitSetCooldown", lv_unit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHFEN_gt_FenixWarpWarpConduitCooldownReset_Init () {
+    libHFEN_gt_FenixWarpWarpConduitCooldownReset = TriggerCreate("libHFEN_gt_FenixWarpWarpConduitCooldownReset_Func");
+    TriggerEnable(libHFEN_gt_FenixWarpWarpConduitCooldownReset, false);
+    libGame_gf_HeroParticipatedInTakedown(libHFEN_gt_FenixWarpWarpConduitCooldownReset);
+}
+
+void libHFEN_InitTriggers () {
+    libHFEN_gt_FenixDivertPowerWeaponsSetDamageBuff_Init();
+    libHFEN_gt_FenixRapidRechargeOn_Init();
+    libHFEN_gt_FenixRapidRechargeShieldHealing_Init();
+    libHFEN_gt_FenixRapidRechargeOff_Init();
+    libHFEN_gt_FenixWarpWarpConduitCooldownReset_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libHFEN_InitLib_completed = false;
+
+void libHFEN_InitLib () {
+    if (libHFEN_InitLib_completed) {
+        return;
+    }
+
+    libHFEN_InitLib_completed = true;
+
+    libHFEN_InitLibraries();
+    libHFEN_InitVariables();
+    libHFEN_InitTriggers();
+}
+

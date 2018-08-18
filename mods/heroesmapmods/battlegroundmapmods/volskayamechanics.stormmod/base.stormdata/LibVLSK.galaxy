@@ -119,6 +119,9 @@ void libVLSK_gf_EnableDisableCapturePoint (int lp_capturePointIndex, bool lp_ena
         AddUnitOfInterest(libVLSK_gv_capturePoints[lp_capturePointIndex].lv_minimapIconUnit, 7.0, 0.0, "VolskayaPoint", libNtve_ge_GoalTeam_Both, 0);
         libVLSK_gv_currentCapturePoint = lp_capturePointIndex;
         libVLSK_gf_MonitorCapturePointProgressUntilComplete(lp_capturePointIndex);
+        StatEventCreate("VolskayaCapturePointSpawned");
+        StatEventAddDataFixed(StatEventLastCreated(), "GameTime", libUIUI_gf_HeroesGameTime());
+        StatEventSend(StatEventLastCreated());
     }
     else {
         libVLSK_gv_capturePoints[lp_capturePointIndex].lv_state = libVLSK_ge_OverwatchCapturePoint_State_Empty;
@@ -132,7 +135,7 @@ void libVLSK_gf_EnableDisableCapturePoint (int lp_capturePointIndex, bool lp_ena
 void libVLSK_gf_CreateCapturePointPreview (int lp_capturePointIndex) {
     // Automatic Variable Declarations
     // Implementation
-    libNtve_gf_CreateUnitsWithDefaultFacing(1, libVLSK_gv_capturePoints[lp_capturePointIndex].lv_minimapIconPreviewUnitType, c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Neutral, RegionGetCenter(libVLSK_gv_capturePoints[lp_capturePointIndex].lv_region));
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, libVLSK_gv_capturePoints[lp_capturePointIndex].lv_minimapIconPreviewUnitType, c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Neutral, RegionGetCenter(libVLSK_gv_capturePoints[lp_capturePointIndex].lv_region), null);
     libVLSK_gv_capturePoints[lp_capturePointIndex].lv_minimapIconUnit = UnitLastCreated();
     libNtve_gf_SendActorMessageToUnit(libVLSK_gv_capturePoints[lp_capturePointIndex].lv_minimapIconUnit, "MinimapIconTintColor 255,145,113,218");
     libNtve_gf_SendActorMessageToUnit(libVLSK_gv_capturePoints[lp_capturePointIndex].lv_minimapIconUnit, "MinimapTooltip DOCSTR_NextControlPoint");
@@ -148,10 +151,10 @@ void libVLSK_gf_MonitorCapturePointProgressUntilComplete (int lp_capturePointInd
     int lv_team;
 
     // Automatic Variable Declarations
-    const int autoA407063D_ae = libCore_gv_bALMaxTeams;
-    const int autoA407063D_ai = 1;
-    unitgroup auto7C9F7375_g;
-    int auto7C9F7375_u;
+    const int auto11DFCA09_ae = libCore_gv_bALMaxTeams;
+    const int auto11DFCA09_ai = 1;
+    unitgroup autoC383448E_g;
+    int autoC383448E_u;
 
     // Variable Initialization
     for (init_i = 0; init_i <= libCore_gv_bALMaxTeams; init_i += 1) {
@@ -165,15 +168,18 @@ void libVLSK_gf_MonitorCapturePointProgressUntilComplete (int lp_capturePointInd
         lv_heroesCount[libGame_gv_teamOrderIndex_C] = UnitGroupCount(lv_heroesOnPoint[libGame_gv_teamOrderIndex_C], c_unitCountAlive);
         lv_heroesCount[libGame_gv_teamChaosIndex_C] = UnitGroupCount(lv_heroesOnPoint[libGame_gv_teamChaosIndex_C], c_unitCountAlive);
         lv_team = 1;
-        for ( ; ( (autoA407063D_ai >= 0 && lv_team <= autoA407063D_ae) || (autoA407063D_ai < 0 && lv_team >= autoA407063D_ae) ) ; lv_team += autoA407063D_ai ) {
-            auto7C9F7375_g = lv_heroesOnPoint[lv_team];
-            auto7C9F7375_u = UnitGroupCount(auto7C9F7375_g, c_unitCountAll);
-            for (;; auto7C9F7375_u -= 1) {
-                lv_heroUnit = UnitGroupUnitFromEnd(auto7C9F7375_g, auto7C9F7375_u);
+        for ( ; ( (auto11DFCA09_ai >= 0 && lv_team <= auto11DFCA09_ae) || (auto11DFCA09_ai < 0 && lv_team >= auto11DFCA09_ae) ) ; lv_team += auto11DFCA09_ai ) {
+            autoC383448E_g = lv_heroesOnPoint[lv_team];
+            autoC383448E_u = UnitGroupCount(autoC383448E_g, c_unitCountAll);
+            for (;; autoC383448E_u -= 1) {
+                lv_heroUnit = UnitGroupUnitFromEnd(autoC383448E_g, autoC383448E_u);
                 if (lv_heroUnit == null) { break; }
-                libGame_gf_SendMapSpecificAwardEvent(UnitGetOwner(lv_heroUnit), 0.0625, true);
-                libGame_gf_AfkResetWarningTimerForPlayer(UnitGetOwner(lv_heroUnit));
-                UnitBehaviorAdd(lv_heroUnit, "HeroGenericHeroOnCapturePoint", lv_heroUnit, 1);
+                if (((UnitGetOwner(lv_heroUnit) >= 1) && (UnitGetOwner(lv_heroUnit) <= libCore_gv_bALMaxPlayers))) {
+                    libGame_gf_SendMapSpecificAwardEvent(UnitGetOwner(lv_heroUnit), 0.0625, true);
+                    libGame_gf_AfkResetWarningTimerForPlayer(UnitGetOwner(lv_heroUnit));
+                    UnitBehaviorAdd(lv_heroUnit, "HeroGenericHeroOnCapturePoint", lv_heroUnit, 1);
+                }
+
             }
         }
         if ((lv_heroesCount[libGame_gv_teamOrderIndex_C] == 0) && (lv_heroesCount[libGame_gv_teamChaosIndex_C] == 0)) {
@@ -335,6 +341,11 @@ void libVLSK_gf_AwardCapturePointVictorytoTeam (int lp_capturePointIndex, int lp
     libVLSK_gf_SendEventVolskayaPointCompleted(libVLSK_gv_capturePoints[lp_capturePointIndex].lv_region, lp_victoryTeam);
     libVLSK_gf_PlayVOControlPointCompleted(lp_victoryTeam);
     libVLSK_gf_EnableDisableCapturePoint(lp_capturePointIndex, false);
+    StatEventCreate("VolskayaCapturePointComplete");
+    StatEventAddDataInt(StatEventLastCreated(), "WinningTeam", lp_victoryTeam);
+    StatEventAddDataFixed(StatEventLastCreated(), "LosingTeamProgress", libVLSK_gf_GetCapturePointVictoryProgressasInt(lp_capturePointIndex, libGame_gf_EnemyTeam(lp_victoryTeam)));
+    StatEventAddDataFixed(StatEventLastCreated(), "GameTime", libUIUI_gf_HeroesGameTime());
+    StatEventSend(StatEventLastCreated());
     if ((libVLSK_gv_grantStandardCapturePointRewards == true)) {
         libVLSK_gf_AwardGiantRobottoTeam(lp_victoryTeam, libVLSK_gv_capturePoints[lp_capturePointIndex].lv_robotSpawnPoint);
     }
@@ -481,7 +492,7 @@ bool auto_libVLSK_gf_AwardGiantRobottoTeam_TriggerFunc (bool testConds, bool run
 
     // Implementation
     libVLSK_gf_SendEventVolskayaGiantRobotSpawns();
-    libNtve_gf_CreateUnitsWithDefaultFacing(1, "VolskayaVehicle", 0, libGame_gf_ComputerPlayerInTeam(lp_robotOwningTeam), lp_spawnPoint);
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, "VolskayaVehicle", 0, libGame_gf_ComputerPlayerInTeam(lp_robotOwningTeam), lp_spawnPoint, null);
     libVLSK_gv_giantRobotUnit = UnitLastCreated();
     AddUnitOfInterest(libVLSK_gv_giantRobotUnit, 0.0, 0.0, "KillVolskayaRobot", libAIAI_gf_ConvertIntegertoGoalTeam(libGame_gf_EnemyTeam(lp_robotOwningTeam)), 0);
     AddUnitOfInterest(libVLSK_gv_giantRobotUnit, 6.0, 0.0, "EscortVolskayaRobot", libAIAI_gf_ConvertIntegertoGoalTeam(lp_robotOwningTeam), 0);
@@ -995,7 +1006,7 @@ bool auto_libVLSK_gf_ShowCapturePointWarningSlideoutWithPing_TriggerFunc (bool t
 
     // Implementation
     UnitRemove(libVLSK_gv_capturePoints[lp_point].lv_minimapIconUnit);
-    libNtve_gf_CreateUnitsWithDefaultFacing(1, libVLSK_gv_capturePoints[lp_point].lv_minimapIconUnitType, c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Neutral, RegionGetCenter(libVLSK_gv_capturePoints[lp_point].lv_region));
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, libVLSK_gv_capturePoints[lp_point].lv_minimapIconUnitType, c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Neutral, RegionGetCenter(libVLSK_gv_capturePoints[lp_point].lv_region), null);
     libVLSK_gv_capturePoints[lp_point].lv_minimapIconUnit = UnitLastCreated();
     PingCreateFromData(PlayerGroupAll(), "StormAlert", RegionGetCenter(libVLSK_gv_capturePoints[libVLSK_gv_currentCapturePoint].lv_region));
     lv_ping = PingLastCreated();

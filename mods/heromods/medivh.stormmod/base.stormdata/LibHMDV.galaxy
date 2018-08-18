@@ -33,15 +33,33 @@ void libHMDV_InitVariables () {
     for (init_i = 0; init_i <= libCore_gv_bALMaxPlayers; init_i += 1) {
         libHMDV_gv_medivhForceofWillPlayerGroup[init_i] = PlayerGroupEmpty();
     }
+    libHMDV_gv_medivhForceOfWillBaseHealMod = 0.2;
+    libHMDV_gv_medivhForceOfWillReabsorptionTalentHealMod = 0.7;
 }
 
 // Functions
+void libHMDV_gf_HeroMedivhRavenFamiliartCloakController (unit lp_owningUnit, unit lp_ravenUnit) {
+    // Automatic Variable Declarations
+    // Implementation
+    if (((UnitTestState(lp_owningUnit, c_unitStateCloaked) == true) || (UnitBehaviorCount(lp_owningUnit, "ShrubStatusController") == 1)) && (UnitHasBehavior2(lp_ravenUnit, "MedivhRavenFamiliarCloakingBehavior") == false) && (UnitHasBehavior2(lp_owningUnit, "AttackReveal") == false)) {
+        UnitBehaviorAdd(lp_ravenUnit, "MedivhRavenFamiliarCloakingBehavior", lp_ravenUnit, 1);
+    }
+    else {
+        if (((UnitBehaviorCount(lp_owningUnit, "ShrubStatusController") == 0) || (UnitHasBehavior2(lp_owningUnit, "AttackReveal") == true)) && (UnitTestState(lp_owningUnit, c_unitStateCloaked) == false) && (UnitHasBehavior2(lp_ravenUnit, "MedivhRavenFamiliarCloakingBehavior") == true)) {
+            UnitBehaviorRemove(lp_ravenUnit, "MedivhRavenFamiliarCloakingBehavior", 1);
+        }
+
+    }
+}
+
 void libHMDV_gf_HeroMedivhIncrementHeroCountFunction () {
     // Automatic Variable Declarations
     // Implementation
     libHMDV_gv_heroMedivhTriggerRegistrationVariable += 1;
     if ((libHMDV_gv_heroMedivhTriggerRegistrationVariable == 1)) {
         TriggerEnable(libHMDV_gt_HeroMedivhLeyLineSealOverlayOn, true);
+        TriggerEnable(libHMDV_gt_HeroMedivhRavenFamiliarSpawn, true);
+        TriggerEnable(libHMDV_gt_HeroMedivhRavenFamiliarPostSpawnCloak, true);
         TriggerEnable(libHMDV_gt_HeroMedivhLeyLineSealOverlayOff, true);
         TriggerEnable(libHMDV_gt_HeroMedivhPortalTeleport, true);
         TriggerEnable(libHMDV_gt_HeroMedivhPortalCameraPan, true);
@@ -55,6 +73,8 @@ void libHMDV_gf_HeroMedivhIncrementHeroCountFunction () {
         TriggerEnable(libHMDV_gt_HeroAIMedivhHasCastRavenForm, true);
         TriggerEnable(libHMDV_gt_HeroAIMedivhHasLanded, true);
         TriggerEnable(libHMDV_gt_HeroAIAIMedivhUnregisterPortal, true);
+        TriggerEnable(libHMDV_gt_HeroMedivhPortalRavenFamiliarTalentApplySlow, true);
+        TriggerEnable(libHMDV_gt_HeroMedivhInnervatePortalMasteryCDR, true);
     }
 
 }
@@ -69,6 +89,8 @@ void libHMDV_gf_HeroMedivhDecrementHeroCountFunction () {
 
     if ((libHMDV_gv_heroMedivhTriggerRegistrationVariable == 0)) {
         TriggerEnable(libHMDV_gt_HeroMedivhLeyLineSealOverlayOn, false);
+        TriggerEnable(libHMDV_gt_HeroMedivhRavenFamiliarSpawn, false);
+        TriggerEnable(libHMDV_gt_HeroMedivhRavenFamiliarPostSpawnCloak, false);
         TriggerEnable(libHMDV_gt_HeroMedivhLeyLineSealOverlayOff, false);
         TriggerEnable(libHMDV_gt_HeroMedivhPortalTeleport, false);
         TriggerEnable(libHMDV_gt_HeroMedivhPortalCameraPan, false);
@@ -82,6 +104,8 @@ void libHMDV_gf_HeroMedivhDecrementHeroCountFunction () {
         TriggerEnable(libHMDV_gt_HeroAIMedivhHasCastRavenForm, false);
         TriggerEnable(libHMDV_gt_HeroAIMedivhHasLanded, false);
         TriggerEnable(libHMDV_gt_HeroAIAIMedivhUnregisterPortal, false);
+        TriggerEnable(libHMDV_gt_HeroMedivhPortalRavenFamiliarTalentApplySlow, false);
+        TriggerEnable(libHMDV_gt_HeroMedivhInnervatePortalMasteryCDR, false);
     }
 
 }
@@ -108,6 +132,110 @@ unitgroup libHMDV_gf_HeroAIMedivhFindPortalPair (int lp_player) {
 }
 
 // Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Medivh - Raven Familiar Spawn
+//--------------------------------------------------------------------------------------------------
+bool libHMDV_gt_HeroMedivhRavenFamiliarSpawn_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_raven;
+    unit lv_player;
+    int lv_targetPlayer;
+
+    // Automatic Variable Declarations
+    unitgroup auto8627E677_g;
+    int auto8627E677_u;
+    unit auto8627E677_var;
+
+    // Variable Initialization
+    lv_player = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_targetPlayer = UnitGetOwner(lv_player);
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_targetPlayer > 0))) {
+            return false;
+        }
+
+        if (!((lv_targetPlayer <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto8627E677_g = UnitGroup("MedivhPortalRavenFamiliar", lv_targetPlayer, RegionPlayableMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    auto8627E677_u = UnitGroupCount(auto8627E677_g, c_unitCountAll);
+    for (;; auto8627E677_u -= 1) {
+        auto8627E677_var = UnitGroupUnitFromEnd(auto8627E677_g, auto8627E677_u);
+        if (auto8627E677_var == null) { break; }
+        libHMDV_gf_HeroMedivhRavenFamiliartCloakController(lv_player, auto8627E677_var);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMDV_gt_HeroMedivhRavenFamiliarSpawn_Init () {
+    libHMDV_gt_HeroMedivhRavenFamiliarSpawn = TriggerCreate("libHMDV_gt_HeroMedivhRavenFamiliarSpawn_Func");
+    TriggerEnable(libHMDV_gt_HeroMedivhRavenFamiliarSpawn, false);
+    TriggerAddEventPlayerEffectUsed(libHMDV_gt_HeroMedivhRavenFamiliarSpawn, c_playerAny, "MedivhPortalRavenFamiliarCreateUnit");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Medivh - Raven Familiar Post Spawn Cloak
+//--------------------------------------------------------------------------------------------------
+bool libHMDV_gt_HeroMedivhRavenFamiliarPostSpawnCloak_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_raven;
+    unit lv_player;
+    int lv_targetPlayer;
+
+    // Automatic Variable Declarations
+    unitgroup autoB64B5ADC_g;
+    int autoB64B5ADC_u;
+    unit autoB64B5ADC_var;
+
+    // Variable Initialization
+    lv_player = EventUnit();
+    lv_targetPlayer = UnitGetOwner(lv_player);
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_targetPlayer > 0))) {
+            return false;
+        }
+
+        if (!((lv_targetPlayer <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    autoB64B5ADC_g = UnitGroup("MedivhPortalRavenFamiliar", lv_targetPlayer, RegionPlayableMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    autoB64B5ADC_u = UnitGroupCount(autoB64B5ADC_g, c_unitCountAll);
+    for (;; autoB64B5ADC_u -= 1) {
+        autoB64B5ADC_var = UnitGroupUnitFromEnd(autoB64B5ADC_g, autoB64B5ADC_u);
+        if (autoB64B5ADC_var == null) { break; }
+        libHMDV_gf_HeroMedivhRavenFamiliartCloakController(lv_player, autoB64B5ADC_var);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMDV_gt_HeroMedivhRavenFamiliarPostSpawnCloak_Init () {
+    libHMDV_gt_HeroMedivhRavenFamiliarPostSpawnCloak = TriggerCreate("libHMDV_gt_HeroMedivhRavenFamiliarPostSpawnCloak_Func");
+    TriggerEnable(libHMDV_gt_HeroMedivhRavenFamiliarPostSpawnCloak, false);
+    TriggerAddEventUnitBehaviorChangeFromCategory(libHMDV_gt_HeroMedivhRavenFamiliarPostSpawnCloak, null, c_behaviorCategoryTemporaryCloak, c_unitBehaviorChangeAny);
+    TriggerAddEventUnitBehaviorChangeFromCategory(libHMDV_gt_HeroMedivhRavenFamiliarPostSpawnCloak, null, c_behaviorCategoryPersistentCloak, c_unitBehaviorChangeAny);
+    TriggerAddEventUnitBehaviorChangeFromCategory(libHMDV_gt_HeroMedivhRavenFamiliarPostSpawnCloak, null, c_behaviorCategoryUnrevealableCloak, c_unitBehaviorChangeAny);
+}
+
 //--------------------------------------------------------------------------------------------------
 // Trigger: HeroAI - Medivh Has Landed
 //--------------------------------------------------------------------------------------------------
@@ -330,27 +458,27 @@ bool libHMDV_gt_HeroMedivhPortalTeleport_Func (bool testConds, bool runActions) 
 
     // Conditions
     if (testConds) {
-        if (!((UnitHasBehaviorWithFlag(lv_casterUnit, c_unitBehaviorFlagStun) == false))) {
+        if (!((UnitHasBehaviorWithCategoryFlag(lv_casterUnit, c_behaviorCategoryStun) == false))) {
             return false;
         }
 
-        if (!((UnitHasBehaviorWithFlag(lv_casterUnit, c_unitBehaviorFlagSleeping) == false))) {
+        if (!((UnitHasBehaviorWithCategoryFlag(lv_casterUnit, c_behaviorCategorySleeping) == false))) {
             return false;
         }
 
-        if (!((UnitHasBehaviorWithFlag(lv_casterUnit, c_unitBehaviorFlagDebuffRoot) == false))) {
+        if (!((UnitHasBehaviorWithCategoryFlag(lv_casterUnit, c_behaviorCategoryDebuffRoot) == false))) {
             return false;
         }
 
-        if (!((UnitHasBehaviorWithFlag(lv_casterUnit, c_unitBehaviorFlagDebuffRoot) == false))) {
+        if (!((UnitHasBehaviorWithCategoryFlag(lv_casterUnit, c_behaviorCategoryDebuffStasis) == false))) {
             return false;
         }
 
-        if (!((UnitHasBehaviorWithFlag(lv_casterUnit, c_unitBehaviorFlagTimeStop) == false))) {
+        if (!((UnitHasBehaviorWithCategoryFlag(lv_casterUnit, c_behaviorCategoryTimeStop) == false))) {
             return false;
         }
 
-        if (!((UnitHasBehaviorWithFlag(lv_casterUnit, c_unitBehaviorFlagPushOrPull) == false))) {
+        if (!((UnitHasBehaviorWithCategoryFlag(lv_casterUnit, c_behaviorCategoryPushOrPull) == false))) {
             return false;
         }
     }
@@ -491,10 +619,40 @@ void libHMDV_gt_HeroMedivhPortalPortalMasteryMorphBackToMedivh_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Medivh - Portal Raven Familiar Talent Apply Slow
+//--------------------------------------------------------------------------------------------------
+bool libHMDV_gt_HeroMedivhPortalRavenFamiliarTalentApplySlow_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_unit;
+    int lv_ravenOwner;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_unit = EventUnit();
+    lv_ravenOwner = UnitGetOwner(EventUnitDamageSourceUnit());
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(libGame_gv_players[lv_ravenOwner].lv_heroUnit, "MedivhPortalApplyRavenFamiliarTalentSlow", lv_unit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMDV_gt_HeroMedivhPortalRavenFamiliarTalentApplySlow_Init () {
+    libHMDV_gt_HeroMedivhPortalRavenFamiliarTalentApplySlow = TriggerCreate("libHMDV_gt_HeroMedivhPortalRavenFamiliarTalentApplySlow_Func");
+    TriggerEnable(libHMDV_gt_HeroMedivhPortalRavenFamiliarTalentApplySlow, false);
+    TriggerAddEventUnitDamaged(libHMDV_gt_HeroMedivhPortalRavenFamiliarTalentApplySlow, null, c_unitDamageTypeAbility, c_unitDamageNonFatal, "MedivhPortalRavenFamiliarImpactDamage");
+}
+
+//--------------------------------------------------------------------------------------------------
 // Trigger: Hero - Medivh - Force of Will Behavior Responses
 //--------------------------------------------------------------------------------------------------
 bool libHMDV_gt_HeroMedivhForceofWillBehaviorResponses_Func (bool testConds, bool runActions) {
     // Variable Declarations
+    int lv_medivhPlayer;
     fixed lv_damageTaken;
     unit lv_unit;
     fixed lv_verticalOffset;
@@ -502,6 +660,7 @@ bool libHMDV_gt_HeroMedivhForceofWillBehaviorResponses_Func (bool testConds, boo
     unit lv_caster;
     unit lv_shieldedUnit;
     int lv_ownerofShieldedUnit;
+    fixed lv_healingModifier;
 
     // Automatic Variable Declarations
     // Variable Initialization
@@ -509,6 +668,7 @@ bool libHMDV_gt_HeroMedivhForceofWillBehaviorResponses_Func (bool testConds, boo
     lv_unit = EventUnit();
     lv_verticalOffset = 2.0;
     lv_horizOffset = RandomFixed(-0.4, -0.6);
+    lv_healingModifier = 0.2;
 
     // Conditions
     if (testConds) {
@@ -538,16 +698,40 @@ bool libHMDV_gt_HeroMedivhForceofWillBehaviorResponses_Func (bool testConds, boo
     else if ((EventUnitBehaviorChange() == c_unitBehaviorChangeDecrease)) {
         lv_shieldedUnit = lv_unit;
         lv_ownerofShieldedUnit = UnitGetOwner(lv_shieldedUnit);
-        if ((lv_damageTaken > 0.0) && (PlayerHasTalent(libHMDV_gv_medivhForceofWillCasterOwner[lv_ownerofShieldedUnit], "MedivhForceOfWillReabsorption") == true)) {
+        lv_medivhPlayer = libHMDV_gv_medivhForceofWillCasterOwner[UnitGetOwner(lv_shieldedUnit)];
+        if ((lv_damageTaken > 0.0)) {
+            CatalogFieldValueSetFixed(c_gameCatalogEffect, "MedivhForceOfWillModifyTalentTokenCount", "Value", lv_ownerofShieldedUnit, lv_damageTaken);
+            UnitCreateEffectUnitWithSource(lv_shieldedUnit, "MedivhForceOfWillModifyTalentTokenCount", lv_shieldedUnit, c_gameCatalogAbil, "MedivhForceOfWill");
             lv_verticalOffset = 1.0;
             FloatingCombatElementCreateNumberTextAtUnit(libHMDV_gv_medivhForceofWillPlayerGroup[lv_ownerofShieldedUnit], "FloatingCombatElements/FloatingCombatAmountReadable", "", lv_shieldedUnit, FixedToInt(lv_damageTaken), StringExternal("Param/Value/lib_HMDV_C69061B6"), libNtve_gv_FloatingCombatTextAutoRandomSeed);
-            CatalogFieldValueSetFixed(c_gameCatalogEffect, "MedivhForceOfWillReabsorptionHeal", "RechargeVitalRate", libHMDV_gv_medivhForceofWillCasterOwner[lv_ownerofShieldedUnit], (lv_damageTaken * 0.5));
+            if ((PlayerHasTalent(lv_medivhPlayer, "MedivhForceOfWillReabsorption") == true)) {
+                CatalogFieldValueSetFixed(c_gameCatalogAccumulator, "MedivhForceOfWillHealingAccumulator", "Scale", lv_ownerofShieldedUnit, CatalogFieldValueGetAsFixed(c_gameCatalogAccumulator, "MedivhForceOfWillHealingDummyAccumulator", "Scale", lv_medivhPlayer));
+            }
+            else {
+                CatalogFieldValueSetFixed(c_gameCatalogAccumulator, "MedivhForceOfWillHealingAccumulator", "Scale", lv_ownerofShieldedUnit, CatalogFieldValueGetAsFixed(c_gameCatalogAccumulator, "MedivhForceOfWillHealingDummyAccumulator", "Scale", 0));
+            }
             UnitCreateEffectUnitWithSource(libHMDV_gv_medivhForceofWillCaster[lv_ownerofShieldedUnit], "MedivhForceOfWillReabsorptionHeal", lv_shieldedUnit, c_gameCatalogAbil, "MedivhForceOfWill");
+            if ((PlayerHasTalent(lv_medivhPlayer, "MedivhForceOfWillEnduringWill") == true) && (lv_damageTaken >= CatalogFieldValueGetAsFixed(c_gameCatalogEffect, "MedivhForceOfWillEnduringWillTalentDummyTokenThreshold", "Value", lv_medivhPlayer))) {
+                UnitCreateEffectUnitWithSource(libGame_gv_players[lv_medivhPlayer].lv_heroUnit, "MedivhForceOfWillEnduringWillTalentModifyCooldown", libGame_gv_players[lv_medivhPlayer].lv_heroUnit, c_gameCatalogAbil, "MedivhForceOfWill");
+            }
+
+            if ((PlayerHasTalent(lv_medivhPlayer, "MedivhForceofMagic") == true) && (lv_damageTaken >= CatalogFieldValueGetAsFixed(c_gameCatalogEffect, "MedivhForceOfWillForceofMagicTalentDummyTokenThreshold", "Value", lv_medivhPlayer))) {
+                UnitCreateEffectUnitWithSource(libGame_gv_players[lv_medivhPlayer].lv_heroUnit, "MedivhForceOfWillApplyForceofMagicTalentStack", libGame_gv_players[lv_medivhPlayer].lv_heroUnit, c_gameCatalogAbil, "MedivhForceOfWill");
+            }
+
         }
-        else if ((lv_damageTaken > 0.0) && (PlayerHasTalent(libHMDV_gv_medivhForceofWillCasterOwner[lv_ownerofShieldedUnit], "MedivhForceOfWillReabsorption") == false)) {
+        else if ((lv_damageTaken > 0.0)) {
             FloatingCombatElementCreateNumberTextAtUnit(libHMDV_gv_medivhForceofWillPlayerGroup[lv_ownerofShieldedUnit], "FloatingCombatElements/FloatingCombatAmountReadable", "", lv_shieldedUnit, FixedToInt(lv_damageTaken), StringExternal("Param/Value/lib_HMDV_EB9E6C70"), libNtve_gv_FloatingCombatTextAutoRandomSeed);
         }
+        if ((PlayerHasTalent(lv_medivhPlayer, "MedivhForceOfWillArcaneExplosion") == true)) {
+            CatalogFieldValueSetFixed(c_gameCatalogAccumulator, "MedivhArcaneExplosionDamageAccumulator", "MaxAccumulation", lv_ownerofShieldedUnit, CatalogFieldValueGetAsFixed(c_gameCatalogAccumulator, "MedivhArcaneExplosionDamageAccumulator", "MaxAccumulation", lv_medivhPlayer));
+            CatalogFieldValueSetFixed(c_gameCatalogEffect, "MedivhForceOfWillArcaneExplosionDamage", "Amount", lv_ownerofShieldedUnit, CatalogFieldValueGetAsFixed(c_gameCatalogEffect, "MedivhForceOfWillArcaneExplosionDamage", "Amount", lv_medivhPlayer));
+            UnitCreateEffectUnitWithSource(libGame_gv_players[lv_medivhPlayer].lv_heroUnit, "MedivhForceOfWillArcaneExplosionSearch", lv_shieldedUnit, c_gameCatalogAbil, "MedivhForceOfWill");
+        }
+
         PlayerGroupClear(libHMDV_gv_medivhForceofWillPlayerGroup[lv_ownerofShieldedUnit]);
+        Wait(0.0625, c_timeGame);
+        UnitCreateEffectUnit(lv_shieldedUnit, "MedivhForceOfWillResetTalentTokenCount", lv_shieldedUnit);
     }
     return true;
 }
@@ -683,7 +867,53 @@ void libHMDV_gt_HeroMedivhTransformSwapToMedivh_Init () {
     TriggerAddEventUnitBehaviorChange(libHMDV_gt_HeroMedivhTransformSwapToMedivh, null, "MedivhTransformRaven", c_unitBehaviorChangeDestroy);
 }
 
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Medivh - Innervate Portal Mastery CDR
+//--------------------------------------------------------------------------------------------------
+bool libHMDV_gt_HeroMedivhInnervatePortalMasteryCDR_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_target;
+    int lv_player;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_target = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_player = EventPlayerEffectUsedUnitOwner(c_effectPlayerTarget);
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_player >= 1))) {
+            return false;
+        }
+
+        if (!((lv_player <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+
+        if (!(((UnitGetType(lv_target) == "HeroMedivh") || (UnitGetType(lv_target) == "HeroMedivhRaven")))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(EventPlayerEffectUsedUnit(c_effectUnitCaster), "MedivhPortalMasteryInnervateModifyPlayer", lv_target);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMDV_gt_HeroMedivhInnervatePortalMasteryCDR_Init () {
+    libHMDV_gt_HeroMedivhInnervatePortalMasteryCDR = TriggerCreate("libHMDV_gt_HeroMedivhInnervatePortalMasteryCDR_Func");
+    TriggerEnable(libHMDV_gt_HeroMedivhInnervatePortalMasteryCDR, false);
+    TriggerAddEventPlayerEffectUsed(libHMDV_gt_HeroMedivhInnervatePortalMasteryCDR, c_playerAny, "MalfurionInnervateModifyUnitDummy");
+}
+
 void libHMDV_InitTriggers () {
+    libHMDV_gt_HeroMedivhRavenFamiliarSpawn_Init();
+    libHMDV_gt_HeroMedivhRavenFamiliarPostSpawnCloak_Init();
     libHMDV_gt_HeroAIMedivhHasLanded_Init();
     libHMDV_gt_HeroAIMedivhHasCastRavenForm_Init();
     libHMDV_gt_HeroAIAIMedivhRegisterPortalCast_Init();
@@ -694,10 +924,12 @@ void libHMDV_InitTriggers () {
     libHMDV_gt_HeroMedivhPortalCameraPan_Init();
     libHMDV_gt_HeroMedivhPortalPortalMasterySelectionClamping_Init();
     libHMDV_gt_HeroMedivhPortalPortalMasteryMorphBackToMedivh_Init();
+    libHMDV_gt_HeroMedivhPortalRavenFamiliarTalentApplySlow_Init();
     libHMDV_gt_HeroMedivhForceofWillBehaviorResponses_Init();
     libHMDV_gt_HeroMedivhTransformRavenAfterPortToTown_Init();
     libHMDV_gt_HeroMedivhTransformRavenMountingSpecialCase_Init();
     libHMDV_gt_HeroMedivhTransformSwapToMedivh_Init();
+    libHMDV_gt_HeroMedivhInnervatePortalMasteryCDR_Init();
 }
 
 //--------------------------------------------------------------------------------------------------

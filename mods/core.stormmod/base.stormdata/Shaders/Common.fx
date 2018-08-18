@@ -23,7 +23,7 @@ HALF2       p_vHDRScaling;
 float       p_fAlphaThreshold;
 float4      p_vClipPlanes[6];
 float       p_iClipPlaneCount;
-float2      p_vProjectionConstants;
+float3      p_vProjectionConstants;
 float       p_DepthOffset;
 
 //--------------------------------------------------------------------------------------------------
@@ -163,7 +163,8 @@ void AlphaTest (float fAlpha) {
 //--------------------------------------------------------------------------------------------------
 void DepthOffsetHPos( inout float4 HPos ) {
     float oldW = HPos.w;
-    HPos.zw += p_DepthOffset * p_vProjectionConstants.xy;
+    float maxAmount = max( p_DepthOffset, -max( (HPos.z * p_vProjectionConstants.z) - 1e-6, 0.f ) );
+    HPos.zw += maxAmount * p_vProjectionConstants.xy;
     HPos.xy *= HPos.w/oldW;
 }
 

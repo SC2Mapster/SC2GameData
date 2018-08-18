@@ -39,6 +39,8 @@ const int gv_pLAYER_AI_Special_C = 3;
 const int gv_pLAYER_AI_Enemy_C = 6;
 const int gv_heroMaxLevel_C = 30;
 const int gv_gameMaxSpeed_C = 5;
+const int gv_targetDummyCount_C = 4;
+const fixed gv_targetDummyOutOfCombatTime_C = 3.0;
 
 //--------------------------------------------------------------------------------------------------
 // Global Structures
@@ -69,9 +71,11 @@ struct gs_TryMeModePanel {
     int lv_dummyPanel;
     int lv_dummyDamageLabel;
     int lv_dummyDPSLabel;
+    int lv_dummyDPSLastSecondLabel;
     int lv_healingDummyPanel;
     int lv_dummyHealingLabel;
     int lv_dummyHPSLabel;
+    int lv_dummyHPSLastSecondLabel;
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -106,15 +110,22 @@ fixed gv_healingDummyPreviousAmountHealed;
 unit gv_healingDummyUnit;
 timer gv_healingDummyHealingTimer;
 bool gv_healingDummyTimerStarted;
+fixed gv_healingDummyHealingLastSecond;
 timer gv_healingDummyResetTimer;
 bool gv_healingDummyResetTimerStarted;
-unit gv_targetDummyUnit;
-point gv_targetDummyLocation;
-timer gv_targetDummyDamageTimer;
-bool gv_targetDummyDamageTimerStarted;
-timer gv_targetDummyPeaceTimer;
-bool gv_targetDummyPeaceTimerStarted;
-fixed gv_targetDummyDamage;
+fixed[gv_targetDummyCount_C + 1][5] gv_targetDummyHealthSnapshots;
+fixed gv_targetDummyDamageLastSecond;
+fixed gv_targetDummyDamageTotal;
+unit[gv_targetDummyCount_C + 1] gv_targetDummyUnit;
+region[gv_targetDummyCount_C + 1] gv_targetDummyLeashRegion;
+point[gv_targetDummyCount_C + 1] gv_targetDummyLocation;
+point[gv_targetDummyCount_C + 1] gv_targetDummyStartLocation;
+timer gv_targetDummyAnyDummyInCombatTimer;
+timer gv_targetDummyResetTimer;
+bool gv_targetDummyRespawnAllowed;
+fixed[gv_targetDummyCount_C + 1] gv_targetDummyDamageTakenSinceLastUpdate;
+bool gv_targetDummyDoNotUpdateNumbers;
+timer gv_targetDummyHideUITimer;
 gs_TryMeModePanel gv_tryMeModePanel;
 string gv_bank_TryMeSection_C;
 string gv_bank_Key_MinionOn_C;
@@ -136,9 +147,10 @@ void InitGlobals () {
     gv_healingDummyUnit = UnitFromId(230);
     gv_healingDummyHealingTimer = TimerCreate();
     gv_healingDummyResetTimer = TimerCreate();
-    gv_targetDummyUnit = UnitFromId(46);
-    gv_targetDummyDamageTimer = TimerCreate();
-    gv_targetDummyPeaceTimer = TimerCreate();
+    gv_targetDummyAnyDummyInCombatTimer = TimerCreate();
+    gv_targetDummyResetTimer = TimerCreate();
+    gv_targetDummyRespawnAllowed = true;
+    gv_targetDummyHideUITimer = TimerCreate();
     gv_tryMeModePanel.lv_mainPanel = c_invalidDialogControlId;
     gv_tryMeModePanel.lv_toggleMinionsButton = c_invalidDialogControlId;
     gv_tryMeModePanel.lv_toggleMinionsCheck = c_invalidDialogControlId;
@@ -164,9 +176,11 @@ void InitGlobals () {
     gv_tryMeModePanel.lv_dummyPanel = c_invalidDialogControlId;
     gv_tryMeModePanel.lv_dummyDamageLabel = c_invalidDialogControlId;
     gv_tryMeModePanel.lv_dummyDPSLabel = c_invalidDialogControlId;
+    gv_tryMeModePanel.lv_dummyDPSLastSecondLabel = c_invalidDialogControlId;
     gv_tryMeModePanel.lv_healingDummyPanel = c_invalidDialogControlId;
     gv_tryMeModePanel.lv_dummyHealingLabel = c_invalidDialogControlId;
     gv_tryMeModePanel.lv_dummyHPSLabel = c_invalidDialogControlId;
+    gv_tryMeModePanel.lv_dummyHPSLastSecondLabel = c_invalidDialogControlId;
     gv_bank_TryMeSection_C = "TryMeMode";
     gv_bank_Key_MinionOn_C = "Minion";
     gv_bank_Key_AllyHero_C = "AllyHero";
@@ -204,6 +218,10 @@ void gf_TurnofftheAIBots (int lp_team);
 void gf_Createalltownstructures ();
 void gf_Removealltownstructures ();
 void gf_Killalltownstructures ();
+void gf_TargetDummyRespawn (int lp_targetDummyIndex);
+void gf_TargetDummyUpdateDamageUI ();
+void gf_TargetDummyLeashbacktoStartingPoint (int lp_dummyIndex);
+int gf_TargetDummyGetIndexfromUnit (unit lp_targetDummyUnit);
 void gf_TryMeModePanelUpdateCustomButtons ();
 void gf_TryMeModePanelShowHide2 (bool lp_showHide);
 void gf_TryMeModePanelShowHide3 (bool lp_showHide);
@@ -239,9 +257,12 @@ trigger gt_ListenForTownKill;
 trigger gt_CustomButton1Pressed;
 trigger gt_HealingDummyGetsHealed;
 trigger gt_TargetDummyInitialize;
+trigger gt_TargetDummyQuarterlyUpdate;
 trigger gt_TargetDummyTakesDamage;
+trigger gt_TargetDummyResetTimerExpired;
 trigger gt_TargetDummyDies;
 trigger gt_TargetDummyLeavesItsArea;
+trigger gt_TargetDummyHideUITimerExpired;
 trigger gt_TryMeModePanelInitialize;
 
 //--------------------------------------------------------------------------------------------------
@@ -445,6 +466,7 @@ void gf_SpawnEnemyHero () {
     gv_enemyHeroSpawned = true;
     Wait(0.5, c_timeGame);
     libAIAI_gf_HeroAIEnableAIForPlayer(gv_pLAYER_AI_Enemy_C);
+    libGame_gf_ReloadTrackedHeroesForTeam(libGame_gf_TeamNumberOfPlayer(gv_pLAYER_AI_Enemy_C));
 }
 
 void gf_DespawnEnemyHero () {
@@ -647,11 +669,11 @@ void gf_SetHeroLevel (int lp_level) {
 
     // Automatic Variable Declarations
     // Variable Initialization
+    lv_currentLevel = UnitXPGetCurrentLevel(libGame_gv_players[gv_pLAYER_TryMe_C].lv_heroUnit, null);
+    lv_realLevel = MaxI(1, MinI(30, lp_level));
     lv_defaultIndex = 1;
 
     // Implementation
-    lv_currentLevel = UnitXPGetCurrentLevel(libGame_gv_players[gv_pLAYER_TryMe_C].lv_heroUnit, null);
-    lv_realLevel = MaxI(1, MinI(30, lp_level));
     if ((lv_realLevel == lv_currentLevel)) {
         return ;
     }
@@ -668,7 +690,10 @@ void gf_SetHeroLevel (int lp_level) {
         libUIUI_gf_UIDebugPanelSpawnOrSwapHeroForPlayer(libCore_gf_GetIndexFromHero(PlayerHero(gv_pLAYER_AI_Ally_C)), lv_defaultIndex, gf_HeroDefaultMountIndex(PlayerHero(gv_pLAYER_AI_Ally_C)), lv_xP, gv_pLAYER_AI_Ally_C, gv_pLAYER_AI_Ally_C);
     }
 
-    libUIUI_gf_UIDebugPanelSpawnOrSwapHeroForPlayer(libCore_gf_GetIndexFromHero(PlayerHero(gv_pLAYER_AI_Enemy_C)), 0, gf_HeroDefaultMountIndex(PlayerHero(gv_pLAYER_AI_Enemy_C)), lv_xP, gv_pLAYER_AI_Enemy_C, gv_pLAYER_TryMe_C);
+    if ((gv_pLAYER_AI_EnemyHero != null)) {
+        libUIUI_gf_UIDebugPanelSpawnOrSwapHeroForPlayer(libCore_gf_GetIndexFromHero(PlayerHero(gv_pLAYER_AI_Enemy_C)), 0, gf_HeroDefaultMountIndex(PlayerHero(gv_pLAYER_AI_Enemy_C)), lv_xP, gv_pLAYER_AI_Enemy_C, gv_pLAYER_TryMe_C);
+    }
+
     ShowTalentPanel(libCore_gv_playerGroupFromPlayer[gv_pLAYER_TryMe_C], true, 1);
     Wait(0.0625, c_timeGame);
     UnitIssueOrder(libGame_gv_players[gv_pLAYER_TryMe_C].lv_heroUnit, Order(AbilityCommand("stop", 0)), c_orderQueueReplace);
@@ -983,7 +1008,7 @@ void gf_Createalltownstructures () {
         gv_keepInitialized = true;
     }
     else {
-        libNtve_gf_CreateUnitsAtPoint2(1, "TownTownHallL3", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamOrder, PointFromId(1798196082));
+        libNtve_gf_CreateUnitsAtPoint2(1, "TownTownHallL3", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamOrder, PointFromId(1798196082), null);
         libGame_gf_TownAddStructureToTownArray(1, UnitLastCreated(), libGame_gf_TownGetTownStructurePresetFromUnit(UnitLastCreated()), libCore_gv_cOMPUTER_TeamChaos);
         UnitGroupAdd(gv_allTownStructures, UnitLastCreated());
         gv_alliedFort = UnitLastCreated();
@@ -991,7 +1016,7 @@ void gf_Createalltownstructures () {
         libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "AnimClear Build 0.000000");
         libNtve_gf_ChangeUnitDamage(UnitLastCreated(), libNtve_ge_UnitDamageTakenDealt_Damage_Take, libNtve_ge_UnitDamageChangeOption_No);
     }
-    libNtve_gf_CreateUnitsAtPoint2(1, "TownMoonwellL2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamOrder, PointFromId(37));
+    libNtve_gf_CreateUnitsAtPoint2(1, "TownMoonwellL2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamOrder, PointFromId(37), null);
     libGame_gf_TownAddStructureToTownArray(1, UnitLastCreated(), libGame_gf_TownGetTownStructurePresetFromUnit(UnitLastCreated()), libCore_gv_cOMPUTER_TeamChaos);
     UnitGroupAdd(gv_allTownStructures, UnitLastCreated());
     libNtve_gf_ChangeUnitDamage(UnitLastCreated(), libNtve_ge_UnitDamageTakenDealt_Damage_Take, libNtve_ge_UnitDamageChangeOption_No);
@@ -1016,38 +1041,38 @@ void gf_Createalltownstructures () {
 
     }
     UIFlyerHelperClearOverride(PlayerGroupAll());
-    libNtve_gf_CreateUnitsAtPoint2(1, "TownCannonTowerL2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamOrder, PointFromId(31));
+    libNtve_gf_CreateUnitsAtPoint2(1, "TownCannonTowerL2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamOrder, PointFromId(31), null);
     libGame_gf_TownAddStructureToTownArray(1, UnitLastCreated(), libGame_gf_TownGetTownStructurePresetFromUnit(UnitLastCreated()), libCore_gv_cOMPUTER_TeamChaos);
     UnitGroupAdd(gv_allTownStructures, UnitLastCreated());
     libNtve_gf_ChangeUnitDamage(UnitLastCreated(), libNtve_ge_UnitDamageTakenDealt_Damage_Take, libNtve_ge_UnitDamageChangeOption_No);
     UnitSetPropertyFixed(UnitLastCreated(), c_unitPropEnergyRegen, 10.0);
-    libNtve_gf_CreateUnitsAtPoint2(1, "TownCannonTowerL2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamOrder, PointFromId(25));
+    libNtve_gf_CreateUnitsAtPoint2(1, "TownCannonTowerL2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamOrder, PointFromId(25), null);
     libGame_gf_TownAddStructureToTownArray(1, UnitLastCreated(), libGame_gf_TownGetTownStructurePresetFromUnit(UnitLastCreated()), libCore_gv_cOMPUTER_TeamChaos);
     UnitGroupAdd(gv_allTownStructures, UnitLastCreated());
     libNtve_gf_ChangeUnitDamage(UnitLastCreated(), libNtve_ge_UnitDamageTakenDealt_Damage_Take, libNtve_ge_UnitDamageChangeOption_No);
     UnitSetPropertyFixed(UnitLastCreated(), c_unitPropEnergyRegen, 10.0);
-    libNtve_gf_CreateUnitsAtPoint2(1, "TownGateL215BRUL", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamOrder, PointFromId(29));
+    libNtve_gf_CreateUnitsAtPoint2(1, "TownGateL215BRUL", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamOrder, PointFromId(29), null);
     libGame_gf_TownAddStructureToTownArray(1, UnitLastCreated(), libGame_gf_TownGetTownStructurePresetFromUnit(UnitLastCreated()), libCore_gv_cOMPUTER_TeamChaos);
     libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "Signal PlayBuild");
     libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "AnimClear Build 0.000000");
     UnitGroupAdd(gv_allTownStructures, UnitLastCreated());
     libNtve_gf_ChangeUnitDamage(UnitLastCreated(), libNtve_ge_UnitDamageTakenDealt_Damage_Take, libNtve_ge_UnitDamageChangeOption_No);
     UnitSetPropertyFixed(UnitLastCreated(), c_unitPropEnergyRegen, 10.0);
-    libNtve_gf_CreateUnitsAtPoint2(1, "TownWallRadial4L2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamOrder, PointFromId(27));
+    libNtve_gf_CreateUnitsAtPoint2(1, "TownWallRadial4L2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamOrder, PointFromId(27), null);
     libGame_gf_TownAddStructureToTownArray(1, UnitLastCreated(), libGame_gf_TownGetTownStructurePresetFromUnit(UnitLastCreated()), libCore_gv_cOMPUTER_TeamChaos);
     libNtve_gf_UnitSetVariation(UnitLastCreated(), "WallRadial4", 9, "");
     UnitGroupAdd(gv_allTownStructures, UnitLastCreated());
     libNtve_gf_ChangeUnitDamage(UnitLastCreated(), libNtve_ge_UnitDamageTakenDealt_Damage_Take, libNtve_ge_UnitDamageChangeOption_No);
-    libNtve_gf_CreateUnitsAtPoint2(1, "TownWallRadial5L2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamOrder, PointFromId(34));
+    libNtve_gf_CreateUnitsAtPoint2(1, "TownWallRadial5L2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamOrder, PointFromId(34), null);
     libGame_gf_TownAddStructureToTownArray(1, UnitLastCreated(), libGame_gf_TownGetTownStructurePresetFromUnit(UnitLastCreated()), libCore_gv_cOMPUTER_TeamChaos);
     libNtve_gf_UnitSetVariation(UnitLastCreated(), "WallRadial5", 7, "");
     UnitGroupAdd(gv_allTownStructures, UnitLastCreated());
     libNtve_gf_ChangeUnitDamage(UnitLastCreated(), libNtve_ge_UnitDamageTakenDealt_Damage_Take, libNtve_ge_UnitDamageChangeOption_No);
-    libNtve_gf_CreateUnitsAtPoint2(1, "TownTownHallL2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamChaos, PointFromId(40));
+    libNtve_gf_CreateUnitsAtPoint2(1, "TownTownHallL2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamChaos, PointFromId(40), null);
     libGame_gf_TownAddStructureToTownArray(2, UnitLastCreated(), libGame_gf_TownGetTownStructurePresetFromUnit(UnitLastCreated()), libGame_gv_teamOrderIndex_C);
     UnitGroupAdd(gv_allTownStructures, UnitLastCreated());
     gv_enemyFort = UnitLastCreated();
-    libNtve_gf_CreateUnitsAtPoint2(1, "TownMoonwellL2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamChaos, PointFromId(38));
+    libNtve_gf_CreateUnitsAtPoint2(1, "TownMoonwellL2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamChaos, PointFromId(38), null);
     libGame_gf_TownAddStructureToTownArray(2, UnitLastCreated(), libGame_gf_TownGetTownStructurePresetFromUnit(UnitLastCreated()), libGame_gv_teamOrderIndex_C);
     UnitGroupAdd(gv_allTownStructures, UnitLastCreated());
     lv_itPlayer = 1;
@@ -1069,22 +1094,22 @@ void gf_Createalltownstructures () {
 
     }
     libGame_gf_TownAddMoonwellMinimapIconstoTown(2);
-    libNtve_gf_CreateUnitsAtPoint2(1, "TownCannonTowerL2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamChaos, PointFromId(33));
+    libNtve_gf_CreateUnitsAtPoint2(1, "TownCannonTowerL2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamChaos, PointFromId(33), null);
     libGame_gf_TownAddStructureToTownArray(2, UnitLastCreated(), libGame_gf_TownGetTownStructurePresetFromUnit(UnitLastCreated()), libGame_gv_teamOrderIndex_C);
     UnitGroupAdd(gv_allTownStructures, UnitLastCreated());
-    libNtve_gf_CreateUnitsAtPoint2(1, "TownCannonTowerL2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamChaos, PointFromId(26));
+    libNtve_gf_CreateUnitsAtPoint2(1, "TownCannonTowerL2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamChaos, PointFromId(26), null);
     libGame_gf_TownAddStructureToTownArray(2, UnitLastCreated(), libGame_gf_TownGetTownStructurePresetFromUnit(UnitLastCreated()), libGame_gv_teamOrderIndex_C);
     UnitGroupAdd(gv_allTownStructures, UnitLastCreated());
-    libNtve_gf_CreateUnitsAtPoint2(1, "TownGateL215BLUR", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamChaos, PointFromId(30));
+    libNtve_gf_CreateUnitsAtPoint2(1, "TownGateL215BLUR", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamChaos, PointFromId(30), null);
     libGame_gf_TownAddStructureToTownArray(2, UnitLastCreated(), libGame_gf_TownGetTownStructurePresetFromUnit(UnitLastCreated()), libGame_gv_teamOrderIndex_C);
     libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "Signal PlayBuild");
     libNtve_gf_SendActorMessageToUnit(UnitLastCreated(), "AnimClear Build 0.000000");
     UnitGroupAdd(gv_allTownStructures, UnitLastCreated());
-    libNtve_gf_CreateUnitsAtPoint2(1, "TownWallRadial19L2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamChaos, PointFromId(28));
+    libNtve_gf_CreateUnitsAtPoint2(1, "TownWallRadial19L2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamChaos, PointFromId(28), null);
     libGame_gf_TownAddStructureToTownArray(2, UnitLastCreated(), libGame_gf_TownGetTownStructurePresetFromUnit(UnitLastCreated()), libGame_gv_teamOrderIndex_C);
     libNtve_gf_UnitSetVariation(UnitLastCreated(), "WallRadial1", 7, "");
     UnitGroupAdd(gv_allTownStructures, UnitLastCreated());
-    libNtve_gf_CreateUnitsAtPoint2(1, "TownWallRadial18L2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamChaos, PointFromId(36));
+    libNtve_gf_CreateUnitsAtPoint2(1, "TownWallRadial18L2", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_TeamChaos, PointFromId(36), null);
     libGame_gf_TownAddStructureToTownArray(2, UnitLastCreated(), libGame_gf_TownGetTownStructurePresetFromUnit(UnitLastCreated()), libGame_gv_teamOrderIndex_C);
     libNtve_gf_UnitSetVariation(UnitLastCreated(), "WallRadial0", 10, "");
     UnitGroupAdd(gv_allTownStructures, UnitLastCreated());
@@ -1197,6 +1222,114 @@ void gf_Killalltownstructures () {
         if (lv_itU == null) { break; }
         UnitKill(lv_itU);
     }
+}
+
+trigger auto_gf_TargetDummyRespawn_Trigger = null;
+int auto_gf_TargetDummyRespawn_lp_targetDummyIndex;
+
+void gf_TargetDummyRespawn (int lp_targetDummyIndex) {
+    auto_gf_TargetDummyRespawn_lp_targetDummyIndex = lp_targetDummyIndex;
+
+    if (auto_gf_TargetDummyRespawn_Trigger == null) {
+        auto_gf_TargetDummyRespawn_Trigger = TriggerCreate("auto_gf_TargetDummyRespawn_TriggerFunc");
+    }
+
+    TriggerExecute(auto_gf_TargetDummyRespawn_Trigger, false, false);
+}
+
+bool auto_gf_TargetDummyRespawn_TriggerFunc (bool testConds, bool runActions) {
+    int lp_targetDummyIndex = auto_gf_TargetDummyRespawn_lp_targetDummyIndex;
+
+    // Variable Declarations
+    actor lv_eggactor;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    libNtve_gf_CreateModelAtPoint("MurkyRespawnEgg", gv_targetDummyLocation[lp_targetDummyIndex]);
+    lv_eggactor = libNtve_gf_ActorLastCreated();
+    ActorSend(lv_eggactor, "ModelSwap MurkyRespawnEggEaster");
+    ActorSend(lv_eggactor, "AnimBracketStart BSD Birth Stand Death");
+    while (!((gv_targetDummyRespawnAllowed == true))) {
+        Wait(0.0625, c_timeGame);
+    }
+    ActorSend(lv_eggactor, "AnimBracketStart Spell IGNORE Spell,A Spell,A,End 0 -1.000000 AsDuration");
+    ActorSend(lv_eggactor, "Create Murky_EggRespawn_Start");
+    Wait(4.8125, c_timeGame);
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, "TargetHeroDummy", 0, libGame_gf_ComputerPlayerInTeam(libGame_gv_teamChaosIndex_C), gv_targetDummyLocation[lp_targetDummyIndex], null);
+    gv_targetDummyUnit[lp_targetDummyIndex] = UnitLastCreated();
+    TriggerAddEventUnitDamaged(gt_TargetDummyTakesDamage, UnitRefFromUnit(UnitLastCreated()), c_unitDamageTypeAny, c_unitDamageEither, null);
+    ActorSend(libNtve_gf_MainActorofUnit(gv_targetDummyUnit[lp_targetDummyIndex]), "SetScale 0.300000");
+    ActorSend(libNtve_gf_MainActorofUnit(gv_targetDummyUnit[lp_targetDummyIndex]), "SetScale 1.000000 0.018750");
+    Wait(0.1875, c_timeGame);
+    libNtve_gf_KillModel(lv_eggactor);
+    return true;
+}
+
+trigger auto_gf_TargetDummyUpdateDamageUI_Trigger = null;
+
+void gf_TargetDummyUpdateDamageUI () {
+    if (auto_gf_TargetDummyUpdateDamageUI_Trigger == null) {
+        auto_gf_TargetDummyUpdateDamageUI_Trigger = TriggerCreate("auto_gf_TargetDummyUpdateDamageUI_TriggerFunc");
+    }
+
+    TriggerExecute(auto_gf_TargetDummyUpdateDamageUI_Trigger, false, false);
+}
+
+bool auto_gf_TargetDummyUpdateDamageUI_TriggerFunc (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itDummy;
+    fixed lv_dPSTotal;
+    fixed lv_damageTotal;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    if ((gv_targetDummyDoNotUpdateNumbers == true)) {
+        return true;
+    }
+
+    if ((TimerGetElapsed(gv_targetDummyAnyDummyInCombatTimer) < 1.0)) {
+        libNtve_gf_SetDialogItemText(gv_tryMeModePanel.lv_dummyDPSLabel, StringExternal("Param/Value/2A10360B"), PlayerGroupAll());
+    }
+    else {
+        lv_dPSTotal = (gv_targetDummyDamageTotal / TimerGetElapsed(gv_targetDummyAnyDummyInCombatTimer));
+        libNtve_gf_SetDialogItemText(gv_tryMeModePanel.lv_dummyDPSLabel, FixedToTextAdvanced(lv_dPSTotal, c_formatNumberStyleNormal, true, 1, 1), PlayerGroupAll());
+    }
+    libNtve_gf_SetDialogItemText(gv_tryMeModePanel.lv_dummyDamageLabel, FixedToTextAdvanced(gv_targetDummyDamageTotal, c_formatNumberStyleNormal, true, 1, 1), PlayerGroupAll());
+    libNtve_gf_SetDialogItemText(gv_tryMeModePanel.lv_dummyDPSLastSecondLabel, FormatNumber(FixedToInt(gv_targetDummyDamageLastSecond)), PlayerGroupAll());
+    gf_TryMeModePanelShowHide2(true);
+    return true;
+}
+
+void gf_TargetDummyLeashbacktoStartingPoint (int lp_dummyIndex) {
+    // Automatic Variable Declarations
+    // Implementation
+    FloatingCombatElementCreateTextAtUnit(PlayerGroupAll(), "FloatingCombatElements/FloatingCombatAmountReadable", "", gv_targetDummyUnit[lp_dummyIndex], StringExternal("Param/Value/F83A9144"), libNtve_gv_FloatingCombatTextAutoRandomSeed);
+    UnitSetPosition(gv_targetDummyUnit[lp_dummyIndex], gv_targetDummyStartLocation[lp_dummyIndex], false);
+}
+
+int gf_TargetDummyGetIndexfromUnit (unit lp_targetDummyUnit) {
+    // Variable Declarations
+    int lv_index;
+
+    // Automatic Variable Declarations
+    const int auto71EB8F08_ae = gv_targetDummyCount_C;
+    const int auto71EB8F08_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_index = 1;
+    for ( ; ( (auto71EB8F08_ai >= 0 && lv_index <= auto71EB8F08_ae) || (auto71EB8F08_ai < 0 && lv_index >= auto71EB8F08_ae) ) ; lv_index += auto71EB8F08_ai ) {
+        if ((lp_targetDummyUnit == gv_targetDummyUnit[lv_index])) {
+            return lv_index;
+        }
+
+    }
+    return 0;
 }
 
 void gf_TryMeModePanelUpdateCustomButtons () {
@@ -2247,12 +2380,12 @@ bool gt_HealingDummyGetsHealed_Func (bool testConds, bool runActions) {
 
         TimerStart(gv_healingDummyResetTimer, c_timerDurationInfinite, false, c_timeGame);
         gv_healingDummyResetTimerStarted = true;
-        libNtve_gf_SetDialogItemText(gv_tryMeModePanel.lv_dummyHealingLabel, FormatNumber(FixedToInt(lv_currentAmountHealed)), PlayerGroupAll());
+        libNtve_gf_SetDialogItemText(gv_tryMeModePanel.lv_dummyHealingLabel, FixedToTextAdvanced(lv_currentAmountHealed, c_formatNumberStyleNormal, true, 1, 1), PlayerGroupAll());
         if ((TimerGetElapsed(gv_healingDummyHealingTimer) == 0)) {
-            libNtve_gf_SetDialogItemText(gv_tryMeModePanel.lv_dummyHPSLabel, FormatNumber(FixedToInt(lv_currentAmountHealed)), PlayerGroupAll());
+            libNtve_gf_SetDialogItemText(gv_tryMeModePanel.lv_dummyHPSLabel, FixedToTextAdvanced(lv_currentAmountHealed, c_formatNumberStyleNormal, true, 1, 1), PlayerGroupAll());
         }
         else {
-            libNtve_gf_SetDialogItemText(gv_tryMeModePanel.lv_dummyHPSLabel, FormatNumber(FixedToInt((lv_currentAmountHealed / TimerGetElapsed(gv_healingDummyHealingTimer)))), PlayerGroupAll());
+            libNtve_gf_SetDialogItemText(gv_tryMeModePanel.lv_dummyHPSLabel, FixedToTextAdvanced((lv_currentAmountHealed / TimerGetElapsed(gv_healingDummyHealingTimer)), c_formatNumberStyleNormal, true, 1, 1), PlayerGroupAll());
         }
         gf_TryMeModePanelShowHide3(true);
         if ((UnitGetPropertyFixed(gv_healingDummyUnit, c_unitPropLife, c_unitPropCurrent) >= 1000.0)) {
@@ -2309,13 +2442,42 @@ void gt_HealingDummyGetsHealed_Init () {
 // Trigger: Target Dummy Initialize
 //--------------------------------------------------------------------------------------------------
 bool gt_TargetDummyInitialize_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_i;
+
     // Automatic Variable Declarations
+    const int autoE6A36205_ae = gv_targetDummyCount_C;
+    const int autoE6A36205_ai = 1;
+
+    // Variable Initialization
+
     // Actions
     if (!runActions) {
         return true;
     }
 
-    gv_targetDummyLocation = UnitGetPosition(UnitFromId(46));
+    gv_targetDummyUnit[0] = UnitFromId(230);
+    gv_targetDummyLocation[0] = UnitGetPosition(gv_targetDummyUnit[0]);
+    gv_targetDummyUnit[1] = UnitFromId(46);
+    gv_targetDummyLocation[1] = UnitGetPosition(gv_targetDummyUnit[1]);
+    gv_targetDummyLeashRegion[1] = RegionFromId(9);
+    gv_targetDummyStartLocation[1] = PointFromId(231);
+    gv_targetDummyUnit[2] = UnitFromId(526608876);
+    gv_targetDummyLocation[2] = UnitGetPosition(gv_targetDummyUnit[2]);
+    gv_targetDummyLeashRegion[2] = RegionFromId(11);
+    gv_targetDummyStartLocation[2] = PointFromId(1869716737);
+    gv_targetDummyUnit[3] = UnitFromId(1692120566);
+    gv_targetDummyLocation[3] = UnitGetPosition(gv_targetDummyUnit[3]);
+    gv_targetDummyLeashRegion[3] = RegionFromId(12);
+    gv_targetDummyStartLocation[3] = PointFromId(1922040780);
+    gv_targetDummyUnit[4] = UnitFromId(137713899);
+    gv_targetDummyLocation[4] = UnitGetPosition(gv_targetDummyUnit[4]);
+    gv_targetDummyLeashRegion[4] = RegionFromId(13);
+    gv_targetDummyStartLocation[4] = PointFromId(424841215);
+    lv_i = 1;
+    for ( ; ( (autoE6A36205_ai >= 0 && lv_i <= autoE6A36205_ae) || (autoE6A36205_ai < 0 && lv_i >= autoE6A36205_ae) ) ; lv_i += autoE6A36205_ai ) {
+        TriggerAddEventUnitDamaged(gt_TargetDummyTakesDamage, UnitRefFromUnit(gv_targetDummyUnit[lv_i]), c_unitDamageTypeAny, c_unitDamageEither, null);
+    }
     return true;
 }
 
@@ -2325,15 +2487,19 @@ void gt_TargetDummyInitialize_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: Target Dummy Takes Damage
+// Trigger: Target Dummy Quarterly Update
 //--------------------------------------------------------------------------------------------------
-bool gt_TargetDummyTakesDamage_Func (bool testConds, bool runActions) {
+bool gt_TargetDummyQuarterlyUpdate_Func (bool testConds, bool runActions) {
     // Variable Declarations
-    fixed lv_damage;
+    fixed lv_damageTaken;
+    fixed lv_lv_DamageLastSecond;
+    fixed lv_lv_HealingLastSecond;
+    int lv_i;
+    int lv_targetDummiesnotinCombat;
 
     // Automatic Variable Declarations
-    const int auto75015BBD_n = 40;
-    int auto75015BBD_i;
+    const int auto68DB66F4_ae = gv_targetDummyCount_C;
+    const int auto68DB66F4_ai = 1;
 
     // Variable Initialization
 
@@ -2342,60 +2508,120 @@ bool gt_TargetDummyTakesDamage_Func (bool testConds, bool runActions) {
         return true;
     }
 
-    lv_damage = (UnitGetPropertyFixed(gv_targetDummyUnit, c_unitPropLifeMax, c_unitPropCurrent) - UnitGetPropertyFixed(gv_targetDummyUnit, c_unitPropLife, c_unitPropCurrent));
-    if ((lv_damage > gv_targetDummyDamage)) {
-        gv_targetDummyDamage = lv_damage;
-        if ((gv_targetDummyDamageTimerStarted == false)) {
-            TimerStart(gv_targetDummyDamageTimer, c_timerDurationInfinite, false, c_timeGame);
-            gv_targetDummyDamageTimerStarted = true;
+    lv_i = 0;
+    for ( ; ( (auto68DB66F4_ai >= 0 && lv_i <= auto68DB66F4_ae) || (auto68DB66F4_ai < 0 && lv_i >= auto68DB66F4_ae) ) ; lv_i += auto68DB66F4_ai ) {
+        gv_targetDummyHealthSnapshots[lv_i][4] = gv_targetDummyHealthSnapshots[lv_i][3];
+        gv_targetDummyHealthSnapshots[lv_i][3] = gv_targetDummyHealthSnapshots[lv_i][2];
+        gv_targetDummyHealthSnapshots[lv_i][2] = gv_targetDummyHealthSnapshots[lv_i][1];
+        gv_targetDummyHealthSnapshots[lv_i][1] = gv_targetDummyHealthSnapshots[lv_i][0];
+        gv_targetDummyHealthSnapshots[lv_i][0] = UnitGetPropertyFixed(gv_targetDummyUnit[lv_i], c_unitPropLife, c_unitPropCurrent);
+
+        if (((gv_targetDummyHealthSnapshots[lv_i][4] - gv_targetDummyHealthSnapshots[lv_i][0]) > 0.0)) {
+            lv_lv_DamageLastSecond += (gv_targetDummyHealthSnapshots[lv_i][4] - gv_targetDummyHealthSnapshots[lv_i][0]);
         }
 
-        TimerStart(gv_targetDummyPeaceTimer, c_timerDurationInfinite, false, c_timeGame);
-        gv_targetDummyPeaceTimerStarted = true;
-        libNtve_gf_SetDialogItemText(gv_tryMeModePanel.lv_dummyDamageLabel, FormatNumber(FixedToInt(lv_damage)), PlayerGroupAll());
-        if ((TimerGetElapsed(gv_targetDummyDamageTimer) == 0)) {
-            libNtve_gf_SetDialogItemText(gv_tryMeModePanel.lv_dummyDPSLabel, FormatNumber(FixedToInt(lv_damage)), PlayerGroupAll());
+        if ((UnitGetType(gv_targetDummyUnit[lv_i]) == "HealingHeroDummy") && ((gv_targetDummyHealthSnapshots[lv_i][4] - gv_targetDummyHealthSnapshots[lv_i][0]) < 0.0)) {
+            lv_lv_HealingLastSecond += (-1.0 * (gv_targetDummyHealthSnapshots[lv_i][4] - gv_targetDummyHealthSnapshots[lv_i][0]));
         }
-        else {
-            libNtve_gf_SetDialogItemText(gv_tryMeModePanel.lv_dummyDPSLabel, FormatNumber(FixedToInt((lv_damage / TimerGetElapsed(gv_targetDummyDamageTimer)))), PlayerGroupAll());
+
+        if ((UnitIsValid(gv_targetDummyUnit[lv_i]) == true)) {
+            if ((gv_targetDummyHealthSnapshots[lv_i][0] < gv_targetDummyHealthSnapshots[lv_i][1])) {
+                if ((TimerGetElapsed(gv_targetDummyAnyDummyInCombatTimer) == 0.0)) {
+                    TimerStart(gv_targetDummyAnyDummyInCombatTimer, c_timerDurationInfinite, false, c_timeGame);
+                }
+
+                TimerRestart(gv_targetDummyResetTimer);
+                libNtve_gf_StopTimer(gv_targetDummyHideUITimer);
+                gv_targetDummyRespawnAllowed = false;
+                gf_TargetDummyUpdateDamageUI();
+            }
+            else {
+                lv_targetDummiesnotinCombat += 1;
+            }
         }
-        gf_TryMeModePanelShowHide2(true);
+
+    }
+    gv_targetDummyDamageLastSecond = lv_lv_DamageLastSecond;
+    gv_healingDummyHealingLastSecond = lv_lv_HealingLastSecond;
+    if ((lv_targetDummiesnotinCombat == gv_targetDummyCount_C) && (TimerGetElapsed(gv_targetDummyAnyDummyInCombatTimer) == 0.0)) {
+        TimerStart(gv_targetDummyResetTimer, gv_targetDummyOutOfCombatTime_C, false, c_timeGame);
+
     }
     else {
-        if ((gv_targetDummyPeaceTimerStarted == true)) {
-            if ((TimerGetElapsed(gv_targetDummyPeaceTimer) >= 3.0)) {
-                libNtve_gf_StopTimer(gv_targetDummyPeaceTimer);
-                gv_targetDummyPeaceTimerStarted = false;
-                UnitSetPropertyFixed(gv_targetDummyUnit, c_unitPropLifePercent, 100.0);
-                FloatingCombatElementCreateTextAtUnit(PlayerGroupAll(), "FloatingCombatElements/FloatingCombatAmountReadable", "", gv_targetDummyUnit, StringExternal("Param/Value/0589E255"), libNtve_gv_FloatingCombatTextAutoRandomSeed);
-                gv_targetDummyDamage = 0.0;
-                if ((gv_targetDummyDamageTimerStarted == true)) {
-                    TimerPause(gv_targetDummyDamageTimer, true);
-                    gv_targetDummyDamageTimerStarted = false;
-                }
-
-                for (auto75015BBD_i = 1; auto75015BBD_i <= auto75015BBD_n; auto75015BBD_i += 1) {
-                    if ((gv_targetDummyDamageTimerStarted == true)) {
-                        return true;
-                    }
-
-                    Wait(0.125, c_timeGame);
-                }
-                gf_TryMeModePanelShowHide2(false);
-                FloatingCombatElementCreateTextAtUnit(PlayerGroupAll(), "FloatingCombatElements/FloatingCombatAmountReadable", "", gv_targetDummyUnit, StringExternal("Param/Value/45FA81F7"), libNtve_gv_FloatingCombatTextAutoRandomSeed);
-                UnitSetPosition(gv_targetDummyUnit, PointFromId(231), false);
-            }
-
-        }
-
+        gv_targetDummyDoNotUpdateNumbers = false;
     }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TargetDummyQuarterlyUpdate_Init () {
+    gt_TargetDummyQuarterlyUpdate = TriggerCreate("gt_TargetDummyQuarterlyUpdate_Func");
+    TriggerAddEventTimePeriodic(gt_TargetDummyQuarterlyUpdate, 0.25, c_timeGame);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Target Dummy Takes Damage
+//--------------------------------------------------------------------------------------------------
+bool gt_TargetDummyTakesDamage_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    gv_targetDummyDamageTotal += EventUnitDamageAmount();
+    gf_TargetDummyUpdateDamageUI();
     return true;
 }
 
 //--------------------------------------------------------------------------------------------------
 void gt_TargetDummyTakesDamage_Init () {
     gt_TargetDummyTakesDamage = TriggerCreate("gt_TargetDummyTakesDamage_Func");
-    TriggerAddEventTimePeriodic(gt_TargetDummyTakesDamage, 0.25, c_timeGame);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Target Dummy Reset Timer Expired
+//--------------------------------------------------------------------------------------------------
+bool gt_TargetDummyResetTimerExpired_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itDummy;
+
+    // Automatic Variable Declarations
+    const int autoCA115165_ae = gv_targetDummyCount_C;
+    const int autoCA115165_ai = 1;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    gv_targetDummyDoNotUpdateNumbers = true;
+    TimerRestart(gv_targetDummyAnyDummyInCombatTimer);
+    TimerPause(gv_targetDummyAnyDummyInCombatTimer, true);
+    TimerRestart(gv_targetDummyResetTimer);
+    TimerPause(gv_targetDummyResetTimer, true);
+    gv_targetDummyDamageTotal = 0.0;
+    gv_targetDummyRespawnAllowed = true;
+    lv_itDummy = 1;
+    for ( ; ( (autoCA115165_ai >= 0 && lv_itDummy <= autoCA115165_ae) || (autoCA115165_ai < 0 && lv_itDummy >= autoCA115165_ae) ) ; lv_itDummy += autoCA115165_ai ) {
+        if ((UnitIsValid(gv_targetDummyUnit[lv_itDummy]) == true)) {
+            UnitSetPropertyFixed(gv_targetDummyUnit[lv_itDummy], c_unitPropLifePercent, 100.0);
+            FloatingCombatElementCreateTextAtUnit(PlayerGroupAll(), "FloatingCombatElements/FloatingCombatAmountReadable", "", gv_targetDummyUnit[lv_itDummy], StringExternal("Param/Value/E6197E2C"), libNtve_gv_FloatingCombatTextAutoRandomSeed);
+            gv_targetDummyDamageTakenSinceLastUpdate[lv_itDummy] = 0.0;
+            gf_TargetDummyLeashbacktoStartingPoint(lv_itDummy);
+        }
+
+    }
+    TimerStart(gv_targetDummyHideUITimer, 2.0, false, c_timeGame);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TargetDummyResetTimerExpired_Init () {
+    gt_TargetDummyResetTimerExpired = TriggerCreate("gt_TargetDummyResetTimerExpired_Func");
+    TriggerAddEventTimer(gt_TargetDummyResetTimerExpired, gv_targetDummyResetTimer);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -2403,51 +2629,14 @@ void gt_TargetDummyTakesDamage_Init () {
 //--------------------------------------------------------------------------------------------------
 bool gt_TargetDummyDies_Func (bool testConds, bool runActions) {
     // Variable Declarations
-    actor lv_eggactor;
+    int lv_index;
 
     // Automatic Variable Declarations
     // Variable Initialization
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    TriggerEnable(TriggerGetCurrent(), false);
-    libNtve_gf_CreateModelAtPoint("MurkyRespawnEgg", gv_targetDummyLocation);
-    lv_eggactor = libNtve_gf_ActorLastCreated();
-    ActorSend(lv_eggactor, "AnimBracketStart Spell IGNORE Spell,A Spell,A,End 0 -1.000000 AsDuration");
-    ActorSend(lv_eggactor, "Create Murky_EggRespawn_Start");
-    ActorSend(lv_eggactor, "ModelSwap MurkyRespawnEggEaster");
-    Wait(5.0, c_timeGame);
-    libNtve_gf_KillModel(lv_eggactor);
-    libNtve_gf_CreateUnitsWithDefaultFacing(1, "TargetHeroDummy", 0, libGame_gf_ComputerPlayerInTeam(libGame_gv_teamChaosIndex_C), gv_targetDummyLocation);
-    gv_targetDummyUnit = UnitLastCreated();
-    gf_TryMeModePanelShowHide2(false);
-    TriggerEnable(TriggerGetCurrent(), true);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void gt_TargetDummyDies_Init () {
-    gt_TargetDummyDies = TriggerCreate("gt_TargetDummyDies_Func");
-    TriggerAddEventUnitDied(gt_TargetDummyDies, UnitRefFromVariable("gv_targetDummyUnit"));
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: Target Dummy Leaves Its Area
-//--------------------------------------------------------------------------------------------------
-bool gt_TargetDummyLeavesItsArea_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    unit lv_dummy;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-    lv_dummy = UnitFromId(46);
 
     // Conditions
     if (testConds) {
-        if (!((libNtve_gf_UnitInRegion(lv_dummy, RegionFromId(9)) == false))) {
+        if (!((UnitGetType(EventUnit()) == "TargetHeroDummy"))) {
             return false;
         }
     }
@@ -2457,17 +2646,73 @@ bool gt_TargetDummyLeavesItsArea_Func (bool testConds, bool runActions) {
         return true;
     }
 
-    FloatingCombatElementCreateTextAtUnit(PlayerGroupAll(), "FloatingCombatElements/FloatingCombatAmountReadable", "", lv_dummy, StringExternal("Param/Value/F83A9144"), libNtve_gv_FloatingCombatTextAutoRandomSeed);
-    UnitSetPosition(lv_dummy, PointFromId(231), false);
+    lv_index = gf_TargetDummyGetIndexfromUnit(EventUnit());
+    gf_TargetDummyRespawn(lv_index);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TargetDummyDies_Init () {
+    gt_TargetDummyDies = TriggerCreate("gt_TargetDummyDies_Func");
+    TriggerAddEventUnitDied(gt_TargetDummyDies, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Target Dummy Leaves Its Area
+//--------------------------------------------------------------------------------------------------
+bool gt_TargetDummyLeavesItsArea_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_dummyIndex;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(EventUnit()) == "TargetHeroDummy"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_dummyIndex = gf_TargetDummyGetIndexfromUnit(EventUnit());
+    if ((libNtve_gf_UnitInRegion(gv_targetDummyUnit[lv_dummyIndex], gv_targetDummyLeashRegion[lv_dummyIndex]) == false)) {
+        gf_TargetDummyLeashbacktoStartingPoint(lv_dummyIndex);
+    }
+
     return true;
 }
 
 //--------------------------------------------------------------------------------------------------
 void gt_TargetDummyLeavesItsArea_Init () {
     gt_TargetDummyLeavesItsArea = TriggerCreate("gt_TargetDummyLeavesItsArea_Func");
-    TriggerAddEventUnitBehaviorChangeFromCategory(gt_TargetDummyLeavesItsArea, UnitRefFromUnit(UnitFromId(46)), c_behaviorCategoryStun, c_unitBehaviorChangeDeactivate);
-    TriggerAddEventUnitBehaviorChangeFromCategory(gt_TargetDummyLeavesItsArea, UnitRefFromUnit(UnitFromId(46)), c_behaviorCategoryPushOrPull, c_unitBehaviorChangeDeactivate);
-    TriggerAddEventUnitBehaviorChange(gt_TargetDummyLeavesItsArea, UnitRefFromUnit(UnitFromId(46)), "StitchesGorgePostGorgeTargetEjection", c_unitBehaviorChangeDeactivate);
+    TriggerAddEventUnitBehaviorChangeFromCategory(gt_TargetDummyLeavesItsArea, null, c_behaviorCategoryStun, c_unitBehaviorChangeDeactivate);
+    TriggerAddEventUnitBehaviorChangeFromCategory(gt_TargetDummyLeavesItsArea, null, c_behaviorCategoryPushOrPull, c_unitBehaviorChangeDeactivate);
+    TriggerAddEventUnitBehaviorChange(gt_TargetDummyLeavesItsArea, null, "StitchesGorgePostGorgeTargetEjection", c_unitBehaviorChangeDeactivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Target Dummy Hide UI Timer Expired
+//--------------------------------------------------------------------------------------------------
+bool gt_TargetDummyHideUITimerExpired_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    gf_TryMeModePanelShowHide2(false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_TargetDummyHideUITimerExpired_Init () {
+    gt_TargetDummyHideUITimerExpired = TriggerCreate("gt_TargetDummyHideUITimerExpired_Func");
+    TriggerAddEventTimer(gt_TargetDummyHideUITimerExpired, gv_targetDummyHideUITimer);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -2593,6 +2838,10 @@ bool gt_TryMeModePanelInitialize_Func (bool testConds, bool runActions) {
     libNtve_gf_SetDialogItemText(DialogControlLastCreated(), StringExternal("Param/Value/8053B137"), PlayerGroupAll());
     DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeLabel, "DPSLabel");
     gv_tryMeModePanel.lv_dummyDPSLabel = DialogControlLastCreated();
+    DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeLabel, "DPSTitleLastSecond");
+    libNtve_gf_SetDialogItemText(DialogControlLastCreated(), StringExternal("Param/Value/A547A261"), PlayerGroupAll());
+    DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeLabel, "DPSLabelLastSecond");
+    gv_tryMeModePanel.lv_dummyDPSLastSecondLabel = DialogControlLastCreated();
     lv_currentPanelLayer -= 1;
     DialogControlHookupStandard(c_triggerControlTypePanel, "UIContainer/ConsoleUIContainer/TryMeModeUIContainer/HealingDummyPanel");
     DialogControlSetVisible(DialogControlLastCreated(), PlayerGroupAll(), false);
@@ -2609,6 +2858,12 @@ bool gt_TryMeModePanelInitialize_Func (bool testConds, bool runActions) {
     libNtve_gf_SetDialogItemText(DialogControlLastCreated(), StringExternal("Param/Value/EA8300F6"), PlayerGroupAll());
     DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeLabel, "DPSLabel");
     gv_tryMeModePanel.lv_dummyHPSLabel = DialogControlLastCreated();
+    DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeLabel, "DPSTitleLastSecond");
+    libNtve_gf_SetDialogItemText(DialogControlLastCreated(), StringExternal("Param/Value/FBA73385"), PlayerGroupAll());
+    DialogControlSetVisible(DialogControlLastCreated(), PlayerGroupAll(), false);
+    DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeLabel, "DPSLabelLastSecond");
+    gv_tryMeModePanel.lv_dummyHPSLastSecondLabel = DialogControlLastCreated();
+    DialogControlSetVisible(DialogControlLastCreated(), PlayerGroupAll(), false);
     return true;
 }
 
@@ -2648,9 +2903,12 @@ void InitTriggers () {
     gt_CustomButton1Pressed_Init();
     gt_HealingDummyGetsHealed_Init();
     gt_TargetDummyInitialize_Init();
+    gt_TargetDummyQuarterlyUpdate_Init();
     gt_TargetDummyTakesDamage_Init();
+    gt_TargetDummyResetTimerExpired_Init();
     gt_TargetDummyDies_Init();
     gt_TargetDummyLeavesItsArea_Init();
+    gt_TargetDummyHideUITimerExpired_Init();
     gt_TryMeModePanelInitialize_Init();
 }
 

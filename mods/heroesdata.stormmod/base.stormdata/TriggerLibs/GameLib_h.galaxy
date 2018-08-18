@@ -711,6 +711,7 @@ struct libGame_gs_PlayerBankData {
 };
 
 struct libGame_gs_Player {
+    int lv_talent_HeroicTalentTier;
     libCore_gs_TalentTier[libCore_gv_talents_MaxTiers_C + 1] lv_talents_TierLevels;
     bool lv_heroRequiresCustomRespawn;
     int lv_playerStatus;
@@ -773,6 +774,7 @@ struct libGame_gs_Player {
     timer lv_deathToastTimer;
     int lv_lastKillingPlayer;
     fixed[libCore_gv_bALMaxPlayers + 1] lv_lastTimeHeroWasWithinXPRadius;
+    fixed[libCore_gv_bALMaxPlayers + 1] lv_lastTimeHeroDealtDamage;
     timer lv_recentDamageResetTimer;
     fixed[libCore_gv_bALMaxPlayers + 1] lv_recentPlayerDamageReceived;
     int lv_multikillStreak;
@@ -794,6 +796,7 @@ struct libGame_gs_Player {
     bool lv_remountHeroAfterTeleport;
     point lv_CameraCenterPoint;
     bool lv_suppressHeroAnnouncements;
+    bool lv_suppressKillLogwhenKilled;
     bool lv_heroUsesAnnouncementAlias;
     text lv_heroAnnouncementAliasText;
     string lv_heroAnnouncementAliasIcon;
@@ -837,6 +840,7 @@ struct libGame_gs_ScoreValues {
     fixed lv_individualXPEarned;
     fixed lv_timeCCdEnemyHeroes;
     int lv_damageTaken;
+    int lv_damageSoaked;
     int lv_tributesCollected;
     int lv_dragonCaptures;
     int lv_dragonShrineCaptures;
@@ -972,6 +976,7 @@ sound[libCore_gv_bALMaxPlayers + 1] libGame_gv_heroDeath_DeathAmbientSound;
 sound[libCore_gv_bALMaxPlayers + 1] libGame_gv_heroDeath_DeathMusicSound;
 bool[libCore_gv_bALMaxPlayers + 1][libCore_gv_killingSpree_KillThresholdCount_C + 1] libGame_gv_heroDeathKillStreakRegistered;
 bool libGame_gv_heroDeathMultikillTimerEnabled;
+text[libCore_gv_bALMaxPlayers + 1] libGame_gv_heroDeathAnnouncementSecondaryText;
 libGame_gs_HeroDeathKillStingerQueue[libCore_gv_bALMaxEnginePlayerCount + 1] libGame_gv_heroDeathKillStingerQueue;
 int libGame_gv_laneCount;
 libGame_gs_LaneData[libGame_gv_laneMaxCount_C + 1] libGame_gv_laneData;
@@ -1516,6 +1521,7 @@ void libGame_gf_HeroDeathPortHeroBackAndSetDeathState (int lp_player, point lp_p
 void libGame_gf_HeroDeathModifyRespawnTimer (int lp_respawningPlayer, fixed lp_modificationAmount);
 void libGame_gf_HeroDeathUpdateRespawnTimer (int lp_respawningPlayer, fixed lp_newRespawnTimerDuration);
 void libGame_gf_HeroDeathRespawnHeroforPlayer (bool lp_respawnMounted, int lp_player, point lp_reSpawnLocation, int lp_reSpawnHealthPercent);
+void libGame_gf_HeroDeathAddSecondaryTexttoAnnouncementforPlayer (int lp_playerID, text lp_text);
 void libGame_gf_HeroDeathHeroKilledAnnouncementToKillingTeamPlayer (int lp_deadPlayer, unit lp_deadHero, int lp_killingTeamPlayer, bool lp_playerWasInvolvedInKill, fixed lp_xPValue);
 void libGame_gf_HeroDeathHeroKilledAnnouncementToObserver (int lp_deadPlayer, unit lp_deadHero);
 void libGame_gf_HeroDeathHeroDiedAnnouncementToAlliedPlayerGroup (int lp_deadPlayer, unit lp_deadHero, playergroup lp_alliedPlayerGroup);
@@ -1705,7 +1711,8 @@ trigger libGame_gt_CCRecognitionTaunt;
 trigger libGame_gt_CCRecognitionSilenced;
 trigger libGame_gt_CCRecognitionStasis;
 trigger libGame_gt_CCRecognitionTimeStopOn;
-trigger libGame_gt_CCRecognitionTimeStopOff;
+trigger libGame_gt_CCRecognitionTimeStopOffResumeCooldowns;
+trigger libGame_gt_CCRecognitionTimeStopOffUnpathableFix;
 trigger libGame_gt_DeathRecapHeroDies;
 trigger libGame_gt_DeathRecapHeroRespawn;
 trigger libGame_gt_DEBUGManualAssignAward;
@@ -1788,6 +1795,7 @@ trigger libGame_gt_RecordOnFireTimers;
 trigger libGame_gt_LevelUp;
 trigger libGame_gt_RecentDamageTimerExpires;
 trigger libGame_gt_HeroDamageTracking;
+trigger libGame_gt_HeroDamageSoakedDeathUpdate;
 trigger libGame_gt_HeroKillCreditProximityTracking;
 trigger libGame_gt_HeroXPChanges;
 trigger libGame_gt_XPTrickle;

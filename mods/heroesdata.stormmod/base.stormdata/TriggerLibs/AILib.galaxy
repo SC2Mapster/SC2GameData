@@ -53,11 +53,14 @@ void libAIAI_InitVariables () {
         libAIAI_gv_aIHeroes[init_i].lv_difficulty = libAIAI_ge_HeroAIDifficulty_Null;
     }
     libAIAI_gv_heroAITakeOverHeroRateLimitSeconds = 5.0;
+    libAIAI_gv_heroAIAIChoosesTalents = true;
     libAIAI_gv_uF_MinionAI_GetNearestEnemyStructure = UnitFilter((1 << c_targetFilterVisible), (1 << (c_targetFilterAITargetableStructure - 32)), (1 << c_targetFilterPlayer) | (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterCreep) | (1 << c_targetFilterMinion) | (1 << c_targetFilterNoMinionAggro) | (1 << c_targetFilterMissile) | (1 << c_targetFilterItem) | (1 << c_targetFilterCloaked), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterSummoned - 32)));
     libAIAI_gv_aIMoveAbil = AbilityCommand("move", 0);
+    libAIAI_gv_aIAcquireMoveAbil = AbilityCommand("move", 3);
     libAIAI_gv_aITurnAbil = AbilityCommand("move", 4);
     libAIAI_gv_aIAttackAbil = AbilityCommand("attack", 0);
     libAIAI_gv_aIAttackAllyAbil = AbilityCommand("AttackAlly", 0);
+    libAIAI_gv_aIAttackAbilMerc = AbilityCommand("StormMercenaryAttack", 0);
     libAIAI_gv_aIAttackAbilBoss = AbilityCommand("StormVehicleAttack", 0);
     libAIAI_gv_aIStopAbil = AbilityCommand("stop", 0);
 }
@@ -469,6 +472,10 @@ void libAIAI_gf_DefenderAIUpdateValidTargetList (int lp_defenderAIIndex) {
             continue;
         }
 
+        if ((PointPathingPassable(UnitGetPosition(lv_u)) == false)) {
+            continue;
+        }
+
         if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_playerIsThreat[lv_unitOwner] == false) && (UnitHasBehavior2(lv_u, "VehicleGenericIsMainVehicle") == true)) {
             libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_playerIsThreat[lv_unitOwner] = true;
         }
@@ -682,7 +689,6 @@ void libAIAI_gf_DefenderAIIssueFightingOrderToCreep (int lp_defenderAIIndex, int
                     }
                     if ((lv_graveGolemBindingRootsValidTargets >= 1)) {
                         UnitIssueOrder(lv_creepUnit, OrderTargetingPoint(AbilityCommand("UnderworldBossRoots", 0), UnitGetPosition(libMapM_gf_JungleGetRandomEnemyHeroInRangeOfMinionWithMinimumRangeRequirements(lv_creepUnit, UnitGetPosition(lv_creepUnit), 0.0, 8.0, lv_currentOrderTarget))), c_orderQueueReplace);
-                        UnitAddCooldown(lv_creepUnit, "Abil/UnderworldBossRoots", 0.25);
                         libAIAI_gv_defenderAICreepNeedsNewOrder = false;
                     }
                     else {
@@ -700,7 +706,7 @@ void libAIAI_gf_DefenderAIIssueFightingOrderToCreep (int lp_defenderAIIndex, int
     libCore_gf_CallRegisteredSegregationTriggers(libCore_ge_SegregationTriggerTypes_DefenderAIIssueOrdersToCreep);
     if ((libAIAI_gv_defenderAICreepNeedsNewOrder == true)) {
         lv_currentOrder = UnitOrder(lv_creepUnit, 0);
-        if (((lv_currentOrder == null) || (OrderGetAbilityCommand(lv_currentOrder) == libAIAI_gv_aIMoveAbil) || (OrderGetAbilityCommand(lv_currentOrder) == libAIAI_gv_aITurnAbil) || (OrderGetAbilityCommand(lv_currentOrder) == libAIAI_gv_aIAttackAbil) || (OrderGetAbilityCommand(lv_currentOrder) == libAIAI_gv_aIAttackAbilBoss) || (OrderGetAbilityCommand(lv_currentOrder) == libAIAI_gv_aIAttackAllyAbil))) {
+        if (((lv_currentOrder == null) || (OrderGetAbilityCommand(lv_currentOrder) == libAIAI_gv_aIMoveAbil) || (OrderGetAbilityCommand(lv_currentOrder) == libAIAI_gv_aIAcquireMoveAbil) || (OrderGetAbilityCommand(lv_currentOrder) == libAIAI_gv_aITurnAbil) || (OrderGetAbilityCommand(lv_currentOrder) == libAIAI_gv_aIAttackAbil) || (OrderGetAbilityCommand(lv_currentOrder) == libAIAI_gv_aIAttackAbilBoss) || (OrderGetAbilityCommand(lv_currentOrder) == libAIAI_gv_aIAttackAllyAbil) || (OrderGetAbilityCommand(lv_currentOrder) == libAIAI_gv_aIAttackAbilMerc))) {
             lv_newOrderTarget = UnitGroupClosestToPoint(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_validTargets, UnitGetPosition(lv_creepUnit));
             if ((lv_newOrderTarget == null)) {
                 if ((UnitAbilityExists(lv_creepUnit, "StormVehicleAttack") == true)) {
@@ -712,7 +718,7 @@ void libAIAI_gf_DefenderAIIssueFightingOrderToCreep (int lp_defenderAIIndex, int
                 UnitIssueOrder(lv_creepUnit, OrderTargetingPoint(libAIAI_gv_aITurnAbil, PointWithOffsetPolar(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashPositions[lp_creep], 1.0, PointGetFacing(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashPositions[lp_creep]))), c_orderQueueAddToEnd);
             }
             else {
-                if (((lv_newOrderTarget != lv_currentOrderTarget) || ((OrderGetAbilityCommand(lv_currentOrder) != libAIAI_gv_aIAttackAbil) && (OrderGetAbilityCommand(lv_currentOrder) != libAIAI_gv_aIAttackAllyAbil) && (OrderGetAbilityCommand(lv_currentOrder) != libAIAI_gv_aIAttackAbilBoss)))) {
+                if (((lv_newOrderTarget != lv_currentOrderTarget) || ((OrderGetAbilityCommand(lv_currentOrder) != libAIAI_gv_aIAttackAbil) && (OrderGetAbilityCommand(lv_currentOrder) != libAIAI_gv_aIAttackAllyAbil) && (OrderGetAbilityCommand(lv_currentOrder) != libAIAI_gv_aIAttackAbilBoss) && (OrderGetAbilityCommand(lv_currentOrder) != libAIAI_gv_aIAttackAbilMerc)))) {
                     if ((UnitAbilityExists(lv_creepUnit, "StormVehicleAttack") == true)) {
                         UnitIssueOrder(lv_creepUnit, OrderTargetingUnit(libAIAI_gv_aIAttackAbilBoss, lv_newOrderTarget), c_orderQueueReplace);
                     }
@@ -774,7 +780,7 @@ int libAIAI_gf_DefenderAINewIndex () {
     return lv_bestIndex;
 }
 
-void libAIAI_gf_StartDefenderAI (unitgroup lp_defenders, region lp_leashRegion, region lp_aggroRegion, bool lp_healOnLeash) {
+void libAIAI_gf_StartDefenderAI (bool lp_canSeeCloakedUnits, unitgroup lp_defenders, region lp_leashRegion, region lp_aggroRegion, bool lp_healOnLeash) {
     // Variable Declarations
     int lv_defenderAIIndex;
     unit lv_unit;
@@ -810,7 +816,7 @@ void libAIAI_gf_StartDefenderAI (unitgroup lp_defenders, region lp_leashRegion, 
     libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_healOnLeash = lp_healOnLeash;
     libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_defendersGroup = UnitGroupEmpty();
     libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_defenderCount = 0;
-    libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_canSeeCloaked = false;
+    libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_canSeeCloaked = lp_canSeeCloakedUnits;
     auto5BE89C99_g = lp_defenders;
     auto5BE89C99_u = UnitGroupCount(auto5BE89C99_g, c_unitCountAll);
     for (;; auto5BE89C99_u -= 1) {
@@ -1327,7 +1333,10 @@ void libAIAI_gf_HeroAIEnableAIForPlayer (int lp_trigPlayer) {
         libAIAI_gf_HeroAISetAIDifficultyLevel(lp_trigPlayer, libAIAI_ge_HeroAIDifficulty_HeroAIMedium);
     }
 
-    libAIAI_gf_HeroAIInitTalentBuilds(lp_trigPlayer);
+    if ((libAIAI_gv_heroAIAIChoosesTalents == true)) {
+        libAIAI_gf_HeroAIInitTalentBuilds(lp_trigPlayer);
+    }
+
     libCore_gv_segTriggerPlayer = lp_trigPlayer;
     libCore_gv_segTriggerUnit = libAIAI_gv_aIHeroes[lp_trigPlayer].lv_currentHeroUnit;
     libCore_gf_CallRegisteredSegregationTriggers(libCore_ge_SegregationTriggerTypes_HeroAIEnableAIForPlayer);
@@ -2791,6 +2800,7 @@ bool libAIAI_gt_DEBUGSetAIBuild_Func (bool testConds, bool runActions) {
     lv_buildNumber = StringToInt(StringWord(EventChatMessage(false), 3));
     libAIAI_gv_aIHeroes[lv_player].lv_pickedTalentBuild = lv_buildNumber;
     libStEx_gf_RespecPlayer(lv_player, true);
+    UnitBehaviorRemove(libGame_gv_players[lv_player].lv_heroUnit, "DamageTakenNone", 1);
     return true;
 }
 

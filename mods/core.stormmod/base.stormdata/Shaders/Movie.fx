@@ -18,8 +18,9 @@ struct VSOutput {
 #ifdef VERTEX_SHADER
 
 struct Input {
-    float4  vPosition   : POSITION_;
-    float2  vUV         : TEXCOORD0_;
+    float4  vPosition       : POSITION_;
+    float4  cColor          : COLOR0_;
+    float2  vUV             : TEXCOORD0_;
 };
 
 

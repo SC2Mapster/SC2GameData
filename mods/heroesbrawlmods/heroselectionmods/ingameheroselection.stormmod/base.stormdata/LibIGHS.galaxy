@@ -34,7 +34,7 @@ void libIGHS_InitVariables () {
     libIGHS_gv_shuffleSettings.lv_shufflePickMode = libIGHS_ge_ShufflePickMode_NotInitialized;
     libIGHS_gv_shuffleSettings.lv_totalTimeAllowedToPickHeroes = 30;
     libIGHS_gv_shuffleSettings.lv_heroPickTimer = TimerCreate();
-    libIGHS_gv_shuffleSettings.lv_crazyModeChance = 10.0;
+    libIGHS_gv_shuffleSettings.lv_crazyModeChance = 0.0;
     libIGHS_gv_shuffleSettings.lv_showHeroPickSuggestions = true;
     libIGHS_gv_shuffleSettings.lv_showHeroClassIcons = true;
     libIGHS_gv_shuffleUI.lv_dialog = c_invalidDialogId;
@@ -44,6 +44,7 @@ void libIGHS_InitVariables () {
     libIGHS_gv_shuffleUI.lv_titleLabel = c_invalidDialogControlId;
     libIGHS_gv_shuffleUI.lv_arenaModeTitlePanel = c_invalidDialogControlId;
     libIGHS_gv_shuffleUI.lv_nonArenaModeTitlePanel = c_invalidDialogControlId;
+    libIGHS_gv_shuffleUI.lv_extraInfoLabel = c_invalidDialogControlId;
     for (init_i1 = 0; init_i1 <= libCore_gv_bALMaxTeams; init_i1 += 1) {
         libIGHS_gv_shuffleUI.lv_teamRoundIndicatorFrame[init_i1] = c_invalidDialogControlId;
     }
@@ -184,6 +185,12 @@ void libIGHS_gf_SetShuffleScreenTitleText (text lp_text) {
     // Implementation
     libIGHS_gv_shuffleSettings.lv_titleText = lp_text;
     libNtve_gf_SetDialogItemText(libIGHS_gv_shuffleUI.lv_titleLabel, lp_text, PlayerGroupAll());
+}
+
+void libIGHS_gf_SetShuffleScreenExtraInfoTextForPlayer (int lp_playerID, text lp_text) {
+    // Automatic Variable Declarations
+    // Implementation
+    libNtve_gf_SetDialogItemText(libIGHS_gv_shuffleUI.lv_extraInfoLabel, lp_text, PlayerGroupSingle(lp_playerID));
 }
 
 void libIGHS_gf_SetShuffleUIVictoryCounters (int lp_winningTeam, int lp_victoryCount) {
@@ -333,7 +340,7 @@ void libIGHS_gf_PrepareHeroPicksUnlocked () {
     // Implementation
     libIGHS_gf_ShufflePickDebugMessage(StringExternal("Param/Value/lib_IGHS_D705D049"));
     libIGHS_gf_ResetAllHeroPicks();
-    if ((libNtve_gf_RandomPercent() <= libIGHS_gv_shuffleSettings.lv_crazyModeChance)) {
+    if ((libIGHS_gv_shuffleSettings.lv_crazyModeChance != 0.0) && (libNtve_gf_RandomPercent() <= libIGHS_gv_shuffleSettings.lv_crazyModeChance)) {
         libIGHS_gf_PrepareHeroPicksAllSameHero();
         return ;
     }
@@ -566,6 +573,7 @@ void libIGHS_gf_SetHeroSkinAndMountForPlayer (int lp_player) {
     if ((libIGHS_gv_shuffleSettings.lv_randomizeSkinsAndMounts == true)) {
         libGame_gf_HeroSelectionRandomlyPickSkin(lp_player);
         libGame_gf_HeroSelectionRandomlyPickMount(lp_player);
+        libGame_gf_HeroSelectionRandomlyPickSpray(lp_player);
     }
     else {
         libIGHS_gf_SetSkinforPlayerUsingCuratedList(lp_player);
@@ -835,6 +843,8 @@ void libIGHS_gf_ARM_HeroPickUIInit () {
     libIGHS_gv_shuffleUI.lv_nonArenaModeTitlePanel = DialogControlLastCreated();
     DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeLabel, "CountdownLabel");
     libIGHS_gv_shuffleUI.lv_countdownLabel = DialogControlLastCreated();
+    DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeLabel, "MapExtraInfoLabel");
+    libIGHS_gv_shuffleUI.lv_extraInfoLabel = DialogControlLastCreated();
     DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypePanel, "RoundStartCountdownFrame");
     libIGHS_gv_shuffleUI.lv_finalCountdownFrame = DialogControlLastCreated();
     DialogControlSetVisible(DialogControlLastCreated(), PlayerGroupAll(), false);
@@ -965,6 +975,8 @@ void libIGHS_gf_ShowShufflePickUI () {
     int lv_t;
 
     // Automatic Variable Declarations
+    const int auto42631844_ae = libCore_gv_bALMaxPlayers;
+    const int auto42631844_ai = 1;
     const int auto47007754_ae = libCore_gv_bALMaxTeams;
     const int auto47007754_ai = 1;
     int auto2D17B3ED_ae;
@@ -987,6 +999,10 @@ void libIGHS_gf_ShowShufflePickUI () {
     DialogSetVisible(libIGHS_gv_shuffleUI.lv_dialog, PlayerGroupAll(), true);
     DialogControlSetVisible(libIGHS_gv_shuffleUI.lv_playerReadyButton[1], PlayerGroupAll(), true);
     libNtve_gf_SetDialogItemText(libIGHS_gv_shuffleUI.lv_titleLabel, libIGHS_gv_shuffleSettings.lv_titleText, PlayerGroupAll());
+    lv_itPlayer2 = 1;
+    for ( ; ( (auto42631844_ai >= 0 && lv_itPlayer2 <= auto42631844_ae) || (auto42631844_ai < 0 && lv_itPlayer2 >= auto42631844_ae) ) ; lv_itPlayer2 += auto42631844_ai ) {
+        libUIUI_gf_UIGameUIShowHideConsolePanelForPlayer(false, lv_itPlayer2);
+    }
     DialogControlSetVisible(libIGHS_gv_shuffleUI.lv_countdownLabel, PlayerGroupAll(), true);
     TextExpressionSetToken("Param/Expression/lib_IGHS_5696640C", "A", IntToText(libIGHS_gv_shuffleSettings.lv_totalTimeAllowedToPickHeroes));
     libNtve_gf_SetDialogItemText(libIGHS_gv_shuffleUI.lv_countdownLabel, TextExpressionAssemble("Param/Expression/lib_IGHS_5696640C"), PlayerGroupAll());
@@ -1778,7 +1794,7 @@ bool libIGHS_gt_DEBUGInitUnlockedPick_Func (bool testConds, bool runActions) {
         return true;
     }
 
-    libIGHS_gf_InitializeShufflePickUnlocked(libIGHS_gv_shuffleSettings.lv_titleText, true, true, 30, 10.0, true);
+    libIGHS_gf_InitializeShufflePickUnlocked(libIGHS_gv_shuffleSettings.lv_titleText, true, true, 30, 0.0, true);
     libIGHS_gf_ReshuffleHeroPicksAndShowShuffleUI();
     return true;
 }
@@ -1810,7 +1826,7 @@ bool libIGHS_gt_DEBUGInitRoleLockedPick_Func (bool testConds, bool runActions) {
         return true;
     }
 
-    libIGHS_gf_InitializeShufflePickRoleLocked(libIGHS_gv_shuffleSettings.lv_titleText, true, false, 30, 10.0);
+    libIGHS_gf_InitializeShufflePickRoleLocked(libIGHS_gv_shuffleSettings.lv_titleText, true, false, 30, 0.0);
     libIGHS_gf_ReshuffleHeroPicksAndShowShuffleUI();
     return true;
 }
@@ -2120,6 +2136,125 @@ void libIGHS_gt_DEBUGSetHeroPicksforPlayer_Init () {
     TriggerAddEventChatMessage(libIGHS_gt_DEBUGSetHeroPicksforPlayer, c_playerAny, "herooption", false);
 }
 
+//--------------------------------------------------------------------------------------------------
+// Trigger: DEBUG - 100Picks
+//--------------------------------------------------------------------------------------------------
+bool libIGHS_gt_DEBUG100Picks_Func (bool testConds, bool runActions) {
+    int init_i;
+
+    // Variable Declarations
+    const int lv_debugMsgType_C = 4;
+    const int lv_heroNameCountMax_C = 200;
+    const string lv_outputFileName_C = "100PicksLog.txt";
+    int lv_reshuffleCount;
+    int lv_player;
+    int lv_circle;
+    int lv_name;
+    string lv_heroPick;
+    string[lv_heroNameCountMax_C + 1] lv_heroPicks;
+    int lv_heroPickCount;
+    int[lv_heroNameCountMax_C + 1] lv_heroAppearences;
+    bool lv_heroAlreadyPicked;
+
+    // Automatic Variable Declarations
+    int auto583E98A7_n;
+    int auto583E98A7_i;
+    int auto40A5BD7E_val;
+    const int auto7EB07017_ae = libCore_gv_bALMaxPlayers;
+    const int auto7EB07017_ai = 1;
+    const int autoC6926C6A_ae = libIGHS_gv_aRM_TeamComp_PickHeroHeroesCount_C;
+    const int autoC6926C6A_ai = 1;
+    int auto6B4795C9_ae;
+    const int auto6B4795C9_ai = 1;
+    int auto8ACA9DBB_ae;
+    const int auto8ACA9DBB_ai = 1;
+
+    // Variable Initialization
+    lv_reshuffleCount = StringToInt(StringSub(EventChatMessage(false), 1, (StringFind(EventChatMessage(false), "picks", c_stringNoCase) - 1)));
+    for (init_i = 0; init_i <= lv_heroNameCountMax_C; init_i += 1) {
+        lv_heroAppearences[init_i] = 1;
+    }
+
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+
+        if (!((libIGHS_gv_dEBUG_ShuffleDebugEnabled == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TextExpressionSetToken("Param/Expression/lib_IGHS_A3FBE773", "A", IntToText(lv_reshuffleCount));
+    libIGHS_gf_ShufflePickDebugMessage(TextExpressionAssemble("Param/Expression/lib_IGHS_A3FBE773"));
+    libIGHS_gv_dEBUG_100PicksCheatUsed += 1;
+    auto583E98A7_n = lv_reshuffleCount;
+    for (auto583E98A7_i = 1; auto583E98A7_i <= auto583E98A7_n; auto583E98A7_i += 1) {
+        libIGHS_gf_ResetAllHeroPicks();
+        auto40A5BD7E_val = libIGHS_gv_shuffleSettings.lv_shufflePickMode;
+        if (auto40A5BD7E_val == libIGHS_ge_ShufflePickMode_RoleLocked) {
+            libIGHS_gf_PrepareHeroPicksRoleLocked();
+        }
+        else if (auto40A5BD7E_val == libIGHS_ge_ShufflePickMode_Unlocked) {
+            libIGHS_gf_PrepareHeroPicksUnlocked();
+        }
+        else if (auto40A5BD7E_val == libIGHS_ge_ShufflePickMode_AllSameHero) {
+            libIGHS_gf_PrepareHeroPicksAllSameHero();
+        }
+        else if (auto40A5BD7E_val == libIGHS_ge_ShufflePickMode_CuratedList) {
+            libIGHS_gf_PrepareHeroPicksCuratedHeroList();
+        }
+        else {
+        }
+        lv_player = 1;
+        for ( ; ( (auto7EB07017_ai >= 0 && lv_player <= auto7EB07017_ae) || (auto7EB07017_ai < 0 && lv_player >= auto7EB07017_ae) ) ; lv_player += auto7EB07017_ai ) {
+            lv_circle = 1;
+            for ( ; ( (autoC6926C6A_ai >= 0 && lv_circle <= autoC6926C6A_ae) || (autoC6926C6A_ai < 0 && lv_circle >= autoC6926C6A_ae) ) ; lv_circle += autoC6926C6A_ai ) {
+                lv_heroPick = libIGHS_gv_shuffleSettings.lv_players[lv_player].lv_heroPickOptions[lv_circle];
+                lv_heroAlreadyPicked = false;
+                auto6B4795C9_ae = lv_heroPickCount;
+                lv_name = 1;
+                for ( ; ( (auto6B4795C9_ai >= 0 && lv_name <= auto6B4795C9_ae) || (auto6B4795C9_ai < 0 && lv_name >= auto6B4795C9_ae) ) ; lv_name += auto6B4795C9_ai ) {
+                    if ((lv_heroPicks[lv_name] == lv_heroPick)) {
+                        lv_heroAppearences[lv_name] += 1;
+                        lv_heroAlreadyPicked = true;
+                        break;
+                    }
+
+                }
+                if ((lv_heroAlreadyPicked == false)) {
+                    lv_heroPickCount += 1;
+                    lv_heroPicks[lv_heroPickCount] = lv_heroPick;
+                }
+
+            }
+        }
+    }
+    TriggerDebugSetTypeFile(lv_debugMsgType_C, lv_outputFileName_C);
+    auto8ACA9DBB_ae = lv_heroPickCount;
+    lv_name = 1;
+    for ( ; ( (auto8ACA9DBB_ai >= 0 && lv_name <= auto8ACA9DBB_ae) || (auto8ACA9DBB_ai < 0 && lv_name >= auto8ACA9DBB_ae) ) ; lv_name += auto8ACA9DBB_ai ) {
+        TextExpressionSetToken("Param/Expression/lib_IGHS_E1FD8802", "A", IntToText(lv_heroAppearences[lv_name]));
+        TextExpressionSetToken("Param/Expression/lib_IGHS_E1FD8802", "B", UnitTypeGetName((CatalogFieldValueGet(c_gameCatalogHero, lv_heroPicks[lv_name], "Unit", c_playerAny))));
+        TriggerDebugOutput(lv_debugMsgType_C, TextExpressionAssemble("Param/Expression/lib_IGHS_E1FD8802"), false);
+    }
+    libIGHS_gf_ReshuffleHeroPicksAndShowShuffleUI();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libIGHS_gt_DEBUG100Picks_Init () {
+    libIGHS_gt_DEBUG100Picks = TriggerCreate("libIGHS_gt_DEBUG100Picks_Func");
+    TriggerAddEventChatMessage(libIGHS_gt_DEBUG100Picks, c_playerAny, "picks", false);
+    TriggerAddEventChatMessage(libIGHS_gt_DEBUG100Picks, c_playerAny, "Picks", false);
+}
+
 void libIGHS_InitTriggers () {
     libIGHS_gt_MapInitializationSetHeroesCallback_Init();
     libIGHS_gt_ShufflePickHeroSelectionCallback_Init();
@@ -2134,6 +2269,7 @@ void libIGHS_InitTriggers () {
     libIGHS_gt_DEBUGPauseUnpauseShuffleTimer_Init();
     libIGHS_gt_DEBUGSetRoleOptionforPlayer_Init();
     libIGHS_gt_DEBUGSetHeroPicksforPlayer_Init();
+    libIGHS_gt_DEBUG100Picks_Init();
 }
 
 //--------------------------------------------------------------------------------------------------

@@ -167,17 +167,6 @@ HALF4 MaterialColor(    in VertexTransport vertOut,
         //    SpecularLayerConfig.b_iChannelSelect = CHANNELSELECT_A;
         HALF4 cColor = GetLayerColor( Specular, 1.0f, false, vDeferredNormal, mTriPlanarUVs );
 
-        if ( b_iSpecularType == SPECULAR_A_ONLY ) {
-            if ( b_iDiffuseTeamColorMode == TEAMCOLOR_DIFFUSE && b_useTeamColorSpecular ) {
-                cColor = lerp( p_cDiffuseTeamColor.a, cColor.a, fTeamColorAlpha );
-            }
-        } else {
-            if ( b_iDiffuseTeamColorMode == TEAMCOLOR_DIFFUSE && b_useTeamColorSpecular ) {
-                //HALF fLayerLuminance = dot ( HALF3(0.27f, 0.67f, 0.06f), cColor.rgb );
-                cColor = HALF4( lerp( p_cDiffuseTeamColor.rgb , cColor.rgb, fTeamColorAlpha ).rgb, 1.0f );
-            }
-        }
-
         cDeferredSpecular = CombineLayerColor( cColor, cDeferredSpecular, SpecularLayerConfig );
     }
 

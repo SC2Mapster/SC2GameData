@@ -29,16 +29,12 @@ texDecl2D(p_sTransparentShadowColorMap);                // Transparent shadow co
 HALF2		p_vRotationTextureUVScale;
 HALF4		p_vSoftShadowTapOffsets[6];
 
-HALF2        p_fUseNativeShadowMapping;
-
 //--------------------------------------------------------------------------------------------------
 float SampleShadowMap( typeSamplerShadow shadowMapSampler, typeTexture2D shadowMapTex, float4 shadowMapUV ) {
     float value;
-    if ( b_iUseExplicitShadowTest )
-        value = sampleTexShadow( shadowMapTex, shadowMapSampler, shadowMapUV ).x > shadowMapUV.z;
-    else value = sampleTexShadow( shadowMapTex, shadowMapSampler, shadowMapUV ).x;
+    value = sampleTexShadow( shadowMapTex, shadowMapSampler, shadowMapUV ).x;
+
     return value;
-    //return value * p_fUseNativeShadowMapping.x + ( value > shadowMapUV.z ) * p_fUseNativeShadowMapping.y;
 }
 
 //--------------------------------------------------------------------------------------------------

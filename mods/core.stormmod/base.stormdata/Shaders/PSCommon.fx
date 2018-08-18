@@ -49,7 +49,6 @@ float DecodeDepth( float4 vNormalDepth ) {
         return vNormalDepth.a;
     else if ( b_iInEncoding == DEPTH_NORMAL_ENCODING_RGBA ) {
         float fDepth = dot( vNormalDepth.ba, float2( 1.0f, 1.0f / 255.0f ) );
-        //fDepth *= p_fMaxDepth;
         fDepth = p_fMaxDepthFactor * ( ( 1.0f / ( 1.0f - fDepth ) ) - 1.0f );
         return fDepth;
     }

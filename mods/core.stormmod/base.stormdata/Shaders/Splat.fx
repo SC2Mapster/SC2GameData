@@ -236,7 +236,7 @@ SPixelOut SplatPixelMain(VertexTransportRaw vertOut) {
         InitShader(vertOut, tempVert, b_iUVMapping);
 
         float2 screenPos = INTERPOLANT_ScreenPos;
-#if PIXEL_SHADER_VERSION == SHADER_VERSION_PS_30
+#if !defined(COMPILING_SHADER_FOR_OPENGL) && PIXEL_SHADER_VERSION == SHADER_VERSION_PS_30
         // add 0.5f offset required on DX9
         screenPos += float2(0.5f, 0.5f);
 #endif  
@@ -245,8 +245,10 @@ SPixelOut SplatPixelMain(VertexTransportRaw vertOut) {
         float2 depthUV = float2(screenPos.x / p_vResolution.x, screenPos.y / p_vResolution.y);
         float depth = SampleDepth(depthUV);
 
+        float2 viewHPos = (depthUV - p_vViewportOrigin) / p_vViewportScale;
+
         // reconstruct the view position and convert back to object space
-        float4 viewPos = ReconstructViewPos(depth, depthUV);
+        float4 viewPos = ReconstructViewPos(depth, viewHPos);
         float4 worldPos = mul(viewPos, p_mViewInvTransform44);
         float4 objPos = mul(worldPos, p_mWorldInvTransform);
 

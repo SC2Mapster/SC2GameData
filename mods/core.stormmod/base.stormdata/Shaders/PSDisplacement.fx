@@ -33,6 +33,9 @@ HALF4 Displace( in VertexTransport vertOut, inout HALF3 vDeferredNormal, inout H
     if ( b_iDisplacementPass == PASS_SINGLEPASS_DISPLACE ) {
         float3x2 mTriPlanarUVs[c_maxNumLayers];
 
+#if !CPP_SHADER
+        WRITE_INTERPOLANT_EyeToVertexFresnel( normalize( INTERPOLANT_WorldPos.xyz - p_vEyePos.xyz ) );
+#endif
         SETUP_LAYER( Displacement );
         // Sample normal.
         HALF fStub = 0;

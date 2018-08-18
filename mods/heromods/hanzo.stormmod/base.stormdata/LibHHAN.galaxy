@@ -69,7 +69,6 @@ void libHHAN_gf_HeroHanzoIncrementHeroCountFunction () {
         TriggerEnable(libHHAN_gt_HeroHanzoTargetPracticeCloneorMechSpawned, true);
         TriggerEnable(libHHAN_gt_HeroHanzoNinjaAssassinRefreshNaturalAgilityonTakedown, true);
         TriggerEnable(libHHAN_gt_HeroHanzoTargetPracticeHeroSpawned, true);
-        TriggerEnable(libHHAN_gt_HeroHanzoNaturalAgilityForwardDummyCastToRealAbility, true);
     }
 
 }
@@ -95,7 +94,6 @@ void libHHAN_gf_HeroHanzoDecrementHeroCountFunction () {
         TriggerEnable(libHHAN_gt_HeroHanzoTargetPracticeCloneorMechSpawned, false);
         TriggerEnable(libHHAN_gt_HeroHanzoNinjaAssassinRefreshNaturalAgilityonTakedown, false);
         TriggerEnable(libHHAN_gt_HeroHanzoTargetPracticeHeroSpawned, false);
-        TriggerEnable(libHHAN_gt_HeroHanzoNaturalAgilityForwardDummyCastToRealAbility, false);
     }
 
 }
@@ -257,27 +255,6 @@ void libHHAN_gt_HeroHanzoDragonstrikeSearch_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: Hero - Hanzo - Natural Agility - Forward Dummy Cast To Real Ability
-//--------------------------------------------------------------------------------------------------
-bool libHHAN_gt_HeroHanzoNaturalAgilityForwardDummyCastToRealAbility_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    UnitIssueOrder(EventPlayerEffectUsedUnit(c_effectUnitCaster), OrderTargetingPoint(AbilityCommand("HanzoNaturalAgility", 0), EventPlayerEffectUsedPoint(c_effectLocationTargetPoint)), c_orderQueueAddToFront);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libHHAN_gt_HeroHanzoNaturalAgilityForwardDummyCastToRealAbility_Init () {
-    libHHAN_gt_HeroHanzoNaturalAgilityForwardDummyCastToRealAbility = TriggerCreate("libHHAN_gt_HeroHanzoNaturalAgilityForwardDummyCastToRealAbility_Func");
-    TriggerEnable(libHHAN_gt_HeroHanzoNaturalAgilityForwardDummyCastToRealAbility, false);
-    TriggerAddEventPlayerEffectUsed(libHHAN_gt_HeroHanzoNaturalAgilityForwardDummyCastToRealAbility, c_playerAny, "HanzoNaturalAgilityCastButtonDummy");
-}
-
-//--------------------------------------------------------------------------------------------------
 // Trigger: Hero - Hanzo - Scatter Arrow - Play Impact FX
 //--------------------------------------------------------------------------------------------------
 bool libHHAN_gt_HeroHanzoScatterArrowPlayImpactFX_Func (bool testConds, bool runActions) {
@@ -369,26 +346,23 @@ bool libHHAN_gt_HeroHanzoStormBowCharging_Func (bool testConds, bool runActions)
     // Variable Declarations
     unit lv_unit;
     int lv_player;
-    int lv_playerActorOffset;
     fixed lv_currentOffset;
     fixed lv_extraRange;
     fixed lv_chargingBehaviorDuration;
     fixed lv_numberofGrowthLoops;
     fixed lv_offsetPerLoop;
-    fixed lv_currentScale;
     actor lv_guide;
+    bool lv_isScaling;
 
     // Automatic Variable Declarations
     // Variable Initialization
     lv_unit = EventUnit();
     lv_player = UnitGetOwner(lv_unit);
-    lv_playerActorOffset = (lv_player + 6);
     lv_currentOffset = libHHAN_gv_heroHanzoStormBowBaseRangeForPlayer[lv_player];
     lv_extraRange = (libHHAN_gv_heroHanzoStormBowMaximumRangeForPlayer[lv_player] - libHHAN_gv_heroHanzoStormBowBaseRangeForPlayer[lv_player]);
     lv_chargingBehaviorDuration = StringToFixed(CatalogFieldValueGet(c_gameCatalogBehavior, "HanzoStormBowCharging", "Duration", lv_player));
     lv_numberofGrowthLoops = ((lv_chargingBehaviorDuration / 0.0625) + 1.0);
     lv_offsetPerLoop = (lv_extraRange / lv_numberofGrowthLoops);
-    lv_currentScale = 1.0;
     lv_guide = ActorFromScope(ActorScopeFrom("::Cursor"), "HanzoStormBowGuide");
 
     // Actions
@@ -397,15 +371,23 @@ bool libHHAN_gt_HeroHanzoStormBowCharging_Func (bool testConds, bool runActions)
     }
 
     CatalogFieldValueModifyFixed(c_gameCatalogEffect, "HanzoStormBowLaunchMissile", "ImpactLocation.ProjectionDistanceScale", lv_player, lv_currentOffset, c_upgradeOperationSet);
-    ActorSend(lv_guide, libNtve_gf_Signal(("StormBowScalePlayer" + IntToString(lv_player))));
     while ((UnitHasBehavior2(lv_unit, "HanzoStormBowCharging") == true)) {
-        if ((UnitHasBehaviorWithFlag(lv_unit, c_unitBehaviorFlagTimeStop) == false)) {
+        if ((UnitHasBehaviorWithCategoryFlag(lv_unit, c_behaviorCategoryTimeStop) == false)) {
             lv_currentOffset += lv_offsetPerLoop;
             CatalogFieldValueModifyFixed(c_gameCatalogEffect, "HanzoStormBowLaunchMissile", "ImpactLocation.ProjectionDistanceScale", lv_player, lv_currentOffset, c_upgradeOperationSet);
+            if ((lv_isScaling == false)) {
+                ActorSend(lv_guide, libNtve_gf_Signal(("StormBowScalePlayer" + IntToString(lv_player))));
+                lv_isScaling = true;
+            }
+
             ActorSend(lv_guide, libNtve_gf_Signal(("StormBowResumeScalePlayer" + IntToString(lv_player))));
         }
         else {
-            ActorSend(lv_guide, libNtve_gf_Signal(("StormBowPauseScalePlayer" + IntToString(lv_player))));
+            if ((lv_isScaling == true)) {
+                ActorSend(lv_guide, libNtve_gf_Signal(("StormBowPauseScalePlayer" + IntToString(lv_player))));
+                lv_isScaling = false;
+            }
+
         }
         Wait(0.0625, c_timeGame);
     }
@@ -420,7 +402,7 @@ void libHHAN_gt_HeroHanzoStormBowCharging_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: Hero - Hanzo - TargetPractice - Talent Selected
+// Trigger: Hero - Hanzo - Target Practice - Talent Selected
 //--------------------------------------------------------------------------------------------------
 bool libHHAN_gt_HeroHanzoTargetPracticeTalentSelected_Func (bool testConds, bool runActions) {
     // Variable Declarations
@@ -454,7 +436,7 @@ void libHHAN_gt_HeroHanzoTargetPracticeTalentSelected_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: Hero - Hanzo - TargetPractice - Hero Hit By Storm Bow
+// Trigger: Hero - Hanzo - Target Practice - Hero Hit By Storm Bow
 //--------------------------------------------------------------------------------------------------
 bool libHHAN_gt_HeroHanzoTargetPracticeHeroHitByStormBow_Func (bool testConds, bool runActions) {
     // Variable Declarations
@@ -522,10 +504,6 @@ bool libHHAN_gt_HeroHanzoTargetPracticeHeroHitByStormBow_Func (bool testConds, b
         UnitGroupAdd(libHHAN_gv_heroHanzoTargetPracticeEnemyHeroesHitOnce[lv_hanzoPlayer], lv_targetUnit);
         UnitCreateEffectUnit(lv_hanzoUnit, "HanzoTargetPracticeIncrementDummyToken", lv_originalTarget);
         UnitCreateEffectUnit(lv_hanzoUnit, "HanzoTargetPracticeTargetsHitOnceIncrementToken", lv_hanzoUnit);
-        if ((UnitGroupCount(libHHAN_gv_heroHanzoTargetPracticeHeroesNotHit[lv_hanzoPlayer], c_unitCountAll) == 0)) {
-            UnitBehaviorAdd(lv_hanzoUnit, "HanzoTargetPracticeRangeIncrease", lv_hanzoUnit, 1);
-        }
-
     }
     return true;
 }
@@ -538,7 +516,7 @@ void libHHAN_gt_HeroHanzoTargetPracticeHeroHitByStormBow_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: Hero - Hanzo - TargetPractice - Player Gets Range Increase
+// Trigger: Hero - Hanzo - Target Practice - Player Gets Range Increase
 //--------------------------------------------------------------------------------------------------
 bool libHHAN_gt_HeroHanzoTargetPracticePlayerGetsRangeIncrease_Func (bool testConds, bool runActions) {
     // Variable Declarations
@@ -567,7 +545,7 @@ void libHHAN_gt_HeroHanzoTargetPracticePlayerGetsRangeIncrease_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: Hero - Hanzo - TargetPractice - Player Loses Range Increase
+// Trigger: Hero - Hanzo - Target Practice - Player Loses Range Increase
 //--------------------------------------------------------------------------------------------------
 bool libHHAN_gt_HeroHanzoTargetPracticePlayerLosesRangeIncrease_Func (bool testConds, bool runActions) {
     // Variable Declarations
@@ -596,7 +574,7 @@ void libHHAN_gt_HeroHanzoTargetPracticePlayerLosesRangeIncrease_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: Hero - Hanzo - TargetPractice - Player Respecs
+// Trigger: Hero - Hanzo - Target Practice - Player Respecs
 //--------------------------------------------------------------------------------------------------
 bool libHHAN_gt_HeroHanzoTargetPracticePlayerRespecs_Func (bool testConds, bool runActions) {
     // Variable Declarations
@@ -630,7 +608,7 @@ void libHHAN_gt_HeroHanzoTargetPracticePlayerRespecs_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: Hero - Hanzo - TargetPractice - Hero Spawned
+// Trigger: Hero - Hanzo - Target Practice - Hero Spawned
 //--------------------------------------------------------------------------------------------------
 bool libHHAN_gt_HeroHanzoTargetPracticeHeroSpawned_Func (bool testConds, bool runActions) {
     // Automatic Variable Declarations
@@ -754,7 +732,6 @@ void libHHAN_gt_HeroHanzoNinjaAssassinRefreshNaturalAgilityonTakedown_Init () {
 
 void libHHAN_InitTriggers () {
     libHHAN_gt_HeroHanzoDragonstrikeSearch_Init();
-    libHHAN_gt_HeroHanzoNaturalAgilityForwardDummyCastToRealAbility_Init();
     libHHAN_gt_HeroHanzoScatterArrowPlayImpactFX_Init();
     libHHAN_gt_HeroHanzoSonicArrowUnitGainsTrackingBehavior_Init();
     libHHAN_gt_HeroHanzoStormBowCharging_Init();

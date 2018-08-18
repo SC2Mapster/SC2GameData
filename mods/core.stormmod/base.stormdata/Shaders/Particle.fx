@@ -16,11 +16,7 @@
 // Input structure
 struct Input
 {
-#ifdef COMPILING_SHADER_FOR_OPENGL
     float4  vPosition            : NORMAL_;
-#else
-    float4  vPosition            : POSITION_;
-#endif
     int4    vSize                : TEXCOORD0_;
     HALF4   cColor0              : COLOR0_;
     HALF4   cColor1              : COLOR1_;
@@ -35,11 +31,7 @@ struct Input
     HALF4   vInterpolator1       : TEXCOORD5_;
     HALF4   vInterpolator2       : TEXCOORD6_;  
     HALF4   vNoiseVector         : TEXCOORD7_;  
-#ifdef COMPILING_SHADER_FOR_OPENGL
     int2   vOffset              : POSITION_;
-#else
-    int2   vOffset              : NORMAL_;
-#endif
 };
 
 #endif

@@ -87,6 +87,7 @@ void libCore_InitVariables () {
     libCore_gv_bALHeroKillCreditTimeWindow = 5.0;
     libCore_gv_bALDeathTimeScaler = 1.0;
     libCore_gv_talents_RelentlessCCReduction75_C = 0.75;
+    libCore_gv_data_XP_HeroValuePerLevel_C = 50.0;
     for (init_i = 0; init_i <= libCore_gv_bALMaxTeams; init_i += 1) {
         libCore_gv_data_XP_HeroXPModifier[init_i] = 1.0;
     }
@@ -1185,9 +1186,6 @@ void libCore_gf_DataLootContentLoadAnnouncerPackDataIntoIndex (string lp_announc
     }
 
     if ((lv_announcerVOID == "")) {
-        TextExpressionSetToken("Param/Expression/lib_Core_ED8B5E51", "A", StringToText((lp_announcerPackLink)));
-        TextExpressionSetToken("Param/Expression/lib_Core_ED8B5E51", "B", IntToText(lp_playerIndex));
-        TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_Core_ED8B5E51"), true);
         return ;
     }
 
@@ -1560,6 +1558,8 @@ void libCore_gf_DataMountsClearMountDataAtIndex (int lp_index) {
     libGame_gv_players[lp_index].lv_mountData.lv_turboSound = null;
     libGame_gv_players[lp_index].lv_mountData.lv_category = "";
     libGame_gv_players[lp_index].lv_mountData.lv_isMorphMount = false;
+    libGame_gv_players[lp_index].lv_mountData.lv_mountUpFXActor = null;
+    libGame_gv_players[lp_index].lv_mountData.lv_dismountFXActor = null;
 }
 
 void libCore_gf_DataMountsLoadMountDataIntoIndex (string lp_mountLink, fixed lp_mountModelScale, fixed lp_walkAnimMoveSpeed, string lp_poseAnimGroup, int lp_index) {
@@ -1633,6 +1633,18 @@ void libCore_gf_DataMountsLoadMountDataIntoIndex (string lp_mountLink, fixed lp_
         libGame_gv_players[lp_index].lv_mountData.lv_isMorphMount = true;
     }
 
+    if ((CatalogEntryIsValid(c_gameCatalogActor, (((libGame_gv_players[lp_index].lv_mountData.lv_mountModel) + "CustomMountUpFX"))) == true)) {
+        libGame_gv_players[lp_index].lv_mountData.lv_mountUpFXActor = (((libGame_gv_players[lp_index].lv_mountData.lv_mountModel) + "CustomMountUpFX"));
+    }
+    else {
+        libGame_gv_players[lp_index].lv_mountData.lv_mountUpFXActor = "MountSmokeScreen";
+    }
+    if ((CatalogEntryIsValid(c_gameCatalogActor, (((libGame_gv_players[lp_index].lv_mountData.lv_mountModel) + "CustomDismountFX"))) == true)) {
+        libGame_gv_players[lp_index].lv_mountData.lv_dismountFXActor = (((libGame_gv_players[lp_index].lv_mountData.lv_mountModel) + "CustomDismountFX"));
+    }
+    else {
+        libGame_gv_players[lp_index].lv_mountData.lv_dismountFXActor = "DismountSmokeScreen";
+    }
 }
 
 void libCore_gf_DataMountsAddMountIDToDataTable (string lp_mountLink, int lp_catalogIndex, int lp_variationRefIndex) {
@@ -2017,6 +2029,28 @@ void libCore_gf_SetTalentsTierLevels (int lp_player) {
     lv_itTier = 1;
     for ( ; ( (autoEE7F0FF9_ai >= 0 && lv_itTier <= autoEE7F0FF9_ae) || (autoEE7F0FF9_ai < 0 && lv_itTier >= autoEE7F0FF9_ae) ) ; lv_itTier += autoEE7F0FF9_ai ) {
         libGame_gv_players[lp_player].lv_talents_TierLevels[lv_itTier].lv_level = CatalogFieldValueGetAsInt(c_gameCatalogHero, PlayerHero(lp_player), "TalentTierArray[" + IntToString((lv_itTier-1)) + "].Level", lp_player);
+    }
+}
+
+void libCore_gf_SetHeroicTalentTier (int lp_player) {
+    // Variable Declarations
+    int lv_itTier;
+
+    // Automatic Variable Declarations
+    int auto4418CAF4_ae;
+
+    // Variable Initialization
+    lv_itTier = 1;
+
+    // Implementation
+    auto4418CAF4_ae = libCore_gv_talents_MaxTiers_C;
+    lv_itTier = 1;
+    for ( ; lv_itTier <= auto4418CAF4_ae ; lv_itTier += 1 ) {
+        if ((CatalogFieldValueGetAsInt(c_gameCatalogHero, PlayerHero(lp_player), "TalentTierArray[" + IntToString((lv_itTier-1)) + "].ContainsHeroic", c_playerAny) == 1)) {
+            libGame_gv_players[lp_player].lv_talent_HeroicTalentTier = lv_itTier;
+            break;
+        }
+
     }
 }
 
@@ -4400,44 +4434,6 @@ void libCore_gt_DataInitializeAnnouncerPackData_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: Data - Initialize Voice Line Data
-//--------------------------------------------------------------------------------------------------
-bool libCore_gt_DataInitializeVoiceLineData_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    int lv_itVoiceLine;
-    string lv_voiceLineID;
-
-    // Automatic Variable Declarations
-    int auto7DB4CF30_ae;
-    const int auto7DB4CF30_ai = 1;
-
-    // Variable Initialization
-    lv_voiceLineID = "";
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    auto7DB4CF30_ae = CatalogEntryCount(c_gameCatalogVoiceLine);
-    lv_itVoiceLine = 1;
-    for ( ; ( (auto7DB4CF30_ai >= 0 && lv_itVoiceLine <= auto7DB4CF30_ae) || (auto7DB4CF30_ai < 0 && lv_itVoiceLine >= auto7DB4CF30_ae) ) ; lv_itVoiceLine += auto7DB4CF30_ai ) {
-        lv_voiceLineID = (CatalogEntryGet(c_gameCatalogVoiceLine, lv_itVoiceLine));
-        if ((lv_voiceLineID != ("RandomVoiceLine"))) {
-            libCore_gv_loot_VoiceLineCount += 1;
-            DataTableSetString(true, ("HeroIndex_" + "pizza" + "_VoiceLineIndex_" + IntToString(libCore_gv_loot_VoiceLineCount)), lv_voiceLineID);
-        }
-
-    }
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libCore_gt_DataInitializeVoiceLineData_Init () {
-    libCore_gt_DataInitializeVoiceLineData = TriggerCreate("libCore_gt_DataInitializeVoiceLineData_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
 // Trigger: Data - Minion Scaling Data
 //--------------------------------------------------------------------------------------------------
 bool libCore_gt_DataMinionScalingData_Func (bool testConds, bool runActions) {
@@ -4980,7 +4976,6 @@ bool libCore_gt_InitializeData_Func (bool testConds, bool runActions) {
     TriggerExecute(libCore_gt_DataInitializeSprayData, true, true);
     TriggerExecute(libCore_gt_DataInitializeBannerData, true, true);
     TriggerExecute(libCore_gt_DataInitializeAnnouncerPackData, true, true);
-    TriggerExecute(libCore_gt_DataInitializeVoiceLineData, true, true);
     TriggerExecute(libCore_gt_DataAnnouncerVOMapDataFields, true, true);
     TriggerExecute(libCore_gt_DataHeroVOMapDataFields, true, true);
     TriggerExecute(libCore_gt_DataDeathTimes, true, true);
@@ -5112,7 +5107,6 @@ void libCore_InitTriggers () {
     libCore_gt_DataInitializeSprayData_Init();
     libCore_gt_DataInitializeBannerData_Init();
     libCore_gt_DataInitializeAnnouncerPackData_Init();
-    libCore_gt_DataInitializeVoiceLineData_Init();
     libCore_gt_DataMinionScalingData_Init();
     libCore_gt_DataMinionWaveCompositionData_Init();
     libCore_gt_DataInitializeMountData_Init();

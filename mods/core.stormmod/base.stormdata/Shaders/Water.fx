@@ -364,14 +364,14 @@ float4 WaterPixelMain( VertexTransportRaw vertRaw ) : COLOR {
         // add fog
         vFinal.xyz = ApplyFog(vertOut, vFinal, 1, cLightingRegionMap);
         
-        if ( b_iUse8BitHDR )
-            vFinal.xyz *= p_vHDRScaling.x;
-        
         // add fog of war
         {
             HALF3 stubDiffuse = 0;
             vFinal.xyz = ApplyFogOfWar( vertOut, vFinal, stubDiffuse ).xyz;
         }
+
+        if ( b_iUse8BitHDR )
+            vFinal.xyz *= p_vHDRScaling.x;
 
         return float4(vFinal.xyz, max(p_vTint.w, 0.5f));
     } 

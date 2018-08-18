@@ -254,7 +254,7 @@ void libMSC2_gf_MMSC2SetupandStartPreview (int lp_specialLane) {
 void libMSC2_gf_MMSC2CreateCanisterPreview (point lp_location) {
     // Automatic Variable Declarations
     // Implementation
-    libNtve_gf_CreateUnitsWithDefaultFacing(1, "NukeTargetMinimapPreviewIconUnit", 0, 0, lp_location);
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, "NukeTargetMinimapPreviewIconUnit", 0, 0, lp_location, null);
     libMSC2_gv_mMSC2BuiltWarheadsWarningEffectCount += 1;
     libMSC2_gv_mMSC2BuiltWarheadsPreviewUnits[libMSC2_gv_mMSC2BuiltWarheadsWarningEffectCount] = UnitLastCreated();
 }
@@ -368,6 +368,15 @@ void libMSC2_gf_MMSC2SpawnNukeCanisters (int lp_specialSpawnLane) {
     SoundPlayForPlayer(SoundLink("UI_Game_Ping_Warhead_Nukes_Ready", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
     libMSC2_gf_MMSC2UpdateNukeTextTagsForPlayers();
     TimerStart(libMSC2_gv_mMSC2BuiltWarheadReminderTimer, libMSC2_gv_mMSC2WarheadPickupReminderDelay_C, false, c_timeGame);
+    StatEventCreate("WarheadJunctionNukesSpawned");
+    StatEventAddDataFixed(StatEventLastCreated(), "GameTime", libUIUI_gf_HeroesGameTime());
+    if ((libMSC2_gv_mMSC2FourWarheadsSpawn == true)) {
+        StatEventAddDataInt(StatEventLastCreated(), "NukeSpawnedCount", 4);
+    }
+    else {
+        StatEventAddDataInt(StatEventLastCreated(), "NukeSpawnedCount", 2);
+    }
+    StatEventSend(StatEventLastCreated());
 }
 
 trigger auto_libMSC2_gf_MMSC2NukeButtonStartFlashingForPlayer_Trigger = null;
@@ -460,7 +469,7 @@ void libMSC2_gf_MMSC2BuiltWarheadSpawned (point lp_canisterSpawnLocation, int lp
     // Implementation
     SoundtrackStopCurrent(libCore_gv_allHeroPlayersPlusObserver, c_soundtrackCategoryMusic, true);
     libSond_gf_SoundtrackPlayMapSoundtrackAsDefaultSoundtrackForAllPlayers();
-    libNtve_gf_CreateUnitsAtPoint2(1, lv_canisterType, c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Neutral, lp_canisterSpawnLocation);
+    libNtve_gf_CreateUnitsAtPoint2(1, lv_canisterType, c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Neutral, lp_canisterSpawnLocation, null);
     lv_spawnedWarhead = UnitLastCreated();
     libNtve_gf_SendActorMessageToUnit(lv_spawnedWarhead, "Signal Reveal");
     UnitGroupAdd(libMSC2_gv_mMSC2BuiltWarheadsActive, lv_spawnedWarhead);
@@ -575,6 +584,7 @@ bool auto_libMSC2_gf_MMSC2ArmNukeForUnit_TriggerFunc (bool testConds, bool runAc
     lv_allyTeam = libGame_gf_TeamNumberOfPlayer(lv_player);
     lv_enemyTeam = libGame_gf_EnemyTeam(lv_allyTeam);
     UnitBehaviorAdd(lv_varUnit, "MapMechanicStack", lv_varUnit, 1);
+    libNtve_gf_SetUpgradeLevelForPlayer(lv_player, "DisplayLockedMapMechanicAbility", 0);
     UnitModifyCooldown(lv_varUnit, "Abil/MapMechanicNuke", libMSC2_gv_mMSC2NukeArmingDuration_C, c_cooldownOperationMax);
     UnitModifyCooldown(lv_varUnit, "Abil/MapMechanicAbilityTarget", libMSC2_gv_mMSC2NukeArmingDuration_C, c_cooldownOperationMax);
     libMSC2_gf_MMSC2ShowHideNukeTextTagsForPlayer(false, lv_player);
@@ -594,6 +604,7 @@ bool auto_libMSC2_gf_MMSC2ArmNukeForUnit_TriggerFunc (bool testConds, bool runAc
 
 void libMSC2_gf_MMSC2PlayerUsesNuke (unit lp_unit) {
     // Variable Declarations
+    int lv_nukesi;
     int lv_player;
     playergroup lv_allyPlayerGroup;
     playergroup lv_enemyPlayerGroup;
@@ -601,6 +612,9 @@ void libMSC2_gf_MMSC2PlayerUsesNuke (unit lp_unit) {
     int lv_enemyTeam;
 
     // Automatic Variable Declarations
+    unitgroup auto0D10A15E_g;
+    int auto0D10A15E_u;
+    unit auto0D10A15E_var;
     int autoF6C2C763_val;
 
     // Variable Initialization
@@ -617,6 +631,21 @@ void libMSC2_gf_MMSC2PlayerUsesNuke (unit lp_unit) {
     libMSC2_gf_MMSC2TransmissionPlayerFiresNuke(lv_player);
     libGame_gf_ScoreValuesReportIntegerValueAndLog(lv_player, "CarriedMechanic", 0);
     libMSC2_gv_mMSC2_Nuke_Info.lv_playerNukeStateChanged[lv_player] = true;
+    if ((UnitGetType(libGame_gv_players[lv_player].lv_heroUnit) == "HeroLostVikingsController")) {
+        auto0D10A15E_g = libGame_gv_players[lv_player].lv_heroUnitGroup;
+        auto0D10A15E_u = UnitGroupCount(auto0D10A15E_g, c_unitCountAll);
+        for (;; auto0D10A15E_u -= 1) {
+            auto0D10A15E_var = UnitGroupUnitFromEnd(auto0D10A15E_g, auto0D10A15E_u);
+            if (auto0D10A15E_var == null) { break; }
+            if ((UnitBehaviorCount(auto0D10A15E_var, "MapMechanicStack") == 1)) {
+                lv_nukesi += 1;
+            }
+        }
+    }
+    if ((lv_nukesi == 0)) {
+        libNtve_gf_SetUpgradeLevelForPlayer(lv_player, "DisplayLockedMapMechanicAbility", 1);
+    }
+
     libMSC2_gf_MMSC2UIDisableNukeUIStateForPlayer(lv_player);
     libMSC2_gf_MMSC2NukeButtonStopFlashingForPlayer(lv_player);
     libMSC2_gf_MMSC2ShowHideNukeTextTagsForPlayer(true, lv_player);
@@ -634,6 +663,10 @@ void libMSC2_gf_MMSC2PlayerUsesNuke (unit lp_unit) {
         libNtve_gf_SendActorMessageToUnit(libMSC2_gv_nukeSiloUnit[lv_allyTeam], "Signal Deactivate");
     }
 
+    StatEventCreate("WarheadJunctionNukeFired");
+    StatEventAddDataFixed(StatEventLastCreated(), "GameTime", libUIUI_gf_HeroesGameTime());
+    StatEventAddDataInt(StatEventLastCreated(), "OwningTeam", lv_allyTeam);
+    StatEventSend(StatEventLastCreated());
 }
 
 void libMSC2_gf_MMSC2CanisterPlaformPlayBirthAnimations (doodad lp_doodad) {
@@ -1059,6 +1092,7 @@ void libMSC2_gf_MMSC2UIInit (int lp_parentPanel) {
     // Automatic Variable Declarations
     const int auto2B82C4EA_ae = libCore_gv_bALMaxTeams;
     const int auto2B82C4EA_ai = 1;
+    int auto7EB89CF5_val;
     int autoBD30C97A_val;
     int autoA9B5E424_val;
     int auto930AC329_ae;
@@ -1104,38 +1138,38 @@ void libMSC2_gf_MMSC2UIInit (int lp_parentPanel) {
     lv_itTeam = 1;
     for ( ; ( (auto2B82C4EA_ai >= 0 && lv_itTeam <= auto2B82C4EA_ae) || (auto2B82C4EA_ai < 0 && lv_itTeam >= auto2B82C4EA_ae) ) ; lv_itTeam += auto2B82C4EA_ai ) {
         lv_enemyTeam = (3 - lv_itTeam);
-        DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypePanel, "Team1TerrazineFrame");
+        auto7EB89CF5_val = lv_itTeam;
+        if (auto7EB89CF5_val == libGame_gv_teamOrderIndex_C) {
+            DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypePanel, "Team1TerrazineFrame");
+        }
+        else if (auto7EB89CF5_val == libGame_gv_teamChaosIndex_C) {
+            DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypePanel, "Team2TerrazineFrame");
+        }
+        else {
+        }
         lv_currentPanelLayer += 1;
         lv_panels[lv_currentPanelLayer] = DialogControlLastCreated();
         libMSC2_gv_mMSC2UIPanel.lv_ravenCourtTeamTributeFrame[lv_itTeam] = DialogControlLastCreated();
         DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeImage, "BackgroundBlue");
         libMSC2_gv_mMSC2UIPanel.lv_backgroundImageBlueLeft[lv_itTeam] = DialogControlLastCreated();
-        DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_backgroundImageBlueLeft[1], libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroupNoNPCPlayers, true);
-        DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_backgroundImageBlueLeft[2], libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroupNoNPCPlayers, false);
         if ((lv_itTeam == libGame_gv_teamChaosIndex_C)) {
             DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_backgroundImageBlueLeft[1], libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], true);
         }
 
         DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeImage, "TerrazineIconBlue");
         libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageBlueLeft[lv_itTeam] = DialogControlLastCreated();
-        DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageBlueLeft[1], libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroupNoNPCPlayers, true);
-        DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageBlueLeft[2], libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroupNoNPCPlayers, false);
         if ((lv_itTeam == libGame_gv_teamChaosIndex_C)) {
             DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageBlueLeft[1], libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], true);
         }
 
         DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeImage, "BackgroundRed");
         libMSC2_gv_mMSC2UIPanel.lv_backgroundImageRedLeft[lv_itTeam] = DialogControlLastCreated();
-        DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_backgroundImageRedLeft[1], libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroupNoNPCPlayers, false);
-        DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_backgroundImageRedLeft[2], libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroupNoNPCPlayers, true);
         if ((lv_itTeam == libGame_gv_teamOrderIndex_C)) {
             DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_backgroundImageRedLeft[1], libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], false);
         }
 
         DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeImage, "TerrazineIconRed");
         libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageRedLeft[lv_itTeam] = DialogControlLastCreated();
-        DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageRedLeft[1], libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroupNoNPCPlayers, false);
-        DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageRedLeft[2], libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroupNoNPCPlayers, true);
         if ((lv_itTeam == libGame_gv_teamOrderIndex_C)) {
             DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageRedLeft[1], libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], false);
         }
@@ -1159,32 +1193,24 @@ void libMSC2_gf_MMSC2UIInit (int lp_parentPanel) {
         libMSC2_gv_mMSC2UIPanel.lv_ravenCourtTeamTributeFrame[lv_itTeam] = DialogControlLastCreated();
         DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeImage, "BackgroundBlue");
         libMSC2_gv_mMSC2UIPanel.lv_backgroundImageBlueRight[lv_itTeam] = DialogControlLastCreated();
-        DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_backgroundImageBlueRight[1], libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroupNoNPCPlayers, false);
-        DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_backgroundImageBlueRight[2], libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroupNoNPCPlayers, true);
         if ((lv_itTeam == libGame_gv_teamChaosIndex_C)) {
             DialogControlSetVisible(DialogControlLastCreated(), libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], false);
         }
 
         DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeImage, "TerrazineIconBlue");
         libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageBlueRight[lv_itTeam] = DialogControlLastCreated();
-        DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageBlueRight[1], libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroupNoNPCPlayers, false);
-        DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageBlueRight[2], libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroupNoNPCPlayers, true);
         if ((lv_itTeam == libGame_gv_teamChaosIndex_C)) {
             DialogControlSetVisible(DialogControlLastCreated(), libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], false);
         }
 
         DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeImage, "BackgroundRed");
         libMSC2_gv_mMSC2UIPanel.lv_backgroundImageRedRight[lv_itTeam] = DialogControlLastCreated();
-        DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_backgroundImageRedRight[1], libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroupNoNPCPlayers, true);
-        DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_backgroundImageRedRight[2], libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroupNoNPCPlayers, false);
         if ((lv_itTeam == libGame_gv_teamOrderIndex_C)) {
             DialogControlSetVisible(DialogControlLastCreated(), libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], true);
         }
 
         DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypeImage, "TerrazineIconRed");
         libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageRedRight[lv_itTeam] = DialogControlLastCreated();
-        DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageRedRight[1], libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroupNoNPCPlayers, true);
-        DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageRedRight[2], libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroupNoNPCPlayers, false);
         if ((lv_itTeam == libGame_gv_teamOrderIndex_C)) {
             DialogControlSetVisible(DialogControlLastCreated(), libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], true);
         }
@@ -1203,6 +1229,23 @@ void libMSC2_gf_MMSC2UIInit (int lp_parentPanel) {
         }
         lv_currentPanelLayer -= 1;
     }
+    DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_backgroundImageBlueLeft[1], libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroupNoNPCPlayers, true);
+    DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_backgroundImageBlueLeft[2], libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroupNoNPCPlayers, false);
+    DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageBlueLeft[1], libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroupNoNPCPlayers, true);
+    DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageBlueLeft[2], libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroupNoNPCPlayers, false);
+    DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_backgroundImageRedLeft[1], libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroupNoNPCPlayers, false);
+    DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_backgroundImageRedLeft[2], libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroupNoNPCPlayers, true);
+    DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageRedLeft[1], libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroupNoNPCPlayers, false);
+    DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageRedLeft[2], libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroupNoNPCPlayers, true);
+    DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_backgroundImageBlueRight[1], libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroupNoNPCPlayers, false);
+    DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_backgroundImageBlueRight[2], libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroupNoNPCPlayers, true);
+    DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageBlueRight[1], libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroupNoNPCPlayers, false);
+    DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageBlueRight[2], libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroupNoNPCPlayers, true);
+    DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_backgroundImageRedRight[1], libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroupNoNPCPlayers, true);
+    DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_backgroundImageRedRight[2], libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroupNoNPCPlayers, false);
+    DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageRedRight[1], libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroupNoNPCPlayers, true);
+    DialogControlSetVisible(libMSC2_gv_mMSC2UIPanel.lv_nukeIconImageRedRight[2], libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroupNoNPCPlayers, false);
+
     DialogControlHookup(lv_panels[lv_currentPanelLayer], c_triggerControlTypePanel, "NukeSiloFrame");
     DialogControlSetVisible(DialogControlLastCreated(), PlayerGroupAll(), false);
     lv_currentPanelLayer += 1;
@@ -1460,6 +1503,7 @@ bool libMSC2_gt_MMSC2Init_Func (bool testConds, bool runActions) {
         	lv_itPlayer = PlayerGroupNextPlayer(autoF90BEC4C_g, lv_itPlayer);
         	if (lv_itPlayer<0) { break; }
         	TechTreeUpgradeAddLevel(lv_itPlayer, "IsOrderPlayer", 1);
+        libNtve_gf_SetUpgradeLevelForPlayer(lv_itPlayer, "DisplayLockedMapMechanicAbility", 1);
     }
     auto8DE2AF8D_g = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamChaosIndex_C, false);
     lv_itPlayer = -1;
@@ -1467,6 +1511,7 @@ bool libMSC2_gt_MMSC2Init_Func (bool testConds, bool runActions) {
         	lv_itPlayer = PlayerGroupNextPlayer(auto8DE2AF8D_g, lv_itPlayer);
         	if (lv_itPlayer<0) { break; }
         	TechTreeUpgradeAddLevel(lv_itPlayer, "IsChaosPlayer", 1);
+        libNtve_gf_SetUpgradeLevelForPlayer(lv_itPlayer, "DisplayLockedMapMechanicAbility", 1);
     }
     libGame_gf_SendMapSpecificAwardInitializeEventwithUserData(null, "Generic Instance");
     return true;
@@ -1680,7 +1725,6 @@ bool libMSC2_gt_MMSC2NukeDamageScaling_Func (bool testConds, bool runActions) {
         	lv_playerIndex = PlayerGroupNextPlayer(autoF6E0373D_g, lv_playerIndex);
         	if (lv_playerIndex<0) { break; }
         	CatalogFieldValueModify(c_gameCatalogEffect, "NukeOuterImpactDamage", "Amount", lv_playerIndex, "70", c_upgradeOperationAdd);
-        CatalogFieldValueModify(c_gameCatalogEffect, "NukeInnerImpactDamage", "Amount", lv_playerIndex, "119", c_upgradeOperationAdd);
     }
     libMSC2_gv_mMSC2NukeDamageScalesDone += 1;
     if ((libMSC2_gv_mMSC2NukeDamageScalesDone == 25)) {
@@ -1792,7 +1836,7 @@ bool libMSC2_gt_MMSC2BuiltWarheadCaptured_Func (bool testConds, bool runActions)
             RemoveUnitOfInterest(lv_itUnit, "Harvest", libNtve_ge_GoalTeam_Both);
             UnitKill(lv_itUnit);
             libMSC2_gf_MMSC2ArmNukeForUnit(lv_casterUnit);
-            libNtve_gf_CreateUnitsWithDefaultFacing(1, "RegenGlobe", c_unitCreateIgnorePlacement, libGame_gf_ComputerPlayerInTeam(lv_team), PointWithOffset(lv_canisterLoc, 0.0, 0.0));
+            libNtve_gf_CreateUnitsWithDefaultFacing(1, "RegenGlobe", c_unitCreateIgnorePlacement, libGame_gf_ComputerPlayerInTeam(lv_team), PointWithOffset(lv_canisterLoc, 0.0, 0.0), null);
             libGame_gf_DropLootBannerinSconce(UnitGroupUnit(UnitGroup("LootBannerSconce", c_playerAny, RegionCircle(lv_canisterLoc, 7.0), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), 1), libGame_gv_players[UnitGetOwner(lv_casterUnit)].lv_lootContent.lv_loot_Banner.lv_bannerID, UnitGetOwner(lv_casterUnit), true);
             TextTagDestroy(libCore_gf_TextTagStoredForUnit(lv_itUnit, 1));
             SoundPlayForPlayer(SoundLink("Event_Warhead_CollectUranium_Enemy", -1), c_maxPlayers, GameAttributePlayersForTeam(libGame_gf_EnemyTeam(lv_team)), 100.0, 0.0);
@@ -1818,6 +1862,10 @@ bool libMSC2_gt_MMSC2BuiltWarheadCaptured_Func (bool testConds, bool runActions)
     else {
         TimerStart(libMSC2_gv_mMSC2BuiltWarheadReminderTimer, libMSC2_gv_mMSC2WarheadPickupReminderDelay_C, false, c_timeGame);
     }
+    StatEventCreate("WarheadJunctionNukeCollected");
+    StatEventAddDataFixed(StatEventLastCreated(), "GameTime", libUIUI_gf_HeroesGameTime());
+    StatEventAddDataInt(StatEventLastCreated(), "OwningTeam", lv_team);
+    StatEventSend(StatEventLastCreated());
     Wait(libMSC2_gv_mMSC2NukeArmingDuration_C, c_timeGame);
     if ((UnitHasBehavior2(EventPlayerEffectUsedUnit(c_effectUnitCaster), "MapMechanicStack") == true)) {
         libMSC2_gf_MMSC2TransmissionPlayerNukeReady(UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster)));
@@ -2007,8 +2055,6 @@ bool libMSC2_gt_MMSC2NukeDamageDealt_Func (bool testConds, bool runActions) {
 //--------------------------------------------------------------------------------------------------
 void libMSC2_gt_MMSC2NukeDamageDealt_Init () {
     libMSC2_gt_MMSC2NukeDamageDealt = TriggerCreate("libMSC2_gt_MMSC2NukeDamageDealt_Func");
-    TriggerAddEventUnitDamaged(libMSC2_gt_MMSC2NukeDamageDealt, null, c_unitDamageTypeAny, c_unitDamageEither, "NukeInnerImpactDamage");
-    TriggerAddEventUnitDamaged(libMSC2_gt_MMSC2NukeDamageDealt, null, c_unitDamageTypeAny, c_unitDamageEither, "NukeInnerImpactHeroDamage");
     TriggerAddEventUnitDamaged(libMSC2_gt_MMSC2NukeDamageDealt, null, c_unitDamageTypeAny, c_unitDamageEither, "NukeOuterImpactDamage");
     TriggerAddEventUnitDamaged(libMSC2_gt_MMSC2NukeDamageDealt, null, c_unitDamageTypeAny, c_unitDamageEither, "NukeOuterImpactHeroDamage");
 }
@@ -2045,7 +2091,7 @@ bool libMSC2_gt_MMSC2PlayerDieswithNuke_Func (bool testConds, bool runActions) {
     }
 
     UnitBehaviorRemove(lv_heroUnit, "MapMechanicStack", 1);
-    PlayerCreateEffectPoint(libCore_gv_cOMPUTER_Neutral, "WarheadDroppedCreatePrecursorOffsetCreatePersistent", libGame_gf_HeroKilledLocation());
+    PlayerCreateEffectPoint(libCore_gv_cOMPUTER_Neutral, "WarheadDroppedCreateUnit", libGame_gf_HeroKilledLocation());
     autoD9C5CF58_val = lv_allyTeam;
     if (autoD9C5CF58_val == libGame_gv_teamOrderIndex_C) {
         libNtve_gf_SetDialogItemText(libMSC2_gv_mMSC2UIPanel.lv_ravenCourtTeamTributeCounterLabel[lv_allyTeam], IntToText(libMSC2_gf_MMSC2NukeCountforTeam(lv_allyTeam)), PlayerGroupAll());
@@ -2057,6 +2103,7 @@ bool libMSC2_gt_MMSC2PlayerDieswithNuke_Func (bool testConds, bool runActions) {
     }
     libGame_gf_ScoreValuesReportIntegerValueAndLog(lv_player, "CarriedMechanic", 0);
     libMSC2_gv_mMSC2_Nuke_Info.lv_playerNukeStateChanged[lv_player] = true;
+    libNtve_gf_SetUpgradeLevelForPlayer(lv_player, "DisplayLockedMapMechanicAbility", 1);
     libMSC2_gf_MMSC2UIDisableNukeUIStateForPlayer(lv_player);
     libMSC2_gf_MMSC2NukeButtonStopFlashingForPlayer(lv_player);
     libMSC2_gf_MMSC2ShowHideNukeTextTagsForPlayer(true, lv_player);
@@ -2065,6 +2112,10 @@ bool libMSC2_gt_MMSC2PlayerDieswithNuke_Func (bool testConds, bool runActions) {
         libNtve_gf_SendActorMessageToUnit(libMSC2_gv_nukeSiloUnit[lv_allyTeam], "Signal Deactivate");
     }
 
+    StatEventCreate("WarheadJunctionNukeDropped");
+    StatEventAddDataFixed(StatEventLastCreated(), "GameTime", libUIUI_gf_HeroesGameTime());
+    StatEventAddDataInt(StatEventLastCreated(), "OwningTeam", lv_allyTeam);
+    StatEventSend(StatEventLastCreated());
     return true;
 }
 
@@ -2615,6 +2666,8 @@ bool libMSC2_gt_MMSC2DebugEventStart_Func (bool testConds, bool runActions) {
     }
 
     if ((TimerGetRemaining(libMSC2_gv_mMSC2TerrazineMainEventTimer) > libMSC2_gv_mMSC2EventWarningDelayGasCanister_C)) {
+        TimerStart(libMSC2_gv_mMSC2ObjectivePreviewTimer, 0.0625, false, c_timeGame);
+        Wait(0.125, c_timeGame);
         TimerStart(libMSC2_gv_mMSC2TerrazineMainEventTimer, libMSC2_gv_mMSC2EventWarningDelayGasCanister_C, false, c_timeGame);
     }
 
