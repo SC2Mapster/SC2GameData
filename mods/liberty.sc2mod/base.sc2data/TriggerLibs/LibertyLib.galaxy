@@ -916,6 +916,98 @@ void libLbty_gt_MeleeSurrender_FlashDialog_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
+// Trigger: StarCraft Events
+//--------------------------------------------------------------------------------------------------
+bool libLbty_gt_StarCraftEvents_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    string lv_itInstance;
+    datetime lv_itStart;
+    datetime lv_itEnd;
+    string lv_itDisabler;
+    string lv_itSkin;
+    string lv_itUpgrade;
+    string lv_itMessage;
+    unitfilter lv_itMessageFilter;
+    datetime lv_curDateTime;
+    int lv_itPlayer;
+    unit lv_itUnit;
+
+    // Automatic Variable Declarations
+    string auto0F553801_userType;
+    int auto0F553801_i;
+    playergroup autoB7B8D940_g;
+    playergroup auto91C880CD_g;
+    unitgroup auto81EA1DF8_g;
+    int auto81EA1DF8_u;
+
+    // Variable Initialization
+    lv_itMessageFilter = UnitFilter(0, 0, 0, 0);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((GameMapIsBlizzard() == false)) {
+        TriggerEnable(TriggerGetCurrent(), false);
+        return true;
+    }
+
+    lv_curDateTime = CurrentDateTimeGet();
+    auto0F553801_userType = libLbty_gv_starCraftEventsEventTable;
+    auto0F553801_i = 1;
+    for ( ; auto0F553801_i <= UserDataInstanceCount(auto0F553801_userType) ; auto0F553801_i += 1 ) {
+        lv_itInstance = UserDataInstance(auto0F553801_userType, auto0F553801_i);
+        lv_itStart = StringToDateTime(UserDataGetString(libLbty_gv_starCraftEventsEventTable, lv_itInstance, "Start", 1));
+        lv_itEnd = StringToDateTime(UserDataGetString(libLbty_gv_starCraftEventsEventTable, lv_itInstance, "End", 1));
+        lv_itDisabler = UserDataGetGameLink("SCEvent_Events", lv_itInstance, "Disabler", 1);
+        lv_itSkin = UserDataGetGameLink("SCEvent_Events", lv_itInstance, "Skin", 1);
+        lv_itUpgrade = UserDataGetGameLink(libLbty_gv_starCraftEventsEventTable, lv_itInstance, "Upgrade", 1);
+        lv_itMessage = (UserDataGetString(libLbty_gv_starCraftEventsEventTable, lv_itInstance, "Message", 1));
+        lv_itMessageFilter = libNtve_gf_ConvertTargetFilterStringToUnitFilter(UserDataGetString(libLbty_gv_starCraftEventsEventTable, lv_itInstance, "MessageFilter", 1));
+        if (((CatalogEntryIsValid(c_gameCatalogUpgrade, lv_itDisabler) == true) || (libNtve_gf_DateTimeisBetween(lv_curDateTime, lv_itStart, lv_itEnd) == false))) {
+            continue;
+        }
+
+        if ((CatalogEntryIsValid(c_gameCatalogSkin, lv_itSkin) == true)) {
+            autoB7B8D940_g = PlayerGroupActive();
+            lv_itPlayer = -1;
+            while (true) {
+                lv_itPlayer = PlayerGroupNextPlayer(autoB7B8D940_g, lv_itPlayer);
+                if (lv_itPlayer < 0) { break; }
+                PlayerApplySkin(lv_itPlayer, lv_itSkin, true);
+            }
+        }
+
+        if ((CatalogEntryIsValid(c_gameCatalogUpgrade, lv_itUpgrade) == true)) {
+            auto91C880CD_g = PlayerGroupActive();
+            lv_itPlayer = -1;
+            while (true) {
+                lv_itPlayer = PlayerGroupNextPlayer(auto91C880CD_g, lv_itPlayer);
+                if (lv_itPlayer < 0) { break; }
+                TechTreeUpgradeAddLevel(lv_itPlayer, lv_itUpgrade, 1);
+            }
+        }
+
+        auto81EA1DF8_g = UnitGroup(null, c_playerAny, RegionEntireMap(), lv_itMessageFilter, 0);
+        auto81EA1DF8_u = UnitGroupCount(auto81EA1DF8_g, c_unitCountAll);
+        for (;; auto81EA1DF8_u -= 1) {
+            lv_itUnit = UnitGroupUnitFromEnd(auto81EA1DF8_g, auto81EA1DF8_u);
+            if (lv_itUnit == null) { break; }
+            ActorSend(libNtve_gf_MainActorofUnit(lv_itUnit), lv_itMessage);
+        }
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLbty_gt_StarCraftEvents_Init () {
+    libLbty_gt_StarCraftEvents = TriggerCreate("libLbty_gt_StarCraftEvents_Func");
+    TriggerAddEventMapInit(libLbty_gt_StarCraftEvents);
+    TriggerAddEventCheatUsed(libLbty_gt_StarCraftEvents, c_playerAny, c_gameCheatDateTime);
+}
+
+//--------------------------------------------------------------------------------------------------
 // Trigger: Transport Controller
 //--------------------------------------------------------------------------------------------------
 bool libLbty_gt_TransportController_Func (bool testConds, bool runActions) {
@@ -964,128 +1056,6 @@ bool libLbty_gt_TransportController_Func (bool testConds, bool runActions) {
 //--------------------------------------------------------------------------------------------------
 void libLbty_gt_TransportController_Init () {
     libLbty_gt_TransportController = TriggerCreate("libLbty_gt_TransportController_Func");
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: Confetti
-//--------------------------------------------------------------------------------------------------
-bool libLbty_gt_Confetti_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    string lv_upgrade;
-    string lv_model;
-    string lv_modelLow;
-    string lv_key;
-    string lv_asset;
-    int lv_p;
-
-    // Automatic Variable Declarations
-    playergroup autoD2C094C9_g;
-    int auto8BCC20E5_catalog;
-    int auto8BCC20E5_i;
-    playergroup autoF17331BD_g;
-    playergroup autoBB2E4608_g;
-
-    // Variable Initialization
-    lv_upgrade = EventUpgradeName();
-    lv_key = "UnitDeath";
-    lv_asset = "";
-
-    // Conditions
-    if (testConds) {
-        if (!((lv_upgrade == "Confetti"))) {
-            return false;
-        }
-
-        if (!((GameMapIsBlizzard() == true))) {
-            return false;
-        }
-    }
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    autoD2C094C9_g = PlayerGroupAll();
-    lv_p = -1;
-    while (true) {
-        lv_p = PlayerGroupNextPlayer(autoD2C094C9_g, lv_p);
-        if (lv_p < 0) { break; }
-        CatalogLinkReplace(lv_p, c_gameCatalogModel, "ViperDeathAddition", ("Confetti_Explosion_Medium"));
-    }
-    auto8BCC20E5_catalog = c_gameCatalogModel;
-    auto8BCC20E5_i = 1;
-    for ( ; auto8BCC20E5_i <= CatalogEntryCount(c_gameCatalogModel) ; auto8BCC20E5_i += 1 ) {
-        lv_model = CatalogEntryGet(auto8BCC20E5_catalog, auto8BCC20E5_i);
-        lv_modelLow = (CatalogFieldValueGet(c_gameCatalogModel, lv_model, "LowQualityModel", c_playerAny));
-        if ((CatalogEntryIsValid(c_gameCatalogModel, lv_modelLow) == true)) {
-            lv_asset = CatalogFieldValueGet(c_gameCatalogModel, lv_modelLow, "Model", c_playerAny);
-            if (((StringContains(lv_asset, lv_key, c_stringAnywhere, c_stringNoCase) == true) || (StringContains(lv_asset, "BloodDeath", c_stringAnywhere, c_stringNoCase) == true) || (StringContains(lv_asset, "Spirit", c_stringAnywhere, c_stringNoCase) == true))) {
-                autoBB2E4608_g = PlayerGroupAll();
-                lv_p = -1;
-                while (true) {
-                    lv_p = PlayerGroupNextPlayer(autoBB2E4608_g, lv_p);
-                    if (lv_p < 0) { break; }
-                    if (((StringContains((lv_modelLow), "Large", c_stringAnywhere, c_stringNoCase) == true) || (StringContains(lv_asset, "Large", c_stringAnywhere, c_stringNoCase) == true))) {
-                        CatalogLinkReplace(lv_p, c_gameCatalogModel, (lv_model), ("Confetti_Explosion_Large"));
-                    }
-                    else if (((StringContains((lv_modelLow), "Small", c_stringAnywhere, c_stringNoCase) == true) || (StringContains(lv_asset, "Small", c_stringAnywhere, c_stringNoCase) == true) || (StringContains(lv_asset, "BloodDeath", c_stringAnywhere, c_stringNoCase) == true) || (StringContains(lv_asset, "Spirit", c_stringAnywhere, c_stringNoCase) == true))) {
-                        CatalogLinkReplace(lv_p, c_gameCatalogModel, (lv_model), ("Confetti_Explosion_Small"));
-                    }
-                    else if (true) {
-                        CatalogLinkReplace(lv_p, c_gameCatalogModel, (lv_model), ("Confetti_Explosion_Medium"));
-                    }
-                }
-            }
-
-        }
-        else {
-            if ((StringContains((lv_model), "Ragdoll", c_stringAnywhere, c_stringNoCase) == true)) {
-                autoF17331BD_g = PlayerGroupAll();
-                lv_p = -1;
-                while (true) {
-                    lv_p = PlayerGroupNextPlayer(autoF17331BD_g, lv_p);
-                    if (lv_p < 0) { break; }
-                    CatalogLinkReplace(lv_p, c_gameCatalogModel, (lv_model), "WrongModel!");
-                }
-            }
-
-        }
-    }
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libLbty_gt_Confetti_Init () {
-    libLbty_gt_Confetti = TriggerCreate("libLbty_gt_Confetti_Func");
-    TriggerAddEventUpgradeLevelChanged(libLbty_gt_Confetti, c_playerAny);
-}
-
-//--------------------------------------------------------------------------------------------------
-// Trigger: ConfettiAutoDisable
-//--------------------------------------------------------------------------------------------------
-bool libLbty_gt_ConfettiAutoDisable_Func (bool testConds, bool runActions) {
-    // Automatic Variable Declarations
-    // Conditions
-    if (testConds) {
-        if (!((GameMapIsBlizzard() == false))) {
-            return false;
-        }
-    }
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    TriggerDestroy(libLbty_gt_Confetti);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libLbty_gt_ConfettiAutoDisable_Init () {
-    libLbty_gt_ConfettiAutoDisable = TriggerCreate("libLbty_gt_ConfettiAutoDisable_Func");
-    TriggerAddEventMapInit(libLbty_gt_ConfettiAutoDisable);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1142,9 +1112,8 @@ void libLbty_InitTriggers () {
     libLbty_gt_MeleeSurrender_Surrender_Init();
     libLbty_gt_MeleeSurrender_SurrenderClickedButton_Init();
     libLbty_gt_MeleeSurrender_FlashDialog_Init();
+    libLbty_gt_StarCraftEvents_Init();
     libLbty_gt_TransportController_Init();
-    libLbty_gt_Confetti_Init();
-    libLbty_gt_ConfettiAutoDisable_Init();
     libLbty_gt_AutoRevealRegionController_Init();
 }
 
