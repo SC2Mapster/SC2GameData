@@ -87,7 +87,6 @@ void libCOMI_InitVariables () {
     }
     libCOMI_gv_cM_CoopAI_DontPingPlayers = PlayerGroupEmpty();
     libCOMI_gv_catalogAdditiveBonusPrefix = "CatalogAdditiveBonus";
-    libCOMI_gv_unitTrainingRateLogBase = libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogBehavior, "TriggerQueueableRate", "Modification.RateMultiplierArray[Queueable]", c_playerAny);
     libCOMI_gv_candyChargeCmd = AbilityCommand("MutatorBuyCandy", 0);
     libCOMI_gv_supplicantWarpTrainActualUnitCost = UnitTypeGetCost("Supplicant", c_unitCostMinerals);
     libCOMI_gv_supplicantWarpTrainActualCommand = AbilityCommand("WarpGateTrainSupplicantTrue", 11);
@@ -198,6 +197,17 @@ void libCOMI_InitVariables () {
         libCOMI_gv_cM_Stukov_BunkerGroup[init_i] = UnitGroupEmpty();
     }
     for (init_i = 0; init_i <= libCOOC_gv_cCC_MAXPLAYERS; init_i += 1) {
+        libCOMI_gv_cM_TychusMedicTransportUnitGroup[init_i] = UnitGroupEmpty();
+    }
+    for (init_i = 0; init_i <= libCOOC_gv_cCC_MAXPLAYERS; init_i += 1) {
+        libCOMI_gv_cM_TychusMedicGroundUnitsTransportGroupAir[init_i] = UnitGroupEmpty();
+    }
+    for (init_i = 0; init_i <= libCOOC_gv_cCC_MAXPLAYERS; init_i += 1) {
+        libCOMI_gv_cM_TychusMedicGroundUnitsTransportGroupGround[init_i] = UnitGroupEmpty();
+    }
+    libCOMI_gv_cM_Tychus_MaxHeroCount = 5;
+    libCOMI_gv_tychusHeroMaxCharges = 4;
+    for (init_i = 0; init_i <= libCOOC_gv_cCC_MAXPLAYERS; init_i += 1) {
         libCOMI_gv_cM_SoACasterGroup[init_i] = UnitGroupEmpty();
     }
     for (init_i = 0; init_i <= libCOOC_gv_cCC_MAXPLAYERS; init_i += 1) {
@@ -239,6 +249,10 @@ void libCOMI_InitVariables () {
     libCOMI_gv_cM_DehakaVOLearnReminderTimer = TimerCreate();
     libCOMI_gv_cM_HornerVOBomberReminderTimer = TimerCreate();
     libCOMI_gv_cM_HornerVOBomberUseTimer = TimerCreate();
+    libCOMI_gv_cM_TychusVOTransportReminderTimer = TimerCreate();
+    libCOMI_gv_cM_TychusVOTransportFlairCooldownTimer = TimerCreate();
+    libCOMI_gv_cM_TychusVOOutlawReviveReminderTimer = TimerCreate();
+    libCOMI_gv_cM_TychusVOOutlawRecruitReminderTimer = TimerCreate();
     libCOMI_gv_cM_VOResourceReqSendButton = c_invalidDialogControlId;
     libCOMI_gv_cM_TransmissionPrimaryPlayers = PlayerGroupEmpty();
     libCOMI_gv_cM_TransmissionSecondaryPlayers = PlayerGroupEmpty();
@@ -3403,11 +3417,56 @@ void libCOMI_gf_CatalogFieldValueAdditiveBonus (int lp_catalog, string lp_entry,
     DataTableSetFixed(true, lv_dataPath, lv_newDelta);
 }
 
+void libCOMI_gf_InheritDmgandAttackSpeedFromParenttoChild (unit lp_parent, unit lp_child) {
+    // Variable Declarations
+    string lv_b;
+    int lv_bstackcount;
+    fixed lv_totaldmgmultiplier;
+    fixed lv_totalattackratemultiplier;
+
+    // Automatic Variable Declarations
+    unit autoE98657EB_u;
+    int autoE98657EB_i;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_totaldmgmultiplier = 0.0;
+    lv_totalattackratemultiplier = 1.0;
+    autoE98657EB_u = lp_parent;
+    autoE98657EB_i = 1;
+    for ( ; autoE98657EB_i <= UnitBehaviorCountAll(autoE98657EB_u) ; autoE98657EB_i += BoolToInt(lv_b == UnitBehaviorGet(autoE98657EB_u, autoE98657EB_i)) ) {
+        lv_b = UnitBehaviorGet(autoE98657EB_u, autoE98657EB_i);
+        lv_bstackcount = UnitBehaviorCount(lp_parent, lv_b);
+        if ((CatalogFieldValueGetAsInt(c_gameCatalogBehavior, lv_b, "BehaviorCategories[" + IntToString(c_unitBehaviorFlagFast) + "]", c_playerAny) == 1)) {
+            lv_totaldmgmultiplier += (libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogBehavior, lv_b, "Modification.DamageDealtFraction[" + IntToString(0) + "]", c_playerAny) * lv_bstackcount);
+            lv_totalattackratemultiplier *= Pow(libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogBehavior, lv_b, "Modification.AttackSpeedMultiplier", c_playerAny), lv_bstackcount);
+        }
+
+    }
+    libCOMI_gf_SetUnitBuffMultiplier(lp_child, lv_totalattackratemultiplier, "TriggerAttackRate", 1.01, libCOMI_ge_UnitBuffMultiplierMethod_Exponential);
+    libCOMI_gf_SetUnitBuffMultiplier(lp_child, lv_totaldmgmultiplier, "TriggerDamageMultiplier", 0.01, libCOMI_ge_UnitBuffMultiplierMethod_Linear);
+}
+
 void libCOMI_gf_CopyBehaviorToMagazineAmmos (unit lp_unit, string lp_behavior) {
     // Automatic Variable Declarations
     // Implementation
     CatalogFieldValueSet(c_gameCatalogEffect, "TriggerCopyBehaviorToTarget", "Behavior", UnitGetOwner(lp_unit), (lp_behavior));
     UnitCreateEffectUnit(lp_unit, "TriggerCopyBehaviorToMagazine", lp_unit);
+}
+
+string libCOMI_gf_TraingingUnitTypeInAbilCommand (abilcmd lp_abilityCommand, int lp_p, int lp_unitIndex) {
+    // Variable Declarations
+    string lv_link;
+    int lv_index;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_link = AbilityCommandGetAbility(lp_abilityCommand);
+    lv_index = AbilityCommandGetCommand(lp_abilityCommand);
+
+    // Implementation
+    return UnitTypeFromString(CatalogFieldValueGet(c_gameCatalogAbil, lv_link, "InfoArray[" + IntToString(lv_index) + "].Unit[" + IntToString(lp_unitIndex) + "]", lp_p));
 }
 
 bool libCOMI_gf_HeroCanSpendSkillPoint (unit lp_hero, string lp_learnAbility) {
@@ -3436,21 +3495,24 @@ bool libCOMI_gf_HeroCanSpendSkillPoint (unit lp_hero, string lp_learnAbility) {
     return false;
 }
 
-void libCOMI_gf_SetUnitQueueableRateMultiplier (unit lp_unit, fixed lp_multiplierAmount) {
+void libCOMI_gf_SetUnitBuffMultiplier (unit lp_unit, fixed lp_multiplierAmount, string lp_behavior, fixed lp_baseValue, int lp_method) {
     // Variable Declarations
-    fixed lv_stack;
+    fixed lv_multiplierStack;
 
     // Automatic Variable Declarations
     // Variable Initialization
 
     // Implementation
-    if ((lp_multiplierAmount == 1.0)) {
-        UnitBehaviorRemove(lp_unit, "TriggerQueueableRate", c_unitBehaviorCountAll);
+    UnitBehaviorRemove(lp_unit, lp_behavior, c_unitBehaviorCountAll);
+    if ((lp_method == libCOMI_ge_UnitBuffMultiplierMethod_Exponential) && (lp_multiplierAmount != 1.0)) {
+        lv_multiplierStack = libNtve_gf_Log(lp_multiplierAmount, lp_baseValue);
+        CatalogFieldValueSet(c_gameCatalogBehavior, lp_behavior, "MinPoints", UnitGetOwner(lp_unit), IntToString(CeilingI(lv_multiplierStack)));
+        UnitBehaviorAddPlayer(lp_unit, lp_behavior, UnitGetOwner(lp_unit), 1);
     }
-    else {
-        lv_stack = libNtve_gf_Log(lp_multiplierAmount, libCOMI_gv_unitTrainingRateLogBase);
-        CatalogFieldValueSet(c_gameCatalogBehavior, libCOMI_gv_unitTrainingRateLogBaseBehavior, "MinPoints", UnitGetOwner(lp_unit), IntToString(CeilingI(lv_stack)));
-        UnitBehaviorAdd(lp_unit, libCOMI_gv_unitTrainingRateLogBaseBehavior, lp_unit, 1);
+    else if ((lp_method == libCOMI_ge_UnitBuffMultiplierMethod_Linear) && (lp_multiplierAmount != 0.0)) {
+        lv_multiplierStack = (lp_multiplierAmount / lp_baseValue);
+        CatalogFieldValueSet(c_gameCatalogBehavior, lp_behavior, "MinPoints", UnitGetOwner(lp_unit), IntToString(CeilingI(lv_multiplierStack)));
+        UnitBehaviorAddPlayer(lp_unit, lp_behavior, UnitGetOwner(lp_unit), 1);
     }
 }
 
@@ -3499,6 +3561,39 @@ void libCOMI_gf_PlayerApplySkinSignal (int lp_player, string lp_skin, bool lp_ac
 
     }
     ActorSend(lv_ar, "Destroy");
+}
+
+void libCOMI_gf_ButtonReplacement (int lp_player, string lp_button, string lp_buttonReplacement) {
+    // Variable Declarations
+    string lv_pathName;
+    string lv_pathTooltip;
+    string lv_pathAlertTooltip;
+    string lv_pathHotkey;
+    string lv_pathIcon;
+    string lv_pathAlertIcon;
+    string lv_itPath;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_pathName = "Name";
+    lv_pathTooltip = "Tooltip";
+    lv_pathAlertTooltip = "AlertTooltip";
+    lv_pathHotkey = "Hotkey";
+    lv_pathIcon = "Icon";
+    lv_pathAlertIcon = "AlertIcon";
+    lv_itPath = "";
+
+    // Implementation
+    lv_itPath = lv_pathName;
+    CatalogFieldValueSet(c_gameCatalogButton, lp_button, lv_itPath, lp_player, CatalogFieldValueGet(c_gameCatalogButton, lp_buttonReplacement, lv_itPath, lp_player));
+    lv_itPath = lv_pathTooltip;
+    CatalogFieldValueSet(c_gameCatalogButton, lp_button, lv_itPath, lp_player, CatalogFieldValueGet(c_gameCatalogButton, lp_buttonReplacement, lv_itPath, lp_player));
+    lv_itPath = lv_pathAlertTooltip;
+    CatalogFieldValueSet(c_gameCatalogButton, lp_button, lv_itPath, lp_player, CatalogFieldValueGet(c_gameCatalogButton, lp_buttonReplacement, lv_itPath, lp_player));
+    lv_itPath = lv_pathIcon;
+    CatalogFieldValueSet(c_gameCatalogButton, lp_button, lv_itPath, lp_player, CatalogFieldValueGet(c_gameCatalogButton, lp_buttonReplacement, lv_itPath, lp_player));
+    lv_itPath = lv_pathAlertIcon;
+    CatalogFieldValueSet(c_gameCatalogButton, lp_button, lv_itPath, lp_player, CatalogFieldValueGet(c_gameCatalogButton, lp_buttonReplacement, lv_itPath, lp_player));
 }
 
 void libCOMI_gf_CM_MasteryKerriganArmyVespeneCostList (int lp_player) {
@@ -3787,6 +3882,7 @@ void libCOMI_gf_CM_DataUtilInit () {
         }
         else if (autoCF24B7F2_val == "ProtossAlarak") {
             TriggerEnable(libCOMI_gt_CM_Alarak_Sacrific_Scale, true);
+            TriggerEnable(libCOMI_gt_CM_Alarak_Upgrade, true);
             TriggerEnable(libCOMI_gt_CM_AlarakLightningStrikes_FlashOn, true);
             TriggerEnable(libCOMI_gt_CM_AlarakLightningStrikes_FlashOff, true);
             TriggerEnable(libCOMI_gt_CM_AlarakLightningStrikes_Sacriface, true);
@@ -3901,7 +3997,7 @@ void libCOMI_gf_CM_Abathur_BiomassMerge (unit lp_biomassUnit, int lp_biomassUnit
     unit autoDB6627FC_var;
 
     // Variable Initialization
-    lv_biomassCongealRadius = 1.9;
+    lv_biomassCongealRadius = 4.0;
 
     // Implementation
     autoDB6627FC_g = UnitGroup("BiomassPickup", UnitGetOwner(lp_biomassUnit), RegionCircle(UnitGetPosition(lp_biomassUnit), lv_biomassCongealRadius), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
@@ -5009,6 +5105,272 @@ void libCOMI_gf_CM_Stukov_NewBunkerUnitProcess (unit lp_newUnit) {
     libCOMI_gf_CM_Stukov_SingleUnitGoToRally(lp_newUnit, true);
 }
 
+void libCOMI_gf_TychusHeroEvent (trigger t, string lp_event) {
+    // Automatic Variable Declarations
+    // Implementation
+    TriggerAddEventGeneric(t, (lp_event));
+}
+
+unit libCOMI_gf_EventTychusHero () {
+    // Automatic Variable Declarations
+    // Implementation
+    return DataTableGetUnit(false, TriggerEventParamName(EventGenericName(), "EventHero"));
+}
+
+string libCOMI_gf_EventTychusHeroInstance () {
+    // Automatic Variable Declarations
+    // Implementation
+    return (DataTableGetString(false, TriggerEventParamName(EventGenericName(), "EventHeroInstance")));
+}
+
+void libCOMI_gf_TychusStructureEvent (trigger t, string lp_event) {
+    // Automatic Variable Declarations
+    // Implementation
+    TriggerAddEventGeneric(t, (lp_event));
+}
+
+unit libCOMI_gf_EventTychusStructure () {
+    // Automatic Variable Declarations
+    // Implementation
+    return DataTableGetUnit(false, TriggerEventParamName(EventGenericName(), "EventStructure"));
+}
+
+void libCOMI_gf_CM_Tychus_UpdateHeroTechTree (int lp_p) {
+    // Variable Declarations
+    int lv_techLevel;
+    int lv_heroCount;
+    int lv_requiredTechLevel;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_techLevel = libCOMI_gf_CM_Tychus_TechLevel(lp_p);
+    lv_heroCount = libCOMI_gf_CM_Tychus_TechLevel2(lp_p);
+
+    // Implementation
+    if (((TechTreeUpgradeCount(lp_p, "TychusCoopHeroHalfCostUpgrade", c_techCountCompleteOnly) == 0) || (lv_heroCount > 1))) {
+        libCOMI_gf_CM_Tychus_SetHeroCostMultiply(lp_p, 2.0, 2.0);
+    }
+
+    if ((lv_heroCount >= libCOMI_gv_cM_Tychus_MaxHeroCount)) {
+        libNtve_gf_SetUpgradeLevelForPlayer(lp_p, "TychusHeroMaxed", 1);
+    }
+    else {
+        libNtve_gf_SetUpgradeLevelForPlayer(lp_p, "TychusHeroMaxed", 0);
+    }
+}
+
+void libCOMI_gf_CM_Tychus_SetHeroRequiredTechLevel (int lp_p, int lp_level) {
+    // Variable Declarations
+    string lv_instance;
+    string lv_uT;
+    abilcmd lv_cmd;
+    string lv_abil;
+    int lv_abilIndex;
+    int lv_i;
+    string lv_requirement;
+
+    // Automatic Variable Declarations
+    string auto845894D2_userType;
+    int auto845894D2_i;
+    int auto3D8DE2E4_ae;
+    const int auto3D8DE2E4_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_requirement = libCOMI_gv_c_CM_Tychus_UserTypeHeroRequirmentArray[lp_level];
+    auto845894D2_userType = libCOMI_gv_cM_Tychus_UserTypeHeroList;
+    auto845894D2_i = 1;
+    for ( ; auto845894D2_i <= UserDataInstanceCount(auto845894D2_userType) ; auto845894D2_i += 1 ) {
+        lv_instance = UserDataInstance(auto845894D2_userType, auto845894D2_i);
+        lv_uT = UserDataGetUnit(libCOMI_gv_cM_Tychus_UserTypeHeroList, lv_instance, "Unit Type", 1);
+        if ((TechTreeUnitIsAllowed(lp_p, lv_uT) == true)) {
+            auto3D8DE2E4_ae = (TechTreeUnitProducedAbilCmdCount(lv_uT) - 1);
+            lv_i = 0;
+            for ( ; ( (auto3D8DE2E4_ai >= 0 && lv_i <= auto3D8DE2E4_ae) || (auto3D8DE2E4_ai < 0 && lv_i >= auto3D8DE2E4_ae) ) ; lv_i += auto3D8DE2E4_ai ) {
+                lv_cmd = TechTreeUnitProducedAbilCmd(lv_uT, lv_i);
+                lv_abil = AbilityCommandGetAbility(lv_cmd);
+                lv_abilIndex = AbilityCommandGetCommand(lv_cmd);
+                CatalogFieldValueSet(c_gameCatalogAbil, lv_abil, "InfoArray[" + IntToString(lv_abilIndex) + "].Button.Requirements", lp_p, (lv_requirement));
+            }
+        }
+
+    }
+}
+
+void libCOMI_gf_CM_Tychus_SetHeroCostMultiply (int lp_p, fixed lp_multiplyMinerals, fixed lp_multiplyVespene) {
+    // Variable Declarations
+    string lv_instance;
+    string lv_uT;
+    int lv_indexResource;
+
+    // Automatic Variable Declarations
+    string auto9ADCDADB_userType;
+    int auto9ADCDADB_i;
+
+    // Variable Initialization
+
+    // Implementation
+    auto9ADCDADB_userType = libCOMI_gv_cM_Tychus_UserTypeHeroList;
+    auto9ADCDADB_i = 1;
+    for ( ; auto9ADCDADB_i <= UserDataInstanceCount(auto9ADCDADB_userType) ; auto9ADCDADB_i += 1 ) {
+        lv_instance = UserDataInstance(auto9ADCDADB_userType, auto9ADCDADB_i);
+        lv_uT = UserDataGetUnit(libCOMI_gv_cM_Tychus_UserTypeHeroList, lv_instance, "Unit Type", 1);
+        libNtve_gf_CatalogFieldValueModifyBasedOnDefaultValue(c_gameCatalogUnit, lv_uT, "CostResource[" + IntToString(0) + "]", lp_p, lp_multiplyMinerals, c_upgradeOperationMultiply);
+        libNtve_gf_CatalogFieldValueModifyBasedOnDefaultValue(c_gameCatalogUnit, lv_uT, "CostResource[" + IntToString(1) + "]", lp_p, lp_multiplyVespene, c_upgradeOperationMultiply);
+    }
+}
+
+int libCOMI_gf_CM_Tychus_TechLevel (int lp_p) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((TechTreeBehaviorCount(lp_p, "TychusTier3Behavior", c_techCountCompleteOnly) > 0)) {
+        return 3;
+    }
+
+    if ((TechTreeBehaviorCount(lp_p, "TychusTier2Behavior", c_techCountCompleteOnly) > 0)) {
+        return 2;
+    }
+
+    if ((TechTreeBehaviorCount(lp_p, "TychusTier1Behavior", c_techCountCompleteOnly) > 0)) {
+        return 1;
+    }
+
+    return 0;
+}
+
+int libCOMI_gf_CM_Tychus_TechLevel2 (int lp_p) {
+    // Variable Declarations
+    int lv_incomplete;
+    int lv_completed;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_incomplete = TechTreeUnitAliasCount(lp_p, "Alias_TychusUniqueUnit", c_techCountIncompleteOnly);
+    lv_completed = TechTreeBehaviorCount(lp_p, "TychusHeroCount", c_techCountCompleteOnly);
+
+    // Implementation
+    return (lv_incomplete + lv_completed);
+}
+
+void libCOMI_gf_CM_Tychus_UltimateTimeAchievement (int lp_player) {
+    // Automatic Variable Declarations
+    // Implementation
+    if (((libCOMI_gf_DifficultyLevelForPlayerCoop(lp_player) == 3) || (libCOMI_gf_DifficultyLevelForPlayerCoop(lp_player) == 4)) && (libCOMI_gv_cM_Tychus_UltimatesPurchased == 5) && (GameGetMissionTime() < 1200.0)) {
+        AchievementAward(lp_player, "CommanderTychusUltimateTime");
+    }
+
+}
+
+fixed libCOMI_gf_CalculateTychusRecruitmentChargeCooldown (int lp_tychusPlayer) {
+    // Automatic Variable Declarations
+    // Implementation
+    return (libCOMI_gv_cM_Tychus_RechargeTrainTime-(TechTreeUpgradeCount(lp_tychusPlayer, "MasteryTychusHeroCooldown", c_techCountCompleteOnly)*libCOMI_gv_cM_Tychus_RechargeTrainTimeMasteryReducePerLevel));
+}
+
+void libCOMI_gf_ApplyTychusMaxChargesPerk (int lp_player) {
+    // Variable Declarations
+    int lv_i;
+    int lv_player;
+
+    // Automatic Variable Declarations
+    const int auto7154FA6F_ae = 10;
+    const int auto7154FA6F_ai = 1;
+    const int autoC331B48F_ae = 10;
+    const int autoC331B48F_ai = 1;
+
+    // Variable Initialization
+    lv_player = lp_player;
+
+    // Implementation
+    if ((TechTreeUpgradeCount(lv_player, "TychusCoopFifthHeroUpgrade", c_techCountCompleteOnly) == 0)) {
+        libCOMI_gv_cM_Tychus_MaxHeroCount = (libCOMI_gv_cM_Tychus_MaxHeroCount - 1);
+        libCOMI_gv_tychusHeroMaxCharges = (libCOMI_gv_tychusHeroMaxCharges - 1);
+        lv_i = 0;
+        for ( ; ( (autoC331B48F_ai >= 0 && lv_i <= autoC331B48F_ae) || (autoC331B48F_ai < 0 && lv_i >= autoC331B48F_ae) ) ; lv_i += autoC331B48F_ai ) {
+            libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusBarracksTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, libCOMI_gv_tychusHeroMaxCharges);
+            libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusFactoryTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, libCOMI_gv_tychusHeroMaxCharges);
+            libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusStarportTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, libCOMI_gv_tychusHeroMaxCharges);
+        }
+        UnitCreateEffectUnit(libCOMI_gv_cM_GlobalCasterUnit[lv_player], "TychusHeroLevel1ChargeAdd", libCOMI_gv_cM_GlobalCasterUnit[lv_player]);
+        UnitCreateEffectUnit(libCOMI_gv_cM_GlobalCasterUnit[lv_player], "TychusHeroLevel1ChargeRemove", libCOMI_gv_cM_GlobalCasterUnit[lv_player]);
+    }
+    else {
+        lv_i = 0;
+        for ( ; ( (auto7154FA6F_ai >= 0 && lv_i <= auto7154FA6F_ae) || (auto7154FA6F_ai < 0 && lv_i >= auto7154FA6F_ae) ) ; lv_i += auto7154FA6F_ai ) {
+            libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusBarracksTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, libCOMI_gv_tychusHeroMaxCharges);
+            libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusFactoryTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, libCOMI_gv_tychusHeroMaxCharges);
+            libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusStarportTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, libCOMI_gv_tychusHeroMaxCharges);
+        }
+        UnitCreateEffectUnit(libCOMI_gv_cM_GlobalCasterUnit[lv_player], "TychusHeroChargeAdd", libCOMI_gv_cM_GlobalCasterUnit[lv_player]);
+        UnitCreateEffectUnit(libCOMI_gv_cM_GlobalCasterUnit[lv_player], "TychusHeroChargeRemove", libCOMI_gv_cM_GlobalCasterUnit[lv_player]);
+    }
+}
+
+void libCOMI_gf_ReplaceTychusRageEffect (string lp_rageEffect, string lp_dummyEffectInstance, point lp_targetPoint, unit lp_targetUnit, unit lp_tychusUnit) {
+    // Variable Declarations
+    fixed lv_ragemultiplier;
+    fixed lv_ragecost;
+    fixed lv_extrarage;
+    string lv_replacementeffect;
+    int lv_tychusowner;
+    int lv_damagetypeindex;
+
+    // Automatic Variable Declarations
+    const int auto902E4791_ae = 4;
+    const int auto902E4791_ai = 1;
+    const int auto34EFDB1B_ae = 4;
+    const int auto34EFDB1B_ai = 1;
+
+    // Variable Initialization
+    lv_ragemultiplier = UserDataGetFixed("CoopAbilityTychusRageEffects", lp_rageEffect, "Rage Bonus Multiplier", 1);
+    lv_ragecost = libNtve_gf_CostOfAbility(UserDataGetGameLink("CoopAbilityTychusRageEffects", lp_rageEffect, "Rage Ability", 1), "Energy");
+    lv_extrarage = UnitGetPropertyFixed(lp_tychusUnit, c_unitPropEnergy, c_unitPropCurrent);
+    lv_replacementeffect = UserDataGetGameLink("CoopAbilityTychusRageEffects", lp_rageEffect, "Replacement Effect", 1);
+    lv_tychusowner = UnitGetOwner(lp_tychusUnit);
+
+    // Implementation
+    lv_damagetypeindex = 0;
+    for ( ; ( (auto902E4791_ai >= 0 && lv_damagetypeindex <= auto902E4791_ae) || (auto902E4791_ai < 0 && lv_damagetypeindex >= auto902E4791_ae) ) ; lv_damagetypeindex += auto902E4791_ai ) {
+        CatalogFieldValueSet(c_gameCatalogBehavior, UserDataGetGameLink("CoopAbilityTychusRageEffects", lp_rageEffect, "Rage Bonus Behavior", 1), "Modification.DamageDealtScaled[" + IntToString(lv_damagetypeindex) + "]", lv_tychusowner, IntToString(RoundI((lv_ragemultiplier * (lv_ragecost + lv_extrarage)))));
+    }
+    if ((lp_targetUnit == null)) {
+        UnitCreateEffectPoint(lp_tychusUnit, lv_replacementeffect, lp_targetPoint);
+    }
+    else {
+        UnitCreateEffectUnit(lp_tychusUnit, lv_replacementeffect, lp_targetUnit);
+    }
+    lv_damagetypeindex = 0;
+    for ( ; ( (auto34EFDB1B_ai >= 0 && lv_damagetypeindex <= auto34EFDB1B_ae) || (auto34EFDB1B_ai < 0 && lv_damagetypeindex >= auto34EFDB1B_ae) ) ; lv_damagetypeindex += auto34EFDB1B_ai ) {
+        CatalogFieldValueSet(c_gameCatalogBehavior, UserDataGetGameLink("CoopAbilityTychusRageEffects", lp_rageEffect, "Rage Bonus Behavior", 1), "Modification.DamageDealtScaled[" + IntToString(lv_damagetypeindex) + "]", lv_tychusowner, "0");
+    }
+}
+
+void libCOMI_gf_ApplyTychusRageBuffs (string lp_rageBuff, unit lp_targetUnit, unit lp_tychusUnit) {
+    // Variable Declarations
+    fixed lv_currentrage;
+    string lv_behavior;
+    int lv_existingstackcount;
+    int lv_newstackcount;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_currentrage = UnitGetPropertyFixed(lp_tychusUnit, c_unitPropEnergy, c_unitPropCurrent);
+    lv_behavior = UserDataGetGameLink("CoopAbilityTychusRageBuffs", lp_rageBuff, "Behavior", 1);
+    lv_existingstackcount = UnitBehaviorCount(lp_targetUnit, lv_behavior);
+    lv_newstackcount = libNtve_gf_ArithmeticIntClamp(RoundI((UserDataGetFixed("CoopAbilityTychusRageBuffs", lp_rageBuff, "Rage Factor", 1) * UnitGetPropertyFixed(lp_tychusUnit, c_unitPropEnergy, c_unitPropCurrent))), UserDataGetInt("CoopAbilityTychusRageBuffs", lp_rageBuff, "Min Stacks", 1), UserDataGetInt("CoopAbilityTychusRageBuffs", lp_rageBuff, "Max Stacks", 1));
+
+    // Implementation
+    if ((UserDataGetInt("CoopAbilityTychusRageBuffs", lp_rageBuff, "Rolling Stacks", 1) == 1) && (lv_existingstackcount > lv_newstackcount)) {
+        UnitBehaviorRemove(lp_targetUnit, lv_behavior, MaxI(lv_newstackcount, 0));
+        UnitBehaviorAdd(lp_targetUnit, lv_behavior, lp_tychusUnit, lv_newstackcount);
+    }
+    else {
+        UnitBehaviorRemove(lp_targetUnit, lv_behavior, lv_existingstackcount);
+        UnitBehaviorAdd(lp_targetUnit, lv_behavior, lp_tychusUnit, lv_newstackcount);
+    }
+}
+
 void libCOMI_gf_ResourcePickupAlly (int lp_player, int lp_minerals, int lp_vespene) {
     // Automatic Variable Declarations
     // Implementation
@@ -5674,6 +6036,10 @@ void libCOMI_gf_CM_StartingTechForHumanPlayer (int lp_player) {
             TriggerExecute(libCOMI_gt_CM_Horner_TriggersInit, true, false);
         }
 
+        if ((TechTreeUpgradeCount(lp_player, "TychusCommander", c_techCountCompleteOnly) == 1)) {
+            TriggerExecute(libCOMI_gt_CM_Tychus_TriggersInit, true, false);
+        }
+
     }
     else if (auto11CC9962_val == "Zerg") {
         if ((TechTreeUpgradeCount(lp_player, "KerriganCommander", c_techCountCompleteOnly) == 1)) {
@@ -5853,7 +6219,7 @@ bool auto_libCOMI_gf_CM_HeroHandleDeath_TriggerFunc (bool testConds, bool runAct
     libCOMI_gv_cM_HeroDeathCount[lp_player] += 1;
     libCOMI_gv_zS_ReviveCooldownTimeKerrigan = StringToFixed(CatalogFieldValueGet(c_gameCatalogBehavior, libCOOC_gf_CC_CommanderHeroNormalReviveBehavior(libCOOC_gf_ActiveCommanderForPlayer(lp_player)), "Duration", lp_player));
     libCOUI_gv_cU_HeroReviveTimer[1][lp_player] = libCOMI_gv_zS_ReviveCooldownTimeKerrigan;
-    if (((PlayerRace(lp_player) == "Terr") && (TechTreeUpgradeCount(lp_player, "NovaCommander", c_techCountCompleteOnly) == 0))) {
+    if ((PlayerCommander(lp_player) == "Nova") && (PlayerCommander(lp_player) == "Tychus")) {
         return true;
     }
 
@@ -5884,6 +6250,7 @@ bool auto_libCOMI_gf_CM_HeroHandleDeath_TriggerFunc (bool testConds, bool runAct
         else {
             libNtve_gf_CreateUnitsWithDefaultFacing(1, libCOOC_gf_CC_CommanderHeroReviveUnitType(libCOOC_gf_ActiveCommanderForPlayer(lp_player)), 0, lp_player, UnitGetPosition(libCOMI_gf_CM_PrimaryTownHall(lp_player)));
             libCOMI_gv_cM_HeroReviver[lp_player] = UnitLastCreated();
+            UnitCreateEffectUnit(libCOMI_gv_cM_HeroReviver[lp_player], "CopyTargetSelectionAndControlGroups", libCOMI_gv_cM_HeroUnit[lp_player]);
         }
         if ((PlayerRace(lp_player) == "Zerg") && (PlayerCommander(lp_player) != "Dehaka")) {
             UnitCreateEffectUnit(libCOMI_gf_CM_PrimaryTownHall(lp_player), "CopyHatcheryRally", libCOMI_gv_cM_HeroReviver[lp_player]);
@@ -5905,6 +6272,7 @@ bool auto_libCOMI_gf_CM_HeroHandleDeath_TriggerFunc (bool testConds, bool runAct
         }
         UnitIssueOrder(libCOMI_gv_cM_HeroReviver[lp_player], OrderTargetingUnit(AbilityCommand("RallyHatchery", 1), libCOMI_gv_cM_HeroReviver[lp_player]), c_orderQueueReplace);
         UnitIssueOrder(libCOMI_gv_cM_HeroReviver[lp_player], OrderTargetingUnit(AbilityCommand("RallyHatchery", 2), libCOMI_gv_cM_HeroReviver[lp_player]), c_orderQueueReplace);
+        UnitSetFacing(libCOMI_gv_cM_HeroUnit[lp_player], UnitGetFacing(libCOMI_gv_cM_HeroReviver[lp_player]), 0.0);
         if ((libCOMI_gv_cM_HeroDeathCount[lp_player] > 0)) {
             UnitSetState(libCOMI_gv_cM_HeroReviver[lp_player], c_unitStateTooltipable, true);
             lv_tip = UnitTypeGetName(UnitGetType(libCOMI_gv_cM_HeroReviver[lp_player]));
@@ -5959,6 +6327,10 @@ text libCOMI_gf_CM_HeroNormalReviveMsgPending (int lp_player) {
         TextExpressionSetToken("Param/Expression/lib_COMI_EFA4A2E6", "Duration", FixedToText(libCOMI_gv_zS_ReviveCooldownTimeKerrigan, 0));
         return TextExpressionAssemble("Param/Expression/lib_COMI_EFA4A2E6");
     }
+    else if (auto8E21667C_val == "TerranTychus") {
+        TextExpressionSetToken("Param/Expression/lib_COMI_AE180E9A", "Duration", FixedToText(libCOMI_gv_zS_ReviveCooldownTimeKerrigan, 0));
+        return TextExpressionAssemble("Param/Expression/lib_COMI_AE180E9A");
+    }
     else {
     }
     return TextExpressionAssemble("Param/Expression/lib_COMI_0C0853FD");
@@ -5984,6 +6356,9 @@ text libCOMI_gf_CM_HeroReviveMsgNoTownHall (int lp_player) {
     }
     else if (auto79E1ED1E_val == "ZergDehaka") {
         return StringExternal("Param/Value/lib_COMI_920F3CCB");
+    }
+    else if (auto79E1ED1E_val == "TerranTychus") {
+        return StringExternal("Param/Value/lib_COMI_17E9CA21");
     }
     else {
     }
@@ -6034,6 +6409,14 @@ text libCOMI_gf_CM_HeroReviveMsgComplete (int lp_player) {
         }
         else {
             return StringExternal("Param/Value/lib_COMI_86B95DEF");
+        }
+    }
+    else if (auto4AF238FC_val == "TerranTychus") {
+        if ((libCOMI_gv_cM_HeroDeathCount[lp_player] > 0)) {
+            return StringExternal("Param/Value/lib_COMI_001302B2");
+        }
+        else {
+            return StringExternal("Param/Value/lib_COMI_5BBB9DBA");
         }
     }
     else {
@@ -6110,6 +6493,7 @@ bool auto_libCOMI_gf_CM_HeroWaitForRevive_TriggerFunc (bool testConds, bool runA
     }
     UnitSelect(libCOMI_gv_cM_HeroReviver[lp_player], lp_player, false);
     if ((lv_commander != "ZergDehaka")) {
+        UnitCreateEffectUnit(libCOMI_gv_cM_HeroUnit[lp_player], "CopyTargetSelectionAndControlGroups", libCOMI_gv_cM_HeroReviver[lp_player]);
         UnitKill(libCOMI_gv_cM_HeroReviver[lp_player]);
     }
     else {
@@ -6165,6 +6549,10 @@ void libCOMI_gf_CM_HeroStructureCreateForPlayer (point lp_spawnPoint, int lp_pla
 
     if ((TechTreeUpgradeCount(lp_player, "FenixCommander", c_techCountCompleteOnly) == 1)) {
         libCOMI_gv_cM_Fenix_ChampionStructure[lp_player] = UnitLastCreated();
+    }
+
+    if ((TechTreeUpgradeCount(lp_player, "TychusCommander", c_techCountCompleteOnly) == 1)) {
+        libCOUI_gf_CU_TychusSetBarUnit(UnitLastCreated());
     }
 
 }
@@ -6523,6 +6911,11 @@ void libCOMI_gf_CM_GPRemindersInit () {
             TriggerEnable(libCOMI_gt_CM_GPReminderAbilityUsed, true);
             libCOMI_gf_CM_GPReminderHorner(lv_indexPlayer);
         }
+        else if (autoEB535506_val == "TerranTychus") {
+            libCOMI_gv_cM_GPRemindersOn[lv_indexPlayer] = true;
+            TriggerEnable(libCOMI_gt_CM_GPReminderAbilityUsed, true);
+            libCOMI_gf_CM_GPReminderTychus(lv_indexPlayer);
+        }
         else {
             libCOMI_gv_cM_GPRemindersOn[lv_indexPlayer] = false;
         }
@@ -6720,6 +7113,40 @@ bool auto_libCOMI_gf_CM_GPReminderHorner_TriggerFunc (bool testConds, bool runAc
     return true;
 }
 
+trigger auto_libCOMI_gf_CM_GPReminderTychus_Trigger = null;
+int auto_libCOMI_gf_CM_GPReminderTychus_lp_player;
+
+void libCOMI_gf_CM_GPReminderTychus (int lp_player) {
+    auto_libCOMI_gf_CM_GPReminderTychus_lp_player = lp_player;
+
+    if (auto_libCOMI_gf_CM_GPReminderTychus_Trigger == null) {
+        auto_libCOMI_gf_CM_GPReminderTychus_Trigger = TriggerCreate("auto_libCOMI_gf_CM_GPReminderTychus_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libCOMI_gf_CM_GPReminderTychus_Trigger, false, false);
+}
+
+bool auto_libCOMI_gf_CM_GPReminderTychus_TriggerFunc (bool testConds, bool runActions) {
+    int lp_player = auto_libCOMI_gf_CM_GPReminderTychus_lp_player;
+
+    // Variable Declarations
+    timer lv_reminderTimer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_reminderTimer = TimerCreate();
+
+    // Implementation
+    TimerStart(lv_reminderTimer, 600.0, false, c_timeGame);
+    libNtve_gf_WaitForTimer(lv_reminderTimer, 0.0, false);
+    if ((libCOMI_gv_cM_GPRemindersOn[lp_player] == false)) {
+        return true;
+    }
+
+    libCOUI_gf_CU_GPHighlightButton(2, true, lp_player);
+    return true;
+}
+
 void libCOMI_gf_CM_GPReminderDisable (int lp_player) {
     // Automatic Variable Declarations
     // Implementation
@@ -6909,6 +7336,9 @@ void libCOMI_gf_SetPlayerColors () {
         }
         else if (autoA8B54D99_val == "Horner") {
             libCOMI_gv_playerColor[lv_i] = 11;
+        }
+        else if (autoA8B54D99_val == "Tychus") {
+            libCOMI_gv_playerColor[lv_i] = 10;
         }
         else {
             libCOMI_gv_playerColor[lv_i] = 0;
@@ -7571,6 +8001,45 @@ void libCOMI_gf_CM_CommanderVOInit () {
             libCOMI_gf_CM_UnitTransmissionHornerBomberBuildReminderActionVer(lv_indexPlayer);
             libCOMI_gf_CM_AbilityTransmissionHornerMagMineReminderActionVer(lv_indexPlayer);
             libCOMI_gv_cM_HornerVOHornerPlayer = lv_indexPlayer;
+        }
+        else if (autoCD6ED918_val == "TerranTychus") {
+            TimerStart(libCOMI_gv_cM_TychusVOTransportReminderTimer, libCOMI_gv_cMC_TychusVOTransportReminderDelay, false, c_timeGame);
+            TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusCreateReaper, true);
+            TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusCreateFirebat, true);
+            TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusCreatePhantom, true);
+            TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusCreateMedic, true);
+            TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusTransportReminder, true);
+            TriggerEnable(libCOMI_gt_CM_UnitTransmissionTychusTransportBuild, true);
+            TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusTransportUse, true);
+            TriggerEnable(libCOMI_gt_CM_UnitTransmissionTychusOutlawFirstDeath, true);
+            TriggerEnable(libCOMI_gt_CM_UnitTransmissionTychusOutlawDeath, true);
+            TriggerEnable(libCOMI_gt_CM_UnitTransmissionTychusOutlawRevived, true);
+            TriggerEnable(libCOMI_gt_CM_UnitTransmissionTychusOutlawReviveReminder, true);
+            TriggerEnable(libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruitAvailable, true);
+            TriggerEnable(libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruited, true);
+            TriggerEnable(libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruitReminder, true);
+            if ((libCOOC_gf_CC_PerkStateCheck("TychusPHLevel3", libCOOC_ge_CC_PerkState_Locked, "TerranTychus", lv_indexPlayer) == false)) {
+                TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusOdinUse, true);
+                libCOMI_gf_CM_CommanderVOAbilityWatch(lv_indexPlayer, SoundLink("TychusCommander_OdinReady", -1), "Abil/TychusCalldownOdinTargeted", null);
+            }
+
+            if ((libCOOC_gf_CC_PerkStateCheck("TychusPHLevel4", libCOOC_ge_CC_PerkState_Locked, "TerranTychus", lv_indexPlayer) == false)) {
+                TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusCreateMarauder, true);
+            }
+
+            if ((libCOOC_gf_CC_PerkStateCheck("TychusPHLevel6", libCOOC_ge_CC_PerkState_Locked, "TerranTychus", lv_indexPlayer) == false)) {
+                TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusCreateWarhound, true);
+            }
+
+            if ((libCOOC_gf_CC_PerkStateCheck("TychusPHLevel8", libCOOC_ge_CC_PerkState_Locked, "TerranTychus", lv_indexPlayer) == false)) {
+                TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusCreateHERC, true);
+            }
+
+            if ((libCOOC_gf_CC_PerkStateCheck("TychusPHLevel10", libCOOC_ge_CC_PerkState_Locked, "TerranTychus", lv_indexPlayer) == false)) {
+                TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusCreateGhost, true);
+            }
+
+            libCOMI_gv_cM_TychusVOTychusPlayer = lv_indexPlayer;
         }
         else {
         }
@@ -10118,7 +10587,7 @@ bool libCOMI_gt_CM_DebugHeroReviveInstant_Func (bool testConds, bool runActions)
 //--------------------------------------------------------------------------------------------------
 void libCOMI_gt_CM_DebugHeroReviveInstant_Init () {
     libCOMI_gt_CM_DebugHeroReviveInstant = TriggerCreate("libCOMI_gt_CM_DebugHeroReviveInstant_Func");
-    TriggerAddEventChatMessage(libCOMI_gt_CM_DebugHeroReviveInstant, c_playerAny, "-revivenow", false);
+    TriggerAddEventChatMessage(libCOMI_gt_CM_DebugHeroReviveInstant, c_playerAny, "revivenow", false);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -11250,19 +11719,11 @@ void libCOMI_gt_ShieldColorUnitMorph_Init () {
 //--------------------------------------------------------------------------------------------------
 bool libCOMI_gt_AttackFastBuffHack_Func (bool testConds, bool runActions) {
     // Variable Declarations
-    fixed lv_multiplierAmount;
     unit lv_unit;
-    string lv_weapon;
-    unit lv_magzineOwner;
-    string lv_behavior;
-    int lv_stackDelta;
 
     // Automatic Variable Declarations
     // Variable Initialization
     lv_unit = EventUnit();
-    lv_magzineOwner = UnitGetMagazine(lv_unit);
-    lv_behavior = EventUnitBehavior();
-    lv_stackDelta = UnitBehaviorCount(lv_unit, lv_behavior);
 
     // Conditions
     if (testConds) {
@@ -11276,19 +11737,11 @@ bool libCOMI_gt_AttackFastBuffHack_Func (bool testConds, bool runActions) {
         return true;
     }
 
-    if ((lv_magzineOwner != lv_unit)) {
-        lv_stackDelta = (UnitBehaviorCount(lv_magzineOwner, lv_behavior) - lv_stackDelta);
-        if ((lv_stackDelta > 0)) {
-            UnitBehaviorRemove(lv_unit, lv_behavior, lv_stackDelta);
-        }
-
-    }
-
-    libCOMI_gf_CopyBehaviorToMagazineAmmos(lv_unit, EventUnitBehavior());
     if ((UnitAbilityExists(lv_unit, "BroodLordHangar") == true)) {
-        libCOMI_gf_SetUnitQueueableRateMultiplier(lv_unit, (1.0 / UnitWeaponSpeedMultiplier(lv_unit, 1)));
+        libCOMI_gf_SetUnitBuffMultiplier(lv_unit, (1.0 / UnitWeaponSpeedMultiplier(lv_unit, 1)), "TriggerQueueableRate", 1.01, libCOMI_ge_UnitBuffMultiplierMethod_Exponential);
     }
 
+    UnitCreateEffectUnit(lv_unit, "TriggerInheritRateIterateMagazine", lv_unit);
     return true;
 }
 
@@ -11297,6 +11750,88 @@ void libCOMI_gt_AttackFastBuffHack_Init () {
     libCOMI_gt_AttackFastBuffHack = TriggerCreate("libCOMI_gt_AttackFastBuffHack_Func");
     TriggerAddEventUnitBehaviorChangeFromCategory(libCOMI_gt_AttackFastBuffHack, null, c_unitBehaviorFlagFast, c_unitBehaviorChangeIncrease);
     TriggerAddEventUnitBehaviorChangeFromCategory(libCOMI_gt_AttackFastBuffHack, null, c_unitBehaviorFlagFast, c_unitBehaviorChangeDecrease);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Dmg and Attack Speed Inherit New
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_DmgandAttackSpeedInheritNew_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_child;
+    unit lv_parent;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_child = EventUnitCreatedUnit();
+    lv_parent = EventUnit();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitHasBehavior2(lv_child, "TriggerInheritsParentBuffs") == true))) {
+            return false;
+        }
+
+        if (!((UnitIsValid(lv_parent) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_InheritDmgandAttackSpeedFromParenttoChild(lv_parent, lv_child);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_DmgandAttackSpeedInheritNew_Init () {
+    libCOMI_gt_DmgandAttackSpeedInheritNew = TriggerCreate("libCOMI_gt_DmgandAttackSpeedInheritNew_Func");
+    TriggerAddEventUnitCreated(libCOMI_gt_DmgandAttackSpeedInheritNew, null, null, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Dmg and Attack Speed Inherit Existing
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_DmgandAttackSpeedInheritExisting_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_child;
+    unit lv_parent;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_child = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_parent = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitHasBehavior2(lv_child, "TriggerInheritsParentBuffs") == true))) {
+            return false;
+        }
+
+        if (!((UnitIsValid(lv_parent) == true))) {
+            return false;
+        }
+
+        if (!((lv_child != lv_parent))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_InheritDmgandAttackSpeedFromParenttoChild(lv_parent, lv_child);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_DmgandAttackSpeedInheritExisting_Init () {
+    libCOMI_gt_DmgandAttackSpeedInheritExisting = TriggerCreate("libCOMI_gt_DmgandAttackSpeedInheritExisting_Func");
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_DmgandAttackSpeedInheritExisting, c_playerAny, "TriggerInheritRateDummy");
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -12262,12 +12797,10 @@ bool libCOMI_gt_MindControlSupplyOn_Func (bool testConds, bool runActions) {
         return true;
     }
 
-    if (((UnitHasBehavior2(lv_u, "HybridUnitDummy") == true))) {
+    if ((UnitHasBehavior2(lv_u, "HybridUnitDummy") == true)) {
+        PlayerModifyPropertyFixed(EventPlayer(), c_playerPropSuppliesUsed, c_playerPropOperAdd, lv_supply);
     }
-    else {
-        lv_supply = UnitTypeGetProperty(UnitGetType(lv_u), c_unitPropSuppliesUsed);
-    }
-    PlayerModifyPropertyFixed(EventPlayer(), c_playerPropSuppliesUsed, c_playerPropOperAdd, lv_supply);
+
     return true;
 }
 
@@ -12295,12 +12828,10 @@ bool libCOMI_gt_MindControlSupplyOff_Func (bool testConds, bool runActions) {
         return true;
     }
 
-    if (((UnitHasBehavior2(lv_u, "HybridUnitDummy") == true))) {
+    if ((UnitHasBehavior2(lv_u, "HybridUnitDummy") == true)) {
+        PlayerModifyPropertyFixed(EventPlayer(), c_playerPropSuppliesUsed, c_playerPropOperSubtract, lv_supply);
     }
-    else {
-        lv_supply = UnitTypeGetProperty(UnitGetType(lv_u), c_unitPropSuppliesUsed);
-    }
-    PlayerModifyPropertyFixed(EventPlayer(), c_playerPropSuppliesUsed, c_playerPropOperSubtract, lv_supply);
+
     return true;
 }
 
@@ -12308,6 +12839,30 @@ bool libCOMI_gt_MindControlSupplyOff_Func (bool testConds, bool runActions) {
 void libCOMI_gt_MindControlSupplyOff_Init () {
     libCOMI_gt_MindControlSupplyOff = TriggerCreate("libCOMI_gt_MindControlSupplyOff_Func");
     TriggerAddEventUnitBehaviorChange(libCOMI_gt_MindControlSupplyOff, null, "DarkArchonMindControl", c_unitBehaviorChangeDeactivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Behavior Permanently Changes Owner
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_BehaviorPermanentlyChangesOwner_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitSetOwner(EventUnit(), UnitBehaviorEffectPlayer(EventUnit(), EventUnitBehavior(), c_effectPlayerCaster, 0), true);
+    if ((EventUnitBehavior() != "DarkArchonMindControl")) {
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_BehaviorPermanentlyChangesOwner_Init () {
+    libCOMI_gt_BehaviorPermanentlyChangesOwner = TriggerCreate("libCOMI_gt_BehaviorPermanentlyChangesOwner_Func");
+    TriggerAddEventUnitBehaviorChangeFromCategory(libCOMI_gt_BehaviorPermanentlyChangesOwner, null, c_unitBehaviorFlagUser8, c_unitBehaviorChangeCreate);
+    TriggerAddEventUnitBehaviorChangeFromCategory(libCOMI_gt_BehaviorPermanentlyChangesOwner, null, c_unitBehaviorFlagUser8, c_unitBehaviorChangeRefresh);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -12337,6 +12892,7 @@ bool libCOMI_gt_CM_Abathur_TriggersInit_Func (bool testConds, bool runActions) {
     TriggerEnable(libCOMI_gt_CM_Abathur_MeleeBonusUpgrade, true);
     TriggerEnable(libCOMI_gt_CM_Abathur_ToxicNest, true);
     TriggerEnable(libCOMI_gt_CM_Abathur_SwarmHostLocustLaunchCast, true);
+    TriggerEnable(libCOMI_gt_CM_Abathur_RavagerSpellCooldown, true);
     TriggerEnable(libCOMI_gt_CM_Abathur_ToxicNestDeathFailsafe, true);
     TriggerEnable(libCOMI_gt_BanelingScourgeLocusts, true);
     TriggerEnable(libCOMI_gt_BanelingScourgeBiomassDrop, true);
@@ -12432,25 +12988,27 @@ bool libCOMI_gt_CM_Abathur_BiomassDrop_Func (bool testConds, bool runActions) {
     // Variable Declarations
     int lv_biomassUnitCount;
     int lv_indexPlayer;
-    int lv_biomassBaseAmount;
-    int lv_biomassCasualMultiplier;
-    int lv_biomassNormalMultiplier;
+    fixed lv_biomassBaseAmount;
+    fixed lv_biomassCasualMultiplier;
+    fixed lv_biomassNormalMultiplier;
     fixed lv_biomassHardMultiplier;
-    int lv_biomassBrutalMultiplier;
-    int lv_biomassToxicNestMultiplier;
-    int lv_dyingUnitSupply;
+    fixed lv_biomassBrutalMultiplier;
+    fixed lv_biomassToxicNestMultiplier;
+    fixed lv_dyingUnitSupply;
     int lv_abathurAllyOfKillingPlayer;
     fixed lv_doubleBiomassChance;
+    fixed lv_expectedDrop;
+    fixed lv_fractionChance;
 
     // Automatic Variable Declarations
     playergroup auto2D811EA1_g;
 
     // Variable Initialization
-    lv_biomassCasualMultiplier = 2;
-    lv_biomassNormalMultiplier = 2;
-    lv_biomassHardMultiplier = 1.5;
-    lv_biomassBrutalMultiplier = 1;
-    lv_biomassToxicNestMultiplier = 2;
+    lv_biomassCasualMultiplier = 2.5;
+    lv_biomassNormalMultiplier = 2.5;
+    lv_biomassHardMultiplier = 2.0;
+    lv_biomassBrutalMultiplier = 1.25;
+    lv_biomassToxicNestMultiplier = 1.0;
     lv_abathurAllyOfKillingPlayer = libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("ZergAbathur", libCOOC_gf_MutualAlliedCommandersofPlayerCoutInactiveAndSelf(libNtve_gf_KillingPlayer()));
 
     // Conditions
@@ -12499,35 +13057,35 @@ bool libCOMI_gt_CM_Abathur_BiomassDrop_Func (bool testConds, bool runActions) {
         lv_indexPlayer = PlayerGroupNextPlayer(auto2D811EA1_g, lv_indexPlayer);
         if (lv_indexPlayer < 0) { break; }
         if ((libCOOC_gf_ActiveCommanderForPlayer(lv_indexPlayer) == "ZergAbathur") && (libNtve_gf_PlayerIsEnemy(lv_indexPlayer, UnitGetOwner(EventUnit()), libNtve_ge_PlayerRelation_AllyMutual) == false)) {
-            lv_dyingUnitSupply = FixedToInt(StringToFixed(CatalogFieldValueGet(c_gameCatalogUnit, UnitGetType(EventUnit()), "Food", 0)));
+            lv_dyingUnitSupply = StringToFixed(CatalogFieldValueGet(c_gameCatalogUnit, UnitGetType(EventUnit()), "Food", 0));
             lv_doubleBiomassChance = libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogEffect, "MasteryAbathurDoubleBiomassDisplayDummy", "Amount", lv_indexPlayer);
-            if (((UnitHasBehavior2(EventUnit(), "SupplyLT1") == true) || (UnitHasBehavior2(EventUnit(), "CritterExplode") == true))) {
+            if ((UnitHasBehavior2(EventUnit(), "CritterExplode") == true)) {
                 lv_biomassBaseAmount = 1;
             }
             else if ((UnitHasBehavior2(EventUnit(), "HybridUnitDummy") == true)) {
                 lv_biomassBaseAmount = 12;
             }
-            else if ((lv_dyingUnitSupply == -1)) {
-                lv_biomassBaseAmount = 2;
-            }
-            else if ((lv_dyingUnitSupply == -2)) {
-                lv_biomassBaseAmount = 4;
-            }
-            else if ((lv_dyingUnitSupply == -3)) {
-                lv_biomassBaseAmount = 6;
-            }
-            else if ((lv_dyingUnitSupply == -4)) {
-                lv_biomassBaseAmount = 8;
-            }
             else if ((lv_dyingUnitSupply < -4)) {
                 lv_biomassBaseAmount = 12;
             }
-            if ((((TechTreeUpgradeCount(lv_indexPlayer, "AbathurToxicNestIcreasedBiomass", c_techCountCompleteOnly) == 1) && (UnitHasBehavior2(EventUnit(), "ToxicNestVirulentNest") == true)) || ((TechTreeUpgradeCount(lv_indexPlayer, "MasteryAbathurDoubleBiomass", c_techCountCompleteOnly) > 0) && (RandomFixed(0.0, 100.0) <= lv_doubleBiomassChance)))) {
-                lv_biomassUnitCount = (libNtve_gf_DifficultyValueInt((lv_biomassBaseAmount * lv_biomassCasualMultiplier), (lv_biomassBaseAmount * lv_biomassNormalMultiplier), FixedToInt(Ceiling((lv_biomassBaseAmount * lv_biomassHardMultiplier))), (lv_biomassBaseAmount * lv_biomassBrutalMultiplier)) * lv_biomassToxicNestMultiplier);
+            else if (true) {
+                lv_biomassBaseAmount = (-2*lv_dyingUnitSupply);
             }
-            else {
-                lv_biomassUnitCount = libNtve_gf_DifficultyValueInt((lv_biomassBaseAmount * lv_biomassCasualMultiplier), (lv_biomassBaseAmount * lv_biomassNormalMultiplier), FixedToInt(Ceiling((lv_biomassBaseAmount * lv_biomassHardMultiplier))), (lv_biomassBaseAmount * lv_biomassBrutalMultiplier));
+            if ((TechTreeUpgradeCount(lv_indexPlayer, "AbathurToxicNestIcreasedBiomass", c_techCountCompleteOnly) == 1) && (UnitHasBehavior2(EventUnit(), "ToxicNestVirulentNest") == true)) {
+                lv_biomassToxicNestMultiplier = 1.5;
             }
+
+            if ((TechTreeUpgradeCount(lv_indexPlayer, "MasteryAbathurDoubleBiomass", c_techCountCompleteOnly) > 0) && (RandomFixed(0.0, 100.0) <= lv_doubleBiomassChance)) {
+                lv_biomassToxicNestMultiplier = 2.0;
+            }
+
+            lv_expectedDrop = (libNtve_gf_DifficultyValueFixed(lv_biomassCasualMultiplier, lv_biomassNormalMultiplier, lv_biomassHardMultiplier, lv_biomassBrutalMultiplier) * lv_biomassBaseAmount * lv_biomassToxicNestMultiplier);
+            lv_biomassUnitCount = CeilingI(lv_expectedDrop);
+            lv_fractionChance = (lv_expectedDrop - lv_biomassUnitCount);
+            if ((RandomFixed(0.0, 1.0) <= lv_fractionChance)) {
+                lv_biomassUnitCount += 1;
+            }
+
             if ((lv_biomassUnitCount > 0)) {
                 libCOMI_gv_cM_DebugAbathurBiomassDroppedNormal += lv_biomassUnitCount;
                 libNtve_gf_CreateUnitsWithDefaultFacing(1, "BiomassPickup", c_unitCreateIgnorePlacement, lv_abathurAllyOfKillingPlayer, UnitGetPosition(EventUnit()));
@@ -12977,6 +13535,105 @@ void libCOMI_gt_CM_Abathur_SwarmHostLocustLaunchCast_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
+// Trigger: CM_Abathur_RavagerSpellCooldown
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Abathur_RavagerSpellCooldown_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_cooldown;
+    fixed lv_multiplier;
+    unit lv_unit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_unit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+
+    // Conditions
+    if (testConds) {
+        if (!((TechTreeUpgradeCount(EventPlayer(), "AbathurCommander", c_techCountCompleteOnly) == 1))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_cooldown = UnitAbilityGetCooldown(lv_unit, "RavagerAbathurCorrosiveBile", "Abil/RavagerAbathurCorrosiveBile");
+    lv_multiplier = UnitWeaponSpeedMultiplier(lv_unit, 1);
+    UnitAbilityReset(lv_unit, AbilityCommand("RavagerAbathurCorrosiveBile", 0), c_spendLocationAll);
+    UnitAbilityAddCooldown(lv_unit, "RavagerAbathurCorrosiveBile", "Abil/RavagerAbathurCorrosiveBile", (lv_cooldown*lv_multiplier));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Abathur_RavagerSpellCooldown_Init () {
+    libCOMI_gt_CM_Abathur_RavagerSpellCooldown = TriggerCreate("libCOMI_gt_CM_Abathur_RavagerSpellCooldown_Func");
+    TriggerEnable(libCOMI_gt_CM_Abathur_RavagerSpellCooldown, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Abathur_RavagerSpellCooldown, c_playerAny, "RavagerCorrosiveBileAoeLaunchSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Alarak_Upgrade
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Alarak_Upgrade_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    string lv_upgrade;
+    int lv_player;
+    int lv_level;
+
+    // Automatic Variable Declarations
+    string autoBEF1021D_val;
+
+    // Variable Initialization
+    lv_upgrade = EventUpgradeName();
+    lv_player = EventPlayer();
+    lv_level = TechTreeUpgradeCount(lv_player, lv_upgrade, c_techCountCompleteOnly);
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(lv_player) == "Alarak"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    autoBEF1021D_val = lv_upgrade;
+    if (autoBEF1021D_val == "ProtossGroundArmorsLevel1") {
+        libNtve_gf_SetUpgradeLevelForPlayer(lv_player, "ProtossAirArmorsLevel1", lv_level);
+    }
+    else if (autoBEF1021D_val == "ProtossGroundArmorsLevel2") {
+        libNtve_gf_SetUpgradeLevelForPlayer(lv_player, "ProtossAirArmorsLevel2", lv_level);
+    }
+    else if (autoBEF1021D_val == "ProtossGroundArmorsLevel3") {
+        libNtve_gf_SetUpgradeLevelForPlayer(lv_player, "ProtossAirArmorsLevel3", lv_level);
+    }
+    else if (autoBEF1021D_val == "ProtossGroundWeaponsLevel1") {
+        libNtve_gf_SetUpgradeLevelForPlayer(lv_player, "ProtossAirWeaponsLevel1", lv_level);
+    }
+    else if (autoBEF1021D_val == "ProtossGroundWeaponsLevel2") {
+        libNtve_gf_SetUpgradeLevelForPlayer(lv_player, "ProtossAirWeaponsLevel2", lv_level);
+    }
+    else if (autoBEF1021D_val == "ProtossGroundWeaponsLevel3") {
+        libNtve_gf_SetUpgradeLevelForPlayer(lv_player, "ProtossAirWeaponsLevel3", lv_level);
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Alarak_Upgrade_Init () {
+    libCOMI_gt_CM_Alarak_Upgrade = TriggerCreate("libCOMI_gt_CM_Alarak_Upgrade_Func");
+    TriggerEnable(libCOMI_gt_CM_Alarak_Upgrade, false);
+    TriggerAddEventUpgradeLevelChanged(libCOMI_gt_CM_Alarak_Upgrade, c_playerAny);
+}
+
+//--------------------------------------------------------------------------------------------------
 // Trigger: CM_Alarak_Sacrific_Scale
 //--------------------------------------------------------------------------------------------------
 bool libCOMI_gt_CM_Alarak_Sacrific_Scale_Func (bool testConds, bool runActions) {
@@ -13370,10 +14027,16 @@ bool libCOMI_gt_CM_Alarak_EmpowerUpdate_Func (bool testConds, bool runActions) {
             lv_slave = UnitGroupUnitFromEnd(autoB921BE57_g, autoB921BE57_u);
             if (lv_slave == null) { break; }
             if ((UnitHasBehavior2(lv_slave, libCOMI_gv_cM_Alarak_EmpowerAuraTarget) == true)) {
+                if (true) {
+                }
+
                 if ((((UnitTypeGetProperty(UnitGetType(lv_slave), c_unitPropSuppliesUsed) == 0.0) && (UnitTypeTestAttribute(UnitGetType(lv_slave), c_unitAttributeHeroic) == true)) || (UnitHasBehavior2(lv_slave, "HHMercStarportCargoInstalled") == true))) {
                     lv_totalSupply[lv_player] += 3.0;
                 }
-                else {
+                else if ((UnitFilterMatch(lv_slave, lv_player, UnitFilter((1 << c_targetFilterMechanical), 0, (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterEnemy), 0)) == true)) {
+                    lv_totalSupply[lv_player] += (UnitTypeGetProperty(UnitGetType(lv_slave), c_unitPropSuppliesUsed) * 2.0);
+                }
+                else if (true) {
                     lv_totalSupply[lv_player] += UnitTypeGetProperty(UnitGetType(lv_slave), c_unitPropSuppliesUsed);
                 }
             }
@@ -16852,110 +17515,6 @@ bool libCOMI_gt_CM_Horner_ScrapDrop_Func (bool testConds, bool runActions) {
         if (!((UnitFilterMatch(EventUnit(), 1, UnitFilter(0, (1 << (c_targetFilterSummoned - 32)), 0, 0)) != true))) {
             return false;
         }
-
-        if (!((UnitGetType(EventUnit()) != "Baneling"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "BanelingBurrowed"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "HotSSplitterlingBig"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "HotSSplitterlingBigBurrowed"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "Scourge"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "SpiderMine"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "SpiderMineBurrowed"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "SiegeTankWreckage"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "ThorWreckageSwann"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "HealingDrone"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "StukovApocalisk"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "StukovAleksander"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "StukovAleksanderCrashed"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "DehakaMurvar"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "HHReaper"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "HHReaperFlying"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "HHHellion"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "HHHellionTank"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "HHWidowMine"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "HHWidowMineBurrowed"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "SIInfestedTrooper"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "SIInfestedTrooperBurrowed"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "SIInfestedCivilian"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "SIInfestedCivilianBurrowed"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "SIVolatileInfested"))) {
-            return false;
-        }
-
-        if (!((UnitGetType(EventUnit()) != "SIVolatileInfestedBurrowed"))) {
-            return false;
-        }
     }
 
     // Actions
@@ -16974,6 +17533,11 @@ bool libCOMI_gt_CM_Horner_ScrapDrop_Func (bool testConds, bool runActions) {
 
     lv_dyingUnitMineralCost = (FixedToInt(StringToFixed(CatalogFieldValueGet(c_gameCatalogUnit, UnitGetType(EventUnit()), "CostResource[" + IntToString(0) + "]", EventPlayer()))) / lv_scrapPlayerDivisor);
     lv_dyingUnitVespeneCost = (FixedToInt(StringToFixed(CatalogFieldValueGet(c_gameCatalogUnit, UnitGetType(EventUnit()), "CostResource[" + IntToString(1) + "]", EventPlayer()))) / lv_scrapPlayerDivisor);
+    if ((UnitHasBehavior2(EventUnit(), "TychusHeroCount") == true)) {
+        lv_dyingUnitMineralCost = (250 / lv_scrapPlayerDivisor);
+        lv_dyingUnitVespeneCost = 0;
+    }
+
     if ((lv_dyingUnitMineralCost > 0)) {
         if ((RandomInt(1, 100) <= FixedToInt(CatalogFieldValueGetAsInt(c_gameCatalogEffect, "MasteryHornerDoubleSalvageChanceDisplayDummy", "Amount", libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranHorner", libCOOC_gf_CC_PlayersOfCommander("TerranHorner")))))) {
             libNtve_gf_CreateUnitsWithDefaultFacing(1, "HHScrapPickup", 0, lv_dyingUnitPlayer, PointWithOffset(UnitGetPosition(EventUnit()), -0.25, 0.0));
@@ -18855,7 +19419,7 @@ bool libCOMI_gt_CM_NovaGriffinTransportTeleportUnload_Func (bool testConds, bool
             UnitSetPosition(auto33602D3D_var, PointWithOffsetPolar(UnitGetPosition(auto33602D3D_var), lv_distance, lv_angle), false);
         }
         else {
-            UnitSetPosition(auto33602D3D_var, lv_unloadPoint, false);
+            UnitSetPosition(auto33602D3D_var, UnitTypePlacementFromPoint(UnitGetType(auto33602D3D_var), UnitGetOwner(auto33602D3D_var), lv_unloadPoint, 5.0), false);
         }
         UnitCreateEffectUnit(EventPlayerEffectUsedUnit(c_effectUnitCaster), "NovaGriffinTransportUnhideUnitsSet", auto33602D3D_var);
     }
@@ -20199,6 +20763,1670 @@ void libCOMI_gt_CM_Stukov_InfestedSiegeTankDeath_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
+// Trigger: CM_TychusHERC_ShieldCooldown
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_TychusHERC_ShieldCooldown_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_unit;
+    string lv_behavior;
+    fixed lv_cooldown;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_unit = EventUnit();
+    lv_behavior = EventUnitBehavior();
+    lv_cooldown = UnitBehaviorDurationTotal(lv_unit, lv_behavior);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitModifyCooldown(lv_unit, "ShieldCooldown", lv_cooldown, c_cooldownOperationSet);
+    UnitModifyCooldown(lv_unit, "ShieldCooldown", lv_cooldown, c_cooldownOperationSet);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_TychusHERC_ShieldCooldown_Init () {
+    libCOMI_gt_CM_TychusHERC_ShieldCooldown = TriggerCreate("libCOMI_gt_CM_TychusHERC_ShieldCooldown_Func");
+    TriggerEnable(libCOMI_gt_CM_TychusHERC_ShieldCooldown, false);
+    TriggerAddEventUnitBehaviorChange(libCOMI_gt_CM_TychusHERC_ShieldCooldown, null, "TychusHERCShieldWeakness", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_TychusHERC_CriticalText
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_TychusHERC_CriticalText_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_crittexttag;
+    int lv_critmultiplier;
+    int lv_ragestacks;
+    int lv_ragedamage;
+    int lv_weapondamage;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_crittexttag = c_textTagNone;
+    lv_critmultiplier = CatalogReferenceGetAsInt("Behavior,TychusHercCritPassive,DamageResponse.ModifyFraction", libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranTychus", libCOOC_gf_CC_PlayersOfCommander("TerranTychus")));
+    lv_ragestacks = UnitBehaviorCount(EventPlayerEffectUsedUnit(c_effectUnitCaster), "TychusHercRageDamageBuff");
+    lv_ragedamage = CatalogReferenceGetAsInt("Behavior,TychusHercRageDamageBuff,Modification.DamageDealtUnscaled[Melee]", libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranTychus", libCOOC_gf_CC_PlayersOfCommander("TerranTychus")));
+    lv_weapondamage = CatalogFieldValueGetAsInt(c_gameCatalogEffect, "TychusHERCWeaponDamage", "Amount", libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranTychus", libCOOC_gf_CC_PlayersOfCommander("TerranTychus")));
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitBehaviorCount(EventPlayerEffectUsedUnit(c_effectUnitCaster), "TychusHercRageDamageBuff") == 0)) {
+        TextExpressionSetToken("Param/Expression/lib_COMI_53BFB085", "A", FixedToText(((lv_critmultiplier * (lv_weapondamage + (lv_ragestacks * lv_ragedamage))) - (UnitBehaviorCount(EventPlayerEffectUsedUnit(c_effectUnitCaster), "TychusHercRageDamageBuff") * (lv_critmultiplier * lv_ragedamage))), c_fixedPrecisionAny));
+        TextExpressionSetToken("Param/Expression/lib_COMI_53BFB085", "B", StringExternal("Param/Value/lib_COMI_34A9A655"));
+        TextTagCreate(TextExpressionAssemble("Param/Expression/lib_COMI_53BFB085"), 24, UnitGetPosition(EventPlayerEffectUsedUnit(c_effectUnitCaster)), 3.0, true, false, PlayerGroupAll());
+    }
+    else if ((UnitBehaviorCount(EventPlayerEffectUsedUnit(c_effectUnitCaster), "TychusHercRageDamageBuff") > 0) && (UnitBehaviorCount(EventPlayerEffectUsedUnit(c_effectUnitCaster), "TychusHercRageDamageBuff") < CatalogFieldValueGetAsInt(c_gameCatalogBehavior, "TychusHercRageDamageBuff", "MaxStackCount", libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranTychus", libCOOC_gf_CC_PlayersOfCommander("TerranTychus"))))) {
+        TextExpressionSetToken("Param/Expression/lib_COMI_1E0587BE", "A", FixedToText(((lv_critmultiplier * (lv_weapondamage + (lv_ragestacks * lv_ragedamage))) - (lv_critmultiplier * lv_ragedamage)), c_fixedPrecisionAny));
+        TextExpressionSetToken("Param/Expression/lib_COMI_1E0587BE", "B", StringExternal("Param/Value/lib_COMI_A2254E00"));
+        TextTagCreate(TextExpressionAssemble("Param/Expression/lib_COMI_1E0587BE"), 24, UnitGetPosition(EventPlayerEffectUsedUnit(c_effectUnitCaster)), 3.0, true, false, PlayerGroupAll());
+    }
+    else if ((UnitBehaviorCount(EventPlayerEffectUsedUnit(c_effectUnitCaster), "TychusHercRageDamageBuff") == CatalogFieldValueGetAsInt(c_gameCatalogBehavior, "TychusHercRageDamageBuff", "MaxStackCount", libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranTychus", libCOOC_gf_CC_PlayersOfCommander("TerranTychus"))))) {
+        TextExpressionSetToken("Param/Expression/lib_COMI_6363956C", "A", FixedToText((lv_critmultiplier * (lv_weapondamage + (lv_ragestacks * lv_ragedamage))), c_fixedPrecisionAny));
+        TextExpressionSetToken("Param/Expression/lib_COMI_6363956C", "B", StringExternal("Param/Value/lib_COMI_C70C6476"));
+        TextTagCreate(TextExpressionAssemble("Param/Expression/lib_COMI_6363956C"), 24, UnitGetPosition(EventPlayerEffectUsedUnit(c_effectUnitCaster)), 3.0, true, false, PlayerGroupAll());
+    }
+    lv_crittexttag = TextTagLastCreated();
+    TextTagSetColor(lv_crittexttag, c_textTagColorText, Color(100.00, 0.00, 0.00));
+    TextTagSetVelocity(lv_crittexttag, 0.5, 90.0);
+    Wait(2.0, c_timeGame);
+    TextTagDestroy(lv_crittexttag);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_TychusHERC_CriticalText_Init () {
+    libCOMI_gt_CM_TychusHERC_CriticalText = TriggerCreate("libCOMI_gt_CM_TychusHERC_CriticalText_Func");
+    TriggerEnable(libCOMI_gt_CM_TychusHERC_CriticalText, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_TychusHERC_CriticalText, libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranTychus", libCOOC_gf_CC_PlayersOfCommander("TerranTychus")), "TychusHERCWeaponDamageCritDummy");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: _CM_TychusEventHook
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt__CM_TychusEventHook_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_hero;
+    string lv_heroType;
+    string lv_heroReviveType;
+    string lv_heroInstance;
+    string lv_itUnitType;
+    string lv_event;
+
+    // Automatic Variable Declarations
+    string autoAAB5A368_userType;
+    int autoAAB5A368_i;
+
+    // Variable Initialization
+    lv_hero = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_heroType = EventPlayerEffectUsedUnitType(c_effectUnitCaster);
+    lv_heroReviveType = (CatalogFieldValueGet(c_gameCatalogUnit, lv_heroType, "ReviveType", c_playerAny));
+    lv_event = (EventPlayerEffectUsed());
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitHasBehavior2(lv_hero, "TychusHeroCount") == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    autoAAB5A368_userType = libCOMI_gv_cM_Tychus_UserTypeHeroList;
+    autoAAB5A368_i = 1;
+    for ( ; autoAAB5A368_i <= UserDataInstanceCount(autoAAB5A368_userType) ; autoAAB5A368_i += 1 ) {
+        lv_heroInstance = UserDataInstance(autoAAB5A368_userType, autoAAB5A368_i);
+        lv_itUnitType = UserDataGetUnit(libCOMI_gv_cM_Tychus_UserTypeHeroList, lv_heroInstance, "Unit Type", 1);
+        if ((lv_itUnitType == lv_heroType)) {
+            DataTableSetUnit(false, TriggerEventParamName(lv_event, "EventHero"), lv_hero);
+            DataTableSetString(false, TriggerEventParamName(lv_event, "EventHeroInstance"), (lv_heroInstance));
+            TriggerSendEvent(lv_event);
+            return true;
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt__CM_TychusEventHook_Init () {
+    libCOMI_gt__CM_TychusEventHook = TriggerCreate("libCOMI_gt__CM_TychusEventHook_Func");
+    TriggerEnable(libCOMI_gt__CM_TychusEventHook, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt__CM_TychusEventHook, c_playerAny, "Event_TychusHeroCreate");
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt__CM_TychusEventHook, c_playerAny, "Event_TychusHeroDeath");
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt__CM_TychusEventHook, c_playerAny, "Event_TychusHeroRevive");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: _CM_TychusStructureEventHook
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt__CM_TychusStructureEventHook_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_structure;
+    string lv_event;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_structure = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_event = (EventPlayerEffectUsed());
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(EventPlayerEffectUsedUnitOwner(c_effectPlayerCaster)) == "Tychus"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    DataTableSetUnit(false, TriggerEventParamName(lv_event, "EventStructure"), lv_structure);
+    TriggerSendEvent(lv_event);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt__CM_TychusStructureEventHook_Init () {
+    libCOMI_gt__CM_TychusStructureEventHook = TriggerCreate("libCOMI_gt__CM_TychusStructureEventHook_Func");
+    TriggerEnable(libCOMI_gt__CM_TychusStructureEventHook, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt__CM_TychusStructureEventHook, c_playerAny, "Event_TychusHeroStructureCreate");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus_OdinSummon_Used
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Tychus_OdinSummon_Used_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_p;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_p = EventPlayer();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libNtve_gf_PlayerRemoveCooldown(lv_p, libCOOC_gf_CC_CommanderHeroReviveLink(libCOOC_gf_ActiveCommanderForPlayer(lv_p)));
+    UnitRevive(libCOMI_gv_cM_HeroUnit[lv_p]);
+    UnitSetPropertyFixed(libCOMI_gv_cM_HeroUnit[lv_p], c_unitPropLifePercent, 100.0);
+    UnitCreateEffectPoint(libCOMI_gv_cM_HeroUnit[lv_p], libCOMI_gv_cM_Tychus_OdinSummonEffect_Called, EventPlayerEffectUsedPoint(c_effectLocationTargetPoint));
+    Wait(1.0, c_timeGame);
+    UnitSetPosition(libCOMI_gv_cM_HeroUnit[lv_p], RegionGetBoundsMin(RegionEntireMap()), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Tychus_OdinSummon_Used_Init () {
+    libCOMI_gt_CM_Tychus_OdinSummon_Used = TriggerCreate("libCOMI_gt_CM_Tychus_OdinSummon_Used_Func");
+    TriggerEnable(libCOMI_gt_CM_Tychus_OdinSummon_Used, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Tychus_OdinSummon_Used, c_playerAny, libCOMI_gv_cM_Tychus_OdinSummonEffect_Caller);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus_OdinSummon_CameraShake
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Tychus_OdinSummon_CameraShake_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itPlayer;
+    fixed lv_distance;
+    fixed[4] lv_cameraPosition;
+    fixed[4] lv_effectPosition;
+    int lv_player;
+    point lv_effectTargetPoint;
+    point lv_cameraTargetPoint;
+    unit lv_odin;
+
+    // Automatic Variable Declarations
+    playergroup auto0B345B3A_g;
+
+    // Variable Initialization
+    lv_player = EventPlayerEffectUsedUnitOwner(c_effectPlayerCaster);
+    lv_effectTargetPoint = EventPlayerEffectUsedPoint(c_effectLocationTargetPoint);
+    lv_odin = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    Wait(0.8, c_timeGame);
+    if ((UnitIsAlive(lv_odin) == false)) {
+        return true;
+    }
+
+    lv_effectPosition[0] = PointGetX(lv_effectTargetPoint);
+    lv_effectPosition[1] = PointGetY(lv_effectTargetPoint);
+    lv_effectPosition[2] = WorldHeight(c_heightMapGround, lv_effectTargetPoint);
+    auto0B345B3A_g = PlayerGroupActive();
+    lv_itPlayer = -1;
+    while (true) {
+        lv_itPlayer = PlayerGroupNextPlayer(auto0B345B3A_g, lv_itPlayer);
+        if (lv_itPlayer < 0) { break; }
+        lv_cameraTargetPoint = CameraGetTarget(lv_player);
+        lv_cameraPosition[0] = PointGetX(lv_cameraTargetPoint);
+        lv_cameraPosition[1] = (PointGetY(lv_cameraTargetPoint)-(Cos(CameraGetPitch(lv_player))*CameraGetDistance(lv_player)));
+        lv_cameraPosition[2] = (WorldHeight(c_heightMapGround, lv_cameraTargetPoint)+(Sin(CameraGetPitch(lv_player))*CameraGetDistance(lv_player)));
+        lv_distance = SquareRoot((Pow((lv_cameraPosition[0]-lv_effectPosition[0]), 2.0) + Pow((lv_cameraPosition[1]-lv_effectPosition[1]), 2.0) + Pow((lv_cameraPosition[2]-lv_effectPosition[2]), 2.0)));
+        CameraShakeStart(lv_player, c_cameraPositionTarget, c_cameraDirectionZ, MaxF((1-(lv_distance/50)), 0.0), 5.0, 100.0, 0.5);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Tychus_OdinSummon_CameraShake_Init () {
+    libCOMI_gt_CM_Tychus_OdinSummon_CameraShake = TriggerCreate("libCOMI_gt_CM_Tychus_OdinSummon_CameraShake_Func");
+    TriggerEnable(libCOMI_gt_CM_Tychus_OdinSummon_CameraShake, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Tychus_OdinSummon_CameraShake, c_playerAny, libCOMI_gv_cM_Tychus_OdinSummonEffect_Created);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus_Odin_Timeout
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Tychus_Odin_Timeout_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_odin;
+    fixed lv_facing;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_odin = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_facing = (UnitGetFacing(lv_odin)-90);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    ActorCreate(ActorScopeFromUnit(lv_odin), "TychusOdinDeathTimeOut", null, null, null);
+    libNtve_gf_MakeModelFaceAngle(libNtve_gf_ActorLastCreated(), lv_facing);
+    UnitCreateEffectUnit(lv_odin, "TimedLifeFate", lv_odin);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Tychus_Odin_Timeout_Init () {
+    libCOMI_gt_CM_Tychus_Odin_Timeout = TriggerCreate("libCOMI_gt_CM_Tychus_Odin_Timeout_Func");
+    TriggerEnable(libCOMI_gt_CM_Tychus_Odin_Timeout, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Tychus_Odin_Timeout, c_playerAny, "TychusOdinTimedLifeFateDummy");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus_WarhoundFearApply
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Tychus_WarhoundFearApply_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_scaredUnit;
+    point lv_attackLocation;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_scaredUnit = EventUnit();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_attackLocation = PointWithOffsetPolar(UnitGetPosition(lv_scaredUnit), 1.0, libNtve_gf_RandomAngle());
+    UnitIssueOrder(lv_scaredUnit, OrderTargetingPoint(AbilityCommand("move", 0), libNtve_gf_PointOffsetTowardsPoint(UnitGetPosition(lv_scaredUnit), -5.0, lv_attackLocation)), c_orderQueueReplace);
+    Wait(1.0, c_timeGame);
+    while ((UnitHasBehavior2(lv_scaredUnit, "TychusWarhoundFear") == true) && (UnitIsAlive(lv_scaredUnit) == true)) {
+        UnitIssueOrder(lv_scaredUnit, OrderTargetingPoint(AbilityCommand("move", 0), RegionRandomPoint(RegionCircle(UnitGetPosition(lv_scaredUnit), 3.0))), c_orderQueueReplace);
+        Wait(0.5, c_timeGame);
+    }
+    UnitIssueOrder(lv_scaredUnit, Order(AbilityCommand("stop", 0)), c_orderQueueReplace);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Tychus_WarhoundFearApply_Init () {
+    libCOMI_gt_CM_Tychus_WarhoundFearApply = TriggerCreate("libCOMI_gt_CM_Tychus_WarhoundFearApply_Func");
+    TriggerEnable(libCOMI_gt_CM_Tychus_WarhoundFearApply, false);
+    TriggerAddEventUnitBehaviorChange(libCOMI_gt_CM_Tychus_WarhoundFearApply, null, "TychusWarhoundFear", c_unitBehaviorChangeActivate);
+    TriggerAddEventUnitBehaviorChange(libCOMI_gt_CM_Tychus_WarhoundFearApply, null, "TychusWarhoundFear", c_unitBehaviorChangeRefresh);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus Specialist Training Aura On
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_TychusSpecialistTrainingAuraOn_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_u;
+    string lv_uT;
+    string lv_itInstance;
+    string lv_itActive;
+    string lv_itUnitType;
+    fixed lv_oldValue;
+    fixed lv_changedValue;
+    int lv_p;
+    string lv_pathCooldown;
+    string lv_pathCharge;
+
+    // Automatic Variable Declarations
+    string auto523EB43C_userType;
+    int auto523EB43C_i;
+
+    // Variable Initialization
+    lv_u = EventUnit();
+    lv_uT = UnitGetType(lv_u);
+    lv_p = UnitGetOwner(lv_u);
+    lv_pathCooldown = "Cost[0].Cooldown.TimeUse";
+    lv_pathCharge = "Cost[0].Charge.TimeUse";
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto523EB43C_userType = "CoopTechTychusSquad";
+    auto523EB43C_i = 1;
+    for ( ; auto523EB43C_i <= UserDataInstanceCount(auto523EB43C_userType) ; auto523EB43C_i += 1 ) {
+        lv_itInstance = UserDataInstance(auto523EB43C_userType, auto523EB43C_i);
+        lv_itUnitType = UserDataGetUnit("CoopTechTychusSquad", lv_itInstance, "Unit Type", 1);
+        if ((lv_uT == lv_itUnitType)) {
+            lv_itActive = UserDataGetGameLink("CoopTechTychusSquad", lv_itInstance, "Active Abil", 1);
+            if ((CatalogEntryIsValid(c_gameCatalogAbil, lv_itActive) == true)) {
+                if ((CatalogEntryScope(c_gameCatalogAbil, lv_itActive) == "CAbilBuild")) {
+                    lv_pathCooldown = "InfoArray[0].Cooldown.TimeUse";
+                    lv_pathCharge = "InfoArray[0].Charge.TimeUse";
+                }
+                else {
+                    lv_pathCooldown = "Cost[0].Cooldown.TimeUse";
+                    lv_pathCharge = "Cost[0].Charge.TimeUse";
+                }
+                lv_oldValue = libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogAbil, lv_itActive, lv_pathCooldown, lv_p);
+                lv_changedValue = (lv_oldValue*libCOMI_gv_c_TychusSpecialistTrainingAuraCooldownFactor/100);
+                CatalogFieldValueModify(c_gameCatalogAbil, lv_itActive, lv_pathCooldown, lv_p, FixedToString(lv_changedValue, c_fixedPrecisionAny), c_upgradeOperationSubtract);
+                DataTableSetFixed(true, ("TychusSpecialistTrainingAura_" + IntToString(UnitGetTag(lv_u)) + "_CooldownTimeChange"), lv_changedValue);
+                lv_oldValue = libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogAbil, lv_itActive, lv_pathCharge, lv_p);
+                lv_changedValue = (lv_oldValue*libCOMI_gv_c_TychusSpecialistTrainingAuraCooldownFactor/100);
+                CatalogFieldValueModify(c_gameCatalogAbil, lv_itActive, lv_pathCharge, lv_p, FixedToString(lv_changedValue, c_fixedPrecisionAny), c_upgradeOperationSubtract);
+                DataTableSetFixed(true, ("TychusSpecialistTrainingAura_" + IntToString(UnitGetTag(lv_u)) + "_ChargeTimeChange"), lv_changedValue);
+            }
+
+            return true;
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_TychusSpecialistTrainingAuraOn_Init () {
+    libCOMI_gt_CM_TychusSpecialistTrainingAuraOn = TriggerCreate("libCOMI_gt_CM_TychusSpecialistTrainingAuraOn_Func");
+    TriggerEnable(libCOMI_gt_CM_TychusSpecialistTrainingAuraOn, false);
+    TriggerAddEventUnitBehaviorChange(libCOMI_gt_CM_TychusSpecialistTrainingAuraOn, null, "TychusSpectreBrillianceAuraBuffLv1", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus Specialist Training Aura Off
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_TychusSpecialistTrainingAuraOff_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_u;
+    string lv_uT;
+    string lv_itInstance;
+    string lv_itActive;
+    string lv_itUnitType;
+    fixed lv_changedValueCooldown;
+    fixed lv_changedValueCharge;
+    int lv_p;
+    string lv_pathCooldown;
+    string lv_pathCharge;
+
+    // Automatic Variable Declarations
+    string autoB1BBE460_userType;
+    int autoB1BBE460_i;
+
+    // Variable Initialization
+    lv_u = EventUnit();
+    lv_uT = UnitGetType(lv_u);
+    lv_changedValueCooldown = DataTableGetFixed(true, ("TychusSpecialistTrainingAura_" + IntToString(UnitGetTag(lv_u)) + "_CooldownTimeChange"));
+    lv_changedValueCharge = DataTableGetFixed(true, ("TychusSpecialistTrainingAura_" + IntToString(UnitGetTag(lv_u)) + "_ChargeTimeChange"));
+    lv_p = UnitGetOwner(lv_u);
+    lv_pathCooldown = "Cost[0].Cooldown.TimeUse";
+    lv_pathCharge = "Cost[0].Charge.TimeUse";
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    autoB1BBE460_userType = "CoopTechTychusSquad";
+    autoB1BBE460_i = 1;
+    for ( ; autoB1BBE460_i <= UserDataInstanceCount(autoB1BBE460_userType) ; autoB1BBE460_i += 1 ) {
+        lv_itInstance = UserDataInstance(autoB1BBE460_userType, autoB1BBE460_i);
+        lv_itUnitType = UserDataGetUnit("CoopTechTychusSquad", lv_itInstance, "Unit Type", 1);
+        if ((lv_uT == lv_itUnitType)) {
+            lv_itActive = UserDataGetGameLink("CoopTechTychusSquad", lv_itInstance, "Active Abil", 1);
+            if ((CatalogEntryIsValid(c_gameCatalogAbil, lv_itActive) == true)) {
+                if ((CatalogEntryScope(c_gameCatalogAbil, lv_itActive) == "CAbilBuild")) {
+                    lv_pathCooldown = "InfoArray[0].Cooldown.TimeUse";
+                    lv_pathCharge = "InfoArray[0].Charge.TimeUse";
+                }
+                else {
+                    lv_pathCooldown = "Cost[0].Cooldown.TimeUse";
+                    lv_pathCharge = "Cost[0].Charge.TimeUse";
+                }
+                CatalogFieldValueModify(c_gameCatalogAbil, lv_itActive, lv_pathCooldown, lv_p, FixedToString(lv_changedValueCooldown, c_fixedPrecisionAny), c_upgradeOperationAdd);
+                CatalogFieldValueModify(c_gameCatalogAbil, lv_itActive, lv_pathCharge, lv_p, FixedToString(lv_changedValueCharge, c_fixedPrecisionAny), c_upgradeOperationAdd);
+            }
+
+            return true;
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_TychusSpecialistTrainingAuraOff_Init () {
+    libCOMI_gt_CM_TychusSpecialistTrainingAuraOff = TriggerCreate("libCOMI_gt_CM_TychusSpecialistTrainingAuraOff_Func");
+    TriggerEnable(libCOMI_gt_CM_TychusSpecialistTrainingAuraOff, false);
+    TriggerAddEventUnitBehaviorChange(libCOMI_gt_CM_TychusSpecialistTrainingAuraOff, null, "TychusSpectreBrillianceAuraBuffLv1", c_unitBehaviorChangeDeactivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_TychusMedicTransportActived
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_TychusMedicTransportActived_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_p;
+    playergroup lv_pg;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_p = UnitBehaviorEffectPlayer(EventUnit(), EventUnitBehavior(), c_effectPlayerCaster, 0);
+    lv_pg = PlayerGroupSingle(lv_p);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    Wait(0.0625, c_timeGame);
+    libCOMI_gv_cM_TychusMedicTransportUnit[lv_p] = EventUnit();
+    libCOMI_gv_cM_TychusMedicTransportUnitGroup[lv_p] = libNtve_gf_ConvertUnitToUnitGroup(EventUnit());
+    libCOMI_gv_cM_TychusMedicTranportLoadPoint[lv_p] = UnitGetPosition(libCOMI_gv_cM_TychusMedicTransportUnit[lv_p]);
+    UISetCursorVisible(lv_pg, false);
+    Wait(0.5, c_timeGame);
+    UISetCursorVisible(lv_pg, true);
+    UISetTargetingOrder(PlayerGroupSingle(UnitGetOwner(libCOMI_gv_cM_TychusMedicTransportUnit[lv_p])), libCOMI_gv_cM_TychusMedicTransportUnitGroup[lv_p], OrderTargetingPoint(AbilityCommand("TychusMedicTransportUnloadUnits", 0), UnitGetPosition(libCOMI_gv_cM_TychusMedicTransportUnit[lv_p])), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_TychusMedicTransportActived_Init () {
+    libCOMI_gt_CM_TychusMedicTransportActived = TriggerCreate("libCOMI_gt_CM_TychusMedicTransportActived_Func");
+    TriggerEnable(libCOMI_gt_CM_TychusMedicTransportActived, false);
+    TriggerAddEventUnitBehaviorChange(libCOMI_gt_CM_TychusMedicTransportActived, null, "TychusMedicTransportActivate", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_TychusMedicTopBarButton
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_TychusMedicTopBarButton_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_p;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_p = EventPlayer();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gv_cM_TychusMedicTranportSendViaTopBar[lv_p] = true;
+    Wait(0.125, c_timeGame);
+    libCOMI_gv_cM_TychusMedicTranportSendViaTopBar[lv_p] = false;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_TychusMedicTopBarButton_Init () {
+    libCOMI_gt_CM_TychusMedicTopBarButton = TriggerCreate("libCOMI_gt_CM_TychusMedicTopBarButton_Func");
+    TriggerEnable(libCOMI_gt_CM_TychusMedicTopBarButton, false);
+    TriggerAddEventButtonPressed(libCOMI_gt_CM_TychusMedicTopBarButton, c_playerAny, "TychusMedicTransportUnitsTopBar");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_TychusMedicTransportTargetOn
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_TychusMedicTransportTargetOn_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_u;
+    actor lv_a;
+    int lv_p;
+    unitgroup lv_ug;
+
+    // Automatic Variable Declarations
+    unitgroup autoA552F3DF_g;
+    int autoA552F3DF_u;
+
+    // Variable Initialization
+    lv_p = EventPlayer();
+    lv_ug = UnitGroupEmpty();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libCOMI_gv_cM_TychusMedicTranportSendViaTopBar[lv_p] == false)) {
+        lv_ug = UnitSubgroupSelected(lv_p);
+    }
+    else {
+        lv_ug = UnitGroup("TychusMedivacPlatform", lv_p, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterEnemy) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    }
+    autoA552F3DF_g = lv_ug;
+    autoA552F3DF_u = UnitGroupCount(autoA552F3DF_g, c_unitCountAll);
+    for (;; autoA552F3DF_u -= 1) {
+        lv_u = UnitGroupUnitFromEnd(autoA552F3DF_g, autoA552F3DF_u);
+        if (lv_u == null) { break; }
+        ActorScopeSend(ActorScopeFromUnit(lv_u), "Signal PickUpTarget");
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_TychusMedicTransportTargetOn_Init () {
+    libCOMI_gt_CM_TychusMedicTransportTargetOn = TriggerCreate("libCOMI_gt_CM_TychusMedicTransportTargetOn_Func");
+    TriggerEnable(libCOMI_gt_CM_TychusMedicTransportTargetOn, false);
+    TriggerAddEventTargetModeUpdate(libCOMI_gt_CM_TychusMedicTransportTargetOn, c_playerAny, AbilityCommand("TychusMedicTransportLoadUnits", 0), c_targetModeStateOn);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_TychusMedicTransportTargetOff
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_TychusMedicTransportTargetOff_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_u;
+    actor lv_a;
+    int lv_p;
+    unitgroup lv_ug;
+
+    // Automatic Variable Declarations
+    unitgroup auto5E0C6223_g;
+    int auto5E0C6223_u;
+
+    // Variable Initialization
+    lv_p = EventPlayer();
+    lv_ug = UnitGroupEmpty();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_ug = UnitGroup("TychusMedivacPlatform", lv_p, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterEnemy) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    auto5E0C6223_g = lv_ug;
+    auto5E0C6223_u = UnitGroupCount(auto5E0C6223_g, c_unitCountAll);
+    for (;; auto5E0C6223_u -= 1) {
+        lv_u = UnitGroupUnitFromEnd(auto5E0C6223_g, auto5E0C6223_u);
+        if (lv_u == null) { break; }
+        ActorScopeSend(ActorScopeFromUnit(lv_u), "Signal PickUpCancel");
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_TychusMedicTransportTargetOff_Init () {
+    libCOMI_gt_CM_TychusMedicTransportTargetOff = TriggerCreate("libCOMI_gt_CM_TychusMedicTransportTargetOff_Func");
+    TriggerEnable(libCOMI_gt_CM_TychusMedicTransportTargetOff, false);
+    TriggerAddEventTargetModeUpdate(libCOMI_gt_CM_TychusMedicTransportTargetOff, c_playerAny, AbilityCommand("TychusMedicTransportLoadUnits", 0), c_targetModeStateOff);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_TychusMedicTransportStop
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_TychusMedicTransportStop_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_p;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_p = EventPlayer();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    Wait(0.0625, c_timeGame);
+    if ((UnitHasBehavior2(libCOMI_gv_cM_TychusMedicTransportUnit[lv_p], "TychusMedicTransportUnloadUnitsDespawnDelay") == false)) {
+        UnitCreateEffectUnit(libCOMI_gv_cM_TychusMedicTransportUnit[lv_p], "TychusMedicTransportCancelUnloadSet", libCOMI_gv_cM_TychusMedicTransportUnit[lv_p]);
+    }
+
+    UnitGroupClear(libCOMI_gv_cM_TychusMedicGroundUnitsTransportGroupAir[lv_p]);
+    UnitGroupClear(libCOMI_gv_cM_TychusMedicGroundUnitsTransportGroupGround[lv_p]);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_TychusMedicTransportStop_Init () {
+    libCOMI_gt_CM_TychusMedicTransportStop = TriggerCreate("libCOMI_gt_CM_TychusMedicTransportStop_Func");
+    TriggerEnable(libCOMI_gt_CM_TychusMedicTransportStop, false);
+    TriggerAddEventTargetModeUpdate(libCOMI_gt_CM_TychusMedicTransportStop, c_playerAny, AbilityCommand("TychusMedicTransportUnloadUnits", 0), c_targetModeStateOff);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_TychusMedicTransportTimeOut
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_TychusMedicTransportTimeOut_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_p;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_p = EventPlayer();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(libCOMI_gv_cM_GlobalCasterUnit[lv_p], "TychusMedicGCD", libCOMI_gv_cM_GlobalCasterUnit[lv_p]);
+    UnitGroupClear(libCOMI_gv_cM_TychusMedicGroundUnitsTransportGroupAir[lv_p]);
+    UnitGroupClear(libCOMI_gv_cM_TychusMedicGroundUnitsTransportGroupGround[lv_p]);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_TychusMedicTransportTimeOut_Init () {
+    libCOMI_gt_CM_TychusMedicTransportTimeOut = TriggerCreate("libCOMI_gt_CM_TychusMedicTransportTimeOut_Func");
+    TriggerEnable(libCOMI_gt_CM_TychusMedicTransportTimeOut, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_TychusMedicTransportTimeOut, c_playerAny, "TychusMedicTransportUnloadUnitsDespawnDelayTimeOut");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_TychusMedicTransportAirBehaviorApplied
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_TychusMedicTransportAirBehaviorApplied_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_p;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_p = UnitBehaviorEffectPlayer(EventUnit(), EventUnitBehavior(), c_effectPlayerCaster, 0);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupAdd(libCOMI_gv_cM_TychusMedicGroundUnitsTransportGroupAir[lv_p], EventUnit());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_TychusMedicTransportAirBehaviorApplied_Init () {
+    libCOMI_gt_CM_TychusMedicTransportAirBehaviorApplied = TriggerCreate("libCOMI_gt_CM_TychusMedicTransportAirBehaviorApplied_Func");
+    TriggerEnable(libCOMI_gt_CM_TychusMedicTransportAirBehaviorApplied, false);
+    TriggerAddEventUnitBehaviorChange(libCOMI_gt_CM_TychusMedicTransportAirBehaviorApplied, null, "TychusMedicTransportAirUnits", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_TychusMedicTransportGroundBehaviorApplied
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_TychusMedicTransportGroundBehaviorApplied_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_u;
+    int lv_p;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_u = EventUnit();
+    lv_p = UnitBehaviorEffectPlayer(lv_u, EventUnitBehavior(), c_effectPlayerCaster, 0);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupAdd(libCOMI_gv_cM_TychusMedicGroundUnitsTransportGroupGround[lv_p], EventUnit());
+    if ((UnitGetType(lv_u) == "TychusOdin")) {
+        UnitSetPosition(libCOUI_gv_cU_HeroUnit[0][lv_p], UnitGetPosition(lv_u), false);
+        UnitBehaviorAdd(libCOUI_gv_cU_HeroUnit[0][lv_p], "TychusMedicTransportGroundUnits", libCOUI_gv_cU_HeroUnit[0][lv_p], 1);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_TychusMedicTransportGroundBehaviorApplied_Init () {
+    libCOMI_gt_CM_TychusMedicTransportGroundBehaviorApplied = TriggerCreate("libCOMI_gt_CM_TychusMedicTransportGroundBehaviorApplied_Func");
+    TriggerEnable(libCOMI_gt_CM_TychusMedicTransportGroundBehaviorApplied, false);
+    TriggerAddEventUnitBehaviorChange(libCOMI_gt_CM_TychusMedicTransportGroundBehaviorApplied, null, "TychusMedicTransportGroundUnits", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_TychusMedicTransportTeleportUnload
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_TychusMedicTransportTeleportUnload_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    point lv_unloadPoint;
+    fixed lv_angle;
+    fixed lv_distance;
+    int lv_p;
+
+    // Automatic Variable Declarations
+    unitgroup auto3E7138D6_g;
+    int auto3E7138D6_u;
+    unit auto3E7138D6_var;
+    unitgroup auto7BF82D02_g;
+    int auto7BF82D02_u;
+    unit auto7BF82D02_var;
+
+    // Variable Initialization
+    lv_unloadPoint = EventPlayerEffectUsedPoint(c_effectLocationTargetUnit);
+    lv_p = EventPlayer();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_angle = AngleBetweenPoints(libCOMI_gv_cM_TychusMedicTranportLoadPoint[lv_p], lv_unloadPoint);
+    lv_distance = DistanceBetweenPoints(libCOMI_gv_cM_TychusMedicTranportLoadPoint[lv_p], lv_unloadPoint);
+    auto3E7138D6_g = libCOMI_gv_cM_TychusMedicGroundUnitsTransportGroupAir[lv_p];
+    auto3E7138D6_u = UnitGroupCount(auto3E7138D6_g, c_unitCountAll);
+    for (;; auto3E7138D6_u -= 1) {
+        auto3E7138D6_var = UnitGroupUnitFromEnd(auto3E7138D6_g, auto3E7138D6_u);
+        if (auto3E7138D6_var == null) { break; }
+        UnitSetPosition(auto3E7138D6_var, PointWithOffsetPolar(UnitGetPosition(auto3E7138D6_var), lv_distance, lv_angle), false);
+        UnitCreateEffectUnit(EventPlayerEffectUsedUnit(c_effectUnitCaster), "TychusMedicTransportAirUnitsRB", auto3E7138D6_var);
+    }
+    auto7BF82D02_g = libCOMI_gv_cM_TychusMedicGroundUnitsTransportGroupGround[lv_p];
+    auto7BF82D02_u = UnitGroupCount(auto7BF82D02_g, c_unitCountAll);
+    for (;; auto7BF82D02_u -= 1) {
+        auto7BF82D02_var = UnitGroupUnitFromEnd(auto7BF82D02_g, auto7BF82D02_u);
+        if (auto7BF82D02_var == null) { break; }
+        if ((PointPathingPassable(PointWithOffsetPolar(UnitGetPosition(auto7BF82D02_var), lv_distance, lv_angle)) == true)) {
+            UnitSetPosition(auto7BF82D02_var, PointWithOffsetPolar(UnitGetPosition(auto7BF82D02_var), lv_distance, lv_angle), false);
+        }
+        else {
+            UnitSetPosition(auto7BF82D02_var, UnitTypePlacementFromPoint(UnitGetType(auto7BF82D02_var), UnitGetOwner(auto7BF82D02_var), lv_unloadPoint, 5.0), false);
+        }
+        UnitCreateEffectUnit(EventPlayerEffectUsedUnit(c_effectUnitCaster), "TychusMedicTransportUnhideUnitsSet", auto7BF82D02_var);
+    }
+    UnitGroupClear(libCOMI_gv_cM_TychusMedicGroundUnitsTransportGroupAir[lv_p]);
+    UnitGroupClear(libCOMI_gv_cM_TychusMedicGroundUnitsTransportGroupGround[lv_p]);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_TychusMedicTransportTeleportUnload_Init () {
+    libCOMI_gt_CM_TychusMedicTransportTeleportUnload = TriggerCreate("libCOMI_gt_CM_TychusMedicTransportTeleportUnload_Func");
+    TriggerEnable(libCOMI_gt_CM_TychusMedicTransportTeleportUnload, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_TychusMedicTransportTeleportUnload, c_playerAny, "TychusMedicTransportUnloadUnitsCompletionSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus_HeroQueue
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Tychus_HeroQueue_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_p;
+    string lv_uT;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_p = EventPlayer();
+    lv_uT = libCOMI_gf_TraingingUnitTypeInAbilCommand(EventUnitAbility(), lv_p, 0);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TechTreeAbilityAllow(lv_p, EventUnitAbility(), false);
+    libCOMI_gf_CM_Tychus_UpdateHeroTechTree(lv_p);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Tychus_HeroQueue_Init () {
+    libCOMI_gt_CM_Tychus_HeroQueue = TriggerCreate("libCOMI_gt_CM_Tychus_HeroQueue_Func");
+    TriggerEnable(libCOMI_gt_CM_Tychus_HeroQueue, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_Tychus_HeroQueue, null, AbilityCommand("TychusBarracksTrain", 255), c_unitAbilStageQueue, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_Tychus_HeroQueue, null, AbilityCommand("TychusBarracksTrain", 255), c_unitAbilStageExecute, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_Tychus_HeroQueue, null, AbilityCommand("TychusFactoryTrain", 255), c_unitAbilStageQueue, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_Tychus_HeroQueue, null, AbilityCommand("TychusFactoryTrain", 255), c_unitAbilStageExecute, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_Tychus_HeroQueue, null, AbilityCommand("TychusStarportTrain", 255), c_unitAbilStageQueue, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_Tychus_HeroQueue, null, AbilityCommand("TychusStarportTrain", 255), c_unitAbilStageExecute, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus_HeroCancel
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Tychus_HeroCancel_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_p;
+    string lv_uT;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_p = EventPlayer();
+    lv_uT = libCOMI_gf_TraingingUnitTypeInAbilCommand(EventUnitAbility(), lv_p, 0);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TechTreeAbilityAllow(lv_p, EventUnitAbility(), true);
+    libCOMI_gf_CM_Tychus_UpdateHeroTechTree(lv_p);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Tychus_HeroCancel_Init () {
+    libCOMI_gt_CM_Tychus_HeroCancel = TriggerCreate("libCOMI_gt_CM_Tychus_HeroCancel_Func");
+    TriggerEnable(libCOMI_gt_CM_Tychus_HeroCancel, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_Tychus_HeroCancel, null, AbilityCommand("TychusBarracksTrain", 255), c_unitAbilStageCancel, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_Tychus_HeroCancel, null, AbilityCommand("TychusFactoryTrain", 255), c_unitAbilStageCancel, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_Tychus_HeroCancel, null, AbilityCommand("TychusStarportTrain", 255), c_unitAbilStageCancel, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus_TrainMaxChargesRemove
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Tychus_TrainMaxChargesRemove_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_i;
+
+    // Automatic Variable Declarations
+    const int autoF1C761A8_ae = 10;
+    const int autoF1C761A8_ai = 1;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((libCOMI_gf_EventTychusHeroInstance() != "Tychus"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gv_tychusHeroMaxCharges -= 1;
+    lv_i = 0;
+    for ( ; ( (autoF1C761A8_ai >= 0 && lv_i <= autoF1C761A8_ae) || (autoF1C761A8_ai < 0 && lv_i >= autoF1C761A8_ae) ) ; lv_i += autoF1C761A8_ai ) {
+        libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusBarracksTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", UnitGetOwner(libCOMI_gf_EventTychusHero()), libCOMI_gv_tychusHeroMaxCharges);
+        libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusFactoryTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", UnitGetOwner(libCOMI_gf_EventTychusHero()), libCOMI_gv_tychusHeroMaxCharges);
+        libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusStarportTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", UnitGetOwner(libCOMI_gf_EventTychusHero()), libCOMI_gv_tychusHeroMaxCharges);
+    }
+    UnitCreateEffectUnit(libCOMI_gv_cM_GlobalCasterUnit[UnitGetOwner(libCOMI_gf_EventTychusHero())], "TychusHeroTrainChargeAdd", libCOMI_gv_cM_GlobalCasterUnit[UnitGetOwner(libCOMI_gf_EventTychusHero())]);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Tychus_TrainMaxChargesRemove_Init () {
+    libCOMI_gt_CM_Tychus_TrainMaxChargesRemove = TriggerCreate("libCOMI_gt_CM_Tychus_TrainMaxChargesRemove_Func");
+    TriggerEnable(libCOMI_gt_CM_Tychus_TrainMaxChargesRemove, false);
+    libCOMI_gf_TychusHeroEvent(libCOMI_gt_CM_Tychus_TrainMaxChargesRemove, "Event_TychusHeroCreate");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus_HeroReviveUsed
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Tychus_HeroReviveUsed_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_bar;
+    abilcmd lv_abilcmd;
+    int lv_index;
+    int lv_p;
+    string lv_unitType;
+    unit lv_reviveTarget;
+    order lv_orderReal;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_bar = EventUnit();
+    lv_abilcmd = OrderGetAbilityCommand(EventUnitOrder());
+    lv_index = AbilityCommandGetCommand(lv_abilcmd);
+    lv_p = UnitGetOwner(lv_bar);
+    lv_unitType = (CatalogFieldValueGet(c_gameCatalogAbil, "TychusFakeReviveTrain", "InfoArray[" + IntToString(lv_index) + "].Unit[" + IntToString(0) + "]", lv_p));
+    lv_reviveTarget = UnitGroupUnit(UnitGroup(lv_unitType, lv_p, RegionEntireMap(), UnitFilter(0, (1 << (c_targetFilterDead - 32)), 0, 0), 1), 1);
+    lv_orderReal = libNtve_gf_ReviveOrderWithNoTarget(AbilityCommand("TychusReviveHeroes", 0), lv_reviveTarget);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    while ((TechTreeUnitCount(lv_p, lv_unitType, c_techCountQueuedOrBetter) > 0)) {
+        UnitIssueOrder(lv_bar, Order(AbilityCommand("que5", 0)), c_orderQueueAddToEnd);
+    }
+    while ((UnitIsValid(lv_reviveTarget) == false)) {
+        return true;
+    }
+    if ((UnitOrderIsValid(lv_bar, lv_orderReal) == true)) {
+        UnitIssueOrder(lv_bar, lv_orderReal, c_orderQueueAddToEnd);
+    }
+    else {
+        libNtve_gf_UIErrorMessage(PlayerGroupSingle(lv_p), StringExternal("Param/Value/lib_COMI_8F36DA6F"), SoundLink("UI_GenericError", -1));
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Tychus_HeroReviveUsed_Init () {
+    libCOMI_gt_CM_Tychus_HeroReviveUsed = TriggerCreate("libCOMI_gt_CM_Tychus_HeroReviveUsed_Func");
+    TriggerEnable(libCOMI_gt_CM_Tychus_HeroReviveUsed, false);
+    TriggerAddEventUnitOrder(libCOMI_gt_CM_Tychus_HeroReviveUsed, null, AbilityCommand("TychusFakeReviveTrain", 255));
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus_HeroReviveFailSafe
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Tychus_HeroReviveFailSafe_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_fakeUnit;
+    int lv_p;
+    string lv_unitType;
+    unitgroup lv_unitTypeGroup;
+    unit lv_reviveTarget;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_fakeUnit = EventUnitCreatedUnit();
+    lv_p = UnitGetOwner(lv_fakeUnit);
+    lv_unitType = UnitGetType(EventUnitCreatedUnit());
+    lv_unitTypeGroup = UnitGroup(lv_unitType, lv_p, RegionEntireMap(), UnitFilter(0, 0, 0, 0), 0);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true)) {
+        TriggerDebugOutput(1, StringExternal("Param/Value/lib_COMI_B463A428"), true);
+    }
+
+    UnitGroupRemove(lv_unitTypeGroup, lv_fakeUnit);
+    lv_reviveTarget = UnitGroupUnit(lv_unitTypeGroup, 1);
+    if ((UnitIsValid(lv_reviveTarget) == true)) {
+        UnitSetPosition(lv_reviveTarget, UnitGetPosition(lv_fakeUnit), false);
+        UnitRevive(lv_reviveTarget);
+        UnitSetPropertyFixed(lv_reviveTarget, c_unitPropLifePercent, 100.0);
+    }
+
+    UnitRemove(lv_fakeUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Tychus_HeroReviveFailSafe_Init () {
+    libCOMI_gt_CM_Tychus_HeroReviveFailSafe = TriggerCreate("libCOMI_gt_CM_Tychus_HeroReviveFailSafe_Func");
+    TriggerEnable(libCOMI_gt_CM_Tychus_HeroReviveFailSafe, false);
+    TriggerAddEventUnitCreated(libCOMI_gt_CM_Tychus_HeroReviveFailSafe, null, "TychusFakeReviveTrain", null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus_OilBombFireDamageResponse
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Tychus_OilBombFireDamageResponse_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_oilcaster;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_oilcaster = libCOMI_gv_cM_Tychus_FirebatOilCaster;
+
+    // Conditions
+    if (testConds) {
+        if (!((CatalogFieldValueGet(c_gameCatalogEffect, EventUnitDamageEffect(), "Death", EventUnitDamageSourcePlayer()) == "Fire"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((lv_oilcaster == null)) {
+        libCOMI_gv_cM_Tychus_FirebatOilCaster = UnitGroupUnit(UnitGroup("TychusFirebat", libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranTychus", libCOOC_gf_CommanderPlayers()), RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), 0), 0), 1);
+        lv_oilcaster = libCOMI_gv_cM_Tychus_FirebatOilCaster;
+    }
+
+    if ((UnitIsAlive(EventUnit()) == true)) {
+        UnitBehaviorAdd(EventUnit(), "TychusFirebatOilFire", lv_oilcaster, 1);
+    }
+    else if ((TechTreeUpgradeCount(UnitGetOwner(lv_oilcaster), "TychusFirebatIncendiaryPetroleum", c_techCountCompleteOnly) > 0)) {
+        UnitCreateEffectPoint(lv_oilcaster, "TychusFirebatOilFireSearchTrigger", UnitGetPosition(EventUnit()));
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Tychus_OilBombFireDamageResponse_Init () {
+    libCOMI_gt_CM_Tychus_OilBombFireDamageResponse = TriggerCreate("libCOMI_gt_CM_Tychus_OilBombFireDamageResponse_Func");
+    TriggerEnable(libCOMI_gt_CM_Tychus_OilBombFireDamageResponse, false);
+    TriggerAddEventUnitDamageAbsorbed(libCOMI_gt_CM_Tychus_OilBombFireDamageResponse, null, "TychusFirebatOilBombed");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus_UltimateAchievement
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Tychus_UltimateAchievement_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_player = libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranTychus", libCOOC_gf_CC_PlayersOfCommander("TerranTychus"));
+
+    // Conditions
+    if (testConds) {
+        if (!(((libNtve_gf_TriggeringProgressUpgrade() == "TychusACBandofBrothers") || (libNtve_gf_TriggeringProgressUpgrade() == "TychusReaperBombCharges") || (libNtve_gf_TriggeringProgressUpgrade() == "TychusWarhoundTurretUpgrade") || (libNtve_gf_TriggeringProgressUpgrade() == "TychusFirebatShield") || (libNtve_gf_TriggeringProgressUpgrade() == "TychusHercCrit") || (libNtve_gf_TriggeringProgressUpgrade() == "TychusMarauderAttackSplash") || (libNtve_gf_TriggeringProgressUpgrade() == "TychusGhostConcentrationHelmet") || (libNtve_gf_TriggeringProgressUpgrade() == "TychusSpectreBrillianceAura") || (libNtve_gf_TriggeringProgressUpgrade() == "TychusMedicDefensiveMatrix")))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gv_cM_Tychus_UltimatesPurchased += 1;
+    if ((libNtve_gf_TriggeringProgressUpgrade() == "TychusACBandofBrothers")) {
+        AchievementTermQuantityAdd(lv_player, "CommanderTychusUltimateTychus", 1);
+        libCOMI_gf_CM_Tychus_UltimateTimeAchievement(lv_player);
+    }
+
+    if ((libNtve_gf_TriggeringProgressUpgrade() == "TychusReaperBombCharges")) {
+        AchievementTermQuantityAdd(lv_player, "CommanderTychusUltimateReaper", 1);
+        libCOMI_gf_CM_Tychus_UltimateTimeAchievement(lv_player);
+    }
+
+    if ((libNtve_gf_TriggeringProgressUpgrade() == "TychusWarhoundTurretUpgrade")) {
+        AchievementTermQuantityAdd(lv_player, "CommanderTychusUltimateWarhound", 1);
+        libCOMI_gf_CM_Tychus_UltimateTimeAchievement(lv_player);
+    }
+
+    if ((libNtve_gf_TriggeringProgressUpgrade() == "TychusFirebatShield")) {
+        AchievementTermQuantityAdd(lv_player, "CommanderTychusUltimateFirebat", 1);
+        libCOMI_gf_CM_Tychus_UltimateTimeAchievement(lv_player);
+    }
+
+    if ((libNtve_gf_TriggeringProgressUpgrade() == "TychusHercCrit")) {
+        AchievementTermQuantityAdd(lv_player, "CommanderTychusUltimateHerc", 1);
+        libCOMI_gf_CM_Tychus_UltimateTimeAchievement(lv_player);
+    }
+
+    if ((libNtve_gf_TriggeringProgressUpgrade() == "TychusMarauderAttackSplash")) {
+        AchievementTermQuantityAdd(lv_player, "CommanderTychusUltimateMarauder", 1);
+        libCOMI_gf_CM_Tychus_UltimateTimeAchievement(lv_player);
+    }
+
+    if ((libNtve_gf_TriggeringProgressUpgrade() == "TychusGhostConcentrationHelmet")) {
+        AchievementTermQuantityAdd(lv_player, "CommanderTychusUltimateGhost", 1);
+        libCOMI_gf_CM_Tychus_UltimateTimeAchievement(lv_player);
+    }
+
+    if ((libNtve_gf_TriggeringProgressUpgrade() == "TychusSpectreBrillianceAura")) {
+        AchievementTermQuantityAdd(lv_player, "CommanderTychusUltimateSpectre", 1);
+        libCOMI_gf_CM_Tychus_UltimateTimeAchievement(lv_player);
+    }
+
+    if ((libNtve_gf_TriggeringProgressUpgrade() == "TychusMedicDefensiveMatrix")) {
+        AchievementTermQuantityAdd(lv_player, "CommanderTychusUltimateMedic", 1);
+        libCOMI_gf_CM_Tychus_UltimateTimeAchievement(lv_player);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Tychus_UltimateAchievement_Init () {
+    libCOMI_gt_CM_Tychus_UltimateAchievement = TriggerCreate("libCOMI_gt_CM_Tychus_UltimateAchievement_Func");
+    TriggerEnable(libCOMI_gt_CM_Tychus_UltimateAchievement, false);
+    TriggerAddEventUnitResearchProgress(libCOMI_gt_CM_Tychus_UltimateAchievement, null, c_unitProgressStageComplete);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus_HealAchievement
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Tychus_HealAchievement_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_healingPlayer;
+    int lv_healedPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_healingPlayer = EventUnitHealLaunchPlayer();
+    lv_healedPlayer = EventPlayer();
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(lv_healingPlayer) == "Tychus"))) {
+            return false;
+        }
+
+        if (!((EventUnitHealVital() == c_unitVitalLife))) {
+            return false;
+        }
+
+        if (!((libCOOC_gf_CC_PlayerAllyNew(lv_healingPlayer) == lv_healedPlayer))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    AchievementTermQuantityAdd(lv_healingPlayer, "CommanderTychusHeal", CeilingI(EventUnitHealAmount()));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Tychus_HealAchievement_Init () {
+    libCOMI_gt_CM_Tychus_HealAchievement = TriggerCreate("libCOMI_gt_CM_Tychus_HealAchievement_Func");
+    TriggerEnable(libCOMI_gt_CM_Tychus_HealAchievement, false);
+    TriggerAddEventUnitHealed(libCOMI_gt_CM_Tychus_HealAchievement, null, c_unitVitalAny, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus_TriggersInit
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Tychus_TriggersInit_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_i;
+    int lv_player;
+
+    // Automatic Variable Declarations
+    playergroup auto6A034BAA_g;
+    const int auto2E3538DB_ae = 10;
+    const int auto2E3538DB_ai = 1;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(libCOMI_gt__CM_TychusEventHook, true);
+    TriggerEnable(libCOMI_gt_CM_Tychus_CalldownOdinDeselect, true);
+    TriggerEnable(libCOMI_gt_CM_Tychus_HeroQueue, true);
+    TriggerEnable(libCOMI_gt_CM_Tychus_HeroCancel, true);
+    TriggerEnable(libCOMI_gt_CM_TychusSpecialistTrainingAuraOn, true);
+    TriggerEnable(libCOMI_gt_CM_TychusSpecialistTrainingAuraOff, true);
+    TriggerEnable(libCOMI_gt_CM_TychusMedicTransportActived, true);
+    TriggerEnable(libCOMI_gt_CM_TychusMedicTopBarButton, true);
+    TriggerEnable(libCOMI_gt_CM_TychusMedicTransportTargetOn, true);
+    TriggerEnable(libCOMI_gt_CM_TychusMedicTransportTargetOff, true);
+    TriggerEnable(libCOMI_gt_CM_TychusMedicTransportStop, true);
+    TriggerEnable(libCOMI_gt_CM_TychusMedicTransportTimeOut, true);
+    TriggerEnable(libCOMI_gt_CM_TychusMedicTransportAirBehaviorApplied, true);
+    TriggerEnable(libCOMI_gt_CM_TychusMedicTransportGroundBehaviorApplied, true);
+    TriggerEnable(libCOMI_gt_CM_TychusMedicTransportTeleportUnload, true);
+    TriggerEnable(libCOMI_gt_CM_Tychus_WarhoundFearApply, true);
+    TriggerEnable(libCOMI_gt_CM_TychusWarhound_Revive, true);
+    TriggerEnable(libCOMI_gt_CM_TychusReaper_Revive, true);
+    TriggerEnable(libCOMI_gt_CM_Tychus_TrainMaxChargesRemove, true);
+    TriggerEnable(libCOMI_gt_CM_Tychus_CalldownOdinTychusSelect, true);
+    TriggerEnable(libCOMI_gt_CM_Tychus_CalldownOdinUpdateTarget, true);
+    TriggerEnable(libCOMI_gt_CM_Tychus_OdinSummon_Used, true);
+    TriggerEnable(libCOMI_gt_CM_Tychus_OdinSummon_CameraShake, true);
+    TriggerEnable(libCOMI_gt_CM_Tychus_Odin_Timeout, true);
+    TriggerEnable(libCOMI_gt__CM_TychusEventHook, true);
+    TriggerEnable(libCOMI_gt__CM_TychusStructureEventHook, true);
+    TriggerEnable(libCOMI_gt_CM_TychusHERC_CriticalText, true);
+    TriggerEnable(libCOMI_gt_CM_TychusHERC_ShieldCooldown, true);
+    TriggerEnable(libCOMI_gt_CM_Tychus_OilBombFireDamageResponse, true);
+    TriggerEnable(libCOMI_gt_CM_TychusHeroPurchaseDummy, true);
+    TriggerEnable(libCOMI_gt_CM_Tychus_Hero_Charge_Timing, true);
+    TriggerEnable(libCOMI_gt_CM_Tychus_HeroReviveUsed, true);
+    TriggerEnable(libCOMI_gt_CM_Tychus_HeroReviveFailSafe, true);
+    TriggerEnable(libCOMI_gt_CM_TychusReplaceResearchCenter, true);
+    TriggerEnable(libCOMI_gt_CM_Tychus_TriUnitSpeed_Upgrade, true);
+    TriggerEnable(libCOMI_gt_CM_Tychus_TriUnitHealth_Upgrade, true);
+    TriggerEnable(libCOMI_gt_CM_Tychus_UltimateAchievement, true);
+    TriggerEnable(libCOMI_gt_CM_Tychus_HealAchievement, true);
+    auto6A034BAA_g = libCOOC_gf_CommanderPlayers();
+    lv_player = -1;
+    while (true) {
+        lv_player = PlayerGroupNextPlayer(auto6A034BAA_g, lv_player);
+        if (lv_player < 0) { break; }
+        if ((PlayerCommander(lv_player) == "Tychus")) {
+            lv_i = 0;
+            for ( ; ( (auto2E3538DB_ai >= 0 && lv_i <= auto2E3538DB_ae) || (auto2E3538DB_ai < 0 && lv_i >= auto2E3538DB_ae) ) ; lv_i += auto2E3538DB_ai ) {
+                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusBarracksTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, 1.0);
+                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusFactoryTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, 1.0);
+                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusStarportTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, 1.0);
+            }
+            libCOMI_gf_CM_Tychus_UpdateHeroTechTree(lv_player);
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Tychus_TriggersInit_Init () {
+    libCOMI_gt_CM_Tychus_TriggersInit = TriggerCreate("libCOMI_gt_CM_Tychus_TriggersInit_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus_TriUnitSpeed_Upgrade
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Tychus_TriUnitSpeed_Upgrade_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_masteryCount;
+    int lv_player;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_player = EventPlayer();
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(lv_player) == "Tychus"))) {
+            return false;
+        }
+
+        if (!((libNtve_gf_TriggeringProgressUpgrade() == "TychusSquadAttackSpeed"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_masteryCount = TechTreeUpgradeCount(EventPlayer(), "MasteryTychusUpgradesIncrease", c_techCountCompleteOnly);
+    libNtve_gf_SetUpgradeLevelForPlayer(lv_player, "TychusSquadAttackSpeedWithMastery", lv_masteryCount);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Tychus_TriUnitSpeed_Upgrade_Init () {
+    libCOMI_gt_CM_Tychus_TriUnitSpeed_Upgrade = TriggerCreate("libCOMI_gt_CM_Tychus_TriUnitSpeed_Upgrade_Func");
+    TriggerEnable(libCOMI_gt_CM_Tychus_TriUnitSpeed_Upgrade, false);
+    TriggerAddEventUnitResearchProgress(libCOMI_gt_CM_Tychus_TriUnitSpeed_Upgrade, null, c_unitProgressStageComplete);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus_TriUnitHealth_Upgrade
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Tychus_TriUnitHealth_Upgrade_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_i;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(UnitGetOwner(EventUnit())) == "Tychus"))) {
+            return false;
+        }
+
+        if (!((libNtve_gf_TriggeringProgressUpgrade() == "TychusSquadHealth"))) {
+            return false;
+        }
+
+        if (!((TechTreeUpgradeCount(EventPlayer(), "MasteryTychusUpgradesIncrease", c_techCountCompleteOnly) >= 1))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TechTreeUpgradeAddLevel(EventPlayer(), "TychusSquadHealthMastery", TechTreeUpgradeCount(EventPlayer(), "MasteryTychusUpgradesIncrease", c_techCountCompleteOnly));
+    TriggerEnable(TriggerGetCurrent(), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Tychus_TriUnitHealth_Upgrade_Init () {
+    libCOMI_gt_CM_Tychus_TriUnitHealth_Upgrade = TriggerCreate("libCOMI_gt_CM_Tychus_TriUnitHealth_Upgrade_Func");
+    TriggerEnable(libCOMI_gt_CM_Tychus_TriUnitHealth_Upgrade, false);
+    TriggerAddEventUnitResearchProgress(libCOMI_gt_CM_Tychus_TriUnitHealth_Upgrade, null, c_unitProgressStageComplete);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_TychusReplaceResearchCenter
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_TychusReplaceResearchCenter_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_unit;
+    int lv_p;
+
+    // Automatic Variable Declarations
+    unitgroup auto8B4AE5B8_g;
+    int auto8B4AE5B8_u;
+    unit auto8B4AE5B8_var;
+
+    // Variable Initialization
+    lv_unit = libCOMI_gf_EventTychusHero();
+    lv_p = UnitGetOwner(lv_unit);
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(libCOMI_gf_EventTychusHero()) == "TychusCoop"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    CatalogLinkReplace(UnitGetOwner(libCOMI_gf_EventTychusHero()), c_gameCatalogUnit, "TychusResearchCenter", "TychusResearchCenterUnlocked");
+    libCOMI_gv_cM_HeroUnit[lv_p] = libCOMI_gf_EventTychusHero();
+    libCOUI_gv_cU_HeroUnit[0][lv_p] = lv_unit;
+    auto8B4AE5B8_g = UnitGroup("TychusResearchCenter", UnitGetOwner(libCOMI_gf_EventTychusHero()), RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    auto8B4AE5B8_u = UnitGroupCount(auto8B4AE5B8_g, c_unitCountAll);
+    for (;; auto8B4AE5B8_u -= 1) {
+        auto8B4AE5B8_var = UnitGroupUnitFromEnd(auto8B4AE5B8_g, auto8B4AE5B8_u);
+        if (auto8B4AE5B8_var == null) { break; }
+        libNtve_gf_ReplaceUnit(auto8B4AE5B8_var, "TychusResearchCenterUnlocked", libNtve_ge_ReplaceUnitOptions_OldUnitsRelative);
+        libNtve_gf_CopyUnitControlGroups(auto8B4AE5B8_var, libNtve_gf_LastReplacedUnit());
+        UnitCreateEffectUnit(auto8B4AE5B8_var, "TychusResearchCenterCopyRally", libNtve_gf_LastReplacedUnit());
+        libCOUI_gv_cU_TychusSquadBar = libNtve_gf_LastReplacedUnit();
+        if ((UnitIsSelected(auto8B4AE5B8_var, UnitGetOwner(libCOMI_gf_EventTychusHero())) == true)) {
+            UnitSelect(libNtve_gf_LastReplacedUnit(), UnitGetOwner(libCOMI_gf_EventTychusHero()), true);
+        }
+
+        libCOUI_gf_CU_TychusSetBarUnit(libNtve_gf_LastReplacedUnit());
+    }
+    DialogControlSetAnimationState(libCOUI_gv_cU_TychusSquadUnitFrames[0], PlayerGroupAll(), "TrainingState", "NotTraining");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_TychusReplaceResearchCenter_Init () {
+    libCOMI_gt_CM_TychusReplaceResearchCenter = TriggerCreate("libCOMI_gt_CM_TychusReplaceResearchCenter_Func");
+    TriggerEnable(libCOMI_gt_CM_TychusReplaceResearchCenter, false);
+    libCOMI_gf_TychusHeroEvent(libCOMI_gt_CM_TychusReplaceResearchCenter, "Event_TychusHeroCreate");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus_Hero_Charge_Timing
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Tychus_Hero_Charge_Timing_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_i;
+    int lv_player;
+    fixed lv_heroCooldown;
+
+    // Automatic Variable Declarations
+    playergroup auto2F37A26F_g;
+    const int auto305C41C6_ae = 10;
+    const int auto305C41C6_ai = 1;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto2F37A26F_g = libCOOC_gf_CommanderPlayers();
+    lv_player = -1;
+    while (true) {
+        lv_player = PlayerGroupNextPlayer(auto2F37A26F_g, lv_player);
+        if (lv_player < 0) { break; }
+        if ((PlayerCommander(lv_player) == "Tychus")) {
+            lv_heroCooldown = libCOMI_gf_CalculateTychusRecruitmentChargeCooldown(lv_player);
+            lv_i = 0;
+            for ( ; ( (auto305C41C6_ai >= 0 && lv_i <= auto305C41C6_ae) || (auto305C41C6_ai < 0 && lv_i >= auto305C41C6_ae) ) ; lv_i += auto305C41C6_ai ) {
+                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusBarracksTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.TimeStart", lv_player, lv_heroCooldown);
+                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusBarracksTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.TimeUse", lv_player, lv_heroCooldown);
+                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusFactoryTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.TimeStart", lv_player, lv_heroCooldown);
+                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusFactoryTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.TimeUse", lv_player, lv_heroCooldown);
+                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusStarportTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.TimeStart", lv_player, lv_heroCooldown);
+                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusStarportTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.TimeUse", lv_player, lv_heroCooldown);
+            }
+            libCOMI_gf_ApplyTychusMaxChargesPerk(lv_player);
+        }
+
+    }
+    TriggerEnable(TriggerGetCurrent(), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Tychus_Hero_Charge_Timing_Init () {
+    libCOMI_gt_CM_Tychus_Hero_Charge_Timing = TriggerCreate("libCOMI_gt_CM_Tychus_Hero_Charge_Timing_Func");
+    TriggerEnable(libCOMI_gt_CM_Tychus_Hero_Charge_Timing, false);
+    TriggerAddEventTimeElapsed(libCOMI_gt_CM_Tychus_Hero_Charge_Timing, libCOMI_gv_cM_Tychus_InitialTrainTime, c_timeAI);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus_CalldownOdinDeselect
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Tychus_CalldownOdinDeselect_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitSelect(EventUnit(), UnitGetOwner(EventUnit()), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Tychus_CalldownOdinDeselect_Init () {
+    libCOMI_gt_CM_Tychus_CalldownOdinDeselect = TriggerCreate("libCOMI_gt_CM_Tychus_CalldownOdinDeselect_Func");
+    TriggerEnable(libCOMI_gt_CM_Tychus_CalldownOdinDeselect, false);
+    TriggerAddEventUnitBehaviorChange(libCOMI_gt_CM_Tychus_CalldownOdinDeselect, null, "TychusCalldownOdinInsideOdinStun", c_unitBehaviorChangeCreate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus_CalldownOdinUpdateTarget
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Tychus_CalldownOdinUpdateTarget_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOUI_gf_UpdateTychusSquadTargetFrame("Tychus", EventPlayerEffectUsedUnit(c_effectUnitTarget));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Tychus_CalldownOdinUpdateTarget_Init () {
+    libCOMI_gt_CM_Tychus_CalldownOdinUpdateTarget = TriggerCreate("libCOMI_gt_CM_Tychus_CalldownOdinUpdateTarget_Func");
+    TriggerEnable(libCOMI_gt_CM_Tychus_CalldownOdinUpdateTarget, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Tychus_CalldownOdinUpdateTarget, c_playerAny, "TychusCalldownOdinApplyTimedLife");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Tychus_CalldownOdinTychusSelect
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Tychus_CalldownOdinTychusSelect_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_tychus;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_tychus = libCOMI_gv_cM_HeroUnit[libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranTychus", libCOOC_gf_CC_PlayersOfCommander("TerranTychus"))];
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(EventUnit()) == "TychusOdin"))) {
+            return false;
+        }
+
+        if (!((UnitIsAlive(lv_tychus) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitSelect(lv_tychus, UnitGetOwner(EventUnit()), true);
+    libCOUI_gf_UpdateTychusSquadTargetFrame("Tychus", libCOMI_gv_cM_HeroUnit[libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranTychus", libCOOC_gf_CC_PlayersOfCommander("TerranTychus"))]);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Tychus_CalldownOdinTychusSelect_Init () {
+    libCOMI_gt_CM_Tychus_CalldownOdinTychusSelect = TriggerCreate("libCOMI_gt_CM_Tychus_CalldownOdinTychusSelect_Func");
+    TriggerEnable(libCOMI_gt_CM_Tychus_CalldownOdinTychusSelect, false);
+    TriggerAddEventUnitDied(libCOMI_gt_CM_Tychus_CalldownOdinTychusSelect, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_TychusWarhound_Revive
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_TychusWarhound_Revive_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_hero;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_hero = libCOMI_gf_EventTychusHero();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(lv_hero) == "TychusWarhound"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(lv_hero, "TychusWarhoundTurretChargeAdd", lv_hero);
+    UnitCreateEffectUnit(lv_hero, "TychusWarhoundTurretChargeRemove", lv_hero);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_TychusWarhound_Revive_Init () {
+    libCOMI_gt_CM_TychusWarhound_Revive = TriggerCreate("libCOMI_gt_CM_TychusWarhound_Revive_Func");
+    TriggerEnable(libCOMI_gt_CM_TychusWarhound_Revive, false);
+    libCOMI_gf_TychusHeroEvent(libCOMI_gt_CM_TychusWarhound_Revive, "Event_TychusHeroRevive");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_TychusHeroPurchaseDummy
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_TychusHeroPurchaseDummy_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_hero;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_hero = libCOMI_gf_EventTychusHero();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitGetType(lv_hero) == "TychusFirebat")) {
+        TechTreeUpgradeAddLevel(libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranTychus", libCOOC_gf_CC_PlayersOfCommander("TerranTychus")), "TychusFirebatOwned", 1);
+    }
+    else if ((UnitGetType(lv_hero) == "TychusGhost")) {
+        TechTreeUpgradeAddLevel(libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranTychus", libCOOC_gf_CC_PlayersOfCommander("TerranTychus")), "TychusGhostOwned", 1);
+    }
+    else if ((UnitGetType(lv_hero) == "TychusMarauder")) {
+        TechTreeUpgradeAddLevel(libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranTychus", libCOOC_gf_CC_PlayersOfCommander("TerranTychus")), "TychusMarauderOwned", 1);
+    }
+    else if ((UnitGetType(lv_hero) == "TychusHERC")) {
+        TechTreeUpgradeAddLevel(libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranTychus", libCOOC_gf_CC_PlayersOfCommander("TerranTychus")), "TychusHERCOwned", 1);
+    }
+    else if ((UnitGetType(lv_hero) == "TychusWarhound")) {
+        TechTreeUpgradeAddLevel(libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranTychus", libCOOC_gf_CC_PlayersOfCommander("TerranTychus")), "TychusWarhoundOwned", 1);
+    }
+    else if ((UnitGetType(lv_hero) == "TychusMedic")) {
+        TechTreeUpgradeAddLevel(libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranTychus", libCOOC_gf_CC_PlayersOfCommander("TerranTychus")), "TychusMedicOwned", 1);
+    }
+    else if ((UnitGetType(lv_hero) == "TychusReaper")) {
+        TechTreeUpgradeAddLevel(libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranTychus", libCOOC_gf_CC_PlayersOfCommander("TerranTychus")), "TychusReaperOwned", 1);
+    }
+    else if ((UnitGetType(lv_hero) == "TychusSpectre")) {
+        TechTreeUpgradeAddLevel(libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranTychus", libCOOC_gf_CC_PlayersOfCommander("TerranTychus")), "TychusSpectreOwned", 1);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_TychusHeroPurchaseDummy_Init () {
+    libCOMI_gt_CM_TychusHeroPurchaseDummy = TriggerCreate("libCOMI_gt_CM_TychusHeroPurchaseDummy_Func");
+    TriggerEnable(libCOMI_gt_CM_TychusHeroPurchaseDummy, false);
+    libCOMI_gf_TychusHeroEvent(libCOMI_gt_CM_TychusHeroPurchaseDummy, "Event_TychusHeroCreate");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_TychusReaper_Revive
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_TychusReaper_Revive_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_hero;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_hero = libCOMI_gf_EventTychusHero();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(lv_hero) == "TychusReaper"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(lv_hero, "TychusReaperBombChargeAdd", lv_hero);
+    UnitCreateEffectUnit(lv_hero, "TychusReaperBombChargeRemove", lv_hero);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_TychusReaper_Revive_Init () {
+    libCOMI_gt_CM_TychusReaper_Revive = TriggerCreate("libCOMI_gt_CM_TychusReaper_Revive_Func");
+    TriggerEnable(libCOMI_gt_CM_TychusReaper_Revive, false);
+    libCOMI_gf_TychusHeroEvent(libCOMI_gt_CM_TychusReaper_Revive, "Event_TychusHeroRevive");
+}
+
+//--------------------------------------------------------------------------------------------------
 // Trigger: Roach Drop Scale
 //--------------------------------------------------------------------------------------------------
 bool libCOMI_gt_RoachDropScale_Func (bool testConds, bool runActions) {
@@ -21161,6 +23389,46 @@ void libCOMI_gt_CM_SoASuperChronoCleanup_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
+// Trigger: COD Construc Invulnerable On
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CODConstrucInvulnerableOn_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitSetState(EventUnit(), c_unitStateInvulnerable, true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CODConstrucInvulnerableOn_Init () {
+    libCOMI_gt_CODConstrucInvulnerableOn = TriggerCreate("libCOMI_gt_CODConstrucInvulnerableOn_Func");
+    TriggerAddEventUnitBehaviorChange(libCOMI_gt_CODConstrucInvulnerableOn, null, "ConstructInvulnerability", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: COD Construc Invulnerable  Off
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CODConstrucInvulnerableOff_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitSetState(EventUnit(), c_unitStateInvulnerable, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CODConstrucInvulnerableOff_Init () {
+    libCOMI_gt_CODConstrucInvulnerableOff = TriggerCreate("libCOMI_gt_CODConstrucInvulnerableOff_Func");
+    TriggerAddEventUnitBehaviorChange(libCOMI_gt_CODConstrucInvulnerableOff, null, "ConstructInvulnerability", c_unitBehaviorChangeDeactivate);
+}
+
+//--------------------------------------------------------------------------------------------------
 // Trigger: VoidACShard Modify Health
 //--------------------------------------------------------------------------------------------------
 bool libCOMI_gt_VoidACShardModifyHealth_Func (bool testConds, bool runActions) {
@@ -21705,7 +23973,7 @@ bool libCOMI_gt_CM_HeroDied_Func (bool testConds, bool runActions) {
     while (true) {
         lv_indexPlayer = PlayerGroupNextPlayer(autoABF82C79_g, lv_indexPlayer);
         if (lv_indexPlayer < 0) { break; }
-        if ((EventUnit() == libCOMI_gv_cM_HeroUnit[lv_indexPlayer])) {
+        if ((EventUnit() == libCOMI_gv_cM_HeroUnit[lv_indexPlayer]) && (PlayerCommander(lv_indexPlayer) != "Tychus")) {
             libCOMI_gf_CM_HeroHandleDeath(lv_indexPlayer);
         }
 
@@ -23424,6 +25692,569 @@ void libCOMI_gt_CM_AbilityTransmissionHornerBomberReminder_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
+// Trigger: CM_AbilityTransmissionTychusCreateReaper
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_AbilityTransmissionTychusCreateReaper_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_CM_CommanderVOSend(UnitGetOwner(EventUnit()), SoundLink("TychusCommander_ReaperReady", -1), PlayerGroupSingle(UnitGetOwner(EventUnit())));
+    TriggerEnable(TriggerGetCurrent(), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_AbilityTransmissionTychusCreateReaper_Init () {
+    libCOMI_gt_CM_AbilityTransmissionTychusCreateReaper = TriggerCreate("libCOMI_gt_CM_AbilityTransmissionTychusCreateReaper_Func");
+    TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusCreateReaper, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_AbilityTransmissionTychusCreateReaper, null, AbilityCommand("TychusBarracksTrain", 3), c_unitAbilStageExecute, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_AbilityTransmissionTychusCreateWarhound
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_AbilityTransmissionTychusCreateWarhound_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_CM_CommanderVOSend(UnitGetOwner(EventUnit()), SoundLink("TychusCommander_WarhoundReady", -1), PlayerGroupSingle(UnitGetOwner(EventUnit())));
+    TriggerEnable(TriggerGetCurrent(), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_AbilityTransmissionTychusCreateWarhound_Init () {
+    libCOMI_gt_CM_AbilityTransmissionTychusCreateWarhound = TriggerCreate("libCOMI_gt_CM_AbilityTransmissionTychusCreateWarhound_Func");
+    TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusCreateWarhound, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_AbilityTransmissionTychusCreateWarhound, null, AbilityCommand("TychusFactoryTrain", 3), c_unitAbilStageExecute, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_AbilityTransmissionTychusCreateFirebat
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_AbilityTransmissionTychusCreateFirebat_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_CM_CommanderVOSend(UnitGetOwner(EventUnit()), SoundLink("TychusCommander_FirebatReady", -1), PlayerGroupSingle(UnitGetOwner(EventUnit())));
+    TriggerEnable(TriggerGetCurrent(), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_AbilityTransmissionTychusCreateFirebat_Init () {
+    libCOMI_gt_CM_AbilityTransmissionTychusCreateFirebat = TriggerCreate("libCOMI_gt_CM_AbilityTransmissionTychusCreateFirebat_Func");
+    TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusCreateFirebat, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_AbilityTransmissionTychusCreateFirebat, null, AbilityCommand("TychusBarracksTrain", 1), c_unitAbilStageExecute, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_AbilityTransmissionTychusCreateMarauder
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_AbilityTransmissionTychusCreateMarauder_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_CM_CommanderVOSend(UnitGetOwner(EventUnit()), SoundLink("TychusCommander_MarauderReady", -1), PlayerGroupSingle(UnitGetOwner(EventUnit())));
+    TriggerEnable(TriggerGetCurrent(), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_AbilityTransmissionTychusCreateMarauder_Init () {
+    libCOMI_gt_CM_AbilityTransmissionTychusCreateMarauder = TriggerCreate("libCOMI_gt_CM_AbilityTransmissionTychusCreateMarauder_Func");
+    TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusCreateMarauder, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_AbilityTransmissionTychusCreateMarauder, null, AbilityCommand("TychusBarracksTrain", 4), c_unitAbilStageExecute, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_AbilityTransmissionTychusCreateHERC
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_AbilityTransmissionTychusCreateHERC_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_CM_CommanderVOSend(UnitGetOwner(EventUnit()), SoundLink("TychusCommander_HERCReady", -1), PlayerGroupSingle(UnitGetOwner(EventUnit())));
+    TriggerEnable(TriggerGetCurrent(), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_AbilityTransmissionTychusCreateHERC_Init () {
+    libCOMI_gt_CM_AbilityTransmissionTychusCreateHERC = TriggerCreate("libCOMI_gt_CM_AbilityTransmissionTychusCreateHERC_Func");
+    TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusCreateHERC, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_AbilityTransmissionTychusCreateHERC, null, AbilityCommand("TychusFactoryTrain", 1), c_unitAbilStageExecute, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_AbilityTransmissionTychusCreateGhost
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_AbilityTransmissionTychusCreateGhost_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_CM_CommanderVOSend(UnitGetOwner(EventUnit()), SoundLink("TychusCommander_GhostReady", -1), PlayerGroupSingle(UnitGetOwner(EventUnit())));
+    TriggerEnable(TriggerGetCurrent(), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_AbilityTransmissionTychusCreateGhost_Init () {
+    libCOMI_gt_CM_AbilityTransmissionTychusCreateGhost = TriggerCreate("libCOMI_gt_CM_AbilityTransmissionTychusCreateGhost_Func");
+    TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusCreateGhost, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_AbilityTransmissionTychusCreateGhost, null, AbilityCommand("TychusBarracksTrain", 2), c_unitAbilStageExecute, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_AbilityTransmissionTychusCreatePhantom
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_AbilityTransmissionTychusCreatePhantom_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_CM_CommanderVOSend(UnitGetOwner(EventUnit()), SoundLink("TychusCommander_SpectreReady", -1), PlayerGroupSingle(UnitGetOwner(EventUnit())));
+    TriggerEnable(TriggerGetCurrent(), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_AbilityTransmissionTychusCreatePhantom_Init () {
+    libCOMI_gt_CM_AbilityTransmissionTychusCreatePhantom = TriggerCreate("libCOMI_gt_CM_AbilityTransmissionTychusCreatePhantom_Func");
+    TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusCreatePhantom, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_AbilityTransmissionTychusCreatePhantom, null, AbilityCommand("TychusBarracksTrain", 5), c_unitAbilStageExecute, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_AbilityTransmissionTychusCreateMedic
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_AbilityTransmissionTychusCreateMedic_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_CM_CommanderVOSend(UnitGetOwner(EventUnit()), SoundLink("TychusCommander_MedicReady", -1), PlayerGroupSingle(UnitGetOwner(EventUnit())));
+    TriggerEnable(TriggerGetCurrent(), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_AbilityTransmissionTychusCreateMedic_Init () {
+    libCOMI_gt_CM_AbilityTransmissionTychusCreateMedic = TriggerCreate("libCOMI_gt_CM_AbilityTransmissionTychusCreateMedic_Func");
+    TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusCreateMedic, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_AbilityTransmissionTychusCreateMedic, null, AbilityCommand("TychusBarracksTrain", 0), c_unitAbilStageExecute, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_AbilityTransmissionTychusOdinUse
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_AbilityTransmissionTychusOdinUse_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_CM_CommanderVOSend(libCOOC_gf_CC_PlayerAllyNew(UnitGetOwner(EventUnit())), SoundLink("TychusCommander_OdinUsed", -1), PlayerGroupAll());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_AbilityTransmissionTychusOdinUse_Init () {
+    libCOMI_gt_CM_AbilityTransmissionTychusOdinUse = TriggerCreate("libCOMI_gt_CM_AbilityTransmissionTychusOdinUse_Func");
+    TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusOdinUse, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_AbilityTransmissionTychusOdinUse, null, AbilityCommand("TychusCalldownOdinTargeted", 0), c_unitAbilStageExecute, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_AbilityTransmissionTychusTransportUse
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_AbilityTransmissionTychusTransportUse_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_CM_GPReminderDisable(UnitGetOwner(EventUnit()));
+    libCOMI_gf_CM_CommanderVOSend(libCOOC_gf_CC_PlayerAllyNew(UnitGetOwner(EventUnit())), SoundLink("TychusCommander_MedivacUsed", -1), PlayerGroupAll());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_AbilityTransmissionTychusTransportUse_Init () {
+    libCOMI_gt_CM_AbilityTransmissionTychusTransportUse = TriggerCreate("libCOMI_gt_CM_AbilityTransmissionTychusTransportUse_Func");
+    TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusTransportUse, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_AbilityTransmissionTychusTransportUse, null, AbilityCommand("TychusMedicTransportLoadUnits", 0), c_unitAbilStageExecute, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_AbilityTransmissionTychusTransportReminder
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_AbilityTransmissionTychusTransportReminder_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+
+        if (!((TimerGetRemaining(libCOMI_gv_cM_TychusVOTransportFlairCooldownTimer) <= 0.0))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_CM_CommanderVOSend(libCOMI_gv_cM_TychusVOTychusPlayer, SoundLink("TychusCommander_MedivacPlatformReminder", -1), PlayerGroupSingle(libCOMI_gv_cM_TychusVOTychusPlayer));
+    TriggerEnable(libCOMI_gt_CM_UnitTransmissionTychusTransportBuild, false);
+    TriggerEnable(TriggerGetCurrent(), false);
+    TimerStart(libCOMI_gv_cM_TychusVOTransportFlairCooldownTimer, libCOMI_gv_cMC_TychusVOTransportFlairCooldown, false, c_timeGame);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_AbilityTransmissionTychusTransportReminder_Init () {
+    libCOMI_gt_CM_AbilityTransmissionTychusTransportReminder = TriggerCreate("libCOMI_gt_CM_AbilityTransmissionTychusTransportReminder_Func");
+    TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusTransportReminder, false);
+    TriggerAddEventTimer(libCOMI_gt_CM_AbilityTransmissionTychusTransportReminder, libCOMI_gv_cM_TychusVOTransportReminderTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_UnitTransmissionTychusTransportBuild
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_UnitTransmissionTychusTransportBuild_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+
+        if (!((UnitGetType(EventUnitProgressUnit()) == "TychusMedivacPlatform"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(libCOMI_gt_CM_AbilityTransmissionTychusTransportReminder, false);
+    libNtve_gf_StopTimer(libCOMI_gv_cM_TychusVOTransportReminderTimer);
+    TriggerEnable(TriggerGetCurrent(), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_UnitTransmissionTychusTransportBuild_Init () {
+    libCOMI_gt_CM_UnitTransmissionTychusTransportBuild = TriggerCreate("libCOMI_gt_CM_UnitTransmissionTychusTransportBuild_Func");
+    TriggerEnable(libCOMI_gt_CM_UnitTransmissionTychusTransportBuild, false);
+    TriggerAddEventUnitConstructProgress(libCOMI_gt_CM_UnitTransmissionTychusTransportBuild, null, c_unitProgressStageComplete);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_UnitTransmissionTychusOutlawFirstDeath
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_UnitTransmissionTychusOutlawFirstDeath_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitGetType(libCOMI_gf_EventTychusHero()) != UserDataGetUnit("CoopTechTychusSquad", "Tychus", "Unit Type", 1))) {
+        libCOMI_gf_CM_CommanderVOSend(UnitGetOwner(libCOMI_gf_EventTychusHero()), SoundLink("TychusCommander_OutlawDeath", -1), PlayerGroupSingle(UnitGetOwner(libCOMI_gf_EventTychusHero())));
+    }
+    else {
+        libCOMI_gf_CM_CommanderVOSend(UnitGetOwner(libCOMI_gf_EventTychusHero()), SoundLink("TychusHeroVO_Death", -1), PlayerGroupSingle(UnitGetOwner(libCOMI_gf_EventTychusHero())));
+    }
+    TriggerEnable(TriggerGetCurrent(), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_UnitTransmissionTychusOutlawFirstDeath_Init () {
+    libCOMI_gt_CM_UnitTransmissionTychusOutlawFirstDeath = TriggerCreate("libCOMI_gt_CM_UnitTransmissionTychusOutlawFirstDeath_Func");
+    TriggerEnable(libCOMI_gt_CM_UnitTransmissionTychusOutlawFirstDeath, false);
+    libCOMI_gf_TychusHeroEvent(libCOMI_gt_CM_UnitTransmissionTychusOutlawFirstDeath, "Event_TychusHeroDeath");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_UnitTransmissionTychusOutlawDeath
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_UnitTransmissionTychusOutlawDeath_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+
+        if (!((UnitGetType(libCOMI_gf_EventTychusHero()) != UserDataGetUnit("CoopTechTychusSquad", "Tychus", "Unit Type", 1)))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((TriggerIsEnabled(libCOMI_gt_CM_UnitTransmissionTychusOutlawReviveReminder) == true) && (TimerGetRemaining(libCOMI_gv_cM_TychusVOOutlawReviveReminderTimer) <= 0.0)) {
+        TimerStart(libCOMI_gv_cM_TychusVOOutlawReviveReminderTimer, libCOMI_gv_cMC_TychusVOOutlawReviveReminderDelay, false, c_timeGame);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_UnitTransmissionTychusOutlawDeath_Init () {
+    libCOMI_gt_CM_UnitTransmissionTychusOutlawDeath = TriggerCreate("libCOMI_gt_CM_UnitTransmissionTychusOutlawDeath_Func");
+    TriggerEnable(libCOMI_gt_CM_UnitTransmissionTychusOutlawDeath, false);
+    libCOMI_gf_TychusHeroEvent(libCOMI_gt_CM_UnitTransmissionTychusOutlawDeath, "Event_TychusHeroDeath");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_UnitTransmissionTychusOutlawRevived
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_UnitTransmissionTychusOutlawRevived_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+
+        if (!((UnitGetType(libCOMI_gf_EventTychusHero()) != UserDataGetUnit("CoopTechTychusSquad", "Tychus", "Unit Type", 1)))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TimerPause(libCOMI_gv_cM_TychusVOOutlawReviveReminderTimer, true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_UnitTransmissionTychusOutlawRevived_Init () {
+    libCOMI_gt_CM_UnitTransmissionTychusOutlawRevived = TriggerCreate("libCOMI_gt_CM_UnitTransmissionTychusOutlawRevived_Func");
+    TriggerEnable(libCOMI_gt_CM_UnitTransmissionTychusOutlawRevived, false);
+    libCOMI_gf_TychusHeroEvent(libCOMI_gt_CM_UnitTransmissionTychusOutlawRevived, "Event_TychusHeroRevive");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_UnitTransmissionTychusOutlawReviveReminder
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_UnitTransmissionTychusOutlawReviveReminder_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_CM_CommanderVOSend(libCOMI_gv_cM_TychusVOTychusPlayer, SoundLink("TychusCommander_ReviveOutlaw", -1), PlayerGroupSingle(libCOMI_gv_cM_TychusVOTychusPlayer));
+    TriggerEnable(TriggerGetCurrent(), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_UnitTransmissionTychusOutlawReviveReminder_Init () {
+    libCOMI_gt_CM_UnitTransmissionTychusOutlawReviveReminder = TriggerCreate("libCOMI_gt_CM_UnitTransmissionTychusOutlawReviveReminder_Func");
+    TriggerEnable(libCOMI_gt_CM_UnitTransmissionTychusOutlawReviveReminder, false);
+    TriggerAddEventTimer(libCOMI_gt_CM_UnitTransmissionTychusOutlawReviveReminder, libCOMI_gv_cM_TychusVOOutlawReviveReminderTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_UnitTransmissionTychusOutlawRecruitAvailable
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruitAvailable_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TimerStart(libCOMI_gv_cM_TychusVOOutlawRecruitReminderTimer, libCOMI_gv_cMC_TychusVOOutlawRecruitReminderDelay, false, c_timeGame);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruitAvailable_Init () {
+    libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruitAvailable = TriggerCreate("libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruitAvailable_Func");
+    TriggerEnable(libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruitAvailable, false);
+    TriggerAddEventGeneric(libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruitAvailable, "TychusHeroAvailable");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_UnitTransmissionTychusOutlawRecruited
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruited_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+
+        if (!((UnitGetType(libCOMI_gf_EventTychusHero()) != UserDataGetUnit("CoopTechTychusSquad", "Tychus", "Unit Type", 1)))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TimerPause(libCOMI_gv_cM_TychusVOOutlawRecruitReminderTimer, true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruited_Init () {
+    libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruited = TriggerCreate("libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruited_Func");
+    TriggerEnable(libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruited, false);
+    libCOMI_gf_TychusHeroEvent(libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruited, "Event_TychusHeroCreate");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_UnitTransmissionTychusOutlawRecruitReminder
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruitReminder_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_CM_CommanderVOSend(libCOMI_gv_cM_TychusVOTychusPlayer, SoundLink("TychusCommander_RecruitOutlaw", -1), PlayerGroupSingle(libCOMI_gv_cM_TychusVOTychusPlayer));
+    TriggerEnable(TriggerGetCurrent(), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruitReminder_Init () {
+    libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruitReminder = TriggerCreate("libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruitReminder_Func");
+    TriggerEnable(libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruitReminder, false);
+    TriggerAddEventTimer(libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruitReminder, libCOMI_gv_cM_TychusVOOutlawRecruitReminderTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
 // Trigger: CM_VOResourceSent
 //--------------------------------------------------------------------------------------------------
 bool libCOMI_gt_CM_VOResourceSent_Func (bool testConds, bool runActions) {
@@ -24292,6 +27123,8 @@ void libCOMI_InitTriggers () {
     libCOMI_gt_ShieldColorUnitCreate_Init();
     libCOMI_gt_ShieldColorUnitMorph_Init();
     libCOMI_gt_AttackFastBuffHack_Init();
+    libCOMI_gt_DmgandAttackSpeedInheritNew_Init();
+    libCOMI_gt_DmgandAttackSpeedInheritExisting_Init();
     libCOMI_gt_ConjoinedVitalRegenOnOff_Init();
     libCOMI_gt_CM_TargetLockOrder_Init();
     libCOMI_gt_CM_TargetLockOrderRaven_Init();
@@ -24318,6 +27151,7 @@ void libCOMI_InitTriggers () {
     libCOMI_gt_CM_DebugGiveOfflineControl_Init();
     libCOMI_gt_MindControlSupplyOn_Init();
     libCOMI_gt_MindControlSupplyOff_Init();
+    libCOMI_gt_BehaviorPermanentlyChangesOwner_Init();
     libCOMI_gt_CM_Abathur_TriggersInit_Init();
     libCOMI_gt_CM_Abathur_ToxicNestDeathFailsafe_Init();
     libCOMI_gt_CM_Abathur_MeleeBonusUpgrade_Init();
@@ -24331,6 +27165,8 @@ void libCOMI_InitTriggers () {
     libCOMI_gt_CM_Abathur_Enemy_Death_Create_Locusts_Init();
     libCOMI_gt_CM_Abathur_ToxicNest_Init();
     libCOMI_gt_CM_Abathur_SwarmHostLocustLaunchCast_Init();
+    libCOMI_gt_CM_Abathur_RavagerSpellCooldown_Init();
+    libCOMI_gt_CM_Alarak_Upgrade_Init();
     libCOMI_gt_CM_Alarak_Sacrific_Scale_Init();
     libCOMI_gt_CM_AlarakLightningStrikes_FlashOn_Init();
     libCOMI_gt_CM_AlarakLightningStrikes_FlashOff_Init();
@@ -24497,6 +27333,44 @@ void libCOMI_InitTriggers () {
     libCOMI_gt_CM_Stukov_InfestedBunkerInitialSpawn_Init();
     libCOMI_gt_CM_Stukov_UnitCostRefund_Init();
     libCOMI_gt_CM_Stukov_InfestedSiegeTankDeath_Init();
+    libCOMI_gt_CM_TychusHERC_ShieldCooldown_Init();
+    libCOMI_gt_CM_TychusHERC_CriticalText_Init();
+    libCOMI_gt__CM_TychusEventHook_Init();
+    libCOMI_gt__CM_TychusStructureEventHook_Init();
+    libCOMI_gt_CM_Tychus_OdinSummon_Used_Init();
+    libCOMI_gt_CM_Tychus_OdinSummon_CameraShake_Init();
+    libCOMI_gt_CM_Tychus_Odin_Timeout_Init();
+    libCOMI_gt_CM_Tychus_WarhoundFearApply_Init();
+    libCOMI_gt_CM_TychusSpecialistTrainingAuraOn_Init();
+    libCOMI_gt_CM_TychusSpecialistTrainingAuraOff_Init();
+    libCOMI_gt_CM_TychusMedicTransportActived_Init();
+    libCOMI_gt_CM_TychusMedicTopBarButton_Init();
+    libCOMI_gt_CM_TychusMedicTransportTargetOn_Init();
+    libCOMI_gt_CM_TychusMedicTransportTargetOff_Init();
+    libCOMI_gt_CM_TychusMedicTransportStop_Init();
+    libCOMI_gt_CM_TychusMedicTransportTimeOut_Init();
+    libCOMI_gt_CM_TychusMedicTransportAirBehaviorApplied_Init();
+    libCOMI_gt_CM_TychusMedicTransportGroundBehaviorApplied_Init();
+    libCOMI_gt_CM_TychusMedicTransportTeleportUnload_Init();
+    libCOMI_gt_CM_Tychus_HeroQueue_Init();
+    libCOMI_gt_CM_Tychus_HeroCancel_Init();
+    libCOMI_gt_CM_Tychus_TrainMaxChargesRemove_Init();
+    libCOMI_gt_CM_Tychus_HeroReviveUsed_Init();
+    libCOMI_gt_CM_Tychus_HeroReviveFailSafe_Init();
+    libCOMI_gt_CM_Tychus_OilBombFireDamageResponse_Init();
+    libCOMI_gt_CM_Tychus_UltimateAchievement_Init();
+    libCOMI_gt_CM_Tychus_HealAchievement_Init();
+    libCOMI_gt_CM_Tychus_TriggersInit_Init();
+    libCOMI_gt_CM_Tychus_TriUnitSpeed_Upgrade_Init();
+    libCOMI_gt_CM_Tychus_TriUnitHealth_Upgrade_Init();
+    libCOMI_gt_CM_TychusReplaceResearchCenter_Init();
+    libCOMI_gt_CM_Tychus_Hero_Charge_Timing_Init();
+    libCOMI_gt_CM_Tychus_CalldownOdinDeselect_Init();
+    libCOMI_gt_CM_Tychus_CalldownOdinUpdateTarget_Init();
+    libCOMI_gt_CM_Tychus_CalldownOdinTychusSelect_Init();
+    libCOMI_gt_CM_TychusWarhound_Revive_Init();
+    libCOMI_gt_CM_TychusHeroPurchaseDummy_Init();
+    libCOMI_gt_CM_TychusReaper_Revive_Init();
     libCOMI_gt_RoachDropScale_Init();
     libCOMI_gt_CM_Zagara_WeaponSwap_Init();
     libCOMI_gt_ResourcePickupAllyNew_Init();
@@ -24523,6 +27397,8 @@ void libCOMI_InitTriggers () {
     libCOMI_gt_PM_SoASuperShieldsActivated_Init();
     libCOMI_gt_CM_SoASuperChronoApply_Init();
     libCOMI_gt_CM_SoASuperChronoCleanup_Init();
+    libCOMI_gt_CODConstrucInvulnerableOn_Init();
+    libCOMI_gt_CODConstrucInvulnerableOff_Init();
     libCOMI_gt_VoidACShardModifyHealth_Init();
     libCOMI_gt_ExpansionRocksChangeOwner_Init();
     libCOMI_gt_CM_AbortMission_Init();
@@ -24597,6 +27473,25 @@ void libCOMI_InitTriggers () {
     libCOMI_gt_CM_UnitTransmissionHornerBomberBuild_Init();
     libCOMI_gt_CM_AbilityTransmissionHornerBomberUse_Init();
     libCOMI_gt_CM_AbilityTransmissionHornerBomberReminder_Init();
+    libCOMI_gt_CM_AbilityTransmissionTychusCreateReaper_Init();
+    libCOMI_gt_CM_AbilityTransmissionTychusCreateWarhound_Init();
+    libCOMI_gt_CM_AbilityTransmissionTychusCreateFirebat_Init();
+    libCOMI_gt_CM_AbilityTransmissionTychusCreateMarauder_Init();
+    libCOMI_gt_CM_AbilityTransmissionTychusCreateHERC_Init();
+    libCOMI_gt_CM_AbilityTransmissionTychusCreateGhost_Init();
+    libCOMI_gt_CM_AbilityTransmissionTychusCreatePhantom_Init();
+    libCOMI_gt_CM_AbilityTransmissionTychusCreateMedic_Init();
+    libCOMI_gt_CM_AbilityTransmissionTychusOdinUse_Init();
+    libCOMI_gt_CM_AbilityTransmissionTychusTransportUse_Init();
+    libCOMI_gt_CM_AbilityTransmissionTychusTransportReminder_Init();
+    libCOMI_gt_CM_UnitTransmissionTychusTransportBuild_Init();
+    libCOMI_gt_CM_UnitTransmissionTychusOutlawFirstDeath_Init();
+    libCOMI_gt_CM_UnitTransmissionTychusOutlawDeath_Init();
+    libCOMI_gt_CM_UnitTransmissionTychusOutlawRevived_Init();
+    libCOMI_gt_CM_UnitTransmissionTychusOutlawReviveReminder_Init();
+    libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruitAvailable_Init();
+    libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruited_Init();
+    libCOMI_gt_CM_UnitTransmissionTychusOutlawRecruitReminder_Init();
     libCOMI_gt_CM_VOResourceSent_Init();
     libCOMI_gt_CM_VOResourceRequest_Init();
     libCOMI_gt_CM_VOEnemySpotted_Init();
