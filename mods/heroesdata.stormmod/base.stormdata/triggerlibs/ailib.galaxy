@@ -1,0 +1,2941 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib_h"
+include "TriggerLibs/GameLib_h"
+include "TriggerLibs/MapMechanicsLib_h"
+include "TriggerLibs/UILib_h"
+include "TriggerLibs/StartingExperienceLib_h"
+include "TriggerLibs/GameDataHelperLib_h"
+include "TriggerLibs/SupportLib_h"
+
+include "TriggerLibs/AILib_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: AI
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libAIAI_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+    libMapM_InitVariables();
+    libUIUI_InitVariables();
+    libStEx_InitVariables();
+    libGDHL_InitVariables();
+    libSprt_InitVariables();
+}
+
+// Variable Initialization
+bool libAIAI_InitVariables_completed = false;
+
+void libAIAI_InitVariables () {
+    int init_i;
+
+    if (libAIAI_InitVariables_completed) {
+        return;
+    }
+
+    libAIAI_InitVariables_completed = true;
+
+    for (init_i = 0; init_i <= libAIAI_gv_defenderAIMaxNumberOfDefenderAI; init_i += 1) {
+        libAIAI_gv_defenderAI[init_i].lv_defendersGroup = UnitGroupEmpty();
+        libAIAI_gv_defenderAI[init_i].lv_showLeashedText = true;
+        libAIAI_gv_defenderAI[init_i].lv_state = libAIAI_ge_DefenderAIState_Idle;
+        libAIAI_gv_defenderAI[init_i].lv_validTargets = UnitGroupEmpty();
+        libAIAI_gv_defenderAI[init_i].lv_debugLabel = c_invalidDialogControlId;
+    }
+    libAIAI_gv_defenderAILastCreatedDefenderAIIndex = "DefenderAILastCreatedDefenderAI";
+    for (init_i = 0; init_i <= 2; init_i += 1) {
+        libAIAI_gv_heroAITeamPlayerData[init_i].lv_players = PlayerGroupEmpty();
+        libAIAI_gv_heroAITeamPlayerData[init_i].lv_humanPlayers = PlayerGroupEmpty();
+        libAIAI_gv_heroAITeamPlayerData[init_i].lv_aIPlayers = PlayerGroupEmpty();
+    }
+    for (init_i = 0; init_i <= 12; init_i += 1) {
+        libAIAI_gv_aIHeroes[init_i].lv_difficulty = libAIAI_ge_HeroAIDifficulty_Null;
+    }
+    libAIAI_gv_heroAITakeOverHeroRateLimitSeconds = 5.0;
+    libAIAI_gv_heroAIAIChoosesTalents = true;
+    libAIAI_gv_uF_MinionAI_GetNearestEnemyStructure = UnitFilter((1 << c_targetFilterVisible), (1 << (c_targetFilterAITargetableStructure - 32)), (1 << c_targetFilterPlayer) | (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterCreep) | (1 << c_targetFilterMinion) | (1 << c_targetFilterNoMinionAggro) | (1 << c_targetFilterMissile) | (1 << c_targetFilterItem) | (1 << c_targetFilterCloaked), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterSummoned - 32)));
+    libAIAI_gv_aIMoveAbil = AbilityCommand("move", 0);
+    libAIAI_gv_aIAcquireMoveAbil = AbilityCommand("move", 3);
+    libAIAI_gv_aITurnAbil = AbilityCommand("move", 4);
+    libAIAI_gv_aIAttackAbil = AbilityCommand("attack", 0);
+    libAIAI_gv_aIAttackAllyAbil = AbilityCommand("AttackAlly", 0);
+    libAIAI_gv_aIAttackAbilMerc = AbilityCommand("StormMercenaryAttack", 0);
+    libAIAI_gv_aIAttackAbilBoss = AbilityCommand("StormVehicleAttack", 0);
+    libAIAI_gv_aIStopAbil = AbilityCommand("stop", 0);
+}
+
+// Custom Script
+//--------------------------------------------------------------------------------------------------
+// Custom Script: AI Utility
+//--------------------------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------------
+point ProjectPointOntoLine (point p1, point p2, point t) {
+    // Projects a point onto a line between p1 & p2 (that extends beyond both ends).
+    fixed diffx;
+    fixed diffy;
+    fixed length;
+    point axis;
+    point line;
+    fixed projMag;
+    point final;
+    // Get the unit line segment axis
+    diffx =  PointGetX(p2) - PointGetX(p1);
+    diffy = PointGetY(p2) - PointGetY(p1);
+    length = SquareRoot(diffx * diffx + diffy * diffy);
+    if (length == 0.0) {
+        return p1;
+    }
+    axis = Point(diffx / length, diffy / length);
+    // Project point we are testing onto the axis
+    line = Point(PointGetX(t) - PointGetX(p1), PointGetY(t) - PointGetY(p1));
+    projMag = PointGetX(axis) * PointGetX(line) + PointGetY(axis) * PointGetY(line);
+    final = Point(PointGetX(p1) + PointGetX(axis) * projMag, PointGetY(p1) + PointGetY(axis) * projMag);
+    return final;
+}
+
+void libAIAI_InitCustomScript () {
+}
+
+// Presets
+string libAIAI_ge_DefenderAIState_Ident (int lp_val) {
+         if (lp_val == libAIAI_ge_DefenderAIState_Idle) { return "Idle"; }
+    else if (lp_val == libAIAI_ge_DefenderAIState_Fighting) { return "Fighting"; }
+    else if (lp_val == libAIAI_ge_DefenderAIState_Leashing) { return "Leashing"; }
+    return null;
+}
+
+string libAIAI_ge_HeroAIDifficulty_Ident (int lp_val) {
+         if (lp_val == libAIAI_ge_HeroAIDifficulty_Null) { return "Null"; }
+    else if (lp_val == libAIAI_ge_HeroAIDifficulty_HeroAITutorial1Enemy) { return "HeroAITutorial1Enemy"; }
+    else if (lp_val == libAIAI_ge_HeroAIDifficulty_HeroAITutorial1Ally) { return "HeroAITutorial1Ally"; }
+    else if (lp_val == libAIAI_ge_HeroAIDifficulty_HeroAITutorialMapMechanicEnemy) { return "HeroAITutorialMapMechanicEnemy"; }
+    else if (lp_val == libAIAI_ge_HeroAIDifficulty_HeroAITutorialMapMechanicAlly) { return "HeroAITutorialMapMechanicAlly"; }
+    else if (lp_val == libAIAI_ge_HeroAIDifficulty_HeroAITryMeMode) { return "HeroAITryMeMode"; }
+    else if (lp_val == libAIAI_ge_HeroAIDifficulty_HeroAITryMeModeAlly) { return "HeroAITryMeModeAlly"; }
+    else if (lp_val == libAIAI_ge_HeroAIDifficulty_HeroAIVeryEasy) { return "HeroAIVeryEasy"; }
+    else if (lp_val == libAIAI_ge_HeroAIDifficulty_HeroAIVeryEasyWithHumanAlly) { return "HeroAIVeryEasyWithHumanAlly"; }
+    else if (lp_val == libAIAI_ge_HeroAIDifficulty_HeroAIEasy) { return "HeroAIEasy"; }
+    else if (lp_val == libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly) { return "HeroAIEasyWithHumanAlly"; }
+    else if (lp_val == libAIAI_ge_HeroAIDifficulty_HeroAIMedium) { return "HeroAIMedium"; }
+    else if (lp_val == libAIAI_ge_HeroAIDifficulty_HeroAIVeryHard) { return "HeroAIVeryHard"; }
+    else if (lp_val == libAIAI_ge_HeroAIDifficulty_HeroAIElite) { return "HeroAIElite"; }
+    return null;
+}
+
+// Functions
+int libAIAI_gf_MinionAIGetNextWaypointIndexForMinion (unit lp_minion) {
+    // Variable Declarations
+    int lv_nextWaypoint;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_nextWaypoint = FixedToInt(UnitGetCustomValue(lp_minion, (libCore_ge_CustomValueIndexes_NextWaypointIndex)));
+    return lv_nextWaypoint;
+}
+
+int libAIAI_gf_MinionAIGetLaneForMinion (unit lp_minion) {
+    // Variable Declarations
+    int lv_lane;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_lane = FixedToInt(UnitGetCustomValue(lp_minion, (libCore_ge_CustomValueIndexes_LaneIndex)));
+    return lv_lane;
+}
+
+int libAIAI_gf_MinionAIGetTeamToAttackForMinion (unit lp_minion) {
+    // Variable Declarations
+    int lv_minionIndex;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    return libGame_gf_EnemyTeamNumberOfPlayer(UnitGetOwner(lp_minion));
+}
+
+void libAIAI_gf_MinionAIUnhookUnitFromMinionAI (unit lp_unit) {
+    // Variable Declarations
+    int lv_minionIndex;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    UnitDestroyAIThinkTree(lp_unit);
+    UnitIssueOrder(lp_unit, Order(libAIAI_gv_aIStopAbil), c_orderQueueReplace);
+}
+
+void libAIAI_gf_MinionAIStartMinionAI (int lp_waveNumberOveride, unit lp_unit, int lp_lane, int lp_nextWaypoint, bool lp_pathToInitialWaypoint, bool lp_aggresiveLeashing, bool lp_ignoresPathing, int lp_teamToAttack, bool lp_prefersStructureTargets) {
+    // Variable Declarations
+    int lv_minionIndex;
+    unit lv_heroToFollow;
+    fixed lv_weaponRange;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    if ((lp_unit == null)) {
+        return ;
+    }
+
+    UnitCreateAIThinkTree(lp_unit);
+    AILaneUnitCreated(lp_lane, lp_unit, libNtve_ge_LaneUnitType_Wave);
+    UnitSetCustomValue(lp_unit, (libCore_ge_CustomValueIndexes_LaneIndex), lp_lane);
+    UnitSetCustomValue(lp_unit, (libCore_ge_CustomValueIndexes_NextWaypointIndex), lp_nextWaypoint);
+}
+
+void libAIAI_gf_MinionAITurnMinionAISystemOnOff (bool lp_onOff) {
+    // Variable Declarations
+    unit lv_unit;
+    int lv_i;
+
+    // Automatic Variable Declarations
+    unitgroup auto5DE21723_g;
+    int auto5DE21723_u;
+
+    // Variable Initialization
+
+    // Implementation
+    if ((lp_onOff == true)) {
+        TriggerEnable(libAIAI_gt_MinionAIUpdateMercPath, true);
+    }
+    else {
+        TriggerEnable(libAIAI_gt_MinionAIUpdateMercPath, false);
+        auto5DE21723_g = UnitGroupSearch(null, c_playerAny, Point(0.0, 0.0), 300.0, UnitFilter((1 << c_targetFilterMinion), 0, (1 << c_targetFilterCreep) | (1 << c_targetFilterHeroic) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterBenign - 32))), 0);
+        auto5DE21723_u = UnitGroupCount(auto5DE21723_g, c_unitCountAll);
+        for (;; auto5DE21723_u -= 1) {
+            lv_unit = UnitGroupUnitFromEnd(auto5DE21723_g, auto5DE21723_u);
+            if (lv_unit == null) { break; }
+            UnitRemove(lv_unit);
+        }
+    }
+}
+
+void libAIAI_gf_MinionAIPauseUnpauseMinionAISystem (bool lp_pauseUnpause) {
+    // Variable Declarations
+    int lv_i;
+    unit lv_unit;
+
+    // Automatic Variable Declarations
+    unitgroup auto6C81EAA0_g;
+    int auto6C81EAA0_u;
+    unitgroup autoD1D0173D_g;
+    int autoD1D0173D_u;
+
+    // Variable Initialization
+
+    // Implementation
+    if ((lp_pauseUnpause == true)) {
+        TriggerEnable(libAIAI_gt_MinionAIUpdateMercPath, false);
+        autoD1D0173D_g = UnitGroupSearch(null, c_playerAny, Point(0.0, 0.0), 300.0, UnitFilter((1 << c_targetFilterMinion), 0, (1 << c_targetFilterCreep) | (1 << c_targetFilterHeroic) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterBenign - 32))), 0);
+        autoD1D0173D_u = UnitGroupCount(autoD1D0173D_g, c_unitCountAll);
+        for (;; autoD1D0173D_u -= 1) {
+            lv_unit = UnitGroupUnitFromEnd(autoD1D0173D_g, autoD1D0173D_u);
+            if (lv_unit == null) { break; }
+            libNtve_gf_PauseUnit(lv_unit, true);
+        }
+    }
+    else {
+        auto6C81EAA0_g = UnitGroupSearch(null, c_playerAny, Point(0.0, 0.0), 300.0, UnitFilter((1 << c_targetFilterMinion), 0, (1 << c_targetFilterCreep) | (1 << c_targetFilterHeroic) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterBenign - 32))), 0);
+        auto6C81EAA0_u = UnitGroupCount(auto6C81EAA0_g, c_unitCountAll);
+        for (;; auto6C81EAA0_u -= 1) {
+            lv_unit = UnitGroupUnitFromEnd(auto6C81EAA0_g, auto6C81EAA0_u);
+            if (lv_unit == null) { break; }
+            libNtve_gf_PauseUnit(lv_unit, false);
+        }
+        TriggerEnable(libAIAI_gt_MinionAIUpdateMercPath, true);
+    }
+}
+
+void libAIAI_gf_MinionAIMinionsIgnoreLaneRequirements (bool lp_trueFalse) {
+    // Automatic Variable Declarations
+}
+
+void libAIAI_gf_MinionAISetRangeToFindUnitsFrom (int lp_minionIndex, fixed lp_attackRange) {
+    // Automatic Variable Declarations
+}
+
+void libAIAI_gf_MinionAISetMinionTargetUnit (unit lp_minionUnit, unit lp_targetUnit) {
+    // Automatic Variable Declarations
+}
+
+bool libAIAI_gf_MinionAIIsUnitLaneTheSameAsOtherUnit (unit lp_unit1, unit lp_unit2) {
+    // Variable Declarations
+    int lv_unit1Lane;
+    int lv_unit2Lane;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_unit1Lane = FixedToInt(UnitGetCustomValue(lp_unit1, (libCore_ge_CustomValueIndexes_LaneIndex)));
+    lv_unit2Lane = FixedToInt(UnitGetCustomValue(lp_unit2, (libCore_ge_CustomValueIndexes_LaneIndex)));
+    return (lv_unit1Lane == lv_unit2Lane);
+}
+
+void libAIAI_gf_TowerTurnTowerSystemOnOff (bool lp_onOff) {
+    // Variable Declarations
+    int lv_i;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    if ((lp_onOff == true)) {
+        libAIAI_gv_towerSystemOn = true;
+        TriggerExecute(libAIAI_gt_InitializeTowerAISystem, true, true);
+    }
+    else {
+        libAIAI_gv_towerSystemOn = false;
+        TriggerExecute(libAIAI_gt_TerminateTowerAISystem, true, true);
+    }
+}
+
+int libAIAI_gf_DefenderAIDetermineState (int lp_defenderAIIndex, int lp_oldState) {
+    // Variable Declarations
+    int lv_unitIndex;
+    unit lv_defenderUnit;
+    int lv_camp;
+    bool lv_defendersFinishedLeashing;
+    int lv_playerIndex;
+    int lv_numberofValidTargets;
+
+    // Automatic Variable Declarations
+    int autoE8A1792A_val;
+    int autoAE389E8B_ae;
+    const int autoAE389E8B_ai = 1;
+    int autoE80965AF_ae;
+    const int autoE80965AF_ai = 1;
+
+    // Variable Initialization
+    lv_defendersFinishedLeashing = true;
+
+    // Implementation
+    autoE8A1792A_val = lp_oldState;
+    if (autoE8A1792A_val == libAIAI_ge_DefenderAIState_Idle) {
+        if ((UnitGroupCount(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_validTargets, c_unitCountAlive) > 0)) {
+            return libAIAI_ge_DefenderAIState_Fighting;
+        }
+
+        lv_camp = libMapM_gf_JungleGetCampIndexFromDefenderIndex(lp_defenderAIIndex);
+        if (((lv_camp <= 0) || ((libMapM_gv_jungleCreepCamps[lv_camp].lv_aIState != libMapM_ge_JungleCampStates_Hibernating) && (libMapM_gv_jungleCreepCamps[lv_camp].lv_aIState != libMapM_ge_JungleCampStates_HibernatingReadyToRespawn)))) {
+            autoAE389E8B_ae = libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderCount;
+            lv_unitIndex = 1;
+            for ( ; ( (autoAE389E8B_ai >= 0 && lv_unitIndex <= autoAE389E8B_ae) || (autoAE389E8B_ai < 0 && lv_unitIndex >= autoAE389E8B_ae) ) ; lv_unitIndex += autoAE389E8B_ai ) {
+                lv_defenderUnit = libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderUnits[lv_unitIndex];
+                if ((UnitIsAlive(lv_defenderUnit) == true) && (DistanceBetweenPoints(UnitGetPosition(lv_defenderUnit), libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashPositions[lv_unitIndex]) > libAIAI_gv_aIDefenderFarFromLeashPosition)) {
+                    return libAIAI_ge_DefenderAIState_Leashing;
+                }
+
+            }
+        }
+
+    }
+    else if (autoE8A1792A_val == libAIAI_ge_DefenderAIState_Fighting) {
+        lv_numberofValidTargets = UnitGroupCount(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_validTargets, c_unitCountAlive);
+        if ((lv_numberofValidTargets != 0)) {
+            libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_minAgroTime = (TimerGetElapsed(libGame_gv_gameTimer) + libAIAI_gv_aIDefenderNoTargetsExtraAgroTime);
+        }
+
+        if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_minAgroTime > TimerGetElapsed(libGame_gv_gameTimer)) && (libAIAI_gf_DefendersAnyOutsideLeashRegion(lp_defenderAIIndex) == false)) {
+            return libAIAI_ge_DefenderAIState_Fighting;
+        }
+
+        if ((lv_numberofValidTargets == 0)) {
+            libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_minLeashTime = (TimerGetElapsed(libGame_gv_gameTimer) + libAIAI_gv_aIDefenderMinLeashTime);
+            return libAIAI_ge_DefenderAIState_Leashing;
+        }
+
+    }
+    else if (autoE8A1792A_val == libAIAI_ge_DefenderAIState_Leashing) {
+        lv_defendersFinishedLeashing = true;
+        if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_minLeashTime > TimerGetElapsed(libGame_gv_gameTimer))) {
+            lv_defendersFinishedLeashing = false;
+        }
+        else {
+            autoE80965AF_ae = libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderCount;
+            lv_unitIndex = 1;
+            for ( ; ( (autoE80965AF_ai >= 0 && lv_unitIndex <= autoE80965AF_ae) || (autoE80965AF_ai < 0 && lv_unitIndex >= autoE80965AF_ae) ) ; lv_unitIndex += autoE80965AF_ai ) {
+                lv_defenderUnit = libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderUnits[lv_unitIndex];
+                if ((UnitIsAlive(lv_defenderUnit) == true) && ((UnitTestState(lv_defenderUnit, c_unitStateIdle) == false) || (DistanceBetweenPoints(UnitGetPosition(lv_defenderUnit), libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashPositions[lv_unitIndex]) > libAIAI_gv_aIDefenderCloseEnoughDistance) || ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_healOnLeash == true) && (UnitGetPropertyFixed(lv_defenderUnit, c_unitPropLifePercent, c_unitPropCurrent) <= 95.0)))) {
+                    lv_defendersFinishedLeashing = false;
+                    break;
+                }
+
+            }
+        }
+        if ((lv_defendersFinishedLeashing == true)) {
+            return libAIAI_ge_DefenderAIState_Idle;
+        }
+        else {
+            if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_showLeashedText == true) && (libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_lastAnnouncedLeashing < (TimerGetElapsed(libGame_gv_gameTimer) - libAIAI_gv_aIDefenderLeashReAnnounceTime))) {
+                libUIUI_gf_UIFloatingCombatTextLeashing(lv_defenderUnit);
+                libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_lastAnnouncedLeashing = TimerGetElapsed(libGame_gv_gameTimer);
+            }
+
+        }
+    }
+    else {
+    }
+    return lp_oldState;
+}
+
+void libAIAI_gf_DefenderAIStateLogic (int lp_defenderAIIndex) {
+    // Variable Declarations
+    int lv_unitIndex;
+    unit lv_defenderUnit;
+    order lv_currentOrder;
+    abilcmd lv_currentAbilityCommand;
+
+    // Automatic Variable Declarations
+    int auto05ED653C_val;
+    int auto81C95978_ae;
+    const int auto81C95978_ai = 1;
+    int autoA93EBE50_ae;
+    const int autoA93EBE50_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    auto05ED653C_val = libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_state;
+    if (auto05ED653C_val == libAIAI_ge_DefenderAIState_Idle) {
+    }
+    else if (auto05ED653C_val == libAIAI_ge_DefenderAIState_Fighting) {
+        auto81C95978_ae = libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderCount;
+        lv_unitIndex = 1;
+        for ( ; ( (auto81C95978_ai >= 0 && lv_unitIndex <= auto81C95978_ae) || (auto81C95978_ai < 0 && lv_unitIndex >= auto81C95978_ae) ) ; lv_unitIndex += auto81C95978_ai ) {
+            if ((UnitIsAlive(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderUnits[lv_unitIndex]) == true)) {
+                libAIAI_gf_DefenderAIIssueFightingOrderToCreep(lp_defenderAIIndex, lv_unitIndex);
+            }
+
+        }
+    }
+    else if (auto05ED653C_val == libAIAI_ge_DefenderAIState_Leashing) {
+        autoA93EBE50_ae = libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderCount;
+        lv_unitIndex = 1;
+        for ( ; ( (autoA93EBE50_ai >= 0 && lv_unitIndex <= autoA93EBE50_ae) || (autoA93EBE50_ai < 0 && lv_unitIndex >= autoA93EBE50_ae) ) ; lv_unitIndex += autoA93EBE50_ai ) {
+            lv_defenderUnit = libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderUnits[lv_unitIndex];
+            if ((UnitIsAlive(lv_defenderUnit) == true) && (DistanceBetweenPoints(UnitGetPosition(lv_defenderUnit), libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashPositions[lv_unitIndex]) > libAIAI_gv_aIDefenderCloseEnoughDistance)) {
+                lv_currentOrder = UnitOrder(lv_defenderUnit, 0);
+                lv_currentAbilityCommand = OrderGetAbilityCommand(lv_currentOrder);
+                if (((lv_currentOrder == null) || (lv_currentAbilityCommand != libAIAI_gv_aIMoveAbil) || (OrderGetTargetType(lv_currentOrder) != c_orderTargetPoint) || (OrderGetTargetPoint(lv_currentOrder) != libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashPositions[lv_unitIndex]))) {
+                    UnitIssueOrder(lv_defenderUnit, OrderTargetingPoint(libAIAI_gv_aIMoveAbil, libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashPositions[lv_unitIndex]), c_orderQueueReplace);
+                    UnitIssueOrder(lv_defenderUnit, OrderTargetingPoint(libAIAI_gv_aITurnAbil, PointWithOffsetPolar(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashPositions[lv_unitIndex], 1.0, PointGetFacing(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashPositions[lv_unitIndex]))), c_orderQueueAddToEnd);
+                }
+
+            }
+
+        }
+    }
+    else {
+    }
+}
+
+void libAIAI_gf_DefenderAIUpdateValidTargetList (int lp_defenderAIIndex) {
+    // Variable Declarations
+    unit lv_u;
+    int lv_defenderOwner;
+    int lv_unitOwner;
+    region lv_attackRegion;
+
+    // Automatic Variable Declarations
+    unitgroup auto58C3FB91_g;
+    int auto58C3FB91_u;
+
+    // Variable Initialization
+
+    // Implementation
+    libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_validTargets = UnitGroupEmpty();
+    if ((UnitGroupCount(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defendersGroup, c_unitCountAlive) == 0)) {
+        return ;
+    }
+
+    lv_defenderOwner = UnitGetOwner(UnitGroupRandomUnit(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defendersGroup, c_unitCountAlive));
+    auto58C3FB91_g = UnitGroup(null, c_playerAny, libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashRegion, UnitFilter(0, 0, (1 << c_targetFilterNoMinionAggro) | (1 << c_targetFilterMissile) | (1 << c_targetFilterItem) | (1 << c_targetFilterBuried), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterBenign - 32))), 0);
+    auto58C3FB91_u = UnitGroupCount(auto58C3FB91_g, c_unitCountAll);
+    for (;; auto58C3FB91_u -= 1) {
+        lv_u = UnitGroupUnitFromEnd(auto58C3FB91_g, auto58C3FB91_u);
+        if (lv_u == null) { break; }
+        lv_unitOwner = UnitGetOwner(lv_u);
+        if ((((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_aggroOnComputerPlayers == false) && (lv_unitOwner > libCore_gv_bALMaxPlayers) && (UnitHasBehavior2(lv_u, "VehicleGenericIsMainVehicle") == false)) || ((libNtve_gf_PlayerIsEnemy(lv_defenderOwner, lv_unitOwner, libNtve_ge_PlayerRelation_Enemy) == false) && (UnitHasBehavior2(lv_u, "VehicleGenericIsMainVehicle") == false)) || (UnitTypeTestFlag(UnitGetType(lv_u), c_unitFlagUntargetable) == true) || (UnitHasBehaviorWithCategoryFlag(lv_u, c_behaviorCategoryUnrevealableCloak) == true))) {
+            continue;
+        }
+
+        if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_canSeeCloaked == false) && (UnitTestState(lv_u, c_unitStateCloaked) == true)) {
+            continue;
+        }
+
+        if ((PointPathingPassable(UnitGetPosition(lv_u)) == false)) {
+            continue;
+        }
+
+        if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_playerIsThreat[lv_unitOwner] == false) && (UnitHasBehavior2(lv_u, "VehicleGenericIsMainVehicle") == true)) {
+            libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_playerIsThreat[lv_unitOwner] = true;
+        }
+
+        if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_playerIsThreat[lv_unitOwner] == false) && (libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_aggoRegion != null) && (libNtve_gf_UnitInRegion(lv_u, libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_aggoRegion) == true)) {
+            libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_playerIsThreat[lv_unitOwner] = true;
+        }
+
+        if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_playerIsThreat[lv_unitOwner] == true)) {
+            UnitGroupAdd(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_validTargets, lv_u);
+        }
+
+    }
+}
+
+void libAIAI_gf_DefenderAITransitionDefenderAIIntoState (int lp_defenderAIIndex, int lp_state) {
+    // Variable Declarations
+    int lv_i;
+    unit lv_u;
+    string lv_creepUnitType;
+    string lv_icon;
+    int lv_oldState;
+
+    // Automatic Variable Declarations
+    int autoBA9F3ACA_val;
+    unitgroup auto6D316A15_g;
+    int auto6D316A15_u;
+    unitgroup autoEC56D37D_g;
+    int autoEC56D37D_u;
+    const int auto43FE2DF2_ae = libCore_gv_bALMaxGamePlayers;
+    const int auto43FE2DF2_ai = 1;
+    int autoD540A8BC_ae;
+    const int autoD540A8BC_ai = 1;
+    unitgroup autoA8B474AC_g;
+    int autoA8B474AC_u;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_oldState = libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_state;
+    libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_state = lp_state;
+    autoBA9F3ACA_val = libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_state;
+    if (autoBA9F3ACA_val == libAIAI_ge_DefenderAIState_Idle) {
+        auto6D316A15_g = libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defendersGroup;
+        auto6D316A15_u = UnitGroupCount(auto6D316A15_g, c_unitCountAll);
+        for (;; auto6D316A15_u -= 1) {
+            lv_u = UnitGroupUnitFromEnd(auto6D316A15_g, auto6D316A15_u);
+            if (lv_u == null) { break; }
+            UnitBehaviorRemove(lv_u, "JungleCreepHardLeashing", 1);
+            UnitBehaviorRemove(lv_u, "JungleCreepSoftLeashing", 1);
+            UnitBehaviorRemove(lv_u, "JungleCreepSoftLeashingNoHeal", 1);
+            UnitIssueOrder(lv_u, Order(libAIAI_gv_aIStopAbil), c_orderQueueReplace);
+        }
+        libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashCount = 0;
+    }
+    else if (autoBA9F3ACA_val == libAIAI_ge_DefenderAIState_Fighting) {
+        libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_fightStartTime = TimerGetElapsed(libGame_gv_gameTimer);
+        autoEC56D37D_g = libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defendersGroup;
+        autoEC56D37D_u = UnitGroupCount(autoEC56D37D_g, c_unitCountAll);
+        for (;; autoEC56D37D_u -= 1) {
+            lv_u = UnitGroupUnitFromEnd(autoEC56D37D_g, autoEC56D37D_u);
+            if (lv_u == null) { break; }
+            if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_aggoRegion == null)) {
+                UnitBehaviorRemove(lv_u, "JungleCreepBenign", 1);
+            }
+
+            UnitBehaviorRemove(lv_u, "JungleCreepPassive", 1);
+            UnitBehaviorRemove(lv_u, "JungleCreepHardLeashing", 1);
+            UnitBehaviorRemove(lv_u, "JungleCreepSoftLeashing", 1);
+            UnitBehaviorRemove(lv_u, "JungleCreepSoftLeashingNoHeal", 1);
+            if (((UnitGetType(lv_u) == "MercDefenderSiegeGiant") || (UnitHasBehavior2(lv_u, "JungleCreepUsesPrepAggro") == true)) && (libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashCount == 0)) {
+                UnitBehaviorAddPlayer(lv_u, "JungleCreepPrepAggro", libCore_gv_cOMPUTER_Hostile, 1);
+            }
+
+        }
+    }
+    else if (autoBA9F3ACA_val == libAIAI_ge_DefenderAIState_Leashing) {
+        if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashCount < libAIAI_gv_aIDefenderMaxLeashCount)) {
+            libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashCount += 1;
+        }
+
+        lv_i = 1;
+        for ( ; ( (auto43FE2DF2_ai >= 0 && lv_i <= auto43FE2DF2_ae) || (auto43FE2DF2_ai < 0 && lv_i >= auto43FE2DF2_ae) ) ; lv_i += auto43FE2DF2_ai ) {
+            libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_playerIsThreat[lv_i] = false;
+        }
+        autoD540A8BC_ae = libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderCount;
+        lv_i = 1;
+        for ( ; ( (autoD540A8BC_ai >= 0 && lv_i <= autoD540A8BC_ae) || (autoD540A8BC_ai < 0 && lv_i >= autoD540A8BC_ae) ) ; lv_i += autoD540A8BC_ai ) {
+            lv_u = libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderUnits[lv_i];
+            if ((UnitIsAlive(lv_u) == true)) {
+                if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_healOnLeash == true)) {
+                    UnitBehaviorAddPlayer(lv_u, "JungleCreepSoftLeashing", libCore_gv_cOMPUTER_Hostile, 1);
+                    if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashCount >= libAIAI_gv_aIDefenderMaxLeashCount)) {
+                        UnitSetPropertyFixed(lv_u, c_unitPropLifePercent, 100.0);
+                    }
+
+                }
+                else {
+                    UnitBehaviorAddPlayer(lv_u, "JungleCreepSoftLeashingNoHeal", libCore_gv_cOMPUTER_Hostile, 1);
+                }
+                if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashCount >= libAIAI_gv_aIDefenderMaxLeashCount)) {
+                    UnitBehaviorAddPlayer(lv_u, "JungleCreepHardLeashing", libCore_gv_cOMPUTER_Hostile, 1);
+                }
+
+                if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_aggoRegion == null)) {
+                    UnitBehaviorAddPlayer(lv_u, "JungleCreepBenign", libCore_gv_cOMPUTER_Hostile, 1);
+                }
+
+                UnitBehaviorAddPlayer(lv_u, "JungleCreepPassive", libCore_gv_cOMPUTER_Hostile, 1);
+                UnitIssueOrder(lv_u, OrderTargetingPoint(libAIAI_gv_aIMoveAbil, libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashPositions[lv_i]), c_orderQueueReplace);
+                UnitIssueOrder(lv_u, OrderTargetingPoint(libAIAI_gv_aITurnAbil, PointWithOffsetPolar(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashPositions[lv_i], 1.0, PointGetFacing(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashPositions[lv_i]))), c_orderQueueAddToEnd);
+            }
+
+        }
+    }
+    else {
+    }
+    if (((lv_oldState == libAIAI_ge_DefenderAIState_Idle) || (lv_oldState == libAIAI_ge_DefenderAIState_Leashing)) && (lp_state == libAIAI_ge_DefenderAIState_Fighting)) {
+        libGame_gf_SendEventJungleDefenderAIDefendersBeginFightingFromIdleOrLeashing(lp_defenderAIIndex);
+    }
+
+    if ((lv_oldState == libAIAI_ge_DefenderAIState_Idle) && (lp_state == libAIAI_ge_DefenderAIState_Fighting)) {
+        libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_minAgroTime = (TimerGetElapsed(libGame_gv_gameTimer) + libAIAI_gv_aIDefenderMinAgroTime);
+        libGame_gf_SendEventJungleDefenderAIDefendersBeginFighting(lp_defenderAIIndex);
+    }
+
+    if ((lv_oldState == libAIAI_ge_DefenderAIState_Leashing) && (lp_state == libAIAI_ge_DefenderAIState_Idle)) {
+        libGame_gf_SendEventJungleDefenderAIDefendersEndFighting(lp_defenderAIIndex);
+    }
+
+    if ((lv_oldState == libAIAI_ge_DefenderAIState_Fighting) && (lp_state == libAIAI_ge_DefenderAIState_Leashing) && (libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_showLeashedText == true)) {
+        autoA8B474AC_g = libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defendersGroup;
+        autoA8B474AC_u = UnitGroupCount(autoA8B474AC_g, c_unitCountAll);
+        for (;; autoA8B474AC_u -= 1) {
+            lv_u = UnitGroupUnitFromEnd(autoA8B474AC_g, autoA8B474AC_u);
+            if (lv_u == null) { break; }
+            libUIUI_gf_UIFloatingCombatTextLeashing(lv_u);
+        }
+        libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_lastAnnouncedLeashing = TimerGetElapsed(libGame_gv_gameTimer);
+    }
+
+}
+
+void libAIAI_gf_DefenderAIIssueFightingOrderToCreep (int lp_defenderAIIndex, int lp_creep) {
+    // Variable Declarations
+    unit lv_u;
+    unit lv_creepUnit;
+    order lv_currentOrder;
+    unit lv_currentOrderTarget;
+    unit lv_newOrderTarget;
+    fixed lv_newOrderTargetHealth;
+    int lv_graveGolemBindingRootsValidTargets;
+    unitgroup lv_enemyGroup;
+
+    // Automatic Variable Declarations
+    unitgroup auto0C71B695_g;
+    int auto0C71B695_u;
+    unit auto0C71B695_var;
+
+    // Variable Initialization
+    lv_newOrderTargetHealth = 3000.0;
+    lv_enemyGroup = UnitGroupEmpty();
+
+    // Implementation
+    lv_creepUnit = libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderUnits[lp_creep];
+    lv_currentOrderTarget = OrderGetTargetUnit(UnitOrder(lv_creepUnit, 0));
+    libAIAI_gv_defenderAICreepNeedsNewOrder = true;
+    if ((UnitWeaponPeriodRemaining(lv_creepUnit, 1) > 2.0)) {
+        libAIAI_gv_defenderAICreepNeedsNewOrder = false;
+    }
+
+    if ((libAIAI_gf_DefendersAreFighting(lp_defenderAIIndex) == true) && ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_fightStartTime + libAIAI_gv_aIDefenderMinTimeBeforeCasting) < TimerGetElapsed(libGame_gv_gameTimer))) {
+        if ((UnitGetType(lv_creepUnit) == "MercDefenderRangedMage")) {
+            if ((UnitGetCooldown(lv_creepUnit, "Abil/KnightMagicVolley") <= 0.0) && (UnitIsValid(lv_currentOrderTarget) == true) && (libNtve_gf_UnitIsVisibleToPlayer(lv_currentOrderTarget, UnitGetOwner(lv_creepUnit)) == true) && (DistanceBetweenPoints(UnitGetPosition(lv_creepUnit), UnitGetPosition(lv_currentOrderTarget)) <= 7.0)) {
+                UnitIssueOrder(lv_creepUnit, OrderTargetingUnit(AbilityCommand("KnightMagicVolley", 0), lv_currentOrderTarget), c_orderQueueReplace);
+                libAIAI_gv_defenderAICreepNeedsNewOrder = false;
+            }
+
+        }
+        else {
+            if (((UnitGetType(lv_creepUnit) == "JungleGraveGolemDefender") || (UnitGetType(lv_creepUnit) == "UnderworldBoss") || (UnitGetType(lv_creepUnit) == "JunglePlantHorror"))) {
+                if ((UnitGetCooldown(lv_creepUnit, "Abil/UnderworldBossStun") <= 0.0)) {
+                    lv_enemyGroup = libNtve_gf_UnitsInRegionWithAllianceToPlayerMatchingCondition(null, "", "", UnitGetOwner(lv_creepUnit), c_unitAllianceEnemy, RegionCircle(UnitGetPosition(lv_creepUnit), 5.0), UnitFilter((1 << c_targetFilterHeroic) | (1 << c_targetFilterVisible), 0, (1 << c_targetFilterPlayer) | (1 << c_targetFilterAlly) | (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+                    if ((UnitGroupCount(lv_enemyGroup, c_unitCountAlive) >= 1)) {
+                        UnitIssueOrder(lv_creepUnit, Order(AbilityCommand("UnderworldBossStun", 0)), c_orderQueueReplace);
+                        UnitAddCooldown(lv_creepUnit, "Abil/UnderworldBossStun", 1.5);
+                        libAIAI_gv_defenderAICreepNeedsNewOrder = false;
+                    }
+                    else {
+                        lv_enemyGroup = libNtve_gf_UnitsInRegionWithAllianceToPlayerMatchingCondition(null, "", "", UnitGetOwner(lv_creepUnit), c_unitAllianceEnemy, RegionCircle(UnitGetPosition(lv_creepUnit), 5.0), UnitFilter((1 << c_targetFilterVisible), 0, (1 << c_targetFilterPlayer) | (1 << c_targetFilterAlly) | (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+                        if ((UnitGroupCount(lv_enemyGroup, c_unitCountAlive) >= 3)) {
+                            UnitIssueOrder(lv_creepUnit, Order(AbilityCommand("UnderworldBossStun", 0)), c_orderQueueReplace);
+                            UnitAddCooldown(lv_creepUnit, "Abil/UnderworldBossStun", 1.5);
+                            libAIAI_gv_defenderAICreepNeedsNewOrder = false;
+                        }
+
+                    }
+                }
+
+                lv_enemyGroup = libNtve_gf_UnitsInRegionWithAllianceToPlayerMatchingCondition(null, "", "", UnitGetOwner(lv_creepUnit), c_unitAllianceEnemy, RegionCircle(UnitGetPosition(lv_creepUnit), 8.0), UnitFilter((1 << c_targetFilterHeroic) | (1 << c_targetFilterVisible), 0, (1 << c_targetFilterPlayer) | (1 << c_targetFilterAlly) | (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+                if ((UnitGetCooldown(lv_creepUnit, "Abil/UnderworldBossRoots") <= 0.0) && (UnitGroupCount(lv_enemyGroup, c_unitCountAlive) >= 1)) {
+                    auto0C71B695_g = lv_enemyGroup;
+                    auto0C71B695_u = UnitGroupCount(auto0C71B695_g, c_unitCountAll);
+                    for (;; auto0C71B695_u -= 1) {
+                        auto0C71B695_var = UnitGroupUnitFromEnd(auto0C71B695_g, auto0C71B695_u);
+                        if (auto0C71B695_var == null) { break; }
+                        if ((auto0C71B695_var != lv_currentOrderTarget) && (DistanceBetweenPoints(UnitGetPosition(auto0C71B695_var), UnitGetPosition(lv_creepUnit)) >= 2.0)) {
+                            lv_graveGolemBindingRootsValidTargets += 1;
+                        }
+
+                    }
+                    if ((lv_graveGolemBindingRootsValidTargets >= 1)) {
+                        UnitIssueOrder(lv_creepUnit, OrderTargetingPoint(AbilityCommand("UnderworldBossRoots", 0), UnitGetPosition(libMapM_gf_JungleGetRandomEnemyHeroInRangeOfMinionWithMinimumRangeRequirements(lv_creepUnit, UnitGetPosition(lv_creepUnit), 0.0, 8.0, lv_currentOrderTarget))), c_orderQueueReplace);
+                        libAIAI_gv_defenderAICreepNeedsNewOrder = false;
+                    }
+                    else {
+                        UnitAddCooldown(lv_creepUnit, "Abil/UnderworldBossRoots", 0.5);
+                    }
+                }
+
+            }
+
+        }
+    }
+
+    libCore_gv_segTriggerUnit = lv_creepUnit;
+    libCore_gv_segTriggerIndex = lp_defenderAIIndex;
+    libCore_gf_CallRegisteredSegregationTriggers(libCore_ge_SegregationTriggerTypes_DefenderAIIssueOrdersToCreep);
+    if ((libAIAI_gv_defenderAICreepNeedsNewOrder == true)) {
+        lv_currentOrder = UnitOrder(lv_creepUnit, 0);
+        if (((lv_currentOrder == null) || (OrderGetAbilityCommand(lv_currentOrder) == libAIAI_gv_aIMoveAbil) || (OrderGetAbilityCommand(lv_currentOrder) == libAIAI_gv_aIAcquireMoveAbil) || (OrderGetAbilityCommand(lv_currentOrder) == libAIAI_gv_aITurnAbil) || (OrderGetAbilityCommand(lv_currentOrder) == libAIAI_gv_aIAttackAbil) || (OrderGetAbilityCommand(lv_currentOrder) == libAIAI_gv_aIAttackAbilBoss) || (OrderGetAbilityCommand(lv_currentOrder) == libAIAI_gv_aIAttackAllyAbil) || (OrderGetAbilityCommand(lv_currentOrder) == libAIAI_gv_aIAttackAbilMerc))) {
+            lv_newOrderTarget = UnitGroupClosestToPoint(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_validTargets, UnitGetPosition(lv_creepUnit));
+            if ((lv_newOrderTarget == null)) {
+                if ((UnitAbilityExists(lv_creepUnit, "StormVehicleAttack") == true)) {
+                    UnitIssueOrder(lv_creepUnit, OrderTargetingPoint(libAIAI_gv_aIAttackAbilBoss, libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashPositions[lp_creep]), c_orderQueueReplace);
+                }
+                else {
+                    UnitIssueOrder(lv_creepUnit, OrderTargetingPoint(libAIAI_gv_aIAttackAbil, libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashPositions[lp_creep]), c_orderQueueReplace);
+                }
+                UnitIssueOrder(lv_creepUnit, OrderTargetingPoint(libAIAI_gv_aITurnAbil, PointWithOffsetPolar(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashPositions[lp_creep], 1.0, PointGetFacing(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashPositions[lp_creep]))), c_orderQueueAddToEnd);
+            }
+            else {
+                if (((lv_newOrderTarget != lv_currentOrderTarget) || ((OrderGetAbilityCommand(lv_currentOrder) != libAIAI_gv_aIAttackAbil) && (OrderGetAbilityCommand(lv_currentOrder) != libAIAI_gv_aIAttackAllyAbil) && (OrderGetAbilityCommand(lv_currentOrder) != libAIAI_gv_aIAttackAbilBoss) && (OrderGetAbilityCommand(lv_currentOrder) != libAIAI_gv_aIAttackAbilMerc)))) {
+                    if ((UnitAbilityExists(lv_creepUnit, "StormVehicleAttack") == true)) {
+                        UnitIssueOrder(lv_creepUnit, OrderTargetingUnit(libAIAI_gv_aIAttackAbilBoss, lv_newOrderTarget), c_orderQueueReplace);
+                    }
+                    else {
+                        UnitIssueOrder(lv_creepUnit, OrderTargetingUnit(libAIAI_gv_aIAttackAbil, lv_newOrderTarget), c_orderQueueReplace);
+                    }
+                }
+
+            }
+        }
+
+    }
+
+}
+
+void libAIAI_gf_DefenderAICreepDies (int lp_defenderAIIndex, unit lp_unit, int lp_killingPlayer) {
+    // Automatic Variable Declarations
+    // Implementation
+    libGame_gf_SendEventJungleDefenderAIDefenderKilled(lp_defenderAIIndex, lp_unit, lp_killingPlayer);
+    if ((UnitGroupCount(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defendersGroup, c_unitCountAlive) == 0) && (libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_campDeathEventDispatched == false)) {
+        libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_campDeathEventDispatched = true;
+        libGame_gf_SendEventJungleDefenderAIAllDefendersKilled(lp_defenderAIIndex, lp_killingPlayer);
+    }
+
+}
+
+int libAIAI_gf_DefenderAINewIndex () {
+    // Variable Declarations
+    int lv_defenderAIIndex;
+    int lv_bestIndex;
+    fixed lv_bestIndexTime;
+
+    // Automatic Variable Declarations
+    const int autoD5805ED0_ae = libAIAI_gv_defenderAIMaxNumberOfDefenderAI;
+    const int autoD5805ED0_ai = 1;
+    const int autoA8796576_ae = libAIAI_gv_defenderAIMaxNumberOfDefenderAI;
+    const int autoA8796576_ai = 1;
+
+    // Variable Initialization
+    lv_bestIndexTime = 524287.0;
+
+    // Implementation
+    lv_defenderAIIndex = 1;
+    for ( ; ( (autoD5805ED0_ai >= 0 && lv_defenderAIIndex <= autoD5805ED0_ae) || (autoD5805ED0_ai < 0 && lv_defenderAIIndex >= autoD5805ED0_ae) ) ; lv_defenderAIIndex += autoD5805ED0_ai ) {
+        if ((libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_used == false)) {
+            libAIAI_gv_defenderAIDefenderAIUpperBound = lv_defenderAIIndex;
+            return lv_defenderAIIndex;
+        }
+
+    }
+    lv_defenderAIIndex = 1;
+    for ( ; ( (autoA8796576_ai >= 0 && lv_defenderAIIndex <= autoA8796576_ae) || (autoA8796576_ai < 0 && lv_defenderAIIndex >= autoA8796576_ae) ) ; lv_defenderAIIndex += autoA8796576_ai ) {
+        if ((UnitGroupCount(libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_defendersGroup, c_unitCountAlive) == 0) && (libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_timeStarted < lv_bestIndexTime)) {
+            lv_bestIndex = lv_defenderAIIndex;
+            lv_bestIndexTime = libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_timeStarted;
+        }
+
+    }
+    return lv_bestIndex;
+}
+
+void libAIAI_gf_StartDefenderAI (bool lp_canSeeCloakedUnits, unitgroup lp_defenders, region lp_leashRegion, region lp_aggroRegion, bool lp_healOnLeash) {
+    // Variable Declarations
+    int lv_defenderAIIndex;
+    unit lv_unit;
+    int lv_unitIndex;
+
+    // Automatic Variable Declarations
+    unitgroup auto5BE89C99_g;
+    int auto5BE89C99_u;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_defenderAIIndex = libAIAI_gf_DefenderAINewIndex();
+    if ((lv_defenderAIIndex <= 0)) {
+        TriggerDebugOutput(1, StringExternal("Param/Value/lib_AIAI_F84235F3"), true);
+        return ;
+    }
+
+    if ((UnitGroupCount(lp_defenders, c_unitCountAll) > libAIAI_gv_defenderAIMaxNumberOfDefendersPerGroup)) {
+        TriggerDebugOutput(1, StringExternal("Param/Value/lib_AIAI_4ACB7326"), true);
+        return ;
+    }
+
+    if ((TriggerIsEnabled(libAIAI_gt_DefenderAIDefenderAILogic) == false)) {
+        TriggerEnable(libAIAI_gt_DefenderAIDefenderAILogic, true);
+        TriggerEnable(libAIAI_gt_DefenderAICreepsAttacked, true);
+    }
+
+    libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_used = true;
+    libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_timeStarted = TimerGetElapsed(libGame_gv_gameTimer);
+    libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_leashRegion = lp_leashRegion;
+    libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_aggoRegion = lp_aggroRegion;
+    libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_healOnLeash = lp_healOnLeash;
+    libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_defendersGroup = UnitGroupEmpty();
+    libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_defenderCount = 0;
+    libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_canSeeCloaked = lp_canSeeCloakedUnits;
+    auto5BE89C99_g = lp_defenders;
+    auto5BE89C99_u = UnitGroupCount(auto5BE89C99_g, c_unitCountAll);
+    for (;; auto5BE89C99_u -= 1) {
+        lv_unit = UnitGroupUnitFromEnd(auto5BE89C99_g, auto5BE89C99_u);
+        if (lv_unit == null) { break; }
+        UnitGroupAdd(libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_defendersGroup, lv_unit);
+        if ((libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_aggoRegion == null)) {
+            UnitBehaviorAdd(lv_unit, "JungleCreepBenign", lv_unit, 1);
+        }
+
+        UnitBehaviorAdd(lv_unit, "JungleCreepPassive", lv_unit, 1);
+        UnitStatusBarOverride(lv_unit, c_unitStatusGroupAll);
+        UnitSetCustomValue(lv_unit, libCore_gf_CustomValueIndex(libCore_ge_CustomValueIndexes_JungleDefenderAIIndex), IntToFixed(lv_defenderAIIndex));
+        libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_defenderCount += 1;
+        lv_unitIndex = libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_defenderCount;
+        libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_defenderUnits[lv_unitIndex] = lv_unit;
+        if ((libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_aggoRegion != null) && (RegionContainsPoint(libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_aggoRegion, UnitGetPosition(lv_unit)) == false)) {
+            libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_leashPositions[lv_unitIndex] = libAIAI_gf_DefenderMovePointIntoRegion(UnitGetPosition(lv_unit), libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_aggoRegion);
+        }
+        else {
+            libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_leashPositions[lv_unitIndex] = UnitGetPosition(lv_unit);
+        }
+        if ((UnitHasBehavior2(lv_unit, "Truesight") == true)) {
+            libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_canSeeCloaked = true;
+        }
+
+    }
+    libAIAI_gf_DefenderAITransitionDefenderAIIntoState(lv_defenderAIIndex, libAIAI_ge_DefenderAIState_Idle);
+    DataTableSetInt(false, libAIAI_gv_defenderAILastCreatedDefenderAIIndex, lv_defenderAIIndex);
+}
+
+void libAIAI_gf_AddUnitsToDefenderAI (int lp_defenderAIIndex, unitgroup lp_defenders) {
+    // Variable Declarations
+    unit lv_unit;
+    int lv_unitIndex;
+    int lv_itDefenderIndex;
+
+    // Automatic Variable Declarations
+    unitgroup auto8682ED07_g;
+    int auto8682ED07_u;
+    int autoCFA266D0_ae;
+    const int autoCFA266D0_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    if (((lp_defenderAIIndex <= 0) || (lp_defenderAIIndex > libAIAI_gv_defenderAIDefenderAIUpperBound))) {
+        TriggerDebugOutput(1, StringExternal("Param/Value/lib_AIAI_4E2C26EF"), true);
+        return ;
+    }
+
+    if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_used == false)) {
+        TriggerDebugOutput(1, StringExternal("Param/Value/lib_AIAI_1E6AC297"), true);
+        return ;
+    }
+
+    auto8682ED07_g = lp_defenders;
+    auto8682ED07_u = UnitGroupCount(auto8682ED07_g, c_unitCountAll);
+    for (;; auto8682ED07_u -= 1) {
+        lv_unit = UnitGroupUnitFromEnd(auto8682ED07_g, auto8682ED07_u);
+        if (lv_unit == null) { break; }
+        UnitGroupAdd(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defendersGroup, lv_unit);
+        if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_state != libAIAI_ge_DefenderAIState_Fighting)) {
+            if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_aggoRegion == null)) {
+                UnitBehaviorAdd(lv_unit, "JungleCreepBenign", lv_unit, 1);
+            }
+
+            UnitBehaviorAdd(lv_unit, "JungleCreepPassive", lv_unit, 1);
+        }
+
+        UnitStatusBarOverride(lv_unit, c_unitStatusGroupAll);
+        UnitSetCustomValue(lv_unit, libCore_gf_CustomValueIndex(libCore_ge_CustomValueIndexes_JungleDefenderAIIndex), IntToFixed(lp_defenderAIIndex));
+        lv_unitIndex = 0;
+        autoCFA266D0_ae = libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderCount;
+        lv_itDefenderIndex = 1;
+        for ( ; ( (autoCFA266D0_ai >= 0 && lv_itDefenderIndex <= autoCFA266D0_ae) || (autoCFA266D0_ai < 0 && lv_itDefenderIndex >= autoCFA266D0_ae) ) ; lv_itDefenderIndex += autoCFA266D0_ai ) {
+            if (((UnitIsValid(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderUnits[lv_itDefenderIndex]) == false) || (UnitIsAlive(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderUnits[lv_itDefenderIndex]) == false))) {
+                lv_unitIndex = lv_itDefenderIndex;
+                break;
+            }
+
+        }
+        if ((lv_unitIndex == 0)) {
+            if (((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderCount + 1) > libAIAI_gv_defenderAIMaxNumberOfDefendersPerGroup)) {
+                TriggerDebugOutput(1, StringExternal("Param/Value/lib_AIAI_51CA9C30"), true);
+                return ;
+            }
+
+            libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderCount += 1;
+            lv_unitIndex = libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderCount;
+        }
+
+        libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderUnits[lv_unitIndex] = lv_unit;
+        if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_aggoRegion != null) && (RegionContainsPoint(libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_aggoRegion, UnitGetPosition(lv_unit)) == false)) {
+            libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashPositions[lv_unitIndex] = libAIAI_gf_DefenderMovePointIntoRegion(UnitGetPosition(lv_unit), libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_aggoRegion);
+        }
+        else {
+            libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashPositions[lv_unitIndex] = UnitGetPosition(lv_unit);
+        }
+        if ((UnitHasBehavior2(lv_unit, "Truesight") == true)) {
+            libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_canSeeCloaked = true;
+        }
+
+    }
+}
+
+void libAIAI_gf_SetDefendersAggroOnComputerPlayers (int lp_aIIndex, bool lp_aggro) {
+    // Automatic Variable Declarations
+    // Implementation
+    libAIAI_gv_defenderAI[lp_aIIndex].lv_aggroOnComputerPlayers = lp_aggro;
+}
+
+void libAIAI_gf_SetDefendersShowLeashedText (int lp_aIIndex, bool lp_show) {
+    // Automatic Variable Declarations
+    // Implementation
+    libAIAI_gv_defenderAI[lp_aIIndex].lv_showLeashedText = lp_show;
+}
+
+int libAIAI_gf_LastCreatedDefenderAI () {
+    // Automatic Variable Declarations
+    // Implementation
+    return DataTableGetInt(false, libAIAI_gv_defenderAILastCreatedDefenderAIIndex);
+}
+
+int libAIAI_gf_DefenderAIIndexOfUnit (unit lp_unit) {
+    // Variable Declarations
+    int lv_i;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    return FixedToInt(UnitGetCustomValue(lp_unit, libCore_gf_CustomValueIndex(libCore_ge_CustomValueIndexes_JungleDefenderAIIndex)));
+}
+
+unitgroup libAIAI_gf_DefenderGroup (int lp_defenderAIIndex) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_used == false)) {
+        return UnitGroupEmpty();
+    }
+    else {
+        return libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defendersGroup;
+    }
+}
+
+unit libAIAI_gf_DefenderUnit (int lp_defenderAIIndex, int lp_index) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_used == false)) {
+        return null;
+    }
+    else {
+        return libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderUnits[lp_index];
+    }
+}
+
+int libAIAI_gf_DefenderUnitCount (int lp_defenderAIIndex) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_used == false)) {
+        return 0;
+    }
+    else {
+        return libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderCount;
+    }
+}
+
+region libAIAI_gf_DefenderAgroRegion (int lp_defenderAIIndex) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_used == false)) {
+        return RegionEmpty();
+    }
+    else {
+        return libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_aggoRegion;
+    }
+}
+
+region libAIAI_gf_DefenderLeashRegion (int lp_defenderAIIndex) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_used == false)) {
+        return RegionEmpty();
+    }
+    else {
+        return libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashRegion;
+    }
+}
+
+unitgroup libAIAI_gf_DefenderValidTargets (int lp_defenderAIIndex) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_used == false)) {
+        return UnitGroupEmpty();
+    }
+    else {
+        return libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_validTargets;
+    }
+}
+
+bool libAIAI_gf_DefendersAreFighting (int lp_defenderAIIndex) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_used == true) && (libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_state == libAIAI_ge_DefenderAIState_Fighting)) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+bool libAIAI_gf_DefendersAreLeashing (int lp_defenderAIIndex) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_used == true) && (libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_state == libAIAI_ge_DefenderAIState_Leashing)) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+bool libAIAI_gf_DefendersAnyOutsideLeashRegion (int lp_defenderAIIndex) {
+    // Variable Declarations
+    int lv_unitIndex;
+    unit lv_defenderUnit;
+
+    // Automatic Variable Declarations
+    int autoB3E0A531_ae;
+    const int autoB3E0A531_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    autoB3E0A531_ae = libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderCount;
+    lv_unitIndex = 1;
+    for ( ; ( (autoB3E0A531_ai >= 0 && lv_unitIndex <= autoB3E0A531_ae) || (autoB3E0A531_ai < 0 && lv_unitIndex >= autoB3E0A531_ae) ) ; lv_unitIndex += autoB3E0A531_ai ) {
+        lv_defenderUnit = libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_defenderUnits[lv_unitIndex];
+        if ((UnitIsAlive(lv_defenderUnit) == true) && (libNtve_gf_UnitInRegion(lv_defenderUnit, libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashRegion) == false)) {
+            return true;
+        }
+
+    }
+    return false;
+}
+
+point libAIAI_gf_DefenderMovePointIntoRegion (point lp_point, region lp_region) {
+    // Variable Declarations
+    point lv_center;
+    point lv_dir;
+    point lv_newPoint;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_center = RegionGetCenter(lp_region);
+    lv_dir = AIGetDirection(lv_center, lp_point);
+    lv_newPoint = Point((PointGetX(lv_center) + (PointGetX(lv_dir) * 3.0)), (PointGetY(lv_center) + (PointGetY(lv_dir) * 3.0)));
+    if ((RegionContainsPoint(lp_region, lv_newPoint) == true)) {
+        return lv_newPoint;
+    }
+
+    return lv_center;
+}
+
+void libAIAI_gf_SetDefenderLeashLocation (int lp_defenderAIIndex, int lp_index, point lp_loc) {
+    // Automatic Variable Declarations
+    // Implementation
+    libAIAI_gv_defenderAI[lp_defenderAIIndex].lv_leashPositions[lp_index] = lp_loc;
+}
+
+void libAIAI_gf_DefenderAIUpdateAIStatus (int lp_defenderIndex) {
+    // Variable Declarations
+    int lv_loopIndex;
+    unit lv_leader;
+    text lv_botStatus;
+
+    // Automatic Variable Declarations
+    int auto60BAD1CD_ae;
+
+    // Variable Initialization
+
+    // Implementation
+    auto60BAD1CD_ae = libAIAI_gv_defenderAI[lp_defenderIndex].lv_defenderCount;
+    lv_loopIndex = 1;
+    for ( ; lv_loopIndex <= auto60BAD1CD_ae ; lv_loopIndex += 1 ) {
+        lv_leader = libAIAI_gf_DefenderUnit(lp_defenderIndex, lv_loopIndex);
+        if ((UnitIsAlive(lv_leader) == true)) {
+            break;
+        }
+
+    }
+    if ((UnitIsAlive(lv_leader) == false)) {
+        return ;
+    }
+    else {
+        if ((libAIAI_gv_defenderAI[lp_defenderIndex].lv_debugUnit != lv_leader) && (libAIAI_gv_defenderAI[lp_defenderIndex].lv_debugLabel != c_invalidDialogControlId)) {
+            DialogControlDestroy(libAIAI_gv_defenderAI[lp_defenderIndex].lv_debugLabel);
+            libAIAI_gv_defenderAI[lp_defenderIndex].lv_debugLabel = c_invalidDialogControlId;
+        }
+
+    }
+    if ((libAIAI_gv_defenderAI[lp_defenderIndex].lv_debugLabel == c_invalidDialogControlId)) {
+        DialogControlHookupUnitStatus(c_triggerControlTypeLabel, "BotStatusLabel", lv_leader);
+        DialogControlSetVisible(DialogControlLastCreated(), PlayerGroupAll(), true);
+        libAIAI_gv_defenderAI[lp_defenderIndex].lv_debugLabel = DialogControlLastCreated();
+        libAIAI_gv_defenderAI[lp_defenderIndex].lv_debugUnit = lv_leader;
+    }
+
+    lv_botStatus = (lv_botStatus + StringToText(libAIAI_ge_DefenderAIState_Ident(libAIAI_gv_defenderAI[lp_defenderIndex].lv_state)));
+    lv_botStatus = (lv_botStatus + StringExternal("Param/Value/lib_AIAI_83BA5515"));
+    lv_botStatus = (lv_botStatus + IntToText(libAIAI_gv_defenderAI[lp_defenderIndex].lv_leashCount));
+    lv_botStatus = (lv_botStatus + StringExternal("Param/Value/lib_AIAI_2900CD77"));
+    lv_botStatus = (lv_botStatus + IntToText(UnitGroupCount(libAIAI_gv_defenderAI[lp_defenderIndex].lv_defendersGroup, c_unitCountAlive)));
+    lv_botStatus = (lv_botStatus + StringExternal("Param/Value/lib_AIAI_35755A26"));
+    lv_botStatus = (lv_botStatus + IntToText(libAIAI_gv_defenderAI[lp_defenderIndex].lv_defenderCount));
+    lv_botStatus = (lv_botStatus + StringExternal("Param/Value/lib_AIAI_133394D4"));
+    lv_botStatus = (lv_botStatus + IntToText(UnitGroupCount(libAIAI_gv_defenderAI[lp_defenderIndex].lv_validTargets, c_unitCountAlive)));
+    libNtve_gf_SetDialogItemText(libAIAI_gv_defenderAI[lp_defenderIndex].lv_debugLabel, lv_botStatus, PlayerGroupAll());
+}
+
+void libAIAI_gf_DefenderAIToggleAIStatus (bool lp_show) {
+    // Variable Declarations
+    int lv_defenderAIIndex;
+
+    // Automatic Variable Declarations
+    int autoE413478E_ae;
+
+    // Variable Initialization
+
+    // Implementation
+    autoE413478E_ae = libAIAI_gv_defenderAIDefenderAIUpperBound;
+    lv_defenderAIIndex = 1;
+    for ( ; lv_defenderAIIndex <= autoE413478E_ae ; lv_defenderAIIndex += 1 ) {
+        if ((libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_debugLabel != c_invalidDialogControlId)) {
+            if ((lp_show == true)) {
+                DialogControlSetVisible(libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_debugLabel, PlayerGroupAll(), true);
+            }
+            else {
+                DialogControlSetVisible(libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_debugLabel, PlayerGroupAll(), false);
+            }
+        }
+
+    }
+}
+
+void libAIAI_gf_HeroAICleanupAllAIData () {
+    // Variable Declarations
+    int lv_playerIndex;
+
+    // Automatic Variable Declarations
+    int auto8F53BD22_ae;
+
+    // Variable Initialization
+
+    // Implementation
+    AIReset();
+    auto8F53BD22_ae = libCore_gv_bALMaxPlayers;
+    lv_playerIndex = 0;
+    for ( ; lv_playerIndex <= auto8F53BD22_ae ; lv_playerIndex += 1 ) {
+        libAIAI_gv_aIHeroes[lv_playerIndex].lv_allowedToChooseTalentsTime = 0.0;
+    }
+}
+
+text libAIAI_gf_HeroAIDifficultyDisplayText (int lp_player) {
+    // Automatic Variable Declarations
+    int autoAFC95489_val;
+
+    // Implementation
+    autoAFC95489_val = libAIAI_gv_aIHeroes[lp_player].lv_difficulty;
+    if (autoAFC95489_val == libAIAI_ge_HeroAIDifficulty_HeroAITutorial1Enemy) {
+        return StringExternal("Param/Value/lib_AIAI_F3DEE6F6");
+    }
+    else if (autoAFC95489_val == libAIAI_ge_HeroAIDifficulty_HeroAITutorial1Ally) {
+        return StringExternal("Param/Value/lib_AIAI_F94BE010");
+    }
+    else if (autoAFC95489_val == libAIAI_ge_HeroAIDifficulty_HeroAITutorialMapMechanicEnemy) {
+        return StringExternal("Param/Value/lib_AIAI_2E625D66");
+    }
+    else if (autoAFC95489_val == libAIAI_ge_HeroAIDifficulty_HeroAITutorialMapMechanicAlly) {
+        return StringExternal("Param/Value/lib_AIAI_846F1ECA");
+    }
+    else if (autoAFC95489_val == libAIAI_ge_HeroAIDifficulty_HeroAITryMeMode) {
+        return StringExternal("Param/Value/lib_AIAI_40C01A05");
+    }
+    else if (autoAFC95489_val == libAIAI_ge_HeroAIDifficulty_HeroAIVeryEasy) {
+        return StringExternal("Param/Value/lib_AIAI_25BF051E");
+    }
+    else if (autoAFC95489_val == libAIAI_ge_HeroAIDifficulty_HeroAIVeryEasyWithHumanAlly) {
+        return StringExternal("Param/Value/lib_AIAI_001484B6");
+    }
+    else if (autoAFC95489_val == libAIAI_ge_HeroAIDifficulty_HeroAIEasy) {
+        return StringExternal("Param/Value/lib_AIAI_95BDCE78");
+    }
+    else if (autoAFC95489_val == libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly) {
+        return StringExternal("Param/Value/lib_AIAI_7D80355C");
+    }
+    else if (autoAFC95489_val == libAIAI_ge_HeroAIDifficulty_HeroAIMedium) {
+        return StringExternal("Param/Value/lib_AIAI_0B6F66E6");
+    }
+    else if (autoAFC95489_val == libAIAI_ge_HeroAIDifficulty_HeroAIVeryHard) {
+        return StringExternal("Param/Value/lib_AIAI_D85DF7F9");
+    }
+    else if (autoAFC95489_val == libAIAI_ge_HeroAIDifficulty_HeroAIElite) {
+        return StringExternal("Param/Value/lib_AIAI_1F45ECCF");
+    }
+    else {
+        return StringExternal("Param/Value/lib_AIAI_D45E7A83");
+    }
+}
+
+void libAIAI_gf_HeroAIGeneralPreInit () {
+    // Variable Declarations
+    int lv_loopIndex;
+    int lv_currentPlayer;
+    int lv_mainCampIndex;
+    int lv_insertCampIndex;
+
+    // Automatic Variable Declarations
+    int auto65D01E62_ae;
+    const int auto622CE5EF_ae = libCore_gv_bALMaxPlayers;
+    const int auto622CE5EF_ai = 1;
+    int auto24B01FD4_val;
+
+    // Variable Initialization
+
+    // Implementation
+    TriggerEnable(libAIAI_gt_HeroAITakeOverHero, true);
+    TriggerEnable(libAIAI_gt_HeroAIReleaseHeroControl, true);
+    auto65D01E62_ae = libCore_gv_bALMaxPlayers;
+    lv_currentPlayer = 1;
+    for ( ; lv_currentPlayer <= auto65D01E62_ae ; lv_currentPlayer += 1 ) {
+        PlayerSetAllowAIControl(lv_currentPlayer, true);
+    }
+    lv_currentPlayer = 1;
+    for ( ; ( (auto622CE5EF_ai >= 0 && lv_currentPlayer <= auto622CE5EF_ae) || (auto622CE5EF_ai < 0 && lv_currentPlayer >= auto622CE5EF_ae) ) ; lv_currentPlayer += auto622CE5EF_ai ) {
+        if ((PlayerStatus(lv_currentPlayer) != c_playerStatusUnused)) {
+            if ((PlayerType(lv_currentPlayer) != c_playerTypeComputer) && (PlayerStatus(lv_currentPlayer) != c_playerStatusLeft)) {
+            }
+            else {
+                if ((libAIAI_gv_aIHeroes[lv_currentPlayer].lv_difficulty == libAIAI_ge_HeroAIDifficulty_Null)) {
+                    auto24B01FD4_val = PlayerDifficulty(lv_currentPlayer);
+                    if (auto24B01FD4_val == 1) {
+                        if ((libAIAI_gf_HeroAIPreInitHasAlliedHuman(libGame_gv_players[lv_currentPlayer].lv_faction) == true)) {
+                            libAIAI_gv_aIHeroes[lv_currentPlayer].lv_difficulty = libAIAI_ge_HeroAIDifficulty_HeroAIVeryEasyWithHumanAlly;
+                        }
+                        else {
+                            libAIAI_gv_aIHeroes[lv_currentPlayer].lv_difficulty = libAIAI_ge_HeroAIDifficulty_HeroAIVeryEasy;
+                        }
+                    }
+                    else if (auto24B01FD4_val == 2) {
+                        if ((libAIAI_gf_HeroAIPreInitHasAlliedHuman(libGame_gv_players[lv_currentPlayer].lv_faction) == true)) {
+                            libAIAI_gv_aIHeroes[lv_currentPlayer].lv_difficulty = libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly;
+                        }
+                        else {
+                            libAIAI_gv_aIHeroes[lv_currentPlayer].lv_difficulty = libAIAI_ge_HeroAIDifficulty_HeroAIEasy;
+                        }
+                    }
+                    else if (auto24B01FD4_val == 3) {
+                        libAIAI_gv_aIHeroes[lv_currentPlayer].lv_difficulty = libAIAI_ge_HeroAIDifficulty_HeroAIMedium;
+                    }
+                    else if (auto24B01FD4_val == 6) {
+                        libAIAI_gv_aIHeroes[lv_currentPlayer].lv_difficulty = libAIAI_ge_HeroAIDifficulty_HeroAIVeryHard;
+                    }
+                    else if (auto24B01FD4_val == 7) {
+                        libAIAI_gv_aIHeroes[lv_currentPlayer].lv_difficulty = libAIAI_ge_HeroAIDifficulty_HeroAIElite;
+                    }
+                    else {
+                        libAIAI_gv_aIHeroes[lv_currentPlayer].lv_difficulty = libAIAI_ge_HeroAIDifficulty_HeroAIElite;
+                    }
+                }
+
+            }
+        }
+
+    }
+    libAIAI_gf_HeroAITalentPreInit();
+    libCore_gf_RegisterSegregationTrigger(libCore_ge_SegregationTriggerTypes_HeroAIDebuggingUpdateStatus, libAIAI_gt_HeroAILostVikingsDebuggingUpdate);
+    AIAddTeamRepresentative(libCore_gv_cOMPUTER_TeamOrder);
+    AIAddTeamRepresentative(libCore_gv_cOMPUTER_TeamChaos);
+}
+
+void libAIAI_gf_HeroAIEnableAIForPlayer (int lp_trigPlayer) {
+    // Variable Declarations
+    int lv_heroIndex;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    if (((lp_trigPlayer < 1) || (lp_trigPlayer > libCore_gv_bALMaxPlayers))) {
+        TextExpressionSetToken("Param/Expression/lib_AIAI_0F071560", "A", IntToText(lp_trigPlayer));
+        TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_AIAI_0F071560"), true);
+        return ;
+    }
+
+    PlayerSetUnderAIControl(lp_trigPlayer, true);
+    if ((libAIAI_gv_aIHeroes[lp_trigPlayer].lv_aIEnabled == true)) {
+        return ;
+    }
+
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_aIEnabled = true;
+    if ((libAIAI_gv_heroAIActive == false)) {
+        libAIAI_gf_HeroAIStartAI();
+    }
+
+    if ((TriggerActiveCount(libAIAI_gt_HeroAIUpdateTalentSelection) == 0)) {
+        TriggerExecute(libAIAI_gt_HeroAIUpdateTalentSelection, true, false);
+    }
+
+    if ((libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty == libAIAI_ge_HeroAIDifficulty_Null)) {
+        libAIAI_gf_HeroAISetAIDifficultyLevel(lp_trigPlayer, libAIAI_ge_HeroAIDifficulty_HeroAIMedium);
+    }
+
+    if ((libAIAI_gv_heroAIAIChoosesTalents == true)) {
+        libAIAI_gf_HeroAIInitTalentBuilds(lp_trigPlayer);
+    }
+
+    libCore_gv_segTriggerPlayer = lp_trigPlayer;
+    libCore_gv_segTriggerUnit = libAIAI_gv_aIHeroes[lp_trigPlayer].lv_currentHeroUnit;
+    libCore_gf_CallRegisteredSegregationTriggers(libCore_ge_SegregationTriggerTypes_HeroAIEnableAIForPlayer);
+    UnitIssueOrder(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_currentHeroUnit, Order(AbilityCommand("stop", 0)), c_orderQueueReplace);
+    libAIAI_gf_HeroAIUpdateAIStatus(lp_trigPlayer);
+    libAIAI_gf_HeroAIUpdateTeamPlayerData(libGame_gv_players[lp_trigPlayer].lv_faction);
+    AIEnableForPlayer(lp_trigPlayer, (libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty));
+}
+
+void libAIAI_gf_HeroAIDisableAIForPlayer (int lp_trigPlayer) {
+    // Automatic Variable Declarations
+    // Implementation
+    if (((lp_trigPlayer < 1) || (lp_trigPlayer > libCore_gv_bALMaxPlayers))) {
+        TextExpressionSetToken("Param/Expression/lib_AIAI_60CE667E", "A", IntToText(lp_trigPlayer));
+        TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_AIAI_60CE667E"), true);
+        return ;
+    }
+
+    PlayerSetUnderAIControl(lp_trigPlayer, false);
+    if ((libAIAI_gv_aIHeroes[lp_trigPlayer].lv_aIEnabled == false)) {
+        return ;
+    }
+
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_aIEnabled = false;
+    UnitIssueOrder(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_currentHeroUnit, Order(AbilityCommand("stop", 0)), c_orderQueueReplace);
+    if ((UnitIsValid(libGame_gv_players[lp_trigPlayer].lv_activeVehicle) == true)) {
+        libAIAI_gf_MinionAIUnhookUnitFromMinionAI(libGame_gv_players[lp_trigPlayer].lv_activeVehicle);
+    }
+
+    libAIAI_gf_HeroAIUpdateAIStatus(lp_trigPlayer);
+    libAIAI_gf_HeroAIUpdateTeamPlayerData(libGame_gv_players[lp_trigPlayer].lv_faction);
+    AIDisableForPlayer(lp_trigPlayer);
+}
+
+void libAIAI_gf_HeroAISetAIDifficultyLevel (int lp_player, int lp_difficulty) {
+    // Automatic Variable Declarations
+    // Implementation
+    libAIAI_gv_aIHeroes[lp_player].lv_difficulty = lp_difficulty;
+}
+
+void libAIAI_gf_HeroAISetupUnitDangerTracking (unit lp_unit) {
+    // Automatic Variable Declarations
+    // Implementation
+    AITrackUnitDanger(lp_unit);
+}
+
+bool libAIAI_gf_HeroAIPreInitHasAlliedHuman (int lp_faction) {
+    // Variable Declarations
+    int lv_playerIndex;
+
+    // Automatic Variable Declarations
+    int autoF78DF6E2_ae;
+
+    // Variable Initialization
+
+    // Implementation
+    autoF78DF6E2_ae = libCore_gv_bALMaxPlayers;
+    lv_playerIndex = 1;
+    for ( ; lv_playerIndex <= autoF78DF6E2_ae ; lv_playerIndex += 1 ) {
+        if ((libGame_gv_players[lv_playerIndex].lv_faction == lp_faction) && (PlayerStatus(lv_playerIndex) == c_playerStatusActive) && (PlayerType(lv_playerIndex) == c_playerTypeUser)) {
+            return true;
+        }
+
+    }
+    return false;
+}
+
+void libAIAI_gf_HeroAITalentPreInit () {
+    // Automatic Variable Declarations
+}
+
+void libAIAI_gf_HeroAIInitTalentBuilds (int lp_trigPlayer) {
+    // Variable Declarations
+    string lv_heroName;
+    int lv_numberOfTalentBuilds;
+    int lv_talentBuildIndex;
+    fixed lv_buildChance;
+    fixed lv_totalChance;
+    int lv_aIOnly;
+    int lv_minDifficulty;
+    int lv_maxDifficulty;
+    int lv_buildType;
+    int lv_numberOfTalentsInArray;
+    int lv_talentArrayIndex;
+    int lv_curBuildNum;
+    bool lv_debugTalentFound;
+    int lv_debugTalentCatalogIndex;
+    int lv_debugTalentCatalogMaxIndexForCurrentTier;
+
+    // Automatic Variable Declarations
+    int auto82B75512_ae;
+    int autoBED68C2B_ae;
+    int autoB5B4CB0E_ae;
+    int autoF78BBAAE_ae;
+
+    // Variable Initialization
+
+    // Implementation
+    while (!((libGame_gv_talents_TalentChoices[lp_trigPlayer][1].lv_numberOfTalentsForThisTier >= 0))) {
+        Wait(0.0625, c_timeGame);
+    }
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_numberOfTalentBuilds = 0;
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_pickedTalentBuild = 0;
+    auto82B75512_ae = libAIAI_gv_heroAIMaxNumberofTalentBuilds;
+    lv_talentBuildIndex = 0;
+    for ( ; lv_talentBuildIndex <= auto82B75512_ae ; lv_talentBuildIndex += 1 ) {
+        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_talentBuilds[lv_talentBuildIndex].lv_chance = 0.0;
+        autoBED68C2B_ae = libCore_gv_talents_MaxTiers_C;
+        lv_talentArrayIndex = 0;
+        for ( ; lv_talentArrayIndex <= autoBED68C2B_ae ; lv_talentArrayIndex += 1 ) {
+            libAIAI_gv_aIHeroes[lp_trigPlayer].lv_talentBuilds[lv_talentBuildIndex].lv_talents[lv_talentArrayIndex] = "";
+        }
+    }
+    lv_heroName = PlayerHero(lp_trigPlayer);
+    lv_numberOfTalentBuilds = CatalogFieldValueCount(c_gameCatalogHero, lv_heroName, "TalentAIBuildsArray", lp_trigPlayer);
+    autoB5B4CB0E_ae = lv_numberOfTalentBuilds;
+    lv_talentBuildIndex = 1;
+    for ( ; lv_talentBuildIndex <= autoB5B4CB0E_ae ; lv_talentBuildIndex += 1 ) {
+        lv_aIOnly = CatalogFieldValueGetAsInt(c_gameCatalogHero, lv_heroName, "TalentAIBuildsArray[" + IntToString((lv_talentBuildIndex - 1)) + "].AIOnly", lp_trigPlayer);
+        if ((lv_aIOnly == 1) && (PlayerType(lp_trigPlayer) == c_playerTypeUser)) {
+            continue;
+        }
+
+        lv_minDifficulty = CatalogFieldValueGetAsInt(c_gameCatalogHero, lv_heroName, "TalentAIBuildsArray[" + IntToString((lv_talentBuildIndex - 1)) + "].MinDifficulty", lp_trigPlayer);
+        if ((lv_minDifficulty > libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty)) {
+            continue;
+        }
+
+        lv_maxDifficulty = CatalogFieldValueGetAsInt(c_gameCatalogHero, lv_heroName, "TalentAIBuildsArray[" + IntToString((lv_talentBuildIndex - 1)) + "].MaxDifficulty", lp_trigPlayer);
+        if ((lv_maxDifficulty < libAIAI_gv_aIHeroes[lp_trigPlayer].lv_difficulty)) {
+            continue;
+        }
+
+        if ((lv_curBuildNum >= libAIAI_gv_heroAIMaxNumberofTalentBuilds)) {
+            TextExpressionSetToken("Param/Expression/lib_AIAI_B105233B", "A", StringToText((PlayerHero(lp_trigPlayer))));
+            TextExpressionSetToken("Param/Expression/lib_AIAI_B105233B", "B", IntToText(lv_numberOfTalentBuilds));
+            TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_AIAI_B105233B"), true);
+            break;
+        }
+
+        lv_curBuildNum += 1;
+        lv_buildChance = CatalogFieldValueGetAsFixed(c_gameCatalogHero, lv_heroName, "TalentAIBuildsArray[" + IntToString((lv_talentBuildIndex - 1)) + "].ChanceToPick", lp_trigPlayer);
+        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_talentBuilds[lv_curBuildNum].lv_chance = lv_buildChance;
+        lv_totalChance += lv_buildChance;
+        lv_numberOfTalentsInArray = CatalogFieldValueCount(c_gameCatalogHero, lv_heroName, "TalentAIBuildsArray[" + IntToString(lv_talentBuildIndex - 1) + "].TalentsArray", c_playerAny);
+        if ((lv_numberOfTalentsInArray != libCore_gv_talents_MaxTiers_C)) {
+            TextExpressionSetToken("Param/Expression/lib_AIAI_01298FE3", "A", StringToText((PlayerHero(lp_trigPlayer))));
+            TextExpressionSetToken("Param/Expression/lib_AIAI_01298FE3", "B", IntToText(lv_talentBuildIndex));
+            TextExpressionSetToken("Param/Expression/lib_AIAI_01298FE3", "C", IntToText(lv_numberOfTalentsInArray));
+            TextExpressionSetToken("Param/Expression/lib_AIAI_01298FE3", "D", IntToText(libCore_gv_talents_MaxTiers_C));
+            TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_AIAI_01298FE3"), true);
+            if ((lv_numberOfTalentsInArray > libCore_gv_talents_MaxTiers_C)) {
+                lv_numberOfTalentsInArray = libCore_gv_talents_MaxTiers_C;
+            }
+
+        }
+
+        lv_debugTalentCatalogMaxIndexForCurrentTier = 0;
+        autoF78BBAAE_ae = lv_numberOfTalentsInArray;
+        lv_talentArrayIndex = 1;
+        for ( ; lv_talentArrayIndex <= autoF78BBAAE_ae ; lv_talentArrayIndex += 1 ) {
+            libAIAI_gv_aIHeroes[lp_trigPlayer].lv_talentBuilds[lv_curBuildNum].lv_talents[lv_talentArrayIndex] = (CatalogFieldValueGet(c_gameCatalogHero, lv_heroName, "TalentAIBuildsArray[" + IntToString((lv_talentBuildIndex - 1)) + "].TalentsArray[" + IntToString((lv_talentArrayIndex - 1)) + "]", lp_trigPlayer));
+            if ((libCore_gv_dEBUGDebuggingEnabled == true)) {
+                lv_debugTalentFound = false;
+                lv_debugTalentCatalogIndex = lv_debugTalentCatalogMaxIndexForCurrentTier;
+                lv_debugTalentCatalogMaxIndexForCurrentTier += libGame_gv_talents_TalentChoices[lp_trigPlayer][lv_talentArrayIndex].lv_numberOfTalentsForThisTier;
+                while ((lv_debugTalentCatalogIndex < lv_debugTalentCatalogMaxIndexForCurrentTier)) {
+                    if ((TalentTreeGetHeroTalentLink(lp_trigPlayer, lv_debugTalentCatalogIndex) == libAIAI_gv_aIHeroes[lp_trigPlayer].lv_talentBuilds[lv_curBuildNum].lv_talents[lv_talentArrayIndex])) {
+                        lv_debugTalentFound = true;
+                        break;
+                    }
+
+                    lv_debugTalentCatalogIndex += 1;
+                }
+                if ((lv_debugTalentFound == false)) {
+                    TriggerDebugOutput(1, (StringExternal("Param/Value/lib_AIAI_FB6AA32E") + StringToText(CatalogFieldValueGet(c_gameCatalogHero, lv_heroName, "TalentAIBuildsArray[" + IntToString((lv_talentBuildIndex - 1)) + "].TalentsArray[" + IntToString((lv_talentArrayIndex - 1)) + "]", lp_trigPlayer)) + StringExternal("Param/Value/lib_AIAI_0A7A6074") + IntToText(lv_talentArrayIndex)), true);
+                }
+
+            }
+
+        }
+    }
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_numberOfTalentBuilds = lv_curBuildNum;
+    libAIAI_gf_HeroAIChooseAITalentBuild(lp_trigPlayer, lv_totalChance);
+}
+
+void libAIAI_gf_HeroAIChooseAITalentBuild (int lp_trigPlayer, fixed lp_totalChance) {
+    // Variable Declarations
+    fixed lv_randomChance;
+    int lv_loopIndex;
+
+    // Automatic Variable Declarations
+    int auto969B47F3_ae;
+
+    // Variable Initialization
+
+    // Implementation
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_pickedTalentBuild = 0;
+    if ((PlayerType(lp_trigPlayer) == c_playerTypeUser)) {
+        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_pickedTalentBuild = libAIAI_gf_HeroAIDetermineClosestAITalentBuild(lp_trigPlayer);
+        if ((libAIAI_gv_aIHeroes[lp_trigPlayer].lv_pickedTalentBuild != 0)) {
+            return ;
+        }
+
+    }
+
+    lv_randomChance = RandomFixed(0.0, lp_totalChance);
+    auto969B47F3_ae = libAIAI_gv_aIHeroes[lp_trigPlayer].lv_numberOfTalentBuilds;
+    lv_loopIndex = 1;
+    for ( ; lv_loopIndex <= auto969B47F3_ae ; lv_loopIndex += 1 ) {
+        lv_randomChance -= libAIAI_gv_aIHeroes[lp_trigPlayer].lv_talentBuilds[lv_loopIndex].lv_chance;
+        if ((lv_randomChance <= 0.0)) {
+            libAIAI_gv_aIHeroes[lp_trigPlayer].lv_pickedTalentBuild = lv_loopIndex;
+            break;
+        }
+
+    }
+}
+
+int libAIAI_gf_HeroAIDetermineClosestAITalentBuild (int lp_trigPlayer) {
+    // Variable Declarations
+    int lv_bestBuildValue;
+    int lv_numBestBuilds;
+    int[libAIAI_gv_heroAIMaxNumberofTalentBuilds + 1] lv_bestBuildIndex;
+    int lv_currentBuildValue;
+    int lv_currentBuildIndex;
+    int lv_currentTalentIndex;
+    int lv_randomBest;
+
+    // Automatic Variable Declarations
+    int auto05B9E962_ae;
+    int auto6EBA0B45_ae;
+
+    // Variable Initialization
+
+    // Implementation
+    auto05B9E962_ae = libAIAI_gv_aIHeroes[lp_trigPlayer].lv_numberOfTalentBuilds;
+    lv_currentBuildIndex = 1;
+    for ( ; lv_currentBuildIndex <= auto05B9E962_ae ; lv_currentBuildIndex += 1 ) {
+        lv_currentBuildValue = 0;
+        auto6EBA0B45_ae = libCore_gv_talents_MaxTiers_C;
+        lv_currentTalentIndex = 1;
+        for ( ; lv_currentTalentIndex <= auto6EBA0B45_ae ; lv_currentTalentIndex += 1 ) {
+            if ((libGame_gv_talents_TalentChoices[lp_trigPlayer][lv_currentTalentIndex].lv_selection != 0) && (libAIAI_gv_aIHeroes[lp_trigPlayer].lv_talentBuilds[lv_currentBuildIndex].lv_talents[lv_currentTalentIndex] == TalentTreeGetHeroTalentLink(lp_trigPlayer, TalentTreeGetSelectedHeroTalentTree(lp_trigPlayer, lv_currentTalentIndex)))) {
+                if ((lv_currentTalentIndex == 4)) {
+                    lv_currentBuildValue += 2;
+                }
+                else {
+                    lv_currentBuildValue += 1;
+                }
+            }
+
+        }
+        if ((lv_currentBuildValue > lv_bestBuildValue)) {
+            lv_numBestBuilds = 1;
+            lv_bestBuildValue = lv_currentBuildValue;
+            lv_bestBuildIndex[0] = lv_currentBuildIndex;
+        }
+        else {
+            if ((lv_currentBuildValue == lv_bestBuildValue)) {
+                lv_bestBuildIndex[lv_numBestBuilds] = lv_currentBuildIndex;
+                lv_numBestBuilds += 1;
+            }
+
+        }
+    }
+    if ((lv_numBestBuilds == 0)) {
+        return 0;
+    }
+
+    lv_randomBest = RandomInt(0, (lv_numBestBuilds - 1));
+    return lv_bestBuildIndex[lv_randomBest];
+}
+
+void libAIAI_gf_HeroAIPickSpecificUltimateIfControllingHumanSlot (int lp_trigPlayer, string lp_ultimateTalent) {
+    // Variable Declarations
+    bool lv_returnVal;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    if ((libGame_gv_talents_ActiveChoiceTierForPlayer[lp_trigPlayer] == 4) && (PlayerType(lp_trigPlayer) == c_playerTypeUser)) {
+        lv_returnVal = libAIAI_gf_HeroAITrytoPickSpecificTalent(lp_trigPlayer, lp_ultimateTalent);
+    }
+
+}
+
+void libAIAI_gf_HeroAIEnableTalentPicking (int lp_trigPlayer, bool lp_enable) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((lp_enable == true)) {
+        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_allowedToChooseTalentsTime = 0.0;
+    }
+    else {
+        libAIAI_gv_aIHeroes[lp_trigPlayer].lv_allowedToChooseTalentsTime = 524287.0;
+    }
+}
+
+void libAIAI_gf_HeroAIPickTalent (int lp_trigPlayer, int lp_buttonIndex, int lp_talentIndex) {
+    // Automatic Variable Declarations
+    // Implementation
+    TalentTreeSetSelectedHeroTalentTree(lp_trigPlayer, lp_talentIndex);
+    libAIAI_gv_aIHeroes[lp_trigPlayer].lv_allowedToChooseTalentsTime = (TimerGetElapsed(libGame_gv_gameTimer) + libAIAI_gv_aIHeroChooseTalentDelayBetweenPicks);
+    libGame_gf_TalentsChooseTalentForPlayer(libGame_gv_talents_ActiveChoiceTierForPlayer[lp_trigPlayer], lp_buttonIndex, lp_trigPlayer);
+}
+
+bool libAIAI_gf_HeroAITrytoPickSpecificTalent (int lp_trigPlayer, string lp_talent) {
+    // Variable Declarations
+    int lv_loopIndex;
+    int lv_numPreviousTalents;
+    int lv_numCurrentTalents;
+    string lv_loopTalent;
+
+    // Automatic Variable Declarations
+    int autoE150BC63_ae;
+    int auto4E1F0EC0_ae;
+
+    // Variable Initialization
+    lv_numPreviousTalents = -1;
+
+    // Implementation
+    if ((libGame_gv_talents_ActiveChoiceTierForPlayer[lp_trigPlayer] != 0) && (libGame_gv_talents_TalentChoices[lp_trigPlayer][libGame_gv_talents_ActiveChoiceTierForPlayer[lp_trigPlayer]].lv_selection == 0) && (libGame_gv_talents_TalentChoices[lp_trigPlayer][libGame_gv_talents_ActiveChoiceTierForPlayer[lp_trigPlayer]].lv_numberOfTalentsForThisTier > 0)) {
+        lv_numCurrentTalents = libGame_gv_talents_TalentChoices[lp_trigPlayer][libGame_gv_talents_ActiveChoiceTierForPlayer[lp_trigPlayer]].lv_numberOfTalentsForThisTier;
+        autoE150BC63_ae = (libGame_gv_talents_ActiveChoiceTierForPlayer[lp_trigPlayer] - 1);
+        lv_loopIndex = 1;
+        for ( ; lv_loopIndex <= autoE150BC63_ae ; lv_loopIndex += 1 ) {
+            lv_numPreviousTalents += libGame_gv_talents_TalentChoices[lp_trigPlayer][lv_loopIndex].lv_numberOfTalentsForThisTier;
+        }
+        auto4E1F0EC0_ae = lv_numCurrentTalents;
+        lv_loopIndex = 1;
+        for ( ; lv_loopIndex <= auto4E1F0EC0_ae ; lv_loopIndex += 1 ) {
+            if ((TalentTreeCanSelectHeroTalentTree(lp_trigPlayer, (lv_loopIndex + lv_numPreviousTalents)) == true)) {
+                lv_loopTalent = TalentTreeGetHeroTalentLink(lp_trigPlayer, (lv_loopIndex + lv_numPreviousTalents));
+                if ((lv_loopTalent == lp_talent)) {
+                    libAIAI_gf_HeroAIPickTalent(lp_trigPlayer, lv_loopIndex, (lv_loopIndex + lv_numPreviousTalents));
+                    return true;
+                }
+
+            }
+
+        }
+        TriggerDebugOutput(1, (StringExternal("Param/Value/lib_AIAI_9B916B97") + StringToText((lp_talent)) + StringExternal("Param/Value/lib_AIAI_B7F5F313") + IntToText(libGame_gv_talents_ActiveChoiceTierForPlayer[lp_trigPlayer])), true);
+    }
+
+    return false;
+}
+
+bool libAIAI_gf_HeroAIRandomlyPickAnyAvailableTalent (int lp_trigPlayer) {
+    // Variable Declarations
+    int lv_loopIndex;
+    int lv_numPreviousTalents;
+    int lv_numCurrentTalents;
+    int lv_numPossible;
+    int[libCore_gv_talents_MaxTalentsPerTier_C + 1] lv_PossibleChoices;
+    int lv_buttonChoice;
+
+    // Automatic Variable Declarations
+    int auto16F856E9_ae;
+    int autoC9042940_ae;
+
+    // Variable Initialization
+    lv_numPreviousTalents = -1;
+
+    // Implementation
+    if ((libGame_gv_talents_ActiveChoiceTierForPlayer[lp_trigPlayer] != 0) && (libGame_gv_talents_TalentChoices[lp_trigPlayer][libGame_gv_talents_ActiveChoiceTierForPlayer[lp_trigPlayer]].lv_selection == 0) && (libGame_gv_talents_TalentChoices[lp_trigPlayer][libGame_gv_talents_ActiveChoiceTierForPlayer[lp_trigPlayer]].lv_numberOfTalentsForThisTier > 0)) {
+        lv_numCurrentTalents = libGame_gv_talents_TalentChoices[lp_trigPlayer][libGame_gv_talents_ActiveChoiceTierForPlayer[lp_trigPlayer]].lv_numberOfTalentsForThisTier;
+        auto16F856E9_ae = (libGame_gv_talents_ActiveChoiceTierForPlayer[lp_trigPlayer] - 1);
+        lv_loopIndex = 1;
+        for ( ; lv_loopIndex <= auto16F856E9_ae ; lv_loopIndex += 1 ) {
+            lv_numPreviousTalents += libGame_gv_talents_TalentChoices[lp_trigPlayer][lv_loopIndex].lv_numberOfTalentsForThisTier;
+        }
+        autoC9042940_ae = lv_numCurrentTalents;
+        lv_loopIndex = 1;
+        for ( ; lv_loopIndex <= autoC9042940_ae ; lv_loopIndex += 1 ) {
+            if ((TalentTreeCanSelectHeroTalentTree(lp_trigPlayer, (lv_loopIndex + lv_numPreviousTalents)) == true)) {
+                lv_numPossible += 1;
+                lv_PossibleChoices[lv_numPossible] = lv_loopIndex;
+            }
+
+        }
+        if ((lv_numPossible > 0)) {
+            lv_buttonChoice = lv_PossibleChoices[RandomInt(1, lv_numPossible)];
+            libAIAI_gf_HeroAIPickTalent(lp_trigPlayer, lv_buttonChoice, (lv_buttonChoice + lv_numPreviousTalents));
+            return true;
+        }
+
+    }
+
+    return false;
+}
+
+bool libAIAI_gf_HeroAISelectNextTalentInBuild (int lp_trigPlayer) {
+    // Variable Declarations
+    bool lv_returnVal;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    if ((libAIAI_gv_aIHeroes[lp_trigPlayer].lv_pickedTalentBuild > 0) && (libAIAI_gv_aIHeroes[lp_trigPlayer].lv_pickedTalentBuild <= libAIAI_gv_aIHeroes[lp_trigPlayer].lv_numberOfTalentBuilds)) {
+        lv_returnVal = libAIAI_gf_HeroAITrytoPickSpecificTalent(lp_trigPlayer, libAIAI_gv_aIHeroes[lp_trigPlayer].lv_talentBuilds[libAIAI_gv_aIHeroes[lp_trigPlayer].lv_pickedTalentBuild].lv_talents[libGame_gv_talents_ActiveChoiceTierForPlayer[lp_trigPlayer]]);
+        return lv_returnVal;
+    }
+
+    return false;
+}
+
+bool libAIAI_gf_HeroAIChooseTalentViaSpecialHeroLogic (int lp_trigPlayer) {
+    // Variable Declarations
+    int lv_currentTier;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_currentTier = libGame_gv_talents_ActiveChoiceTierForPlayer[lp_trigPlayer];
+    libCore_gv_segTriggerPlayer = lp_trigPlayer;
+    libCore_gv_segTriggerUnit = libAIAI_gv_aIHeroes[lp_trigPlayer].lv_currentHeroUnit;
+    libCore_gf_CallRegisteredSegregationTriggers(libCore_ge_SegregationTriggerTypes_HeroAITalentLogic);
+    if (((lv_currentTier != libGame_gv_talents_ActiveChoiceTierForPlayer[lp_trigPlayer]) || (libGame_gv_talents_TalentChoices[lp_trigPlayer][lv_currentTier].lv_selection != 0))) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+void libAIAI_gf_HeroAIChooseTalents (int lp_faction) {
+    // Variable Declarations
+    int lv_playerIndex;
+
+    // Automatic Variable Declarations
+    playergroup auto0E269936_g;
+
+    // Variable Initialization
+
+    // Implementation
+    auto0E269936_g = libAIAI_gv_heroAITeamPlayerData[libAIAI_gf_HeroAITeamIndexOfFaction(lp_faction)].lv_aIPlayers;
+    lv_playerIndex = -1;
+    while (true) {
+        	lv_playerIndex = PlayerGroupNextPlayer(auto0E269936_g, lv_playerIndex);
+        	if (lv_playerIndex<0) { break; }
+        	if ((libGame_gv_talents_ActiveChoiceTierForPlayer[lv_playerIndex] != 0) && (libAIAI_gv_aIHeroes[lv_playerIndex].lv_allowedToChooseTalentsTime < TimerGetElapsed(libGame_gv_gameTimer)) && (libGame_gv_talents_TalentChoices[lv_playerIndex][libGame_gv_talents_ActiveChoiceTierForPlayer[lv_playerIndex]].lv_selection == 0) && (libGame_gv_talents_TalentChoices[lv_playerIndex][libGame_gv_talents_ActiveChoiceTierForPlayer[lv_playerIndex]].lv_numberOfTalentsForThisTier > 0)) {
+            if ((libAIAI_gf_HeroAIChooseTalentViaSpecialHeroLogic(lv_playerIndex) == true)) {
+                return ;
+            }
+
+            if ((libAIAI_gf_HeroAISelectNextTalentInBuild(lv_playerIndex) == true)) {
+                return ;
+            }
+
+            if ((libAIAI_gf_HeroAIRandomlyPickAnyAvailableTalent(lv_playerIndex) == true)) {
+                return ;
+            }
+
+        }
+
+    }
+}
+
+string libAIAI_gf_HeroAIGetGoalName (unit lp_unit) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((UnitHasAIController(lp_unit) == false)) {
+        return null;
+    }
+
+    return GetUnitGoal(lp_unit);
+}
+
+void libAIAI_gf_HeroAIUpdateTeamPlayerData (int lp_team) {
+    // Variable Declarations
+    int lv_teamIndex;
+    int lv_playerIndex;
+
+    // Automatic Variable Declarations
+    int auto90ED577E_ae;
+
+    // Variable Initialization
+
+    // Implementation
+    if ((lp_team == libGame_ge_Faction_Order)) {
+        lv_teamIndex = (0);
+    }
+    else {
+        lv_teamIndex = (1);
+    }
+    PlayerGroupClear(libAIAI_gv_heroAITeamPlayerData[lv_teamIndex].lv_players);
+    PlayerGroupClear(libAIAI_gv_heroAITeamPlayerData[lv_teamIndex].lv_humanPlayers);
+    PlayerGroupClear(libAIAI_gv_heroAITeamPlayerData[lv_teamIndex].lv_aIPlayers);
+    auto90ED577E_ae = libCore_gv_bALMaxPlayers;
+    lv_playerIndex = 1;
+    for ( ; lv_playerIndex <= auto90ED577E_ae ; lv_playerIndex += 1 ) {
+        if ((libGame_gv_players[lv_playerIndex].lv_faction == lp_team)) {
+            if ((libAIAI_gf_HeroAIIsPlayerActive(lv_playerIndex, 1) == true)) {
+                PlayerGroupAdd(libAIAI_gv_heroAITeamPlayerData[lv_teamIndex].lv_players, lv_playerIndex);
+                PlayerGroupAdd(libAIAI_gv_heroAITeamPlayerData[lv_teamIndex].lv_humanPlayers, lv_playerIndex);
+            }
+            else {
+                if ((libAIAI_gf_HeroAIIsAIEnabledForPlayer(lv_playerIndex) == true)) {
+                    PlayerGroupAdd(libAIAI_gv_heroAITeamPlayerData[lv_teamIndex].lv_players, lv_playerIndex);
+                    PlayerGroupAdd(libAIAI_gv_heroAITeamPlayerData[lv_teamIndex].lv_aIPlayers, lv_playerIndex);
+                }
+
+            }
+        }
+
+    }
+}
+
+void libAIAI_gf_HeroAIReleaseHeroControl (int lp_player) {
+    // Variable Declarations
+    int lv_enemyFaction;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    if ((libAIAI_gv_aIHeroes[lp_player].lv_currentHeroUnit != null)) {
+        libAIAI_gf_HeroAIDisableAIForPlayer(lp_player);
+    }
+
+}
+
+void libAIAI_gf_HeroAITakeOverHeroForPlayer (int lp_player) {
+    // Variable Declarations
+    int lv_enemyFaction;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    if ((libGame_gv_players[lp_player].lv_faction == libGame_ge_Faction_Order)) {
+        lv_enemyFaction = libGame_ge_Faction_Chaos;
+    }
+    else {
+        lv_enemyFaction = libGame_ge_Faction_Order;
+    }
+    if ((libAIAI_gf_HeroAITeamHasHumanPlayers(lv_enemyFaction) == true)) {
+        libAIAI_gf_HeroAISetAIDifficultyLevel(lp_player, libAIAI_ge_HeroAIDifficulty_HeroAIElite);
+    }
+    else {
+        libAIAI_gf_HeroAISetAIDifficultyLevel(lp_player, libAIAI_ge_HeroAIDifficulty_HeroAIElite);
+    }
+    if ((libAIAI_gv_aIHeroes[lp_player].lv_currentHeroUnit == null)) {
+        return ;
+    }
+    else {
+        libAIAI_gf_HeroAIEnableAIForPlayer(lp_player);
+    }
+}
+
+void libAIAI_gf_HeroAISetupTownData () {
+    // Variable Declarations
+    int lv_townIndex;
+    int lv_structureIndex;
+
+    // Automatic Variable Declarations
+    int auto6775C45A_ae;
+    const int auto6775C45A_ai = 1;
+    int auto12EF4BF9_ae;
+    const int auto12EF4BF9_ai = 1;
+    int auto3CA7C960_val;
+
+    // Variable Initialization
+
+    // Implementation
+    if ((UnitIsValid(libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core) == true)) {
+        libAIAI_gf_HeroAISetupUnitDangerTracking(libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core);
+        AILaneUnitCreated(0, libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core, libNtve_ge_LaneUnitType_Core);
+    }
+
+    if ((UnitIsValid(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core) == true)) {
+        libAIAI_gf_HeroAISetupUnitDangerTracking(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core);
+        AILaneUnitCreated(0, libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core, libNtve_ge_LaneUnitType_Core);
+    }
+
+    auto6775C45A_ae = libGame_gv_townTownCount;
+    lv_townIndex = 1;
+    for ( ; ( (auto6775C45A_ai >= 0 && lv_townIndex <= auto6775C45A_ae) || (auto6775C45A_ai < 0 && lv_townIndex >= auto6775C45A_ae) ) ; lv_townIndex += auto6775C45A_ai ) {
+        auto12EF4BF9_ae = libGame_gv_townTownData[lv_townIndex].lv_structureCount;
+        lv_structureIndex = 1;
+        for ( ; ( (auto12EF4BF9_ai >= 0 && lv_structureIndex <= auto12EF4BF9_ae) || (auto12EF4BF9_ai < 0 && lv_structureIndex >= auto12EF4BF9_ae) ) ; lv_structureIndex += auto12EF4BF9_ai ) {
+            if ((UnitIsValid(libGame_gv_townTownData[lv_townIndex].lv_structureUnits[lv_structureIndex]) == true)) {
+                auto3CA7C960_val = libGame_gv_townTownData[lv_townIndex].lv_structureTypes[lv_structureIndex];
+                if (auto3CA7C960_val == libGame_ge_TownStructureTypes_Moonwell) {
+                    AILaneUnitCreated(libGame_gv_townTownData[lv_townIndex].lv_lane, libGame_gv_townTownData[lv_townIndex].lv_structureUnits[lv_structureIndex], libNtve_ge_LaneUnitType_Moonwell);
+                }
+                else if (auto3CA7C960_val == libGame_ge_TownStructureTypes_Gate) {
+                    AILaneUnitCreated(libGame_gv_townTownData[lv_townIndex].lv_lane, libGame_gv_townTownData[lv_townIndex].lv_structureUnits[lv_structureIndex], libNtve_ge_LaneUnitType_Gate);
+                }
+                else if (auto3CA7C960_val == libGame_ge_TownStructureTypes_CannonTower) {
+                    libAIAI_gf_HeroAISetupUnitDangerTracking(libGame_gv_townTownData[lv_townIndex].lv_structureUnits[lv_structureIndex]);
+                    AILaneUnitCreated(libGame_gv_townTownData[lv_townIndex].lv_lane, libGame_gv_townTownData[lv_townIndex].lv_structureUnits[lv_structureIndex], libNtve_ge_LaneUnitType_Tower);
+                }
+                else if (auto3CA7C960_val == libGame_ge_TownStructureTypes_TownHall) {
+                    libAIAI_gf_HeroAISetupUnitDangerTracking(libGame_gv_townTownData[lv_townIndex].lv_structureUnits[lv_structureIndex]);
+                    if ((libGame_gf_TownGetTownHallPresetFromUnitID(UnitGetType(libGame_gv_townTownData[lv_townIndex].lv_structureUnits[lv_structureIndex])) == libGame_ge_TownHallTypes_BackTown)) {
+                        AILaneUnitCreated(libGame_gv_townTownData[lv_townIndex].lv_lane, libGame_gv_townTownData[lv_townIndex].lv_structureUnits[lv_structureIndex], libNtve_ge_LaneUnitType_Keep);
+                    }
+                    else {
+                        AILaneUnitCreated(libGame_gv_townTownData[lv_townIndex].lv_lane, libGame_gv_townTownData[lv_townIndex].lv_structureUnits[lv_structureIndex], libNtve_ge_LaneUnitType_Fort);
+                    }
+                }
+                else {
+                }
+            }
+
+        }
+    }
+}
+
+void libAIAI_gf_HeroAISetupTeamData () {
+    // Automatic Variable Declarations
+    // Implementation
+    libAIAI_gf_HeroAIUpdateTeamPlayerData(libGame_ge_Faction_Order);
+    libAIAI_gf_HeroAIUpdateTeamPlayerData(libGame_ge_Faction_Chaos);
+}
+
+void libAIAI_gf_HeroAIStartAI () {
+    // Variable Declarations
+    int lv_playerIndex;
+    int lv_townIndex;
+    int lv_structureIndex;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    libAIAI_gv_heroAIActive = true;
+    if ((libAIAI_gv_heroAICustomRegisterDangerUnitsTrigger != null)) {
+        TriggerExecute(libAIAI_gv_heroAICustomRegisterDangerUnitsTrigger, true, true);
+    }
+
+    libAIAI_gf_HeroAISetupTeamData();
+}
+
+bool libAIAI_gf_HeroAIIsPlayerActive (int lp_trigPlayer, int lp_type) {
+    // Automatic Variable Declarations
+    // Implementation
+    if (((lp_trigPlayer > libCore_gv_bALMaxGamePlayers) || (lp_trigPlayer < 0))) {
+        return false;
+    }
+
+    if ((UnitIsValid(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_currentHeroUnit) == false)) {
+        return false;
+    }
+
+    if ((lp_type == 0)) {
+        return true;
+    }
+
+    if ((lp_type == 1)) {
+        if ((PlayerStatus(lp_trigPlayer) == c_playerStatusActive) && (PlayerType(lp_trigPlayer) == c_playerTypeUser) && (libAIAI_gv_aIHeroes[lp_trigPlayer].lv_aIEnabled == false)) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+    else {
+        if ((PlayerStatus(lp_trigPlayer) == c_playerStatusActive) && (PlayerType(lp_trigPlayer) == c_playerTypeUser) && (libAIAI_gv_aIHeroes[lp_trigPlayer].lv_aIEnabled == false)) {
+            return false;
+        }
+        else {
+            return true;
+        }
+    }
+}
+
+bool libAIAI_gf_HeroAICanPlayerPingPlayerForHelp (int lp_pingingPlayer, int lp_pingedPlayer) {
+    // Variable Declarations
+    bool lv_playersArePaired;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_playersArePaired = (libGame_gv_players[lp_pingingPlayer].lv_heroData.lv_isPaired && libGame_gv_players[lp_pingedPlayer].lv_heroData.lv_isPaired);
+    return !(lv_playersArePaired);
+}
+
+bool libAIAI_gf_HeroAIAIDifficultyLevelShouldUseHero (int lp_player, int lp_heroIndex) {
+    // Variable Declarations
+    int lv_maxTier;
+    int lv_maxComplexity;
+    int lv_heroComplexity;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    if (((PlayerType(lp_player) == c_playerTypeComputer) || (PlayerStatus(lp_player) == c_playerStatusLeft))) {
+        lv_heroComplexity = CatalogFieldValueGetAsInt(c_gameCatalogHero, libCore_gf_GetHeroFromIndex(lp_heroIndex), "AIComplexityTier", lp_player);
+        if ((lv_heroComplexity == libNtve_ge_AIComplexityTier_Unused)) {
+            return false;
+        }
+
+        lv_maxComplexity = CatalogFieldValueGetAsInt(c_gameCatalogGame, "Dflt", "AIDifficultySettings[" + IntToString((libAIAI_gv_aIHeroes[lp_player].lv_difficulty)) + "].HeroComplexityTier", lp_player);
+        if ((lv_maxComplexity == libNtve_ge_AIComplexityTier_Unused)) {
+            lv_maxComplexity = libNtve_ge_AIComplexityTier_High;
+        }
+
+        return (lv_heroComplexity <= lv_maxComplexity);
+    }
+
+    return true;
+}
+
+bool libAIAI_gf_HeroAIIsAIEnabledForPlayer (int lp_trigPlayer) {
+    // Automatic Variable Declarations
+    // Implementation
+    if (((lp_trigPlayer <= 0) || (lp_trigPlayer > libCore_gv_bALMaxPlayers))) {
+        return false;
+    }
+
+    return (libAIAI_gv_aIHeroes[lp_trigPlayer].lv_aIEnabled == true);
+}
+
+bool libAIAI_gf_HeroAITeamHasHumanPlayers (int lp_faction) {
+    // Variable Declarations
+    int lv_teamIndex;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    if ((lp_faction == libGame_ge_Faction_Order)) {
+        lv_teamIndex = (0);
+    }
+    else {
+        lv_teamIndex = (1);
+    }
+    return (PlayerGroupCount(libAIAI_gv_heroAITeamPlayerData[lv_teamIndex].lv_humanPlayers) > 0);
+}
+
+int libAIAI_gf_HeroAITeamIndexOfFaction (int lp_faction) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((lp_faction == libGame_ge_Faction_Order)) {
+        return (0);
+    }
+    else {
+        return (1);
+    }
+}
+
+void libAIAI_gf_HeroAIUpdateAIStatus (int lp_trigPlayer) {
+    // Variable Declarations
+    text lv_botStatus;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    libCore_gv_segTriggerPlayer = lp_trigPlayer;
+    libCore_gf_CallRegisteredSegregationTriggers(libCore_ge_SegregationTriggerTypes_HeroAIDebuggingUpdateStatus);
+    if ((libUIUI_gv_uIHeroStatusFrames[lp_trigPlayer].lv_botStatusLabel[1] != c_invalidDialogControlId) && (libUIUI_gv_uIHeroStatusFrames[lp_trigPlayer].lv_botDifficultyLabel[1] != c_invalidDialogControlId)) {
+        if ((libAIAI_gv_aIHeroes[lp_trigPlayer].lv_aIEnabled == true)) {
+            if ((libAIAI_gv_heroAIDisplayAIStatus == true) && (libAIAI_gf_HeroAIIsAIEnabledForPlayer(lp_trigPlayer) == true)) {
+                libAIAI_gf_HeroAIUpdateAIStatusHelper(lp_trigPlayer, libUIUI_gv_uIHeroStatusFrames[lp_trigPlayer].lv_botStatusLabel[1], libUIUI_gv_uIHeroStatusFrames[lp_trigPlayer].lv_botDifficultyLabel[1]);
+            }
+            else {
+                DialogControlSetVisible(libUIUI_gv_uIHeroStatusFrames[lp_trigPlayer].lv_botStatusLabel[1], PlayerGroupAll(), false);
+                DialogControlSetVisible(libUIUI_gv_uIHeroStatusFrames[lp_trigPlayer].lv_botDifficultyLabel[1], PlayerGroupAll(), false);
+            }
+        }
+
+    }
+
+}
+
+void libAIAI_gf_HeroAIUpdateAIStatusHelper (int lp_trigPlayer, int lp_statusLabel, int lp_difficultyLabel) {
+    // Variable Declarations
+    text lv_botStatus;
+    string lv_goalName;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_goalName = "";
+
+    // Implementation
+    lv_goalName = libAIAI_gf_HeroAIGetGoalName(libGame_gv_players[lp_trigPlayer].lv_activeVehicle);
+    if ((lv_goalName != null) && (lv_goalName != libAIAI_gv_heroAILegacyGoal)) {
+    }
+    else {
+        lv_goalName = libAIAI_gf_HeroAIGetGoalName(libAIAI_gv_aIHeroes[lp_trigPlayer].lv_currentHeroUnit);
+    }
+    if ((lv_goalName != null) && (lv_goalName != libAIAI_gv_heroAILegacyGoal)) {
+        lv_botStatus = StringToText(lv_goalName);
+    }
+    else {
+        lv_botStatus = StringToText("No Valid Goal");
+    }
+    libNtve_gf_SetDialogItemText(lp_statusLabel, lv_botStatus, PlayerGroupAll());
+    DialogControlSetVisible(lp_statusLabel, PlayerGroupAll(), true);
+    TextExpressionSetToken("Param/Expression/lib_AIAI_37C3B490", "A", libAIAI_gf_HeroAIDifficultyDisplayText(lp_trigPlayer));
+    libNtve_gf_SetDialogItemText(lp_difficultyLabel, TextExpressionAssemble("Param/Expression/lib_AIAI_37C3B490"), PlayerGroupAll());
+    DialogControlSetVisible(lp_difficultyLabel, PlayerGroupAll(), true);
+}
+
+void libAIAI_gf_HeroAILostVikingsClearDebuggingUI (int lp_trigPlayer) {
+    // Automatic Variable Declarations
+    // Implementation
+    DialogControlDestroy(libUIUI_gv_lostVikingsDebuggingLabels[lp_trigPlayer].lv_botStatusLabel[1]);
+    DialogControlDestroy(libUIUI_gv_lostVikingsDebuggingLabels[lp_trigPlayer].lv_botDifficultyLabel[1]);
+    DialogControlDestroy(libUIUI_gv_lostVikingsDebuggingLabels[lp_trigPlayer].lv_botStatusLabel[2]);
+    DialogControlDestroy(libUIUI_gv_lostVikingsDebuggingLabels[lp_trigPlayer].lv_botDifficultyLabel[2]);
+    DialogControlDestroy(libUIUI_gv_lostVikingsDebuggingLabels[lp_trigPlayer].lv_botStatusLabel[3]);
+    DialogControlDestroy(libUIUI_gv_lostVikingsDebuggingLabels[lp_trigPlayer].lv_botDifficultyLabel[3]);
+    libUIUI_gv_lostVikingsDebuggingLabels[lp_trigPlayer].lv_botStatusLabel[1] = c_invalidDialogControlId;
+    libUIUI_gv_lostVikingsDebuggingLabels[lp_trigPlayer].lv_botDifficultyLabel[1] = c_invalidDialogControlId;
+    libUIUI_gv_lostVikingsDebuggingLabels[lp_trigPlayer].lv_botStatusLabel[2] = c_invalidDialogControlId;
+    libUIUI_gv_lostVikingsDebuggingLabels[lp_trigPlayer].lv_botDifficultyLabel[2] = c_invalidDialogControlId;
+    libUIUI_gv_lostVikingsDebuggingLabels[lp_trigPlayer].lv_botStatusLabel[3] = c_invalidDialogControlId;
+    libUIUI_gv_lostVikingsDebuggingLabels[lp_trigPlayer].lv_botDifficultyLabel[3] = c_invalidDialogControlId;
+}
+
+int libAIAI_gf_ConvertIntegertoGoalTeam (int lp_teamNumber) {
+    // Automatic Variable Declarations
+    int auto7950DA35_val;
+
+    // Implementation
+    auto7950DA35_val = lp_teamNumber;
+    if (auto7950DA35_val == libGame_gv_teamOrderIndex_C) {
+        return libNtve_ge_GoalTeam_Order;
+    }
+    else if (auto7950DA35_val == libGame_gv_teamChaosIndex_C) {
+        return libNtve_ge_GoalTeam_Chaos;
+    }
+    else {
+        return libNtve_ge_GoalTeam_Both;
+    }
+}
+
+fixed libAIAI_gf_AIGetActiveWeaponRange (unit lp_unit) {
+    // Variable Declarations
+    fixed lv_bestRange;
+    int lv_weaponIndex;
+
+    // Automatic Variable Declarations
+    int autoEDA1BD1C_ae;
+    const int autoEDA1BD1C_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    autoEDA1BD1C_ae = UnitWeaponCount(lp_unit);
+    lv_weaponIndex = 1;
+    for ( ; ( (autoEDA1BD1C_ai >= 0 && lv_weaponIndex <= autoEDA1BD1C_ae) || (autoEDA1BD1C_ai < 0 && lv_weaponIndex >= autoEDA1BD1C_ae) ) ; lv_weaponIndex += autoEDA1BD1C_ai ) {
+        if ((UnitWeaponIsEnabled(lp_unit, lv_weaponIndex) == true) && (UnitWeaponRange(lp_unit, lv_weaponIndex) > lv_bestRange)) {
+            lv_bestRange = UnitWeaponRange(lp_unit, lv_weaponIndex);
+        }
+
+    }
+    return lv_bestRange;
+}
+
+bool libAIAI_gf_AIUnitBehindEnemyGateEstimate (point lp_selfPosition, int lp_selfPlayer, unit lp_enemyUnit) {
+    // Automatic Variable Declarations
+    // Implementation
+    return libAIAI_gf_AIIsPointBehindEnemyGateEstimate(lp_selfPosition, lp_selfPlayer, UnitGetPosition(lp_enemyUnit));
+}
+
+bool libAIAI_gf_AIIsPointBehindEnemyGateEstimate (point lp_selfPosition, int lp_selfPlayer, point lp_otherPoint) {
+    // Variable Declarations
+    const fixed lv_maxSearchRadius = 8.0;
+    const fixed lv_offsetFromEdge = 1.0;
+    fixed lv_originalDistance;
+    point lv_centerPoint;
+    fixed lv_searchRadius;
+    unitgroup lv_enemyStructures;
+    unit lv_testUnit;
+    unit lv_enemyGate;
+    fixed lv_selfDistToGate;
+    fixed lv_selfDistToEnemy;
+    fixed lv_enemyDistToGate;
+    point lv_enemyGatePos;
+    point lv_inFrontOfGate;
+    point lv_selfProjectedOntoGateLine;
+    point lv_enemyProjectedOntoGateLine;
+
+    // Automatic Variable Declarations
+    unitgroup auto49113F57_g;
+    int auto49113F57_u;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_originalDistance = DistanceBetweenPoints(lp_selfPosition, lp_otherPoint);
+    lv_searchRadius = MinF(MaxF(libAIAI_gv_aIGateNearbyRange, (lv_offsetFromEdge + (0.5 * lv_originalDistance))), lv_maxSearchRadius);
+    if ((lv_originalDistance < ((lv_searchRadius - lv_offsetFromEdge) * 2.0))) {
+        lv_centerPoint = MidPoint(lp_selfPosition, lp_otherPoint);
+    }
+    else {
+        lv_centerPoint = libNtve_gf_PointOffsetTowardsPoint(lp_selfPosition, (lv_searchRadius - lv_offsetFromEdge), lp_otherPoint);
+    }
+    lv_enemyStructures = UnitGroupSearch(null, lp_selfPlayer, lv_centerPoint, lv_searchRadius, libAIAI_gv_uF_MinionAI_GetNearestEnemyStructure, 0);
+    auto49113F57_g = lv_enemyStructures;
+    auto49113F57_u = UnitGroupCount(auto49113F57_g, c_unitCountAll);
+    for (;; auto49113F57_u -= 1) {
+        lv_testUnit = UnitGroupUnitFromEnd(auto49113F57_g, auto49113F57_u);
+        if (lv_testUnit == null) { break; }
+        if ((UnitTypeTestFlag(UnitGetType(lv_testUnit), c_unitFlagTownStructureGate) == true) && (UnitIsAlive(lv_testUnit) == true)) {
+            lv_enemyGate = lv_testUnit;
+            break;
+        }
+
+    }
+    if ((lv_enemyGate == null)) {
+        return false;
+    }
+
+    lv_enemyGatePos = UnitGetPosition(lv_enemyGate);
+    lv_inFrontOfGate = PointWithOffsetPolar(lv_enemyGatePos, libAIAI_gv_aIGateNearbyRange, UnitGetFacing(lv_enemyGate));
+    lv_selfProjectedOntoGateLine = ProjectPointOntoLine(lv_enemyGatePos, lv_inFrontOfGate, lp_selfPosition);
+    lv_enemyProjectedOntoGateLine = ProjectPointOntoLine(lv_enemyGatePos, lv_inFrontOfGate, lp_otherPoint);
+    lv_selfDistToGate = DistanceBetweenPoints(lv_selfProjectedOntoGateLine, lv_enemyGatePos);
+    lv_selfDistToEnemy = DistanceBetweenPoints(lv_selfProjectedOntoGateLine, lv_enemyProjectedOntoGateLine);
+    if ((lv_selfDistToEnemy < lv_selfDistToGate)) {
+        return false;
+    }
+
+    lv_enemyDistToGate = DistanceBetweenPoints(lv_enemyProjectedOntoGateLine, lv_enemyGatePos);
+    if ((lv_enemyDistToGate > lv_selfDistToEnemy)) {
+        return false;
+    }
+
+    return true;
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: #Include AI
+//--------------------------------------------------------------------------------------------------
+bool libAIAI_gt_IncludeAI_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAIAI_gt_IncludeAI_Init () {
+    libAIAI_gt_IncludeAI = TriggerCreate("libAIAI_gt_IncludeAI_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MinionAI - Update Merc Path
+//--------------------------------------------------------------------------------------------------
+bool libAIAI_gt_MinionAIUpdateMercPath_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_mercLanerGroupIndex;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_mercLanerGroupIndex = FixedToInt(UnitGetCustomValue(EventUnit(), libCore_gf_CustomValueIndex(libCore_ge_CustomValueIndexes_MercLanerGroupIndex)));
+    if ((lv_mercLanerGroupIndex != 0)) {
+        if ((EventUnit() == libMapM_gv_jungleMiniMapLeader[lv_mercLanerGroupIndex])) {
+            libMapM_gv_jungleMiniMapPathCurrentIndex[libMapM_gf_JungleGetMercLanerGroupForUnit(libMapM_gv_jungleMiniMapLeader[lv_mercLanerGroupIndex])] += 1;
+            libMapM_gf_JungleCreateMercPath(libMapM_gv_jungleMiniMapLeader[lv_mercLanerGroupIndex], false);
+        }
+
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAIAI_gt_MinionAIUpdateMercPath_Init () {
+    libAIAI_gt_MinionAIUpdateMercPath = TriggerCreate("libAIAI_gt_MinionAIUpdateMercPath_Func");
+    TriggerEnable(libAIAI_gt_MinionAIUpdateMercPath, false);
+    TriggerAddEventUnitNextWaypointUpdated(libAIAI_gt_MinionAIUpdateMercPath, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Tower Destroyed
+//--------------------------------------------------------------------------------------------------
+bool libAIAI_gt_TowerDestroyed_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_destroyedTowerUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_destroyedTowerUnit = EventUnit();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitTypeTestAttribute(UnitGetType(lv_destroyedTowerUnit), c_unitAttributeTower) == true))) {
+            return false;
+        }
+
+        if (!((UnitBehaviorCount(lv_destroyedTowerUnit, "TownCannonTowerInvulnerable") >= 1))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitDestroyAIThinkTree(lv_destroyedTowerUnit);
+    UnitIssueOrder(lv_destroyedTowerUnit, Order(libAIAI_gv_aIStopAbil), c_orderQueueReplace);
+    UnitIssueOrder(lv_destroyedTowerUnit, Order(AbilityCommand("TowerDeadMorph", 0)), c_orderQueueReplace);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAIAI_gt_TowerDestroyed_Init () {
+    libAIAI_gt_TowerDestroyed = TriggerCreate("libAIAI_gt_TowerDestroyed_Func");
+    TriggerAddEventUnitBehaviorChange(libAIAI_gt_TowerDestroyed, null, "TownCannonTowerInvulnerable", c_unitBehaviorChangeIncrease);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Initialize Tower AI System
+//--------------------------------------------------------------------------------------------------
+bool libAIAI_gt_InitializeTowerAISystem_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_itUnit;
+    unitgroup lv_towerUnits;
+
+    // Automatic Variable Declarations
+    unitgroup auto67606E8F_g;
+    int auto67606E8F_u;
+
+    // Variable Initialization
+    lv_towerUnits = UnitGroupEmpty();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core != null)) {
+        UnitCreateAIThinkTree(libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core);
+        UnitStatusBarOverride(libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core, c_unitStatusGroupAll);
+    }
+
+    if ((libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core != null)) {
+        UnitCreateAIThinkTree(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core);
+        UnitStatusBarOverride(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core, c_unitStatusGroupAll);
+    }
+
+    lv_towerUnits = UnitGroup(null, c_playerAny, RegionEntireMap(), UnitFilter((1 << c_targetFilterTower), 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    auto67606E8F_g = lv_towerUnits;
+    auto67606E8F_u = UnitGroupCount(auto67606E8F_g, c_unitCountAll);
+    for (;; auto67606E8F_u -= 1) {
+        lv_itUnit = UnitGroupUnitFromEnd(auto67606E8F_g, auto67606E8F_u);
+        if (lv_itUnit == null) { break; }
+        UnitCreateAIThinkTree(lv_itUnit);
+        UnitStatusBarOverride(lv_itUnit, c_unitStatusGroupAll);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAIAI_gt_InitializeTowerAISystem_Init () {
+    libAIAI_gt_InitializeTowerAISystem = TriggerCreate("libAIAI_gt_InitializeTowerAISystem_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Terminate Tower AI System
+//--------------------------------------------------------------------------------------------------
+bool libAIAI_gt_TerminateTowerAISystem_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_itUnit;
+    unitgroup lv_towerUnits;
+    int lv_i;
+
+    // Automatic Variable Declarations
+    unitgroup auto93A6DE47_g;
+    int auto93A6DE47_u;
+
+    // Variable Initialization
+    lv_towerUnits = UnitGroupEmpty();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core != null)) {
+        UnitDestroyAIThinkTree(libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core);
+        ActorSendTo(libNtve_gf_MainActorofUnit(libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core), "TowerAttackRange", "Destroy");
+        libNtve_gf_MakeUnitInvulnerable(libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core, false);
+        UnitIssueOrder(libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core, Order(libAIAI_gv_aIStopAbil), c_orderQueueReplace);
+    }
+
+    if ((libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core != null)) {
+        UnitDestroyAIThinkTree(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core);
+        ActorSendTo(libNtve_gf_MainActorofUnit(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core), "TowerAttackRange", "Destroy");
+        libNtve_gf_MakeUnitInvulnerable(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core, false);
+        UnitIssueOrder(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core, Order(libAIAI_gv_aIStopAbil), c_orderQueueReplace);
+    }
+
+    lv_towerUnits = UnitGroup(null, c_playerAny, RegionEntireMap(), UnitFilter((1 << c_targetFilterTower), 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    auto93A6DE47_g = lv_towerUnits;
+    auto93A6DE47_u = UnitGroupCount(auto93A6DE47_g, c_unitCountAll);
+    for (;; auto93A6DE47_u -= 1) {
+        lv_itUnit = UnitGroupUnitFromEnd(auto93A6DE47_g, auto93A6DE47_u);
+        if (lv_itUnit == null) { break; }
+        UnitDestroyAIThinkTree(lv_itUnit);
+        ActorSendTo(libNtve_gf_MainActorofUnit(lv_itUnit), "TowerAttackRange", "Destroy");
+        libNtve_gf_MakeUnitInvulnerable(lv_itUnit, false);
+        UnitIssueOrder(lv_itUnit, Order(libAIAI_gv_aIStopAbil), c_orderQueueReplace);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAIAI_gt_TerminateTowerAISystem_Init () {
+    libAIAI_gt_TerminateTowerAISystem = TriggerCreate("libAIAI_gt_TerminateTowerAISystem_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: DefenderAI - Creeps Attacked
+//--------------------------------------------------------------------------------------------------
+bool libAIAI_gt_DefenderAICreepsAttacked_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_defenderAIIndex;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((EventUnitDamageSourcePlayer() > 0))) {
+            return false;
+        }
+
+        if (!((EventUnitDamageSourcePlayer() <= libCore_gv_bALMaxGamePlayers))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_defenderAIIndex = libAIAI_gf_DefenderAIIndexOfUnit(EventUnit());
+    if ((lv_defenderAIIndex > 0)) {
+        libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_playerIsThreat[EventUnitDamageSourcePlayer()] = true;
+        if ((libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_state == libAIAI_ge_DefenderAIState_Idle)) {
+            if ((UnitGetType(EventUnitDamageSourceUnit()) == "HeroGall")) {
+                libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_playerIsThreat[libGDHL_gv_chogallPairs[libGame_gf_TeamNumberOfPlayer(EventUnitDamageSourcePlayer())].lv_choPlayer] = true;
+                UnitGroupAdd(libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_validTargets, libGDHL_gv_chogallPairs[libGame_gf_TeamNumberOfPlayer(EventUnitDamageSourcePlayer())].lv_choUnit);
+            }
+
+            libAIAI_gf_DefenderAITransitionDefenderAIIntoState(lv_defenderAIIndex, libAIAI_ge_DefenderAIState_Fighting);
+        }
+        else if ((libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_state == libAIAI_ge_DefenderAIState_Leashing)) {
+            libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_minLeashTime = (TimerGetElapsed(libGame_gv_gameTimer) + libAIAI_gv_aIDefenderMinLeashTime);
+            libAIAI_gf_DefenderAIUpdateValidTargetList(lv_defenderAIIndex);
+            if ((UnitGroupCount(libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_validTargets, c_unitCountAlive) > 0)) {
+                libAIAI_gf_DefenderAITransitionDefenderAIIntoState(lv_defenderAIIndex, libAIAI_ge_DefenderAIState_Fighting);
+            }
+
+        }
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAIAI_gt_DefenderAICreepsAttacked_Init () {
+    libAIAI_gt_DefenderAICreepsAttacked = TriggerCreate("libAIAI_gt_DefenderAICreepsAttacked_Func");
+    TriggerEnable(libAIAI_gt_DefenderAICreepsAttacked, false);
+    TriggerAddEventUnitDamaged(libAIAI_gt_DefenderAICreepsAttacked, null, c_unitDamageTypeAny, c_unitDamageEither, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: DefenderAI - Defender AI Logic
+//--------------------------------------------------------------------------------------------------
+bool libAIAI_gt_DefenderAIDefenderAILogic_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_firstDefenderAIIndex;
+    int lv_defenderAIIndex;
+    int lv_creep;
+    int lv_oldState;
+    int lv_newState;
+    order lv_currentOrder;
+    abilcmd lv_currentAbilityCommand;
+
+    // Automatic Variable Declarations
+    int auto12F5795D_ae;
+    const int auto12F5795D_ai = libAIAI_gv_aIDefenderIndexMod;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_firstDefenderAIIndex = ModI(FixedToInt((GameGetMissionTime() * 16.0)), libAIAI_gv_aIDefenderIndexMod);
+    auto12F5795D_ae = libAIAI_gv_defenderAIDefenderAIUpperBound;
+    lv_defenderAIIndex = lv_firstDefenderAIIndex;
+    for ( ; ( (auto12F5795D_ai >= 0 && lv_defenderAIIndex <= auto12F5795D_ae) || (auto12F5795D_ai < 0 && lv_defenderAIIndex >= auto12F5795D_ae) ) ; lv_defenderAIIndex += auto12F5795D_ai ) {
+        if ((UnitGroupCount(libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_defendersGroup, c_unitCountAlive) == 0)) {
+            continue;
+        }
+        else {
+            if ((libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_defenderCount == 1)) {
+                lv_currentOrder = UnitOrder(libAIAI_gf_DefenderUnit(lv_defenderAIIndex, 1), 0);
+                lv_currentAbilityCommand = OrderGetAbilityCommand(lv_currentOrder);
+                if ((lv_currentOrder != null) && (lv_currentAbilityCommand != libAIAI_gv_aIMoveAbil) && (lv_currentAbilityCommand != libAIAI_gv_aITurnAbil) && (lv_currentAbilityCommand != libAIAI_gv_aIAttackAbil) && (lv_currentAbilityCommand != libAIAI_gv_aIAttackAbilBoss) && (lv_currentAbilityCommand != libAIAI_gv_aIAttackAllyAbil) && (libNtve_gf_UnitInRegion(libAIAI_gf_DefenderUnit(lv_defenderAIIndex, 1), libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_leashRegion) == true)) {
+                    continue;
+                }
+
+            }
+
+        }
+        lv_oldState = libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_state;
+        if (((lv_oldState == libAIAI_ge_DefenderAIState_Fighting) || ((lv_oldState == libAIAI_ge_DefenderAIState_Idle) && (libAIAI_gv_defenderAI[lv_defenderAIIndex].lv_aggoRegion != null)))) {
+            libAIAI_gf_DefenderAIUpdateValidTargetList(lv_defenderAIIndex);
+        }
+
+        lv_newState = libAIAI_gf_DefenderAIDetermineState(lv_defenderAIIndex, lv_oldState);
+        if ((lv_oldState != lv_newState)) {
+            libAIAI_gf_DefenderAITransitionDefenderAIIntoState(lv_defenderAIIndex, lv_newState);
+        }
+
+        libAIAI_gf_DefenderAIStateLogic(lv_defenderAIIndex);
+        if ((libAIAI_gv_defenderAIDisplayAIStatus == true)) {
+            libAIAI_gf_DefenderAIUpdateAIStatus(lv_defenderAIIndex);
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAIAI_gt_DefenderAIDefenderAILogic_Init () {
+    libAIAI_gt_DefenderAIDefenderAILogic = TriggerCreate("libAIAI_gt_DefenderAIDefenderAILogic_Func");
+    TriggerEnable(libAIAI_gt_DefenderAIDefenderAILogic, false);
+    TriggerAddEventTimePeriodic(libAIAI_gt_DefenderAIDefenderAILogic, 0.0625, c_timeGame);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Game Started
+//--------------------------------------------------------------------------------------------------
+bool libAIAI_gt_HeroAIGameStarted_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_currentPlayer;
+
+    // Automatic Variable Declarations
+    const int auto225B09A6_ae = libCore_gv_bALMaxPlayers;
+    const int auto225B09A6_ai = 1;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if (((libCore_gv_sYSGameMode == libCore_ge_GameModes_Tutorial1) || (libCore_gv_sYSGameMode == libCore_ge_GameModes_TutorialMapMechanics) || (libCore_gv_sYSGameMode == libCore_ge_GameModes_TryMe) || (libCore_gv_sYSGameMode == libCore_ge_GameModes_ModeC) || (libSprt_gv_performanceTestPerformanceTestRunning == true))) {
+        return true;
+    }
+
+    Wait(2.5, c_timeGame);
+    lv_currentPlayer = 1;
+    for ( ; ( (auto225B09A6_ai >= 0 && lv_currentPlayer <= auto225B09A6_ae) || (auto225B09A6_ai < 0 && lv_currentPlayer >= auto225B09A6_ae) ) ; lv_currentPlayer += auto225B09A6_ai ) {
+        if ((libAIAI_gf_HeroAIIsPlayerActive(lv_currentPlayer, 2) == true)) {
+            libAIAI_gf_HeroAIEnableAIForPlayer(lv_currentPlayer);
+            Wait(RandomFixed(0.1, 0.25), c_timeGame);
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAIAI_gt_HeroAIGameStarted_Init () {
+    libAIAI_gt_HeroAIGameStarted = TriggerCreate("libAIAI_gt_HeroAIGameStarted_Func");
+    libGame_gf_GameOpenTimerStarted(libAIAI_gt_HeroAIGameStarted);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Update Talent Selection
+//--------------------------------------------------------------------------------------------------
+bool libAIAI_gt_HeroAIUpdateTalentSelection_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    bool lv_anyAIExists;
+    int lv_currentPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerCurrentTriggerThreadSetFlags(c_triggerThreadFlagAI, true);
+    while ((libGame_gv_gameOver == false)) {
+        libAIAI_gf_HeroAIChooseTalents(libGame_ge_Faction_Order);
+        Wait(0.5625, c_timeGame);
+        libAIAI_gf_HeroAIChooseTalents(libGame_ge_Faction_Chaos);
+        Wait(0.5625, c_timeGame);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAIAI_gt_HeroAIUpdateTalentSelection_Init () {
+    libAIAI_gt_HeroAIUpdateTalentSelection = TriggerCreate("libAIAI_gt_HeroAIUpdateTalentSelection_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Update Debug Display
+//--------------------------------------------------------------------------------------------------
+bool libAIAI_gt_HeroAIUpdateDebugDisplay_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_trigPlayer;
+
+    // Automatic Variable Declarations
+    const int auto7297EA58_ae = libCore_gv_bALMaxPlayers;
+    const int auto7297EA58_ai = 1;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    while ((libGame_gv_gameOver == false)) {
+        lv_trigPlayer = 1;
+        for ( ; ( (auto7297EA58_ai >= 0 && lv_trigPlayer <= auto7297EA58_ae) || (auto7297EA58_ai < 0 && lv_trigPlayer >= auto7297EA58_ae) ) ; lv_trigPlayer += auto7297EA58_ai ) {
+            libAIAI_gf_HeroAIUpdateAIStatus(lv_trigPlayer);
+        }
+        Wait(0.0625, c_timeGame);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAIAI_gt_HeroAIUpdateDebugDisplay_Init () {
+    libAIAI_gt_HeroAIUpdateDebugDisplay = TriggerCreate("libAIAI_gt_HeroAIUpdateDebugDisplay_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Take Over Hero
+//--------------------------------------------------------------------------------------------------
+bool libAIAI_gt_HeroAITakeOverHero_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    text lv_message;
+    int lv_team;
+    playergroup lv_players;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_players = PlayerGroupEmpty();
+
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gv_gameOver == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_team = libGame_gf_TeamNumberOfPlayer(EventPlayer());
+    if (((libAIAI_gv_HeroAITakeOverHeroTime[lv_team] == 0.0) || ((libAIAI_gv_HeroAITakeOverHeroTime[lv_team] + libAIAI_gv_heroAITakeOverHeroRateLimitSeconds) < TimerGetElapsed(libGame_gv_gameTimer)) || (libAIAI_gv_HeroAITakeOverHeroTime[lv_team] > TimerGetElapsed(libGame_gv_gameTimer)))) {
+        libAIAI_gv_HeroAITakeOverHeroTime[lv_team] = TimerGetElapsed(libGame_gv_gameTimer);
+        lv_message = TextExpressionAssemble("Param/Expression/lib_AIAI_45DD181C");
+        libNtve_gf_AddPlayerGroupToPlayerGroup(libGame_gf_AlliedPlayerGroupOfPlayer(EventPlayer()), lv_players);
+        PlayerGroupRemove(lv_players, EventPlayer());
+        UIDisplayMessage(lv_players, c_messageAreaChat, lv_message);
+    }
+
+    libAIAI_gf_HeroAITakeOverHeroForPlayer(EventPlayer());
+    libAIAI_gv_aIHeroes[EventPlayer()].lv_allowedToChooseTalentsTime = (TimerGetElapsed(libGame_gv_gameTimer) + libAIAI_gv_aIHeroChooseTalentDelayInCaseOfRejoin);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAIAI_gt_HeroAITakeOverHero_Init () {
+    libAIAI_gt_HeroAITakeOverHero = TriggerCreate("libAIAI_gt_HeroAITakeOverHero_Func");
+    TriggerEnable(libAIAI_gt_HeroAITakeOverHero, false);
+    TriggerAddEventPlayerLeft(libAIAI_gt_HeroAITakeOverHero, c_playerAny, c_gameResultUndecided);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Release Hero Control
+//--------------------------------------------------------------------------------------------------
+bool libAIAI_gt_HeroAIReleaseHeroControl_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libAIAI_gf_HeroAIReleaseHeroControl(EventPlayer());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAIAI_gt_HeroAIReleaseHeroControl_Init () {
+    libAIAI_gt_HeroAIReleaseHeroControl = TriggerCreate("libAIAI_gt_HeroAIReleaseHeroControl_Func");
+    TriggerEnable(libAIAI_gt_HeroAIReleaseHeroControl, false);
+    TriggerAddEventPlayerJoin(libAIAI_gt_HeroAIReleaseHeroControl, c_playerAny);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Town Data Initialized
+//--------------------------------------------------------------------------------------------------
+bool libAIAI_gt_HeroAITownDataInitialized_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libAIAI_gf_HeroAISetupTownData();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAIAI_gt_HeroAITownDataInitialized_Init () {
+    libAIAI_gt_HeroAITownDataInitialized = TriggerCreate("libAIAI_gt_HeroAITownDataInitialized_Func");
+    libGame_gf_TownDataInitialized(libAIAI_gt_HeroAITownDataInitialized);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: DEBUG - Set AI Build
+//--------------------------------------------------------------------------------------------------
+bool libAIAI_gt_DEBUGSetAIBuild_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+    int lv_buildNumber;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((libCore_gv_dEBUGDebuggingEnabled == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_player = StringToInt(StringWord(EventChatMessage(false), 2));
+    lv_buildNumber = StringToInt(StringWord(EventChatMessage(false), 3));
+    libAIAI_gv_aIHeroes[lv_player].lv_pickedTalentBuild = lv_buildNumber;
+    libStEx_gf_RespecPlayer(lv_player, true);
+    UnitBehaviorRemove(libGame_gv_players[lv_player].lv_heroUnit, "DamageTakenNone", 1);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAIAI_gt_DEBUGSetAIBuild_Init () {
+    libAIAI_gt_DEBUGSetAIBuild = TriggerCreate("libAIAI_gt_DEBUGSetAIBuild_Func");
+    TriggerAddEventChatMessage(libAIAI_gt_DEBUGSetAIBuild, c_playerAny, "-AISetBuild", false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: HeroAI - Lost Vikings Debugging Update
+//--------------------------------------------------------------------------------------------------
+bool libAIAI_gt_HeroAILostVikingsDebuggingUpdate_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    text lv_botStatus;
+    int lv_loopIndex;
+    unit lv_loopUnit;
+    string lv_goalName;
+
+    // Automatic Variable Declarations
+    int auto3AB00592_ae;
+    int auto906D3602_val;
+    int autoDB9951FA_ae;
+
+    // Variable Initialization
+    lv_goalName = "";
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitGetType(libAIAI_gv_aIHeroes[libCore_gv_segTriggerPlayer].lv_currentHeroUnit) == "HeroLostVikingsController")) {
+        if ((libAIAI_gv_heroAIDisplayAIStatus == true) && (libAIAI_gf_HeroAIIsAIEnabledForPlayer(libCore_gv_segTriggerPlayer) == true)) {
+            auto3AB00592_ae = 3;
+            lv_loopIndex = 1;
+            for ( ; lv_loopIndex <= auto3AB00592_ae ; lv_loopIndex += 1 ) {
+                auto906D3602_val = lv_loopIndex;
+                if (auto906D3602_val == 1) {
+                    lv_loopUnit = libGDHL_gv_lostVikingsPlayer[libCore_gv_segTriggerPlayer].lv_baleog;
+                }
+                else if (auto906D3602_val == 2) {
+                    lv_loopUnit = libGDHL_gv_lostVikingsPlayer[libCore_gv_segTriggerPlayer].lv_erik;
+                }
+                else if (auto906D3602_val == 3) {
+                    lv_loopUnit = libGDHL_gv_lostVikingsPlayer[libCore_gv_segTriggerPlayer].lv_olaf;
+                }
+                else {
+                }
+                if ((libUIUI_gv_lostVikingsDebuggingLabels[libCore_gv_segTriggerPlayer].lv_botStatusLabel[lv_loopIndex] == c_invalidDialogControlId)) {
+                    DialogControlHookupUnitStatus(c_triggerControlTypeLabel, "HeroUnitStatusParentFrame/BotStatusLabel", lv_loopUnit);
+                    DialogControlSetVisible(DialogControlLastCreated(), PlayerGroupAll(), true);
+                    libUIUI_gv_lostVikingsDebuggingLabels[libCore_gv_segTriggerPlayer].lv_botStatusLabel[lv_loopIndex] = DialogControlLastCreated();
+                }
+
+                if ((libUIUI_gv_lostVikingsDebuggingLabels[libCore_gv_segTriggerPlayer].lv_botDifficultyLabel[lv_loopIndex] == c_invalidDialogControlId)) {
+                    DialogControlHookupUnitStatus(c_triggerControlTypeLabel, "HeroUnitStatusParentFrame/BotDifficultyLabel", lv_loopUnit);
+                    DialogControlSetVisible(DialogControlLastCreated(), PlayerGroupAll(), true);
+                    libUIUI_gv_lostVikingsDebuggingLabels[libCore_gv_segTriggerPlayer].lv_botDifficultyLabel[lv_loopIndex] = DialogControlLastCreated();
+                }
+
+                lv_goalName = libAIAI_gf_HeroAIGetGoalName(lv_loopUnit);
+                if ((lv_goalName != null) && (lv_goalName != libAIAI_gv_heroAILegacyGoal)) {
+                    libNtve_gf_SetDialogItemText(libUIUI_gv_lostVikingsDebuggingLabels[libCore_gv_segTriggerPlayer].lv_botStatusLabel[lv_loopIndex], StringToText(lv_goalName), PlayerGroupAll());
+                }
+                else {
+                    libAIAI_gf_HeroAIUpdateAIStatusHelper(libCore_gv_segTriggerPlayer, libUIUI_gv_lostVikingsDebuggingLabels[libCore_gv_segTriggerPlayer].lv_botStatusLabel[lv_loopIndex], libUIUI_gv_lostVikingsDebuggingLabels[libCore_gv_segTriggerPlayer].lv_botDifficultyLabel[lv_loopIndex]);
+                }
+            }
+        }
+        else {
+            autoDB9951FA_ae = 3;
+            lv_loopIndex = 1;
+            for ( ; lv_loopIndex <= autoDB9951FA_ae ; lv_loopIndex += 1 ) {
+                if ((libUIUI_gv_lostVikingsDebuggingLabels[libCore_gv_segTriggerPlayer].lv_botStatusLabel[lv_loopIndex] != c_invalidDialogControlId)) {
+                    DialogControlSetVisible(libUIUI_gv_lostVikingsDebuggingLabels[libCore_gv_segTriggerPlayer].lv_botStatusLabel[lv_loopIndex], PlayerGroupAll(), false);
+                }
+
+                if ((libUIUI_gv_lostVikingsDebuggingLabels[libCore_gv_segTriggerPlayer].lv_botDifficultyLabel[lv_loopIndex] != c_invalidDialogControlId)) {
+                    DialogControlSetVisible(libUIUI_gv_lostVikingsDebuggingLabels[libCore_gv_segTriggerPlayer].lv_botDifficultyLabel[lv_loopIndex], PlayerGroupAll(), false);
+                }
+
+            }
+        }
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAIAI_gt_HeroAILostVikingsDebuggingUpdate_Init () {
+    libAIAI_gt_HeroAILostVikingsDebuggingUpdate = TriggerCreate("libAIAI_gt_HeroAILostVikingsDebuggingUpdate_Func");
+}
+
+void libAIAI_InitTriggers () {
+    libAIAI_gt_IncludeAI_Init();
+    libAIAI_gt_MinionAIUpdateMercPath_Init();
+    libAIAI_gt_TowerDestroyed_Init();
+    libAIAI_gt_InitializeTowerAISystem_Init();
+    libAIAI_gt_TerminateTowerAISystem_Init();
+    libAIAI_gt_DefenderAICreepsAttacked_Init();
+    libAIAI_gt_DefenderAIDefenderAILogic_Init();
+    libAIAI_gt_HeroAIGameStarted_Init();
+    libAIAI_gt_HeroAIUpdateTalentSelection_Init();
+    libAIAI_gt_HeroAIUpdateDebugDisplay_Init();
+    libAIAI_gt_HeroAITakeOverHero_Init();
+    libAIAI_gt_HeroAIReleaseHeroControl_Init();
+    libAIAI_gt_HeroAITownDataInitialized_Init();
+    libAIAI_gt_DEBUGSetAIBuild_Init();
+    libAIAI_gt_HeroAILostVikingsDebuggingUpdate_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libAIAI_InitLib_completed = false;
+
+void libAIAI_InitLib () {
+    if (libAIAI_InitLib_completed) {
+        return;
+    }
+
+    libAIAI_InitLib_completed = true;
+
+    libAIAI_InitLibraries();
+    libAIAI_InitVariables();
+    libAIAI_InitCustomScript();
+    libAIAI_InitTriggers();
+}
+
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/MapMechanicsLib"
+include "TriggerLibs/UILib"
+include "TriggerLibs/StartingExperienceLib"
+include "TriggerLibs/GameDataHelperLib"
+include "TriggerLibs/SupportLib"
+

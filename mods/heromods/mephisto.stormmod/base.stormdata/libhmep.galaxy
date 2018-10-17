@@ -1,0 +1,165 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+
+include "LibHMEP_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Mephisto
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libHMEP_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+}
+
+// Variable Initialization
+bool libHMEP_InitVariables_completed = false;
+
+void libHMEP_InitVariables () {
+    if (libHMEP_InitVariables_completed) {
+        return;
+    }
+
+    libHMEP_InitVariables_completed = true;
+
+    libHMEP_gv_heroMephistoLightningNovaStaticBarrierShieldFraction = CatalogFieldValueGetAsFixed(c_gameCatalogEffect, "MephistoLightningNovaStaticBarrierShieldFractionDummy", "XP", 0);
+}
+
+// Functions
+void libHMEP_gf_HeroMephistoIncrementHeroCountFunction () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHMEP_gv_heroMephistoTriggerRegistrationVariable += 1;
+    if ((libHMEP_gv_heroMephistoTriggerRegistrationVariable == 1)) {
+        TriggerEnable(libHMEP_gt_HeroMephistoLightningNovaStaticBarrierUpdateShield, true);
+        TriggerEnable(libHMEP_gt_HeroMephistoLightningNovaStaticBarrierApplyShield, true);
+    }
+
+}
+
+void libHMEP_gf_HeroMephistoDecrementHeroCountFunction () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHMEP_gv_heroMephistoTriggerRegistrationVariable -= 1;
+    if ((libHMEP_gv_heroMephistoTriggerRegistrationVariable < 0)) {
+        libHMEP_gv_heroMephistoTriggerRegistrationVariable = 0;
+    }
+
+    if ((libHMEP_gv_heroMephistoTriggerRegistrationVariable == 0)) {
+        TriggerEnable(libHMEP_gt_HeroMephistoLightningNovaStaticBarrierUpdateShield, false);
+        TriggerEnable(libHMEP_gt_HeroMephistoLightningNovaStaticBarrierApplyShield, false);
+    }
+
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Mephisto - Lightning Nova - Static Barrier - Update Shield
+//--------------------------------------------------------------------------------------------------
+bool libHMEP_gt_HeroMephistoLightningNovaStaticBarrierUpdateShield_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_unit;
+    int lv_owner;
+    unit lv_mephistoUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_unit = EventUnit();
+    lv_owner = EventUnitDamageSourcePlayer();
+    lv_mephistoUnit = libGame_gv_players[lv_owner].lv_heroUnit;
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitTypeTestFlag(UnitGetType(lv_unit), c_unitFlagHero) == true))) {
+            return false;
+        }
+
+        if (!((PlayerHasTalent(lv_owner, "MephistoLightningNovaStaticBarrier") == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libHMEP_gv_heroMephistoLightningNovaStaticBarrierShieldValue[lv_owner] += ((EventUnitDamageAmount() + EventUnitDamageBehaviorShield()) * libHMEP_gv_heroMephistoLightningNovaStaticBarrierShieldFraction);
+    CatalogFieldValueSetFixed(c_gameCatalogBehavior, "MephistoLightningNovaStaticBarrierShield", "DamageResponse.ModifyLimit", lv_owner, libHMEP_gv_heroMephistoLightningNovaStaticBarrierShieldValue[lv_owner]);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMEP_gt_HeroMephistoLightningNovaStaticBarrierUpdateShield_Init () {
+    libHMEP_gt_HeroMephistoLightningNovaStaticBarrierUpdateShield = TriggerCreate("libHMEP_gt_HeroMephistoLightningNovaStaticBarrierUpdateShield_Func");
+    TriggerEnable(libHMEP_gt_HeroMephistoLightningNovaStaticBarrierUpdateShield, false);
+    TriggerAddEventUnitDamaged(libHMEP_gt_HeroMephistoLightningNovaStaticBarrierUpdateShield, null, c_unitDamageTypeAbility, c_unitDamageEither, "MephistoLightningNovaDamage");
+    TriggerAddEventUnitDamaged(libHMEP_gt_HeroMephistoLightningNovaStaticBarrierUpdateShield, null, c_unitDamageTypeAbility, c_unitDamageEither, "MephistoLightningNovaFuriousSparkDamage");
+    TriggerAddEventUnitDamaged(libHMEP_gt_HeroMephistoLightningNovaStaticBarrierUpdateShield, null, c_unitDamageTypeAbility, c_unitDamageEither, "MephistoLightningNovaStaticFieldDamage");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Mephisto - Lightning Nova - Static Barrier - Apply Shield
+//--------------------------------------------------------------------------------------------------
+bool libHMEP_gt_HeroMephistoLightningNovaStaticBarrierApplyShield_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_mephistoUnit;
+    int lv_mephistoPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_mephistoUnit = EventUnit();
+    lv_mephistoPlayer = UnitGetOwner(lv_mephistoUnit);
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerHasTalent(lv_mephistoPlayer, "MephistoLightningNovaStaticBarrier") == true))) {
+            return false;
+        }
+
+        if (!((libHMEP_gv_heroMephistoLightningNovaStaticBarrierShieldValue[lv_mephistoPlayer] > 0.0))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitBehaviorAdd(lv_mephistoUnit, "MephistoLightningNovaStaticBarrierShield", lv_mephistoUnit, 1);
+    libHMEP_gv_heroMephistoLightningNovaStaticBarrierShieldValue[lv_mephistoPlayer] = 0.0;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMEP_gt_HeroMephistoLightningNovaStaticBarrierApplyShield_Init () {
+    libHMEP_gt_HeroMephistoLightningNovaStaticBarrierApplyShield = TriggerCreate("libHMEP_gt_HeroMephistoLightningNovaStaticBarrierApplyShield_Func");
+    TriggerEnable(libHMEP_gt_HeroMephistoLightningNovaStaticBarrierApplyShield, false);
+    TriggerAddEventUnitBehaviorChange(libHMEP_gt_HeroMephistoLightningNovaStaticBarrierApplyShield, null, "MephistoLightningNovaCasterBehavior", c_unitBehaviorChangeDeactivate);
+}
+
+void libHMEP_InitTriggers () {
+    libHMEP_gt_HeroMephistoLightningNovaStaticBarrierUpdateShield_Init();
+    libHMEP_gt_HeroMephistoLightningNovaStaticBarrierApplyShield_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libHMEP_InitLib_completed = false;
+
+void libHMEP_InitLib () {
+    if (libHMEP_InitLib_completed) {
+        return;
+    }
+
+    libHMEP_InitLib_completed = true;
+
+    libHMEP_InitLibraries();
+    libHMEP_InitVariables();
+    libHMEP_InitTriggers();
+}
+

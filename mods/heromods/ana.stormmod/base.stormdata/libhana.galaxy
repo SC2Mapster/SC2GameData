@@ -1,0 +1,640 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/AILib"
+include "TriggerLibs/UILib"
+
+include "LibHANA_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Ana
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libHANA_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+    libAIAI_InitVariables();
+    libUIUI_InitVariables();
+}
+
+// Variable Initialization
+bool libHANA_InitVariables_completed = false;
+
+void libHANA_InitVariables () {
+    if (libHANA_InitVariables_completed) {
+        return;
+    }
+
+    libHANA_InitVariables_completed = true;
+
+    libHANA_gv_hero_Ana_Shrike_DamageDoneToken_TokenCounterStr = "";
+    libHANA_gv_hero_Ana_HealingDart_ConcentratedDoses_TokenCounterStr = "";
+    libHANA_gv_hero_Ana_HealingDart_ConcentratedDoses_PoisonDotStr = "";
+    libHANA_gv_anaUI.lv_eyeOfHorusTargetAllianceLabel = c_invalidDialogControlId;
+    libHANA_gv_anaUI.lv_EyeOfHorusTargetImage = c_invalidDialogControlId;
+}
+
+// Functions
+void libHANA_gf_HeroAnaIncrementHeroCountFunction () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHANA_gv_heroAnaTriggerRegistrationVariable += 1;
+    if ((libHANA_gv_heroAnaTriggerRegistrationVariable == 1)) {
+        TriggerEnable(libHANA_gt_CCRecognitionSleep, true);
+        TriggerEnable(libHANA_gt_HeroAnaNanoBoostCDR, true);
+        TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusOverlayOn, true);
+        TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusOverlayOff, true);
+        TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusActivate, true);
+        TriggerEnable(libHANA_gt_HeroAnaConcentratedDoses, true);
+        TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusRadiusTargeter, true);
+        TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusPresearchTargeter, true);
+        TriggerEnable(libHANA_gt_HeroAnaNanoBoostGenderHitCheck, true);
+        TriggerEnable(libHANA_gt_HeroAnaNanoBoostFullscreenOverlayOn, true);
+        TriggerEnable(libHANA_gt_HeroAnaNanoBoostFullscreenOverlayOff, true);
+        TriggerEnable(libHANA_gt_HeroAnaShrikeTokenCounter, true);
+        libHANA_gv_hero_Ana_HealingDart_ConcentratedDoses_PoisonDotStr = CatalogFieldValueGet(c_gameCatalogBehavior, "AnaShrikeDotDamageToken", "TokenId", c_playerAny);
+        libHANA_gv_hero_Ana_HealingDart_ConcentratedDoses_TokenCounterStr = CatalogFieldValueGet(c_gameCatalogBehavior, "AnaHealingDartConcentratedDosesTokenCounter", "TokenId", c_playerAny);
+        libHANA_gv_hero_Ana_Shrike_DamageDoneToken_TokenCounterStr = CatalogFieldValueGet(c_gameCatalogBehavior, "AnaShrikeSelfHealPoisonTraitHealToken", "TokenId", c_playerAny);
+    }
+
+}
+
+void libHANA_gf_HeroAnaDecrementHeroCountFunction () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHANA_gv_heroAnaTriggerRegistrationVariable -= 1;
+    if ((libHANA_gv_heroAnaTriggerRegistrationVariable == 0)) {
+        libHANA_gv_heroAnaTriggerRegistrationVariable = 0;
+    }
+
+    if ((libHANA_gv_heroAnaTriggerRegistrationVariable == 0)) {
+        TriggerEnable(libHANA_gt_CCRecognitionSleep, false);
+        TriggerEnable(libHANA_gt_HeroAnaNanoBoostCDR, false);
+        TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusOverlayOn, false);
+        TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusOverlayOff, false);
+        TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusActivate, false);
+        TriggerEnable(libHANA_gt_HeroAnaConcentratedDoses, false);
+        TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusRadiusTargeter, false);
+        TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusPresearchTargeter, false);
+        TriggerEnable(libHANA_gt_HeroAnaNanoBoostGenderHitCheck, false);
+        TriggerEnable(libHANA_gt_HeroAnaNanoBoostFullscreenOverlayOn, false);
+        TriggerEnable(libHANA_gt_HeroAnaNanoBoostFullscreenOverlayOff, false);
+        libHANA_gv_hero_Ana_HealingDart_ConcentratedDoses_PoisonDotStr = "";
+        libHANA_gv_hero_Ana_HealingDart_ConcentratedDoses_TokenCounterStr = "";
+        TriggerEnable(libHANA_gt_HeroAnaShrikeTokenCounter, false);
+        libHANA_gv_hero_Ana_Shrike_DamageDoneToken_TokenCounterStr = "";
+    }
+
+}
+
+string libHANA_gf_GetPortraitPathforEyeOfHorus (unit lp_unit) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((UnitGetOwner(lp_unit) > 10)) {
+        return "Assets\\Textures\\ui_targetportrait_structure.dds";
+    }
+    else {
+        return libUIUI_gf_KillLogGetPortraitPathforUnit(lp_unit);
+    }
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Ana - Shrike Token Counter
+//--------------------------------------------------------------------------------------------------
+bool libHANA_gt_HeroAnaShrikeTokenCounter_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_anaUnit;
+    fixed lv_damageAmount;
+    fixed lv_currentTokenCount;
+    fixed lv_newTokenCount;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_anaUnit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_damageAmount = (EventPlayerEffectUsedAmountInt(c_effectAmountDamaged, false)+EventPlayerEffectUsedAmountInt(c_effectAmountBehaviorShield, false));
+    lv_newTokenCount = (UnitBehaviorCount(lv_anaUnit, "AnaShrikeSelfHealPoisonTraitHealToken")+lv_damageAmount);
+    UnitSetTokenCount(lv_anaUnit, libHANA_gv_hero_Ana_Shrike_DamageDoneToken_TokenCounterStr, FixedToInt(lv_newTokenCount), lv_anaUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHANA_gt_HeroAnaShrikeTokenCounter_Init () {
+    libHANA_gt_HeroAnaShrikeTokenCounter = TriggerCreate("libHANA_gt_HeroAnaShrikeTokenCounter_Func");
+    TriggerEnable(libHANA_gt_HeroAnaShrikeTokenCounter, false);
+    TriggerAddEventPlayerEffectUsed(libHANA_gt_HeroAnaShrikeTokenCounter, c_playerAny, "AnaShrikeDotDamage");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CC Recognition - Sleep
+//--------------------------------------------------------------------------------------------------
+bool libHANA_gt_CCRecognitionSleep_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    string lv_sleepBehavior;
+    unit lv_sleepUnit;
+    int lv_sleepPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_sleepBehavior = EventUnitBehavior();
+    lv_sleepUnit = EventUnit();
+    lv_sleepPlayer = UnitGetOwner(lv_sleepUnit);
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_sleepPlayer > 0))) {
+            return false;
+        }
+
+        if (!((lv_sleepPlayer <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitBehaviorCount(lv_sleepUnit, "HeroGenericHasNoStatusBar") == 0)) {
+        libUIUI_gf_HeroConsoleUnitStatusBarsUpdateStunDeathBar(lv_sleepBehavior, lv_sleepPlayer);
+    }
+
+    if (((lv_sleepUnit == libGame_gv_players[lv_sleepPlayer].lv_heroUnit) || (lv_sleepUnit == libGame_gv_players[lv_sleepPlayer].lv_activeVehicle))) {
+        libUIUI_gf_FullscreenOverlaysCreateCCEffectFlashForPlayer(lv_sleepPlayer, UnitBehaviorDurationTotal(lv_sleepUnit, lv_sleepBehavior));
+    }
+    else {
+        libAIAI_gf_HeroAIUpdateAIStatus(0);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHANA_gt_CCRecognitionSleep_Init () {
+    libHANA_gt_CCRecognitionSleep = TriggerCreate("libHANA_gt_CCRecognitionSleep_Func");
+    TriggerEnable(libHANA_gt_CCRecognitionSleep, false);
+    TriggerAddEventUnitBehaviorChangeFromCategory(libHANA_gt_CCRecognitionSleep, null, c_behaviorCategorySleeping, c_unitBehaviorChangeCreate);
+    TriggerAddEventUnitBehaviorChangeFromCategory(libHANA_gt_CCRecognitionSleep, null, c_behaviorCategorySleeping, c_unitBehaviorChangeRefresh);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Ana - Nano Boost Fullscreen Overlay On
+//--------------------------------------------------------------------------------------------------
+bool libHANA_gt_HeroAnaNanoBoostFullscreenOverlayOn_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitHasBehavior2(EventUnit(), "HeroGenericIgnoreFullscreenOverlay") == false)) {
+        libUIUI_gf_FullscreenOverlayAddItemForPlayer(EventPlayer(), libUIUI_ge_FullscreenOverlayPriorities_Invulnerable, "Cutscenes\\GameUI_AnaNanoBoostOverlay.StormCutscene", EventUnitBehavior());
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHANA_gt_HeroAnaNanoBoostFullscreenOverlayOn_Init () {
+    libHANA_gt_HeroAnaNanoBoostFullscreenOverlayOn = TriggerCreate("libHANA_gt_HeroAnaNanoBoostFullscreenOverlayOn_Func");
+    TriggerEnable(libHANA_gt_HeroAnaNanoBoostFullscreenOverlayOn, false);
+    TriggerAddEventUnitBehaviorChange(libHANA_gt_HeroAnaNanoBoostFullscreenOverlayOn, null, "AnaNanoBoostBuff", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Ana - Nano Boost Fullscreen Overlay Off
+//--------------------------------------------------------------------------------------------------
+bool libHANA_gt_HeroAnaNanoBoostFullscreenOverlayOff_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitHasBehavior2(EventUnit(), "HeroGenericIgnoreFullscreenOverlay") == false)) {
+        libUIUI_gf_FullscreenOverlayRemoveItemFromQueueForPlayer(EventPlayer(), "Cutscenes\\GameUI_AnaNanoBoostOverlay.StormCutscene", EventUnitBehavior());
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHANA_gt_HeroAnaNanoBoostFullscreenOverlayOff_Init () {
+    libHANA_gt_HeroAnaNanoBoostFullscreenOverlayOff = TriggerCreate("libHANA_gt_HeroAnaNanoBoostFullscreenOverlayOff_Func");
+    TriggerEnable(libHANA_gt_HeroAnaNanoBoostFullscreenOverlayOff, false);
+    TriggerAddEventUnitBehaviorChange(libHANA_gt_HeroAnaNanoBoostFullscreenOverlayOff, null, "AnaNanoBoostBuff", c_unitBehaviorChangeDestroy);
+    TriggerAddEventUnitBehaviorChange(libHANA_gt_HeroAnaNanoBoostFullscreenOverlayOff, null, "AnaNanoBoostBuff", c_unitBehaviorChangeDeactivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Ana - Nano Boost Gender Hit Check
+//--------------------------------------------------------------------------------------------------
+bool libHANA_gt_HeroAnaNanoBoostGenderHitCheck_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_ana;
+    unit lv_targetUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_ana = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_targetUnit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if (((CatalogFieldValueGet(c_gameCatalogHero, PlayerHero(UnitGetOwner(lv_targetUnit)), "Gender", UnitGetOwner(lv_targetUnit)) == "Female") || (UnitGetType(lv_targetUnit) == "HeroProbius"))) {
+        UnitCreateEffectUnit(lv_ana, "AnaNanoBoostModifyUnitDummyFemale", lv_targetUnit);
+    }
+    else {
+        UnitCreateEffectUnit(lv_ana, "AnaNanoBoostModifyUnitDummyMale", lv_targetUnit);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHANA_gt_HeroAnaNanoBoostGenderHitCheck_Init () {
+    libHANA_gt_HeroAnaNanoBoostGenderHitCheck = TriggerCreate("libHANA_gt_HeroAnaNanoBoostGenderHitCheck_Func");
+    TriggerEnable(libHANA_gt_HeroAnaNanoBoostGenderHitCheck, false);
+    TriggerAddEventPlayerEffectUsed(libHANA_gt_HeroAnaNanoBoostGenderHitCheck, c_playerAny, "AnaNanoBoostImpactSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Ana - Nano Boost CDR
+//--------------------------------------------------------------------------------------------------
+bool libHANA_gt_HeroAnaNanoBoostCDR_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itAbility;
+    unit lv_hero;
+    int lv_heroIndex;
+    int lv_ownerOfHero;
+    string lv_abilLink;
+    string lv_cooldownLink;
+    string lv_chargeLink;
+
+    // Automatic Variable Declarations
+    int auto1446B6FD_ae;
+    const int auto1446B6FD_ai = 1;
+
+    // Variable Initialization
+    lv_hero = EventUnit();
+    lv_heroIndex = libCore_gf_GetHeroIndexForUnitType(UnitGetType(lv_hero));
+    lv_ownerOfHero = UnitGetOwner(lv_hero);
+    lv_cooldownLink = "";
+    lv_chargeLink = "";
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    while ((UnitHasBehavior2(lv_hero, "AnaNanoBoostBuff") == true)) {
+        auto1446B6FD_ae = libGame_gv_players[lv_heroIndex].lv_heroData.lv_numberOfAbilities;
+        lv_itAbility = 1;
+        for ( ; ( (auto1446B6FD_ai >= 0 && lv_itAbility <= auto1446B6FD_ae) || (auto1446B6FD_ai < 0 && lv_itAbility >= auto1446B6FD_ae) ) ; lv_itAbility += auto1446B6FD_ai ) {
+            if ((libGame_gv_players[lv_heroIndex].lv_heroData.lv_abilities[lv_itAbility].lv_isAffectedByCooldownReduction == true) && (libGame_gv_players[lv_heroIndex].lv_heroData.lv_abilities[lv_itAbility].lv_isHeroic == false) && (libGame_gv_players[lv_heroIndex].lv_heroData.lv_abilities[lv_itAbility].lv_isTrait == false) && (libGame_gv_players[lv_heroIndex].lv_heroData.lv_abilities[lv_itAbility].lv_isMountReplacement == false)) {
+                lv_abilLink = libGame_gv_players[lv_heroIndex].lv_heroData.lv_abilities[lv_itAbility].lv_ability;
+                lv_cooldownLink = CatalogFieldValueGet(c_gameCatalogAbil, lv_abilLink, "Cost[" + IntToString(0) + "].Cooldown.Link", lv_ownerOfHero);
+                UnitModifyCooldown(lv_hero, lv_cooldownLink, libHANA_gv_hero_Ana_NanoBoostCDRAmount_C, c_cooldownOperationAdd);
+                if ((libGame_gv_players[lv_heroIndex].lv_heroData.lv_abilities[lv_itAbility].lv_usesCharges == true)) {
+                    lv_chargeLink = CatalogFieldValueGet(c_gameCatalogAbil, lv_abilLink, "Cost[" + IntToString(0) + "].Charge.Link", lv_ownerOfHero);
+                    UnitAddChargeRegenRemaining(lv_hero, lv_chargeLink, libHANA_gv_hero_Ana_NanoBoostCDRAmount_C);
+                }
+
+            }
+
+        }
+        Wait(0.0625, c_timeGame);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHANA_gt_HeroAnaNanoBoostCDR_Init () {
+    libHANA_gt_HeroAnaNanoBoostCDR = TriggerCreate("libHANA_gt_HeroAnaNanoBoostCDR_Func");
+    TriggerEnable(libHANA_gt_HeroAnaNanoBoostCDR, false);
+    TriggerAddEventUnitBehaviorChange(libHANA_gt_HeroAnaNanoBoostCDR, null, "AnaNanoBoostBuff", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Ana - Eye Of Horus Presearch Targeter
+//--------------------------------------------------------------------------------------------------
+bool libHANA_gt_HeroAnaEyeOfHorusPresearchTargeter_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_anaPlayer;
+    playergroup lv_anaPlayerGroup;
+    unit lv_targetUnit;
+    string lv_targetUnitAlliance;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_anaPlayer = EventPlayerEffectUsedUnitOwner(c_effectPlayerCaster);
+    lv_anaPlayerGroup = PlayerGroupSingle(lv_anaPlayer);
+    lv_targetUnit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_targetUnitAlliance = "";
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    DialogControlSetAnimationState(libHANA_gv_anaUI.lv_EyeOfHorusTargetImage, lv_anaPlayerGroup, "Show", "Wait");
+    DialogControlSetAnimationState(libHANA_gv_anaUI.lv_EyeOfHorusTargetImage, lv_anaPlayerGroup, "Show", "Visible");
+    libNtve_gf_SetDialogItemImage(libHANA_gv_anaUI.lv_EyeOfHorusTargetImage, libHANA_gf_GetPortraitPathforEyeOfHorus(EventPlayerEffectUsedUnit(c_effectUnitTarget)), lv_anaPlayerGroup);
+    if ((libGame_gf_TeamNumberOfPlayer(lv_anaPlayer) == libGame_gf_TeamNumberOfPlayer(UnitGetOwner(lv_targetUnit)))) {
+        lv_targetUnitAlliance = "Ally";
+    }
+    else {
+        lv_targetUnitAlliance = "Enemy";
+    }
+    libNtve_gf_SetDialogItemText(libHANA_gv_anaUI.lv_eyeOfHorusTargetAllianceLabel, StringToText(lv_targetUnitAlliance), lv_anaPlayerGroup);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHANA_gt_HeroAnaEyeOfHorusPresearchTargeter_Init () {
+    libHANA_gt_HeroAnaEyeOfHorusPresearchTargeter = TriggerCreate("libHANA_gt_HeroAnaEyeOfHorusPresearchTargeter_Func");
+    TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusPresearchTargeter, false);
+    TriggerAddEventPlayerEffectUsed(libHANA_gt_HeroAnaEyeOfHorusPresearchTargeter, c_playerAny, "AnaEyeOfHorusPresearchImpactSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Ana - Eye Of Horus Radius Targeter
+//--------------------------------------------------------------------------------------------------
+bool libHANA_gt_HeroAnaEyeOfHorusRadiusTargeter_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_eyeOfHorusDistance;
+    fixed lv_eyeOfHorusAdjustedDistance;
+    point lv_eyeOfHorusPoint;
+    point lv_eyeOfHorusPointAdjusted;
+    unit lv_anaUnit;
+    point lv_posOfAna;
+    unit lv_targetUnit;
+    point lv_posOfTargetUnit;
+    fixed lv_targetRadius;
+    fixed lv_targetImpactDistance;
+    fixed lv_eyeOfHorusPositionAdjustmentFactor;
+    fixed lv_eyeOfHorusPositionWallAdjustment;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_anaUnit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_posOfAna = UnitGetPosition(lv_anaUnit);
+    lv_targetUnit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_posOfTargetUnit = UnitGetPosition(lv_targetUnit);
+    lv_eyeOfHorusPositionAdjustmentFactor = 0.8;
+    lv_eyeOfHorusPositionWallAdjustment = 1.0;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_eyeOfHorusDistance = DistanceBetweenPoints(lv_posOfAna, lv_posOfTargetUnit);
+    lv_targetRadius = CatalogFieldValueGetAsFixed(c_gameCatalogUnit, UnitGetType(lv_targetUnit), "Radius", c_playerAny);
+    lv_eyeOfHorusPoint = PointWithOffsetPolar(lv_posOfAna, lv_eyeOfHorusDistance, UnitGetFacing(lv_anaUnit));
+    lv_targetImpactDistance = DistanceBetweenPoints(lv_posOfTargetUnit, lv_eyeOfHorusPoint);
+    if (((UnitHasBehavior2(lv_targetUnit, "TownGateBehavior") == true) || (UnitHasBehavior2(lv_targetUnit, "TownWallBehavior") == true))) {
+        lv_eyeOfHorusAdjustedDistance = (lv_eyeOfHorusDistance-lv_eyeOfHorusPositionWallAdjustment);
+    }
+    else {
+        lv_eyeOfHorusAdjustedDistance = (lv_eyeOfHorusDistance-(lv_targetRadius-(lv_targetImpactDistance*lv_eyeOfHorusPositionAdjustmentFactor)));
+    }
+    lv_eyeOfHorusPointAdjusted = PointWithOffsetPolar(lv_posOfAna, lv_eyeOfHorusAdjustedDistance, UnitGetFacing(lv_anaUnit));
+    UnitCreateEffectPoint(lv_anaUnit, "AnaEyeOfHorusRadiusTargetHitDummyImpact", lv_eyeOfHorusPointAdjusted);
+    if ((libGame_gf_TeamNumberOfPlayer(UnitGetOwner(lv_anaUnit)) == libGame_gf_TeamNumberOfPlayer(UnitGetOwner(lv_targetUnit)))) {
+        UnitCreateEffectPoint(lv_anaUnit, "AnaEyeOfHorusRadiusTargetHitDummyImpactAlly", lv_eyeOfHorusPointAdjusted);
+    }
+    else {
+        UnitCreateEffectPoint(lv_anaUnit, "AnaEyeOfHorusRadiusTargetHitDummyImpactEnemy", lv_eyeOfHorusPointAdjusted);
+    }
+    UnitCreateEffectPoint(lv_anaUnit, "AnaEyeOfHorusBallisticAdvantageSearch", lv_eyeOfHorusPointAdjusted);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHANA_gt_HeroAnaEyeOfHorusRadiusTargeter_Init () {
+    libHANA_gt_HeroAnaEyeOfHorusRadiusTargeter = TriggerCreate("libHANA_gt_HeroAnaEyeOfHorusRadiusTargeter_Func");
+    TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusRadiusTargeter, false);
+    TriggerAddEventPlayerEffectUsed(libHANA_gt_HeroAnaEyeOfHorusRadiusTargeter, c_playerAny, "AnaEyeOfHorusRadiusTargetHitDummyTriggerImpactCreatePersistent");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Ana - Eye Of Horus Activate
+//--------------------------------------------------------------------------------------------------
+bool libHANA_gt_HeroAnaEyeOfHorusActivate_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_ana;
+    int lv_player;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_ana = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_player = UnitGetOwner(lv_ana);
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitHasBehavior2(lv_ana, "AnaEyeOfHorus") == true))) {
+            return false;
+        }
+
+        if (!((UnitIsAlive(lv_ana) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UISetTargetingOrder(PlayerGroupSingle(lv_player), null, OrderTargetingPoint(AbilityCommand("AnaEyeOfHorusAttack", 0), Point(PointGetX(EventPlayerEffectUsedPoint(c_effectLocationTargetPoint)), PointGetY(EventPlayerEffectUsedPoint(c_effectLocationTargetPoint)))), true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHANA_gt_HeroAnaEyeOfHorusActivate_Init () {
+    libHANA_gt_HeroAnaEyeOfHorusActivate = TriggerCreate("libHANA_gt_HeroAnaEyeOfHorusActivate_Func");
+    TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusActivate, false);
+    TriggerAddEventPlayerEffectUsed(libHANA_gt_HeroAnaEyeOfHorusActivate, c_playerAny, "AnaEyeOfHorusPresearchSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Ana - Eye Of Horus Overlay On
+//--------------------------------------------------------------------------------------------------
+bool libHANA_gt_HeroAnaEyeOfHorusOverlayOn_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_anaUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_anaUnit = EventUnit();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitIsAlive(lv_anaUnit) == true) && (UnitTestState(lv_anaUnit, c_unitStateHallucination) == false) && (UnitTypeTestAttribute(UnitGetType(lv_anaUnit), c_unitAttributeHeroic) == true) && (UnitHasBehavior2(lv_anaUnit, "HeroGenericIgnoreFullscreenOverlay") == false)) {
+        libUIUI_gf_FullscreenOverlayAddItemForPlayer(EventPlayer(), libUIUI_ge_FullscreenOverlayPriorities_Stasis, "Cutscenes\\GameUI_AnaEyeOfHorus.StormCutscene", EventUnitBehavior());
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHANA_gt_HeroAnaEyeOfHorusOverlayOn_Init () {
+    libHANA_gt_HeroAnaEyeOfHorusOverlayOn = TriggerCreate("libHANA_gt_HeroAnaEyeOfHorusOverlayOn_Func");
+    TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusOverlayOn, false);
+    TriggerAddEventUnitBehaviorChange(libHANA_gt_HeroAnaEyeOfHorusOverlayOn, null, "AnaEyeOfHorus", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Ana - Eye Of Horus Overlay Off
+//--------------------------------------------------------------------------------------------------
+bool libHANA_gt_HeroAnaEyeOfHorusOverlayOff_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitHasBehavior2(EventUnit(), "HeroGenericIgnoreFullscreenOverlay") == false)) {
+        libUIUI_gf_FullscreenOverlayRemoveItemFromQueueForPlayer(EventPlayer(), "Cutscenes\\GameUI_AnaEyeOfHorus.StormCutscene", EventUnitBehavior());
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHANA_gt_HeroAnaEyeOfHorusOverlayOff_Init () {
+    libHANA_gt_HeroAnaEyeOfHorusOverlayOff = TriggerCreate("libHANA_gt_HeroAnaEyeOfHorusOverlayOff_Func");
+    TriggerEnable(libHANA_gt_HeroAnaEyeOfHorusOverlayOff, false);
+    TriggerAddEventUnitBehaviorChange(libHANA_gt_HeroAnaEyeOfHorusOverlayOff, null, "AnaEyeOfHorus", c_unitBehaviorChangeDestroy);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Ana - Concentrated Doses
+//--------------------------------------------------------------------------------------------------
+bool libHANA_gt_HeroAnaConcentratedDoses_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itPlayer;
+    unit lv_itUnit;
+    unit lv_anaUnit;
+    int lv_anaPlayer;
+    int lv_dosagesActive;
+
+    // Automatic Variable Declarations
+    unitgroup autoA6DE93B0_g;
+    int autoA6DE93B0_u;
+
+    // Variable Initialization
+    lv_anaUnit = EventUnit();
+    lv_anaPlayer = UnitGetOwner(lv_anaUnit);
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerHasTalent(lv_anaPlayer, "AnaHealingDartConcentratedDoses") == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    autoA6DE93B0_g = UnitGetTrackedUnitGroup(lv_anaUnit, "AnaHealingDartConcentratedDosesPlayerTracker");
+    autoA6DE93B0_u = UnitGroupCount(autoA6DE93B0_g, c_unitCountAll);
+    for (;; autoA6DE93B0_u -= 1) {
+        lv_itUnit = UnitGroupUnitFromEnd(autoA6DE93B0_g, autoA6DE93B0_u);
+        if (lv_itUnit == null) { break; }
+        lv_dosagesActive += (FixedToInt(UnitGetTokenCount(lv_itUnit, libHANA_gv_hero_Ana_HealingDart_ConcentratedDoses_PoisonDotStr)) + 1);
+    }
+    UnitSetTokenCount(lv_anaUnit, libHANA_gv_hero_Ana_HealingDart_ConcentratedDoses_TokenCounterStr, lv_dosagesActive, lv_anaUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHANA_gt_HeroAnaConcentratedDoses_Init () {
+    libHANA_gt_HeroAnaConcentratedDoses = TriggerCreate("libHANA_gt_HeroAnaConcentratedDoses_Func");
+    TriggerEnable(libHANA_gt_HeroAnaConcentratedDoses, false);
+    TriggerAddEventUnitAbility(libHANA_gt_HeroAnaConcentratedDoses, null, AbilityCommand("AnaHealingDart", 0), c_unitAbilStageAll, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Ana UI Initialize
+//--------------------------------------------------------------------------------------------------
+bool libHANA_gt_AnaUIInitialize_Func (bool testConds, bool runActions) {
+    int init_i;
+
+    // Variable Declarations
+    int[6] lv_panels;
+    int lv_currentPanelLayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    for (init_i = 0; init_i <= 5; init_i += 1) {
+        lv_panels[init_i] = c_invalidDialogControlId;
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    DialogControlHookup(libUIUI_gv_fullscreenStatusPanel, c_triggerControlTypeImage, "AnaEyeOfHorusFrame/EyeOfHorusTargetFrame/PortraitContainerFrame/PortraitImage");
+    libHANA_gv_anaUI.lv_EyeOfHorusTargetImage = DialogControlLastCreated();
+    DialogControlHookup(libUIUI_gv_fullscreenStatusPanel, c_triggerControlTypeLabel, "AnaEyeOfHorusFrame/EyeOfHorusTargetFrame/TargetTeamAlliance");
+    libHANA_gv_anaUI.lv_eyeOfHorusTargetAllianceLabel = DialogControlLastCreated();
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHANA_gt_AnaUIInitialize_Init () {
+    libHANA_gt_AnaUIInitialize = TriggerCreate("libHANA_gt_AnaUIInitialize_Func");
+    libCore_gf_IncludeModInitialization(libHANA_gt_AnaUIInitialize);
+}
+
+void libHANA_InitTriggers () {
+    libHANA_gt_HeroAnaShrikeTokenCounter_Init();
+    libHANA_gt_CCRecognitionSleep_Init();
+    libHANA_gt_HeroAnaNanoBoostFullscreenOverlayOn_Init();
+    libHANA_gt_HeroAnaNanoBoostFullscreenOverlayOff_Init();
+    libHANA_gt_HeroAnaNanoBoostGenderHitCheck_Init();
+    libHANA_gt_HeroAnaNanoBoostCDR_Init();
+    libHANA_gt_HeroAnaEyeOfHorusPresearchTargeter_Init();
+    libHANA_gt_HeroAnaEyeOfHorusRadiusTargeter_Init();
+    libHANA_gt_HeroAnaEyeOfHorusActivate_Init();
+    libHANA_gt_HeroAnaEyeOfHorusOverlayOn_Init();
+    libHANA_gt_HeroAnaEyeOfHorusOverlayOff_Init();
+    libHANA_gt_HeroAnaConcentratedDoses_Init();
+    libHANA_gt_AnaUIInitialize_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libHANA_InitLib_completed = false;
+
+void libHANA_InitLib () {
+    if (libHANA_InitLib_completed) {
+        return;
+    }
+
+    libHANA_InitLib_completed = true;
+
+    libHANA_InitLibraries();
+    libHANA_InitVariables();
+    libHANA_InitTriggers();
+}
+
