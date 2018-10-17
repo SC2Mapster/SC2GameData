@@ -1,0 +1,150 @@
+include "TriggerLibs/natives"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Hanamura Payload Push
+//--------------------------------------------------------------------------------------------------
+// Constants
+const fixed libMHPP_gv_mHPP_DefenseTimeToWin_C = 300.0;
+const int libMHPP_gv_maxPathWaypoint_C = 33;
+
+// Structures
+struct libMHPP_gs_PayloadPath {
+    point[libMHPP_gv_maxPathWaypoint_C + 1] lv_path;
+    bool[libMHPP_gv_maxPathWaypoint_C + 1] lv_pathPointIsWaypoint;
+    int[4] lv_checkpoint;
+    bool[4] lv_checkpointReached;
+    int lv_lastCheckpointReachedIndex;
+    int lv_finalWaypointIndex;
+    fixed lv_transmissionAnnouncementCD;
+    int lv_payloadCurrentIndex;
+    int lv_pathDisplay;
+    int lv_currentPathIndex;
+    int lv_pathIndexMax;
+    unit[libMHPP_gv_maxPathWaypoint_C + 1] lv_payloadCheckpointUnit;
+    unit[libMHPP_gv_maxPathWaypoint_C + 1] lv_payloadCheckpointUnitEnemy;
+    unit lv_payloadDestinationUnit;
+    int[libMHPP_gv_maxPathWaypoint_C + 1] lv_checkpointTextTagAlly;
+    int[libMHPP_gv_maxPathWaypoint_C + 1] lv_checkpointTextTagEnemy;
+    fixed lv_totalDistanceToTravel;
+    fixed[4] lv_checkpointDistance;
+};
+
+struct libMHPP_gs_Payload {
+    unit lv_payload;
+    int lv_payloadAllyPing;
+    int lv_payloadEnemyPing;
+    fixed lv_timeWhenLastPayloadReachedDestination;
+    fixed lv_totalProgress;
+    timer lv_overtimeTimer;
+    fixed lv_overtimeTime;
+    int lv_futureCheckPointIndex;
+};
+
+struct libMHPP_gs_MHPPTransmissions {
+    timer lv_approachingCheckpointWarningTimerCD;
+    fixed lv_approachingCheckpointAnnounceCDTime;
+    timer lv_approachingDestinationWarningTimerCD;
+    fixed lv_approachingDestinationAnnounceCDTime;
+    timer lv_payloadIsStoppedWarningTimerCD;
+    fixed lv_payloadIsStoppedAnnounceCDTime;
+    timer lv_payloadIsMovingWarningTimerCD;
+    fixed lv_payloadIsMovingAnnounceCDTime;
+};
+
+struct libMHPP_gs_MHPPUI {
+    int lv_topPanel;
+    int lv_topPanel_HelpText;
+    int lv_topPanel_RoundTime;
+    int lv_topPanel_PayloadProgressLabel;
+    int lv_mHPP_UI_PayloadProgressBar;
+    int lv_DoEs_CoreHealthLabel3;
+    int lv_DoEs_CoreHealthLabel2;
+    int lv_topPanel_OvertimeContainer;
+    int lv_topPanel_OvertimeProgressBar;
+    int lv_topPanel_OvertimeProgressBarFillImageContainer;
+    int lv_topPanel_OvertimeProgressBarGlow;
+    int lv_mapMechanic;
+    int lv_payloadFrame;
+    int lv_payloadProgress;
+    int lv_timeLeftNotificationFrame;
+    int lv_timeLeftNotificationLabel;
+    int lv_mapMechanic_PayloadUnitStatus;
+    int lv_mHPP_UI_PayloadProgressBar2;
+    int lv_mapMechanic_PayloadProgressLabel;
+    int lv_mapMechanic_PayloadProgressBarFillImageContainer;
+    fixed[4] lv_mapMechanic_ProgressBarMarkers;
+    int[4] lv_mapMechanic_ProgressBarMarkerFrames;
+    int[4] lv_mapMechanic_ProgressBarMarkerBars;
+    int[4] lv_mapMechanic_ProgressBarMarkerLabels;
+    int[4] lv_mapMechanic_ProgressBarMarkerImages;
+};
+
+// Variable Declarations
+fixed libMHPP_gv_mHPP_CheckPointReachedBonusTime_C;
+fixed libMHPP_gv_mHPP_DefenseTotalTimeToWin;
+timer libMHPP_gv_mHPP_DefenseTimeToWinTimer;
+fixed libMHPP_gv_mHPP_DefenderDeathTimeBonus;
+libMHPP_gs_PayloadPath libMHPP_gv_payloadPath;
+libMHPP_gs_Payload libMHPP_gv_payload;
+libMHPP_gs_MHPPTransmissions libMHPP_gv_mHPPTransmissions;
+libMHPP_gs_MHPPUI libMHPP_gv_mHPPUI;
+
+// Function Declarations
+void libMHPP_gf_MHPPCheckpoint ();
+void libMHPP_gf_MHPPOvertime ();
+void libMHPP_gf_MHPPGameOver (int lp_winningTeam);
+void libMHPP_gf_PlayGameOverStinger (int lp_winningTeam);
+void libMHPP_gf_InitPayloadPath ();
+void libMHPP_gf_PayloadCreateMinimapPath (unit lp_payloadUnit);
+void libMHPP_gf_CreatePayloadPathBackward (unit lp_payloadUnit);
+void libMHPP_gf_MovePayloadForward (unit lp_payloadUnit);
+void libMHPP_gf_MovePayloadBackward (unit lp_payloadUnit);
+fixed libMHPP_gf_CalculatePayloadTravelDistancetoDestination ();
+fixed libMHPP_gf_CalculatePayloadTravelDistanceToCheckPoint (int lp_checkPoint);
+fixed libMHPP_gf_PayloadCurrentDistance ();
+void libMHPP_gf_MHPPInitialTimeRemainingTransmissionController ();
+void libMHPP_gf_MHPPMatchTimeRemainingTransmissionController ();
+void libMHPP_gf_MHPP_TransmissionMapInitialStart ();
+void libMHPP_gf_MHPP_TransmissionMapStart ();
+void libMHPP_gf_MHPP_TransmissionMapInitial60SecondsRemaining ();
+void libMHPP_gf_MHPP_TransmissionMapInitial30SecondsRemaining ();
+void libMHPP_gf_MHPP_TransmissionMapInitial10SecondsRemaining ();
+void libMHPP_gf_MHPP_TransmissionMatchTime60SecondsRemaining ();
+void libMHPP_gf_MHPP_TransmissionMatchTime30SecondsRemaining ();
+void libMHPP_gf_MHPP_TransmissionMatchTime10SecondsRemaining ();
+void libMHPP_gf_MHPP_TransmissionApproachingCheckpoint ();
+void libMHPP_gf_MHPP_TransmissionCheckpointReached ();
+void libMHPP_gf_MHPP_TransmissionTimeAdded ();
+void libMHPP_gf_MHPP_TransmissionPayloadStopped ();
+void libMHPP_gf_MHPP_TransmissionPayloadisMoving ();
+void libMHPP_gf_MHPP_TransmissionApproachingDestination ();
+void libMHPP_gf_MHPP_TransmissionOvertime ();
+void libMHPP_gf_LNYHUDUIInit ();
+void libMHPP_gf_LNYHUDUIInit2 ();
+void libMHPP_gf_MHPP_UICheckpointRoundTimerUpdate (fixed lp_defenseTimeLeft);
+void libMHPP_gf_LNYHUDUIInit3 ();
+void libMHPP_gf_MHPP_UIUpdatePayloadProgress ();
+void libMHPP_gf_MHPP_UIOvertime ();
+void libMHPP_gf_MHPP_UIShowHideDialogItemThread (int lp_dialogItem, fixed lp_duration);
+
+// Trigger Declarations
+trigger libMHPP_gt_ModInitialization;
+trigger libMHPP_gt_HeroSpawn;
+trigger libMHPP_gt_MHPPGameOpenTimerStarted;
+trigger libMHPP_gt_MMHPGameStarted;
+trigger libMHPP_gt_MHPPDefenseTimeToWinExpiresDefenseWins;
+trigger libMHPP_gt_MHPPOvertimeTimerExpires;
+trigger libMHPP_gt_PayloadGainsReverseBehavior;
+trigger libMHPP_gt_PayloadLosesReverseBehavior;
+trigger libMHPP_gt_ChaosPlayerDiesModifyPlayerRespawnTimer;
+trigger libMHPP_gt_SetExtraInfoDuringSelection;
+trigger libMHPP_gt_DoEsUICoreHealthInitialize;
+trigger libMHPP_gt_PayloadGainsContestedBehavior;
+trigger libMHPP_gt_PayloadLosesContestedBehavior;
+trigger libMHPP_gt_DebugEnd;
+trigger libMHPP_gt_Debug_Overtime;
+trigger libMHPP_gt_Debug_SetTimer;
+
+// Library Initialization
+void libMHPP_InitVariables ();
+

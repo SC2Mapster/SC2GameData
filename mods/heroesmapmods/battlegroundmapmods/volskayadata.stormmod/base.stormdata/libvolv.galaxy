@@ -1,0 +1,778 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/MapMechanicsLib"
+include "TriggerLibs/AILib"
+include "TriggerLibs/UILib"
+
+include "LibVolV_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Volskaya Vehicle Library
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libVolV_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+    libMapM_InitVariables();
+    libAIAI_InitVariables();
+    libUIUI_InitVariables();
+}
+
+// Variable Initialization
+bool libVolV_InitVariables_completed = false;
+
+void libVolV_InitVariables () {
+    int init_i;
+
+    if (libVolV_InitVariables_completed) {
+        return;
+    }
+
+    libVolV_InitVariables_completed = true;
+
+    libVolV_gv_vehicleStartingDuration = 50.0;
+    libVolV_gv_vehicleDurationIncrementAmount = 3.0;
+    for (init_i = 0; init_i <= libCore_gv_bALMaxPlayers; init_i += 1) {
+        libVolV_gv_debug_ShowOverlay[init_i] = true;
+    }
+}
+
+// Functions
+fixed libVolV_gf_OWVol_VehicleDuration () {
+    // Automatic Variable Declarations
+    // Implementation
+    return (libVolV_gv_vehicleStartingDuration+libVolV_gv_vehicleDurationIncrementAmount*TimerGetElapsed(libGame_gv_gameTimer)/60);
+}
+
+trigger auto_libVolV_gf_VolskayaVehicleMoveGunnerToVehicleTriggers_Trigger = null;
+unit auto_libVolV_gf_VolskayaVehicleMoveGunnerToVehicleTriggers_lp_gunnerUnit;
+
+void libVolV_gf_VolskayaVehicleMoveGunnerToVehicleTriggers (unit lp_gunnerUnit) {
+    auto_libVolV_gf_VolskayaVehicleMoveGunnerToVehicleTriggers_lp_gunnerUnit = lp_gunnerUnit;
+
+    if (auto_libVolV_gf_VolskayaVehicleMoveGunnerToVehicleTriggers_Trigger == null) {
+        auto_libVolV_gf_VolskayaVehicleMoveGunnerToVehicleTriggers_Trigger = TriggerCreate("auto_libVolV_gf_VolskayaVehicleMoveGunnerToVehicleTriggers_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libVolV_gf_VolskayaVehicleMoveGunnerToVehicleTriggers_Trigger, false, false);
+}
+
+bool auto_libVolV_gf_VolskayaVehicleMoveGunnerToVehicleTriggers_TriggerFunc (bool testConds, bool runActions) {
+    unit lp_gunnerUnit = auto_libVolV_gf_VolskayaVehicleMoveGunnerToVehicleTriggers_lp_gunnerUnit;
+
+    // Variable Declarations
+    int lv_gunnerIndex;
+    unit lv_pilotUnit;
+    int lv_pilotIndex;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_gunnerIndex = libMapM_gf_GetVehicleIndexOfUnit(lp_gunnerUnit);
+    lv_pilotUnit = libMapM_gv_vehicle[lv_gunnerIndex].lv_unit_LinkedVehicle;
+    lv_pilotIndex = libMapM_gf_GetVehicleIndexOfUnit(lv_pilotUnit);
+
+    // Implementation
+    while ((libGame_gv_gameOver == false) && (UnitIsValid(lp_gunnerUnit) == true) && (UnitIsAlive(lp_gunnerUnit) == true) && (UnitIsAlive(lv_pilotUnit) == true)) {
+        if ((DistanceBetweenPoints(UnitGetPosition(lp_gunnerUnit), UnitGetPosition(lv_pilotUnit)) >= 4.0)) {
+            UnitSetPosition(lp_gunnerUnit, UnitGetPosition(lv_pilotUnit), false);
+        }
+        else {
+            UnitSetPosition(lp_gunnerUnit, UnitGetPosition(lv_pilotUnit), true);
+        }
+        UnitSetPropertyFixed(lp_gunnerUnit, c_unitPropLifeMax, UnitGetPropertyFixed(lv_pilotUnit, c_unitPropLifeMax, c_unitPropCurrent));
+        UnitSetPropertyFixed(lp_gunnerUnit, c_unitPropLife, UnitGetPropertyFixed(lv_pilotUnit, c_unitPropLife, c_unitPropCurrent));
+        UnitSetPropertyFixed(lv_pilotUnit, c_unitPropEnergy, UnitGetPropertyFixed(lp_gunnerUnit, c_unitPropEnergy, c_unitPropCurrent));
+        Wait(0.0625, c_timeGame);
+    }
+    return true;
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: Signal Merc Capture Slab Doodad Active
+//--------------------------------------------------------------------------------------------------
+bool libVolV_gt_SignalMercCaptureSlabDoodadActive_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_slabUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_slabUnit = UnitGroupUnit(UnitGroup("VolskayaMercCaptureSlab", libCore_gv_cOMPUTER_Neutral, libAIAI_gf_DefenderLeashRegion(libGame_gf_JungleDefenderAIAllDefendersKilledIndex()), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), 1);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libNtve_gf_SendActorMessageToUnit(lv_slabUnit, "Signal Active");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libVolV_gt_SignalMercCaptureSlabDoodadActive_Init () {
+    libVolV_gt_SignalMercCaptureSlabDoodadActive = TriggerCreate("libVolV_gt_SignalMercCaptureSlabDoodadActive_Func");
+    libGame_gf_JungleDefenderAIAllDefendersKilled(libVolV_gt_SignalMercCaptureSlabDoodadActive);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Signal Merc Capture Slab Doodad Capped
+//--------------------------------------------------------------------------------------------------
+bool libVolV_gt_SignalMercCaptureSlabDoodadCapped_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_slabUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_slabUnit = UnitGroupUnit(UnitGroup("VolskayaMercCaptureSlab", libCore_gv_cOMPUTER_Neutral, libMapM_gv_jungleCreepCamps[libGame_gf_MercCampRewardGrantedCampIndex()].lv_mapDataDefenderLeashRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), 1);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitSetOwner(lv_slabUnit, libGame_gf_TeamNumberOfPlayer(libGame_gf_MercCampRewardGrantedPlayer()), true);
+    libNtve_gf_SendActorMessageToUnit(lv_slabUnit, "Signal Capped");
+    Wait(2.0, c_timeGame);
+    UnitSetOwner(lv_slabUnit, libCore_gv_cOMPUTER_Neutral, true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libVolV_gt_SignalMercCaptureSlabDoodadCapped_Init () {
+    libVolV_gt_SignalMercCaptureSlabDoodadCapped = TriggerCreate("libVolV_gt_SignalMercCaptureSlabDoodadCapped_Func");
+    libGame_gf_MercCampRewardGranted(libVolV_gt_SignalMercCaptureSlabDoodadCapped);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Volskaya Vehicle - Pilot Created (Create and Link Gunner)
+//--------------------------------------------------------------------------------------------------
+bool libVolV_gt_VolskayaVehiclePilotCreatedCreateandLinkGunner_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_pilotIndex;
+    int lv_gunnerIndex;
+    int lv_robotOwnerTeam;
+
+    // Automatic Variable Declarations
+    playergroup auto024D0824_g;
+    int auto024D0824_var;
+    playergroup autoE5F32650_g;
+    int autoE5F32650_var;
+
+    // Variable Initialization
+    lv_robotOwnerTeam = libGame_gf_TeamNumberOfPlayer(UnitGetOwner(EventUnit()));
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libMapM_gf_AddVehicle(EventUnit());
+    lv_pilotIndex = libMapM_gf_GetVehicleIndexOfUnit(EventUnit());
+    UnitBehaviorSetDuration(libMapM_gv_vehicle[lv_pilotIndex].lv_unit_Vehicle, "VehicleDragonTimedLife", (libVolV_gv_vehicleStartingDuration+libVolV_gv_vehicleDurationIncrementAmount*TimerGetElapsed(libGame_gv_gameTimer)/60));
+    UnitBehaviorSetDurationRemaining(libMapM_gv_vehicle[lv_pilotIndex].lv_unit_Vehicle, "VehicleDragonTimedLife", (libVolV_gv_vehicleStartingDuration+libVolV_gv_vehicleDurationIncrementAmount*TimerGetElapsed(libGame_gv_gameTimer)/60));
+    CatalogFieldValueSet(c_gameCatalogAbil, "VolskayaVehicleActivateParticleCannon", "Range", libGame_gf_ComputerPlayerInTeam(lv_robotOwnerTeam), "20");
+    libNtve_gf_SendActorMessageToUnit(libMapM_gv_vehicle[lv_pilotIndex].lv_unit_Vehicle, (("TimerSet " + FixedToString(((libVolV_gv_vehicleStartingDuration+libVolV_gv_vehicleDurationIncrementAmount*TimerGetElapsed(libGame_gv_gameTimer)/60) - 0.6875), c_fixedPrecisionAny) + " AlmostDead")));
+    UnitBehaviorAdd(EventUnit(), "VehicleGenericIsMainVehicle", EventUnit(), 1);
+    libGame_gf_UpdateScalingForUnit(EventUnit(), libGame_gv_scalingTicks, 0);
+    auto024D0824_g = libGame_gv_teams[libGame_gf_TeamNumberOfPlayer(EventPlayer())].lv_teamPlayerGroup;
+    auto024D0824_var = -1;
+    while (true) {
+        	auto024D0824_var = PlayerGroupNextPlayer(auto024D0824_g, auto024D0824_var);
+        	if (auto024D0824_var<0) { break; }
+        	libGame_gf_UpdateUpgradesForPlayer(auto024D0824_var, EventUnit(), libGame_gv_scalingTicks);
+    }
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, "VolskayaVehicleGunner", c_unitCreateIgnorePlacement, EventPlayer(), UnitGetPosition(libMapM_gv_vehicle[lv_pilotIndex].lv_unit_Vehicle), null);
+    libGame_gf_UpdateScalingForUnit(UnitLastCreated(), libGame_gv_scalingTicks, 0);
+    autoE5F32650_g = libGame_gv_teams[libGame_gf_TeamNumberOfPlayer(EventPlayer())].lv_teamPlayerGroup;
+    autoE5F32650_var = -1;
+    while (true) {
+        	autoE5F32650_var = PlayerGroupNextPlayer(autoE5F32650_g, autoE5F32650_var);
+        	if (autoE5F32650_var<0) { break; }
+        	libGame_gf_UpdateUpgradesForPlayer(autoE5F32650_var, UnitLastCreated(), libGame_gv_scalingTicks);
+    }
+    libMapM_gf_AddVehicle(UnitLastCreated());
+    lv_gunnerIndex = libMapM_gf_GetVehicleIndexOfUnit(UnitLastCreated());
+    libMapM_gf_LinkVehicleToVehicle(libMapM_gv_vehicle[lv_gunnerIndex].lv_unit_Vehicle, libMapM_gv_vehicle[lv_pilotIndex].lv_unit_Vehicle);
+    UnitCreateEffectUnit(libMapM_gv_vehicle[lv_pilotIndex].lv_unit_Vehicle, "VolskayaVehicleApplyGunnerLinkBehavior", libMapM_gv_vehicle[lv_gunnerIndex].lv_unit_Vehicle);
+    libVolV_gf_VolskayaVehicleMoveGunnerToVehicleTriggers(libMapM_gv_vehicle[lv_gunnerIndex].lv_unit_Vehicle);
+    Wait(0.125, c_timeGame);
+    UnitBehaviorAdd(libMapM_gv_vehicle[lv_gunnerIndex].lv_unit_Vehicle, "VehicleGenericIsAttachedVehicle", libMapM_gv_vehicle[lv_pilotIndex].lv_unit_Vehicle, 1);
+    UnitBehaviorAdd(libMapM_gv_vehicle[lv_pilotIndex].lv_unit_Vehicle, "VehicleGenericCanSwap", libMapM_gv_vehicle[lv_gunnerIndex].lv_unit_Vehicle, 1);
+    UnitBehaviorAdd(libMapM_gv_vehicle[lv_gunnerIndex].lv_unit_Vehicle, "VehicleGenericCanSwap", libMapM_gv_vehicle[lv_pilotIndex].lv_unit_Vehicle, 1);
+    UnitBehaviorAdd(libMapM_gv_vehicle[lv_pilotIndex].lv_unit_Vehicle, "VehicleGenericAttachedVehicleOccupied", libMapM_gv_vehicle[lv_gunnerIndex].lv_unit_Vehicle, 1);
+    UnitCreateEffectUnit(libMapM_gv_vehicle[lv_gunnerIndex].lv_unit_Vehicle, "VolskayaVehicleLinkPersistent", libMapM_gv_vehicle[lv_pilotIndex].lv_unit_Vehicle);
+    Wait(8.0, c_timeGame);
+    AddUnitOfInterest(libMapM_gv_vehicle[lv_pilotIndex].lv_unit_Vehicle, 2.0, 0.0, "VolskayaRobotPilot", libAIAI_gf_ConvertIntegertoGoalTeam(lv_robotOwnerTeam), 0);
+    AddUnitOfInterest(libMapM_gv_vehicle[lv_gunnerIndex].lv_unit_LinkedVehicle, 2.0, 0.0, "VolskayaRobotGunner", libAIAI_gf_ConvertIntegertoGoalTeam(lv_robotOwnerTeam), 0);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libVolV_gt_VolskayaVehiclePilotCreatedCreateandLinkGunner_Init () {
+    libVolV_gt_VolskayaVehiclePilotCreatedCreateandLinkGunner = TriggerCreate("libVolV_gt_VolskayaVehiclePilotCreatedCreateandLinkGunner_Func");
+    TriggerAddEventUnitBehaviorChange(libVolV_gt_VolskayaVehiclePilotCreatedCreateandLinkGunner, null, "VolskayaVehicleBehavior", c_unitBehaviorChangeCreate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Vehicles - Gunner Stasis Forwarding
+//--------------------------------------------------------------------------------------------------
+bool libVolV_gt_VehiclesGunnerStasisForwarding_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    string lv_triggeringBehavior;
+    unit lv_pilotUnit;
+    unit lv_gunnerUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_triggeringBehavior = EventUnitBehavior();
+    lv_pilotUnit = EventUnit();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(lv_pilotUnit) == "VolskayaVehicle"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_gunnerUnit = libMapM_gv_vehicle[libMapM_gf_GetVehicleIndexOfUnit(lv_pilotUnit)].lv_unit_LinkedVehicle;
+    UnitBehaviorAdd(lv_gunnerUnit, "VolskayaVehicleGunnerForwardedStasis", lv_gunnerUnit, 1);
+    while ((UnitHasBehavior2(lv_pilotUnit, lv_triggeringBehavior) == true)) {
+        Wait(0.0625, c_timeGame);
+    }
+    UnitBehaviorRemove(lv_gunnerUnit, "VolskayaVehicleGunnerForwardedStasis", 1);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libVolV_gt_VehiclesGunnerStasisForwarding_Init () {
+    libVolV_gt_VehiclesGunnerStasisForwarding = TriggerCreate("libVolV_gt_VehiclesGunnerStasisForwarding_Func");
+    TriggerAddEventUnitBehaviorChangeFromCategory(libVolV_gt_VehiclesGunnerStasisForwarding, null, c_behaviorCategoryDebuffStasis, c_unitBehaviorChangeCreate);
+    TriggerAddEventUnitBehaviorChangeFromCategory(libVolV_gt_VehiclesGunnerStasisForwarding, null, c_behaviorCategoryTimeStop, c_unitBehaviorChangeCreate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Vehicle Entered
+//--------------------------------------------------------------------------------------------------
+bool libVolV_gt_VehicleEntered_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_vehicle;
+    unit lv_heroUseVehiclePassengerHeroUnit;
+    int lv_player;
+    int lv_pilotIndex;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_vehicle = libGame_gf_UseVehicleVehicleUnit();
+    lv_heroUseVehiclePassengerHeroUnit = libGame_gf_UseVehiclePassengerHero();
+    lv_player = libGame_gf_UseVehicleHeroPlayer();
+
+    // Conditions
+    if (testConds) {
+        if (!(((UnitGetType(lv_vehicle) == "VolskayaVehicle") || (UnitGetType(lv_vehicle) == "VolskayaVehicleGunner")))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    SoundtrackStopCurrent(PlayerGroupSingle(lv_player), c_soundtrackCategoryAmbience, true);
+    SoundtrackPlay(PlayerGroupSingle(lv_player), c_soundtrackCategoryAmbience, "Amb_2D_Volskaya_Vehicle_INT", c_soundtrackCueAny, c_soundtrackIndexAny, false);
+    if ((UnitGetType(lv_vehicle) == "VolskayaVehicle")) {
+        lv_pilotIndex = libMapM_gf_GetVehicleIndexOfUnit(lv_vehicle);
+    }
+    else {
+        lv_pilotIndex = libMapM_gf_GetVehicleIndexOfUnit(libMapM_gv_vehicle[libMapM_gf_GetVehicleIndexOfUnit(lv_vehicle)].lv_unit_LinkedVehicle);
+        ActorSend(libNtve_gf_MainActorofUnit(libMapM_gv_vehicle[libMapM_gf_GetVehicleIndexOfUnit(lv_vehicle)].lv_unit_LinkedVehicle), "Signal GunnerEntered");
+        UnitBehaviorAdd(libMapM_gv_vehicle[libMapM_gf_GetVehicleIndexOfUnit(lv_vehicle)].lv_unit_LinkedVehicle, "VolskayaVehicleTurretTrackingBehavior", lv_heroUseVehiclePassengerHeroUnit, 1);
+    }
+    if ((UnitIsValid(libMapM_gv_vehicle[libMapM_gf_GetVehicleIndexOfUnit(lv_vehicle)].lv_unit_UnitInsideVehicle) == true) && (UnitIsValid(libMapM_gv_vehicle[libMapM_gf_GetVehicleIndexOfUnit(libMapM_gv_vehicle[libMapM_gf_GetVehicleIndexOfUnit(lv_vehicle)].lv_unit_LinkedVehicle)].lv_unit_UnitInsideVehicle) == true)) {
+        UnitBehaviorAdd(lv_vehicle, "NeuralLinked", lv_vehicle, 1);
+        UnitBehaviorAdd(libMapM_gv_vehicle[libMapM_gf_GetVehicleIndexOfUnit(lv_vehicle)].lv_unit_LinkedVehicle, "NeuralLinked", libMapM_gv_vehicle[libMapM_gf_GetVehicleIndexOfUnit(lv_vehicle)].lv_unit_LinkedVehicle, 1);
+    }
+
+    if ((UnitHasBehavior2(lv_heroUseVehiclePassengerHeroUnit, "HeroGenericIgnoreFullscreenOverlay") == false)) {
+        libUIUI_gf_FullscreenOverlayAddItemForPlayer(lv_player, libUIUI_ge_FullscreenOverlayPriorities_Stasis, "Cutscenes\\GameUI_VolskayaVehicleOverlay.StormCutscene", "UsingVehicle");
+        if ((UnitHasBehavior2(libMapM_gv_vehicle[lv_pilotIndex].lv_unit_Vehicle, "VehicleAboveCriticalHP") == false)) {
+            DialogControlSendAnimationEvent(libUIUI_gv_fullscreenOverlaysPanelRework.lv_overlayCutscene, libCore_gv_playerGroupFromPlayer[lv_player], "StartAlt");
+        }
+
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libVolV_gt_VehicleEntered_Init () {
+    libVolV_gt_VehicleEntered = TriggerCreate("libVolV_gt_VehicleEntered_Func");
+    libGame_gf_HeroEnteredVehicleInstant(libVolV_gt_VehicleEntered);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Vehicle Swapped
+//--------------------------------------------------------------------------------------------------
+bool libVolV_gt_VehicleSwapped_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_originVehicle;
+    unit lv_newVehicleVehicleSwappedNewVehicleUnit;
+    int lv_index_OriginVehicle;
+    int lv_index_NewVehicle;
+    int lv_player;
+    unit lv_hero;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_originVehicle = libGame_gf_VehicleSwappedOriginVehicle();
+    lv_newVehicleVehicleSwappedNewVehicleUnit = libGame_gf_VehicleSwappedNewVehicle();
+    lv_index_OriginVehicle = libMapM_gf_GetVehicleIndexOfUnit(lv_originVehicle);
+    lv_index_NewVehicle = libMapM_gf_GetVehicleIndexOfUnit(lv_newVehicleVehicleSwappedNewVehicleUnit);
+    lv_player = libGame_gf_VehicleSwappedPlayer();
+    lv_hero = libMapM_gv_vehicle[lv_index_NewVehicle].lv_unit_UnitInsideVehicle;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitGetType(lv_newVehicleVehicleSwappedNewVehicleUnit) == "VolskayaVehicle")) {
+        UnitBehaviorRemove(lv_newVehicleVehicleSwappedNewVehicleUnit, "VolskayaVehicleTurretTrackingBehavior", 1);
+        UnitBehaviorAdd(lv_originVehicle, "VolskayaVehicleDisableTurretBehavior", lv_originVehicle, 1);
+        ActorSend(libNtve_gf_MainActorofUnit(lv_newVehicleVehicleSwappedNewVehicleUnit), "Signal GunnerExited");
+        if ((UnitHasBehavior2(lv_newVehicleVehicleSwappedNewVehicleUnit, "VehicleGenericCanSwap") == false)) {
+            UnitBehaviorAdd(lv_newVehicleVehicleSwappedNewVehicleUnit, "VehicleGenericCanSwap", lv_originVehicle, 1);
+        }
+
+    }
+    else {
+        UnitBehaviorAdd(lv_originVehicle, "VolskayaVehicleTurretTrackingBehavior", lv_hero, 1);
+        ActorSend(libNtve_gf_MainActorofUnit(lv_originVehicle), "Signal GunnerEntered");
+        if ((UnitHasBehavior2(lv_originVehicle, "VehicleGenericCanSwap") == false)) {
+            UnitBehaviorAdd(lv_originVehicle, "VehicleGenericCanSwap", lv_newVehicleVehicleSwappedNewVehicleUnit, 1);
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libVolV_gt_VehicleSwapped_Init () {
+    libVolV_gt_VehicleSwapped = TriggerCreate("libVolV_gt_VehicleSwapped_Func");
+    libGame_gf_HeroSwappedVehicleInstant(libVolV_gt_VehicleSwapped);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Vehicle Abandoned
+//--------------------------------------------------------------------------------------------------
+bool libVolV_gt_VehicleAbandoned_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_playerVehicleAbandonedPlayerInteger;
+    unit lv_vehicle;
+    int lv_index_VehicleGetVehicleIndexOfUnitVehicleInteger;
+    int lv_index_LinkedVehicle;
+    unit lv_heroVehicleAbandonedPassengerHeroUnit;
+    int lv_pilotIndex;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_playerVehicleAbandonedPlayerInteger = libGame_gf_VehicleAbandonedPlayer();
+    lv_vehicle = libGame_gf_VehicleAbandonedVehicle();
+    lv_index_VehicleGetVehicleIndexOfUnitVehicleInteger = libMapM_gf_GetVehicleIndexOfUnit(lv_vehicle);
+    lv_index_LinkedVehicle = libMapM_gf_GetVehicleIndexOfUnit(libMapM_gv_vehicle[lv_index_VehicleGetVehicleIndexOfUnitVehicleInteger].lv_unit_LinkedVehicle);
+    lv_heroVehicleAbandonedPassengerHeroUnit = libGame_gf_VehicleAbandonedPassengerHero();
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_vehicle != null))) {
+            return false;
+        }
+
+        if (!(((UnitGetType(lv_vehicle) == "VolskayaVehicle") || (UnitGetType(lv_vehicle) == "VolskayaVehicleGunner")))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    SoundtrackStopCurrent(PlayerGroupSingle(lv_playerVehicleAbandonedPlayerInteger), c_soundtrackCategoryAmbience, true);
+    SoundtrackPlay(PlayerGroupSingle(lv_playerVehicleAbandonedPlayerInteger), c_soundtrackCategoryAmbience, "Amb_2D_Volskaya_EXT", c_soundtrackCueAny, c_soundtrackIndexAny, true);
+    UnitBehaviorRemove(lv_vehicle, "NeuralLinked", 1);
+    UnitBehaviorRemove(libMapM_gv_vehicle[lv_index_VehicleGetVehicleIndexOfUnitVehicleInteger].lv_unit_LinkedVehicle, "NeuralLinked", 1);
+    if ((libMapM_gv_vehicle[lv_index_LinkedVehicle].lv_unit_UnitInsideVehicle != null)) {
+        UnitCreateEffectUnit(libMapM_gv_vehicle[lv_index_VehicleGetVehicleIndexOfUnitVehicleInteger].lv_unit_UnitInsideVehicle, "Event_Volskaya_Vehicle_Exit_End", libMapM_gv_vehicle[lv_index_LinkedVehicle].lv_unit_Vehicle);
+    }
+
+    if ((UnitGetType(lv_vehicle) == "VolskayaVehicleGunner")) {
+        UnitBehaviorRemove(libMapM_gv_vehicle[lv_index_VehicleGetVehicleIndexOfUnitVehicleInteger].lv_unit_LinkedVehicle, "VolskayaVehicleTurretTrackingBehavior", 1);
+        UnitBehaviorAdd(libMapM_gv_vehicle[lv_index_VehicleGetVehicleIndexOfUnitVehicleInteger].lv_unit_LinkedVehicle, "VolskayaVehicleDisableTurretBehavior", libMapM_gv_vehicle[lv_index_VehicleGetVehicleIndexOfUnitVehicleInteger].lv_unit_LinkedVehicle, 1);
+        ActorSend(libNtve_gf_MainActorofUnit(libMapM_gv_vehicle[lv_index_VehicleGetVehicleIndexOfUnitVehicleInteger].lv_unit_LinkedVehicle), "Signal GunnerExited");
+        lv_pilotIndex = lv_index_LinkedVehicle;
+    }
+    else {
+        lv_pilotIndex = lv_index_VehicleGetVehicleIndexOfUnitVehicleInteger;
+    }
+    if ((UnitHasBehavior2(libMapM_gv_vehicle[lv_pilotIndex].lv_unit_Vehicle, "VehicleGenericCanSwap") == false)) {
+        UnitBehaviorAdd(libMapM_gv_vehicle[lv_pilotIndex].lv_unit_Vehicle, "VehicleGenericCanSwap", libMapM_gv_vehicle[lv_pilotIndex].lv_unit_LinkedVehicle, 1);
+    }
+
+    if ((UnitHasBehavior2(libMapM_gv_vehicle[lv_pilotIndex].lv_unit_Vehicle, "VehicleAboveCriticalHP") == false)) {
+        libUIUI_gf_FullscreenOverlayRemoveItemFromQueueWithCustomStop(lv_playerVehicleAbandonedPlayerInteger, "Cutscenes\\GameUI_VolskayaVehicleOverlay.StormCutscene", "UsingVehicle", "StopAlt");
+    }
+    else {
+        libUIUI_gf_FullscreenOverlayRemoveItemFromQueueForPlayer(lv_playerVehicleAbandonedPlayerInteger, "Cutscenes\\GameUI_VolskayaVehicleOverlay.StormCutscene", "UsingVehicle");
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libVolV_gt_VehicleAbandoned_Init () {
+    libVolV_gt_VehicleAbandoned = TriggerCreate("libVolV_gt_VehicleAbandoned_Func");
+    libGame_gf_VehicleAbandonedInstant(libVolV_gt_VehicleAbandoned);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Vehicle Destroyed
+//--------------------------------------------------------------------------------------------------
+bool libVolV_gt_VehicleDestroyed_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_player = libGame_gf_VehicleDestroyedPlayer();
+
+    // Conditions
+    if (testConds) {
+        if (!(((UnitGetType(libGame_gf_VehicleDestroyedVehicle()) == "VolskayaVehicle") || (UnitGetType(libGame_gf_VehicleDestroyedVehicle()) == "VolskayaVehicleGunner")))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    SoundtrackStopCurrent(PlayerGroupSingle(lv_player), c_soundtrackCategoryAmbience, true);
+    SoundtrackPlay(PlayerGroupSingle(lv_player), c_soundtrackCategoryAmbience, "Amb_2D_Volskaya_EXT", c_soundtrackCueAny, c_soundtrackIndexAny, true);
+    libUIUI_gf_FullscreenOverlayRemoveItemFromQueueWithCustomStop(lv_player, "Cutscenes\\GameUI_VolskayaVehicleOverlay.StormCutscene", "UsingVehicle", "StopAlt");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libVolV_gt_VehicleDestroyed_Init () {
+    libVolV_gt_VehicleDestroyed = TriggerCreate("libVolV_gt_VehicleDestroyed_Func");
+    libGame_gf_VehicleDestroyedInstant(libVolV_gt_VehicleDestroyed);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Vehicles - Show Critical Damage Overlay
+//--------------------------------------------------------------------------------------------------
+bool libVolV_gt_VehiclesShowCriticalDamageOverlay_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_pilotPlayer;
+    int lv_gunnerPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_pilotPlayer = UnitGetOwner(EventUnit());
+
+    // Conditions
+    if (testConds) {
+        if (!(((lv_pilotPlayer >= 1) && (lv_pilotPlayer <= libCore_gv_bALMaxPlayers)))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    SoundPlayOnUnitForPlayer(SoundLink("Event_Volskaya_Vehicle_CriticalDamage", -1), c_maxPlayers, PlayerGroupSingle(lv_pilotPlayer), EventUnit(), 0.0, 100.0, 0.0);
+    DialogControlSendAnimationEvent(libUIUI_gv_fullscreenOverlaysPanelRework.lv_overlayCutscene, libCore_gv_playerGroupFromPlayer[lv_pilotPlayer], "StartAlt");
+    lv_gunnerPlayer = UnitGetOwner(libMapM_gv_vehicle[libMapM_gf_GetVehicleIndexOfUnit(EventUnit())].lv_unit_LinkedVehicle);
+    if (((lv_gunnerPlayer >= 1) && (lv_gunnerPlayer <= libCore_gv_bALMaxPlayers))) {
+        SoundPlayOnUnitForPlayer(SoundLink("Event_Volskaya_Vehicle_CriticalDamage", -1), c_maxPlayers, PlayerGroupSingle(lv_gunnerPlayer), EventUnit(), 0.0, 100.0, 0.0);
+        DialogControlSendAnimationEvent(libUIUI_gv_fullscreenOverlaysPanelRework.lv_overlayCutscene, libCore_gv_playerGroupFromPlayer[lv_gunnerPlayer], "StartAlt");
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libVolV_gt_VehiclesShowCriticalDamageOverlay_Init () {
+    libVolV_gt_VehiclesShowCriticalDamageOverlay = TriggerCreate("libVolV_gt_VehiclesShowCriticalDamageOverlay_Func");
+    TriggerAddEventUnitBehaviorChange(libVolV_gt_VehiclesShowCriticalDamageOverlay, null, "VehicleAboveCriticalHP", c_unitBehaviorChangeDecrease);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: DEBUG - keep robot forever
+//--------------------------------------------------------------------------------------------------
+bool libVolV_gt_DEBUGkeeprobotforever_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_robot;
+
+    // Automatic Variable Declarations
+    unitgroup auto8E5978B8_g;
+    int auto8E5978B8_u;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto8E5978B8_g = UnitGroup("VolskayaVehicle", c_playerAny, RegionEntireMap(), UnitFilter(0, 0, 0, (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    auto8E5978B8_u = UnitGroupCount(auto8E5978B8_g, c_unitCountAll);
+    for (;; auto8E5978B8_u -= 1) {
+        lv_robot = UnitGroupUnitFromEnd(auto8E5978B8_g, auto8E5978B8_u);
+        if (lv_robot == null) { break; }
+        if ((UnitHasBehavior2(lv_robot, "VolskayaVehicleTimedLifeDisabler") == true)) {
+            TriggerDebugOutput(1, StringExternal("Param/Value/lib_VolV_16B4B54A"), true);
+            UnitBehaviorRemove(lv_robot, "VolskayaVehicleTimedLifeDisabler", 1);
+        }
+        else {
+            TriggerDebugOutput(1, StringExternal("Param/Value/lib_VolV_C58ADD57"), true);
+            UnitBehaviorAdd(lv_robot, "VolskayaVehicleTimedLifeDisabler", lv_robot, 1);
+        }
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libVolV_gt_DEBUGkeeprobotforever_Init () {
+    libVolV_gt_DEBUGkeeprobotforever = TriggerCreate("libVolV_gt_DEBUGkeeprobotforever_Func");
+    TriggerAddEventChatMessage(libVolV_gt_DEBUGkeeprobotforever, c_playerAny, "keeprobot", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Show Gunner
+//--------------------------------------------------------------------------------------------------
+bool libVolV_gt_ShowGunner_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_pilotUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_pilotUnit = UnitGroupUnit(UnitGroup("VolskayaVehicle", c_playerAny, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), 1);
+
+    // Conditions
+    if (testConds) {
+        if (!((libCore_gv_dEBUGDebuggingEnabled == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((lv_pilotUnit != null)) {
+        libNtve_gf_SendActorMessageToUnit(libMapM_gv_vehicle[libMapM_gf_GetVehicleIndexOfUnit(lv_pilotUnit)].lv_unit_LinkedVehicle, "ModelSwap HeroRehgar");
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libVolV_gt_ShowGunner_Init () {
+    libVolV_gt_ShowGunner = TriggerCreate("libVolV_gt_ShowGunner_Func");
+    TriggerAddEventChatMessage(libVolV_gt_ShowGunner, c_playerAny, "-showgunner", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: create robot and control it
+//--------------------------------------------------------------------------------------------------
+bool libVolV_gt_createrobotandcontrolit_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((libCore_gv_dEBUGDebuggingEnabled == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, "VolskayaVehicle", 0, libGame_gf_ComputerPlayerInTeam(libGame_gf_TeamNumberOfPlayer(EventPlayer())), UnitGetPosition(libGame_gv_players[EventPlayer()].lv_heroUnit), null);
+    UnitBehaviorAdd(UnitLastCreated(), "VolskayaVehicleTimedLifeDisabler", UnitLastCreated(), 1);
+    CatalogFieldValueSet(c_gameCatalogEffect, "UseVehiclePersistent", "PeriodCount", EventPlayer(), "0");
+    UnitIssueOrder(libGame_gv_players[EventPlayer()].lv_heroUnit, OrderTargetingUnit(AbilityCommand("UseVehicle", 0), UnitLastCreated()), c_orderQueueReplace);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libVolV_gt_createrobotandcontrolit_Init () {
+    libVolV_gt_createrobotandcontrolit = TriggerCreate("libVolV_gt_createrobotandcontrolit_Func");
+    TriggerAddEventChatMessage(libVolV_gt_createrobotandcontrolit, c_playerAny, "-rb", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Use Mech Overlay
+//--------------------------------------------------------------------------------------------------
+bool libVolV_gt_UseMechOverlay_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((libCore_gv_dEBUGDebuggingEnabled == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libVolV_gv_debug_ShowOverlay[EventPlayer()] = true;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libVolV_gt_UseMechOverlay_Init () {
+    libVolV_gt_UseMechOverlay = TriggerCreate("libVolV_gt_UseMechOverlay_Func");
+    TriggerAddEventChatMessage(libVolV_gt_UseMechOverlay, c_playerAny, "-useoverlay", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Show Mech Overlay
+//--------------------------------------------------------------------------------------------------
+bool libVolV_gt_ShowMechOverlay_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((libCore_gv_dEBUGDebuggingEnabled == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libUIUI_gf_FullscreenOverlayAddItemForPlayer(EventPlayer(), libUIUI_ge_FullscreenOverlayPriorities_Stasis, "Cutscenes\\GameUI_VolskayaVehicleOverlay.StormCutscene", "UsingVehicle");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libVolV_gt_ShowMechOverlay_Init () {
+    libVolV_gt_ShowMechOverlay = TriggerCreate("libVolV_gt_ShowMechOverlay_Func");
+    TriggerAddEventChatMessage(libVolV_gt_ShowMechOverlay, c_playerAny, "-showoverlay", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hide Mech Overlay
+//--------------------------------------------------------------------------------------------------
+bool libVolV_gt_HideMechOverlay_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((libCore_gv_dEBUGDebuggingEnabled == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libUIUI_gf_FullscreenOverlayRemoveItemFromQueueForPlayer(EventPlayer(), "Cutscenes\\GameUI_VolskayaVehicleOverlay.StormCutscene", "UsingVehicle");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libVolV_gt_HideMechOverlay_Init () {
+    libVolV_gt_HideMechOverlay = TriggerCreate("libVolV_gt_HideMechOverlay_Func");
+    TriggerAddEventChatMessage(libVolV_gt_HideMechOverlay, c_playerAny, "-hideoverlay", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Show Damaged Mech Overlay
+//--------------------------------------------------------------------------------------------------
+bool libVolV_gt_ShowDamagedMechOverlay_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((libCore_gv_dEBUGDebuggingEnabled == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerDebugOutput(1, StringExternal("Param/Value/lib_VolV_57C30E65"), true);
+    DialogControlSendAnimationEvent(libUIUI_gv_fullscreenOverlaysPanelRework.lv_overlayCutscene, libCore_gv_playerGroupFromPlayer[EventPlayer()], "StartAlt");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libVolV_gt_ShowDamagedMechOverlay_Init () {
+    libVolV_gt_ShowDamagedMechOverlay = TriggerCreate("libVolV_gt_ShowDamagedMechOverlay_Func");
+    TriggerAddEventChatMessage(libVolV_gt_ShowDamagedMechOverlay, c_playerAny, "-damageoverlay", true);
+}
+
+void libVolV_InitTriggers () {
+    libVolV_gt_SignalMercCaptureSlabDoodadActive_Init();
+    libVolV_gt_SignalMercCaptureSlabDoodadCapped_Init();
+    libVolV_gt_VolskayaVehiclePilotCreatedCreateandLinkGunner_Init();
+    libVolV_gt_VehiclesGunnerStasisForwarding_Init();
+    libVolV_gt_VehicleEntered_Init();
+    libVolV_gt_VehicleSwapped_Init();
+    libVolV_gt_VehicleAbandoned_Init();
+    libVolV_gt_VehicleDestroyed_Init();
+    libVolV_gt_VehiclesShowCriticalDamageOverlay_Init();
+    libVolV_gt_DEBUGkeeprobotforever_Init();
+    libVolV_gt_ShowGunner_Init();
+    libVolV_gt_createrobotandcontrolit_Init();
+    libVolV_gt_UseMechOverlay_Init();
+    libVolV_gt_ShowMechOverlay_Init();
+    libVolV_gt_HideMechOverlay_Init();
+    libVolV_gt_ShowDamagedMechOverlay_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libVolV_InitLib_completed = false;
+
+void libVolV_InitLib () {
+    if (libVolV_InitLib_completed) {
+        return;
+    }
+
+    libVolV_InitLib_completed = true;
+
+    libVolV_InitLibraries();
+    libVolV_InitVariables();
+    libVolV_InitTriggers();
+}
+

@@ -1,0 +1,2764 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/MapMechanicsLib"
+include "TriggerLibs/AILib"
+include "TriggerLibs/UILib"
+include "TriggerLibs/SoundLib"
+include "TriggerLibs/SupportLib"
+include "LibIGHS"
+
+include "LibAREN_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Arena Mode
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libAREN_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+    libMapM_InitVariables();
+    libAIAI_InitVariables();
+    libUIUI_InitVariables();
+    libSond_InitVariables();
+    libSprt_InitVariables();
+    libIGHS_InitVariables();
+}
+
+// Variable Initialization
+bool libAREN_InitVariables_completed = false;
+
+void libAREN_InitVariables () {
+    int init_i;
+
+    if (libAREN_InitVariables_completed) {
+        return;
+    }
+
+    libAREN_InitVariables_completed = true;
+
+    libAREN_gv_victoriesCount = 2;
+    libAREN_gv_OverrideMapShuffleSettings = true;
+    for (init_i = 0; init_i <= libAREN_gv_aRM_MechanicsCountMax_C; init_i += 1) {
+        libAREN_gv_aRM_MechanicData[init_i].lv_mechanics = libAREN_ge_ArenaMechanics_InvalidMechanic;
+    }
+    libAREN_gv_aRM_BaseRevealersEnabled = true;
+    libAREN_gv_aRM_PanCameraToCore = true;
+    for (init_i = 0; init_i <= libAREN_gv_aRM_TotalWallaCount_C; init_i += 1) {
+        libAREN_gv_aRM_WallaSounds[init_i] = SoundLink("EditorDefaultSound", -1);
+    }
+    libAREN_gv_aRM_PlayCrowdCheerSounds = true;
+    libAREN_gv_showCoreStatusBars = true;
+    libAREN_gv_playRoundOverVO = true;
+    libAREN_gv_aRM_UI_TeamScorePanel = c_invalidDialogControlId;
+    libAREN_gv_aRM_UI_RoundOverVictoryDialog = c_invalidDialogId;
+    libAREN_gv_aRM_UI_RoundOverDefeatDialog = c_invalidDialogId;
+}
+
+// Presets
+// Functions
+void libAREN_gf_ArenaInitMod () {
+    // Variable Declarations
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    const int auto7CF92B62_ae = libCore_gv_bALMaxPlayers;
+    const int auto7CF92B62_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    libCore_gv_sYSXPOn = false;
+    libCore_gv_sYSHeroStartLevel = libAREN_gv_aRM_HeroStartingLevel_C;
+    libGame_gv_initializeVisibilityCallback = libAREN_gt_ARM_ArenaInitializeVisibility;
+    libIGHS_gf_SetVictoryCount(libAREN_gv_victoriesCount);
+    libSprt_gv_performanceTestPerformanceTestRunning = GameIsExaminable();
+    libCore_gv_dEBUGGameIsOnline = GameIsOnline();
+    TriggerExecute(libCore_gt_InitializeStormMod, true, true);
+    SetHeroLeaderPanelEnabled(false);
+    SetTalentTierEnabled(1, false);
+    SetTalentTierEnabled(2, false);
+    SetTalentTierEnabled(3, false);
+    SetTalentTierEnabled(4, true);
+    SetTalentTierEnabled(5, false);
+    SetTalentTierEnabled(6, false);
+    SetTalentTierEnabled(7, false);
+    libAREN_gf_ARM_InitializeCrowdCheerEmitters();
+    GameSetSpeedValue(c_gameSpeedNormal);
+    GameSetSpeedLocked(true);
+    TimerStart(libGame_gv_gobalTimer, c_timerDurationInfinite, false, c_timeGame);
+    GameSetPauseable(false);
+    SetScoreTimer(libGame_gv_gobalTimer);
+    UnitEventSetNullVariableInvalid(true);
+    TriggerExecute(libCore_gt_InitializeDataMiningAndDebugOutput, true, false);
+    TriggerExecute(libCore_gt_InitializeData, true, false);
+    TriggerExecute(libGame_gt_InitializeBanks, true, false);
+    TriggerExecute(libGame_gt_InitializeGameSystems, true, false);
+    TriggerExecute(libUIUI_gt_InitializeUI, true, false);
+    TriggerExecute(libAREN_gt_ARM_ArenaInitializeVisibility, true, false);
+    TriggerExecute(libAREN_gt_ARM_InitWallaSounds, true, false);
+    TriggerEnable(libGame_gt_TeamAbandonedTheGameTimerExpires, false);
+    libAREN_gf_TopBarTeamLevelUpdateTeamsLevelLabel2();
+    libAREN_gf_ARM_AddArenaVO();
+    libCore_gf_DataInitializeAnnouncerVOPackSingle(1, "Arena", StringExternal("Param/Value/lib_AREN_27A2345D"));
+    libCore_gf_DataAnnouncerVOSetAnnouncerPackForPlayerGroup(PlayerGroupAll(), 1);
+    libCore_gf_SendEventIncludeModInitialization();
+    if ((libCore_gv_dEBUGErrorDuringInitialization == true)) {
+        return ;
+    }
+
+    TriggerExecute(libCore_gt_InitializeMiscStuff, true, false);
+    if (((GameTestConfigType() == 1) || (GameTestConfigType() == 2) || (GameTestConfigType() == 3) || (GameTestConfigType() == 4))) {
+        return ;
+    }
+
+    if ((GameTestConfigType() == 10)) {
+        TriggerExecute(libSprt_gt_AutomatedBuildTest, true, false);
+    }
+
+    if ((libSprt_gv_performanceTestPerformanceTestRunning == true)) {
+        TriggerExecute(libSprt_gt_PerformanceTestRunPerformanceTest, true, false);
+    }
+
+    if ((libCore_gv_sYSStartGame == true)) {
+        lv_itPlayer = 1;
+        for ( ; ( (auto7CF92B62_ai >= 0 && lv_itPlayer <= auto7CF92B62_ae) || (auto7CF92B62_ai < 0 && lv_itPlayer >= auto7CF92B62_ae) ) ; lv_itPlayer += auto7CF92B62_ai ) {
+            libUIUI_gf_UIHeroConsoleShowHideForPlayer(false, lv_itPlayer);
+            UISetMode(libCore_gv_playerGroupFromPlayer[lv_itPlayer], c_uiModeFullscreen, c_transitionDurationImmediate);
+        }
+    }
+
+    libAIAI_gf_HeroAIGeneralPreInit();
+}
+
+void libAREN_gf_MapRavenLordTributeWarning3 (trigger t) {
+    // Automatic Variable Declarations
+    // Implementation
+    TriggerAddEventGeneric(t, libAREN_gv_eventID_MapTributeWarning_C3);
+}
+
+void libAREN_gf_SendEventMapTributeWarning3 () {
+    // Automatic Variable Declarations
+    // Implementation
+    TriggerSendEvent(libAREN_gv_eventID_MapTributeWarning_C3);
+}
+
+void libAREN_gf_MapRavenLordTributeWarning (trigger t) {
+    // Automatic Variable Declarations
+    // Implementation
+    TriggerAddEventGeneric(t, libAREN_gv_eventID_MapTributeWarning_C);
+}
+
+void libAREN_gf_SendEventMapTributeWarning (int lp_position) {
+    // Automatic Variable Declarations
+    // Implementation
+    DataTableSetInt(false, TriggerEventParamName(libAREN_gv_eventID_MapTributeWarning_C, libAREN_gv_eventParam_MapTributeWarning_Position_C), lp_position);
+    TriggerSendEvent(libAREN_gv_eventID_MapTributeWarning_C);
+}
+
+int libAREN_gf_MapTributeWarningPosition () {
+    // Automatic Variable Declarations
+    // Implementation
+    return DataTableGetInt(false, TriggerEventParamName(libAREN_gv_eventID_MapTributeWarning_C, libAREN_gv_eventParam_MapTributeWarning_Position_C));
+}
+
+void libAREN_gf_MapRavenLordTributeWarning2 (trigger t) {
+    // Automatic Variable Declarations
+    // Implementation
+    TriggerAddEventGeneric(t, libAREN_gv_eventID_MapTributeWarning_C2);
+}
+
+void libAREN_gf_SendEventMapTributeWarning2 (int lp_position) {
+    // Automatic Variable Declarations
+    // Implementation
+    DataTableSetInt(false, TriggerEventParamName(libAREN_gv_eventID_MapTributeWarning_C2, libAREN_gv_eventParam_MapTributeWarning_Position_C2), lp_position);
+    TriggerSendEvent(libAREN_gv_eventID_MapTributeWarning_C2);
+}
+
+int libAREN_gf_MapTributeWarningPosition2 () {
+    // Automatic Variable Declarations
+    // Implementation
+    return DataTableGetInt(false, TriggerEventParamName(libAREN_gv_eventID_MapTributeWarning_C2, libAREN_gv_eventParam_MapTributeWarning_Position_C2));
+}
+
+void libAREN_gf_ArenaMechanicActivated (trigger t) {
+    // Automatic Variable Declarations
+    // Implementation
+    TriggerAddEventGeneric(t, libAREN_gv_eventID_Arena_MechanicActivated_C);
+}
+
+void libAREN_gf_SendEventArenaMechanicActivated () {
+    // Automatic Variable Declarations
+    // Implementation
+    TriggerSendEvent(libAREN_gv_eventID_Arena_MechanicActivated_C);
+}
+
+void libAREN_gf_ArenaRegisterMechanic (text lp_name, string lp_mechanicImageOrder, string lp_mechanicImageChaos, text lp_mechanicInfo, trigger lp_initCallback, region lp_region, region lp_cameraBounds) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libAREN_gv_aRM_MechanicsCount >= libAREN_gv_aRM_MechanicsCountMax_C)) {
+        TextExpressionSetToken("Param/Expression/lib_AREN_857A3D83", "A", IntToText(libAREN_gv_aRM_MechanicsCountMax_C));
+        UIDisplayMessage(PlayerGroupAll(), c_messageAreaSubtitle, TextExpressionAssemble("Param/Expression/lib_AREN_857A3D83"));
+        return ;
+    }
+
+    libAREN_gv_aRM_MechanicsCount += 1;
+    libAREN_gv_aRM_MechanicData[libAREN_gv_aRM_MechanicsCount].lv_mechanics = libAREN_gf_ARM_IntegerToArenaMechanic(libAREN_gv_aRM_MechanicsCount);
+    libAREN_gv_aRM_MechanicData[libAREN_gv_aRM_MechanicsCount].lv_name = lp_name;
+    libAREN_gv_aRM_MechanicData[libAREN_gv_aRM_MechanicsCount].lv_mechanicImageOrder = lp_mechanicImageOrder;
+    libAREN_gv_aRM_MechanicData[libAREN_gv_aRM_MechanicsCount].lv_mechanicImageChaos = lp_mechanicImageChaos;
+    libAREN_gv_aRM_MechanicData[libAREN_gv_aRM_MechanicsCount].lv_mechanicInfo = lp_mechanicInfo;
+    libAREN_gv_aRM_MechanicData[libAREN_gv_aRM_MechanicsCount].lv_initCallback = lp_initCallback;
+    libAREN_gv_aRM_MechanicData[libAREN_gv_aRM_MechanicsCount].lv_playableRegion = lp_region;
+    libAREN_gv_aRM_MechanicData[libAREN_gv_aRM_MechanicsCount].lv_cameraBoundsRegion = lp_cameraBounds;
+    libAREN_gv_aRM_MechanicData[libAREN_gv_aRM_MechanicsCount].lv_recallUnit[libGame_gv_teamOrderIndex_C] = UnitGroupUnit(UnitGroup("HealingPadSearchUnit", libCore_gv_cOMPUTER_TeamOrder, libAREN_gv_aRM_MechanicData[libAREN_gv_aRM_MechanicsCount].lv_playableRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), 1);
+    libAREN_gv_aRM_MechanicData[libAREN_gv_aRM_MechanicsCount].lv_recallUnit[libGame_gv_teamChaosIndex_C] = UnitGroupUnit(UnitGroup("HealingPadSearchUnit", libCore_gv_cOMPUTER_TeamChaos, libAREN_gv_aRM_MechanicData[libAREN_gv_aRM_MechanicsCount].lv_playableRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), 1);
+    DataTableSetInt(false, "ARENAMECHANIC_LASTREGISTERED", libAREN_gv_aRM_MechanicsCount);
+    TriggerAddEventUnitRegion(libAREN_gt_ARM_NoProjectileBetweenPlanes, null, lp_region, false);
+}
+
+void libAREN_gf_ArenaSetMechanicOrderCallback (trigger lp_mechanicOrderCallback) {
+    // Automatic Variable Declarations
+    // Implementation
+    libAREN_gv_aRM_MechanicOrderCallback = lp_mechanicOrderCallback;
+}
+
+int libAREN_gf_LastregisteredArenaMechanic () {
+    // Automatic Variable Declarations
+    // Implementation
+    return libAREN_gv_aRM_MechanicData[DataTableGetInt(false, "ARENAMECHANIC_LASTREGISTERED")].lv_mechanics;
+}
+
+int libAREN_gf_ArenaMechanicIndex (int lp_mechanic) {
+    // Variable Declarations
+    int lv_index;
+
+    // Automatic Variable Declarations
+    int autoBEDED933_ae;
+    const int autoBEDED933_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    autoBEDED933_ae = libAREN_gv_aRM_MechanicsCount;
+    lv_index = 1;
+    for ( ; ( (autoBEDED933_ai >= 0 && lv_index <= autoBEDED933_ae) || (autoBEDED933_ai < 0 && lv_index >= autoBEDED933_ae) ) ; lv_index += autoBEDED933_ai ) {
+        if ((libAREN_gv_aRM_MechanicData[lv_index].lv_mechanics == lp_mechanic)) {
+            return lv_index;
+        }
+
+    }
+    return 0;
+}
+
+int libAREN_gf_ArenaMechanicFromIndex (int lp_index) {
+    // Automatic Variable Declarations
+    // Implementation
+    return libAREN_gv_aRM_MechanicData[lp_index].lv_mechanics;
+}
+
+int libAREN_gf_ArenaCurrentLevelIndex () {
+    // Automatic Variable Declarations
+    // Implementation
+    return libAREN_gv_aRM_MechanicsPicked[libAREN_gv_aRM_CurrentRoundIndex];
+}
+
+int libAREN_gf_ArenaCurrentRoundIndex () {
+    // Automatic Variable Declarations
+    // Implementation
+    return libAREN_gv_aRM_CurrentRoundIndex;
+}
+
+int libAREN_gf_ArenaCurrentMechanicId () {
+    // Automatic Variable Declarations
+    // Implementation
+    return libAREN_gv_aRM_MechanicsPicked[libAREN_gf_ArenaCurrentRoundIndex()];
+}
+
+void libAREN_gf_ArenaAddRound (int lp_mechanicId) {
+    // Automatic Variable Declarations
+    // Implementation
+    libAREN_gv_aRM_MechanicsPickedCount += 1;
+    libAREN_gv_aRM_MechanicsPicked[libAREN_gv_aRM_MechanicsPickedCount] = lp_mechanicId;
+}
+
+void libAREN_gf_ARM_PickMechanics () {
+    // Variable Declarations
+    int[libAREN_gv_aRM_MechanicsCountMax_C + 1] lv_mechanicIndexes;
+    playergroup lv_indexPool;
+    int lv_itIndex;
+    int lv_indexEnd;
+    int lv_indexRandom;
+    int lv_indexTemp;
+
+    // Automatic Variable Declarations
+    int auto92DEC34F_ae;
+    const int auto92DEC34F_ai = 1;
+    int autoFECBB7B3_ae;
+    const int autoFECBB7B3_ai = 1;
+    int auto60B62817_ae;
+    const int auto60B62817_ai = 1;
+
+    // Variable Initialization
+    lv_indexPool = PlayerGroupEmpty();
+
+    // Implementation
+    if ((libAREN_gv_aRM_MechanicOrderCallback != null)) {
+        TriggerExecute(libAREN_gv_aRM_MechanicOrderCallback, true, false);
+        return ;
+    }
+
+    auto92DEC34F_ae = libAREN_gv_aRM_MechanicsCount;
+    lv_itIndex = 1;
+    for ( ; ( (auto92DEC34F_ai >= 0 && lv_itIndex <= auto92DEC34F_ae) || (auto92DEC34F_ai < 0 && lv_itIndex >= auto92DEC34F_ae) ) ; lv_itIndex += auto92DEC34F_ai ) {
+        PlayerGroupAdd(lv_indexPool, lv_itIndex);
+    }
+    autoFECBB7B3_ae = libAREN_gv_aRM_MechanicsCount;
+    lv_itIndex = 1;
+    for ( ; ( (autoFECBB7B3_ai >= 0 && lv_itIndex <= autoFECBB7B3_ae) || (autoFECBB7B3_ai < 0 && lv_itIndex >= autoFECBB7B3_ae) ) ; lv_itIndex += autoFECBB7B3_ai ) {
+        lv_mechanicIndexes[lv_itIndex] = PlayerGroupPlayer(lv_indexPool, RandomInt(1, PlayerGroupCount(lv_indexPool)));
+        PlayerGroupRemove(lv_indexPool, lv_mechanicIndexes[lv_itIndex]);
+    }
+    auto60B62817_ae = MinI(libAREN_gv_aRM_MechanicsCountToPick_C, libAREN_gv_aRM_MechanicsCount);
+    lv_itIndex = 1;
+    for ( ; ( (auto60B62817_ai >= 0 && lv_itIndex <= auto60B62817_ae) || (auto60B62817_ai < 0 && lv_itIndex >= auto60B62817_ae) ) ; lv_itIndex += auto60B62817_ai ) {
+        libAREN_gf_ArenaAddRound(lv_mechanicIndexes[lv_itIndex]);
+    }
+}
+
+void libAREN_gf_ARM_StartRound () {
+    // Variable Declarations
+    trigger lv_initCallback;
+    int lv_itTeam;
+    int lv_itPlayer;
+    int lv_itMechanic;
+    unit lv_recallUnit;
+    unit lv_itUnit;
+
+    // Automatic Variable Declarations
+    int auto617D3B91_val;
+    const int auto14060E5C_ae = libCore_gv_bALMaxPlayers;
+    const int auto14060E5C_ai = 1;
+    const int autoBD96AF1D_ae = libCore_gv_bALMaxPlayers;
+    const int autoBD96AF1D_ai = 1;
+    int autoA052CA1A_ae;
+    const int autoA052CA1A_ai = 1;
+    const int auto7F1855F0_ae = libCore_gv_bALMaxTeams;
+    const int auto7F1855F0_ai = 1;
+    const int autoF0D20E19_ae = libCore_gv_bALMaxTeams;
+    const int autoF0D20E19_ai = 1;
+    const int auto4FBDD556_ae = libCore_gv_bALMaxPlayers;
+    const int auto4FBDD556_ai = 1;
+    unitgroup auto67A9145B_g;
+    int auto67A9145B_u;
+    unitgroup autoB61E412C_g;
+    int autoB61E412C_u;
+    unitgroup auto746F0B6B_g;
+    int auto746F0B6B_u;
+    const int auto62101582_ae = libCore_gv_bALMaxTeams;
+    const int auto62101582_ai = 1;
+    unitgroup auto8BC49391_g;
+    int auto8BC49391_u;
+    unitgroup autoCAC5B761_g;
+    int autoCAC5B761_u;
+    const int auto18BB7A1B_ae = libCore_gv_bALMaxPlayers;
+    const int auto18BB7A1B_ai = 1;
+    const int auto0404CEE8_ae = libCore_gv_bALMaxPlayers;
+    const int auto0404CEE8_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    if ((libAREN_gv_aRM_CurrentRoundIndex >= libAREN_gv_aRM_MechanicsPickedCount)) {
+        UIDisplayMessage(PlayerGroupAll(), c_messageAreaSubtitle, TextExpressionAssemble("Param/Expression/lib_AREN_249F79C5"));
+        return ;
+    }
+
+    libAREN_gv_aRM_CurrentRoundIndex += 1;
+    libAREN_gv_aRM_RoundWinningTeam = 0;
+    libAREN_gv_aRM_ScoreAtRoundStart[libGame_gv_teamOrderIndex_C] = libAREN_gv_aRM_RoundScore[libGame_gv_teamOrderIndex_C];
+    libAREN_gv_aRM_ScoreAtRoundStart[libGame_gv_teamChaosIndex_C] = libAREN_gv_aRM_RoundScore[libGame_gv_teamChaosIndex_C];
+    libGame_gv_gameOver = false;
+    libGame_gv_gameStarted = false;
+    auto617D3B91_val = libAREN_gv_aRM_CurrentRoundIndex;
+    if (auto617D3B91_val == 1) {
+        libIGHS_gv_allHeroesPickedSound = SoundLink("ArenaMode_Crowd_GameStart_Buildup2", -1);
+    }
+    else if (auto617D3B91_val == 2) {
+        TriggerExecute(libUIUI_gt_UIResetMoonwellTextTagandAnimationForPlayers, true, true);
+        libIGHS_gv_allHeroesPickedSound = SoundLink("ArenaMode_Crowd_GameStart_Buildup3", -1);
+    }
+    else if (auto617D3B91_val == 3) {
+        TriggerExecute(libUIUI_gt_UIResetMoonwellTextTagandAnimationForPlayers, true, true);
+    }
+    else {
+        libIGHS_gv_allHeroesPickedSound = SoundLink("ArenaMode_Crowd_GameStart_Buildup", -1);
+    }
+    libNtve_gf_StopTimer(libGame_gv_gameTimer);
+    lv_itPlayer = 1;
+    for ( ; ( (auto14060E5C_ai >= 0 && lv_itPlayer <= auto14060E5C_ae) || (auto14060E5C_ai < 0 && lv_itPlayer >= auto14060E5C_ae) ) ; lv_itPlayer += auto14060E5C_ai ) {
+        libNtve_gf_SetUpgradeLevelForPlayer(lv_itPlayer, "GatesAreOpen", 0);
+    }
+    TriggerEnable(libMapM_gt_MMRepulseRegionPunchBehavior, true);
+    TriggerEnable(libMapM_gt_MMSafeRegionBehavior, true);
+    if ((GameTestConfigType() != 1) && (GameTestConfigType() != 2) && (GameTestConfigType() != 3) && (GameTestConfigType() != 4)) {
+        lv_initCallback = libAREN_gv_aRM_MechanicData[libAREN_gv_aRM_MechanicsPicked[libAREN_gv_aRM_CurrentRoundIndex]].lv_initCallback;
+        if ((lv_initCallback != null)) {
+            TriggerExecute(lv_initCallback, true, false);
+        }
+
+    }
+
+    libAREN_gf_TopBarTeamLevelUpdateTeamsLevelLabel(libAREN_gv_aRM_UI_TeamScorePanel);
+    UnitBehaviorRemove(libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core, "PalaceDamageResponseController", 1);
+    UnitBehaviorRemove(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core, "PalaceDamageResponseController", 1);
+    TriggerEnable(libUIUI_gt_DeathTimerPanelUpdate, true);
+    UISetDragSelectEnabled(PlayerGroupAll(), false);
+    UISetSelectionTypeEnabled(PlayerGroupAll(), c_localSelectionTypeUnknown, false);
+    libGame_gf_AddCameraBoundsStorm(libAREN_gv_aRM_MechanicData[libAREN_gf_ArenaCurrentMechanicId()].lv_cameraBoundsRegion);
+    lv_itPlayer = 1;
+    for ( ; ( (autoBD96AF1D_ai >= 0 && lv_itPlayer <= autoBD96AF1D_ae) || (autoBD96AF1D_ai < 0 && lv_itPlayer >= autoBD96AF1D_ae) ) ; lv_itPlayer += autoBD96AF1D_ai ) {
+        PlayerSetHero(lv_itPlayer, (""));
+        libGame_gf_SetCameraBoundStormIndexForPlayer(lv_itPlayer, libGame_gf_CameraBoundStormIndex(libAREN_gv_aRM_MechanicData[libAREN_gf_ArenaCurrentMechanicId()].lv_cameraBoundsRegion));
+        CameraLockInput(lv_itPlayer, true);
+        CameraPan(lv_itPlayer, libGame_gv_players[lv_itPlayer].lv_spawnPoint, 0.0, -1, 10.0, false);
+        libUIUI_gv_uIHealingFountainsHelpTextHasFountainBeenUsed[lv_itPlayer] = false;
+    }
+    libGame_gf_SetCameraBoundStormForObservers(libAREN_gv_aRM_MechanicData[libAREN_gf_ArenaCurrentMechanicId()].lv_cameraBoundsRegion);
+    libAREN_gf_SendEventMapTributeWarning(libAREN_gv_aRM_CurrentRoundIndex);
+    TriggerExecute(libAREN_gt_ARM_ArenaRoundInitializeVisibility, true, false);
+    TriggerAddEventUnitRegion(libGame_gt_ConfineOtherUnitsToBaseUntilCountdownEnds, null, libCore_gv_mAPOrderBaseRegion, false);    
+    TriggerAddEventUnitRegion(libGame_gt_ConfineOtherUnitsToBaseUntilCountdownEnds, null, libCore_gv_mAPChaosBaseRegion, false);    
+    TriggerEnable(libGame_gt_CapturePointLogic, true);
+    TriggerEnable(libGame_gt_ConfineHeroesToBaseUntilCountdownEnds, true);
+    TriggerEnable(libGame_gt_ConfineOtherUnitsToBaseUntilCountdownEnds, true);
+    autoA052CA1A_ae = libAREN_gv_aRM_MechanicsCount;
+    lv_itMechanic = 1;
+    for ( ; ( (autoA052CA1A_ai >= 0 && lv_itMechanic <= autoA052CA1A_ae) || (autoA052CA1A_ai < 0 && lv_itMechanic >= autoA052CA1A_ae) ) ; lv_itMechanic += autoA052CA1A_ai ) {
+        lv_itTeam = 1;
+        for ( ; ( (auto7F1855F0_ai >= 0 && lv_itTeam <= auto7F1855F0_ae) || (auto7F1855F0_ai < 0 && lv_itTeam >= auto7F1855F0_ae) ) ; lv_itTeam += auto7F1855F0_ai ) {
+            lv_recallUnit = libAREN_gv_aRM_MechanicData[lv_itMechanic].lv_recallUnit[lv_itTeam];
+            if ((lv_itMechanic == libAREN_gf_ArenaCurrentMechanicId())) {
+                libNtve_gf_ShowHideUnit(lv_recallUnit, true);
+            }
+            else {
+                if ((libNtve_gf_UnitIsHidden(lv_recallUnit) == false)) {
+                    libNtve_gf_ShowHideUnit(lv_recallUnit, false);
+                }
+
+            }
+        }
+    }
+    libAREN_gf_ARM_WheresWeirdoNewRoundSpawn();
+    TimerStart(libGame_gv_totalTime, c_timerDurationInfinite, false, c_timeGame);
+    libUIUI_gf_UIUpdateTimeLabels();
+    while (!((libGame_gv_heroSpawnReady == true))) {
+        Wait(0.0625, c_timeGame);
+    }
+    libSond_gf_MuteMostSoundChannelsForGameOverState(false);
+    lv_itTeam = 1;
+    for ( ; ( (autoF0D20E19_ai >= 0 && lv_itTeam <= autoF0D20E19_ae) || (autoF0D20E19_ai < 0 && lv_itTeam >= autoF0D20E19_ae) ) ; lv_itTeam += autoF0D20E19_ai ) {
+        libGame_gf_PreloadHeroesForTeam(lv_itTeam);
+    }
+    SoundPlayForPlayer(SoundLink("Gen_HeroRespawn_GameStart", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    Wait(libGame_gv_heroSpawnDelay_C, c_timeGame);
+    lv_itPlayer = 1;
+    for ( ; ( (auto4FBDD556_ai >= 0 && lv_itPlayer <= auto4FBDD556_ae) || (auto4FBDD556_ai < 0 && lv_itPlayer >= auto4FBDD556_ae) ) ; lv_itPlayer += auto4FBDD556_ai ) {
+        auto67A9145B_g = libGame_gv_players[lv_itPlayer].lv_heroUnitGroup;
+        auto67A9145B_u = UnitGroupCount(auto67A9145B_g, c_unitCountAll);
+        for (;; auto67A9145B_u -= 1) {
+            lv_itUnit = UnitGroupUnitFromEnd(auto67A9145B_g, auto67A9145B_u);
+            if (lv_itUnit == null) { break; }
+            libNtve_gf_ChangeUnitDamage(lv_itUnit, libNtve_ge_UnitDamageTakenDealt_Damage_Deal, libNtve_ge_UnitDamageChangeOption_Full);
+            libNtve_gf_ChangeUnitDamage(lv_itUnit, libNtve_ge_UnitDamageTakenDealt_Damage_Take, libNtve_ge_UnitDamageChangeOption_Full);
+        }
+    }
+    UnitPauseAll(false);
+    SetHeroLeaderPanelEnabled(true);
+    autoB61E412C_g = UnitGroup("TownMoonwellL3", c_playerAny, libAREN_gv_aRM_MechanicData[libAREN_gf_ArenaCurrentLevelIndex()].lv_playableRegion, UnitFilter(0, 0, 0, (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    autoB61E412C_u = UnitGroupCount(autoB61E412C_g, c_unitCountAll);
+    for (;; autoB61E412C_u -= 1) {
+        lv_itUnit = UnitGroupUnitFromEnd(autoB61E412C_g, autoB61E412C_u);
+        if (lv_itUnit == null) { break; }
+        AddUnitOfInterest(lv_itUnit, 0.0, 0.0, "UseArenaMoonwell", libAIAI_gf_ConvertIntegertoGoalTeam(libGame_gf_TeamNumberOfPlayer(UnitGetOwner(lv_itUnit))), 0);
+    }
+    auto746F0B6B_g = UnitGroup("TownMoonwellL3", c_playerAny, libAREN_gv_aRM_MechanicData[libAREN_gf_ArenaCurrentLevelIndex()].lv_playableRegion, UnitFilter(0, 0, 0, (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    auto746F0B6B_u = UnitGroupCount(auto746F0B6B_g, c_unitCountAll);
+    for (;; auto746F0B6B_u -= 1) {
+        lv_itUnit = UnitGroupUnitFromEnd(auto746F0B6B_g, auto746F0B6B_u);
+        if (lv_itUnit == null) { break; }
+        AddUnitOfInterest(lv_itUnit, 0.0, 0.0, "UseArenaMoonwell", libAIAI_gf_ConvertIntegertoGoalTeam(libGame_gf_TeamNumberOfPlayer(UnitGetOwner(lv_itUnit))), 0);
+    }
+    lv_itTeam = 1;
+    for ( ; ( (auto62101582_ai >= 0 && lv_itTeam <= auto62101582_ae) || (auto62101582_ai < 0 && lv_itTeam >= auto62101582_ae) ) ; lv_itTeam += auto62101582_ai ) {
+        AddUnitOfInterest(libGame_gv_teams[lv_itTeam].lv_core, 15.0, 0.0, "LaneStaging", libAIAI_gf_ConvertIntegertoGoalTeam(lv_itTeam), 0);
+    }
+    if ((libAREN_gv_aRM_CurrentRoundIndex == 1)) {
+        auto8BC49391_g = UnitGroup("XelNagaWatchTower", c_playerAny, RegionEntireMap(), UnitFilter(0, 0, 0, (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+        auto8BC49391_u = UnitGroupCount(auto8BC49391_g, c_unitCountAll);
+        for (;; auto8BC49391_u -= 1) {
+            lv_itUnit = UnitGroupUnitFromEnd(auto8BC49391_g, auto8BC49391_u);
+            if (lv_itUnit == null) { break; }
+            RemoveUnitOfInterest(lv_itUnit, "VisionBeacon", libNtve_ge_GoalTeam_Both);
+        }
+    }
+
+    autoCAC5B761_g = UnitGroup("XelNagaWatchTower", c_playerAny, libAREN_gv_aRM_MechanicData[libAREN_gf_ArenaCurrentLevelIndex()].lv_cameraBoundsRegion, UnitFilter(0, 0, 0, (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    autoCAC5B761_u = UnitGroupCount(autoCAC5B761_g, c_unitCountAll);
+    for (;; autoCAC5B761_u -= 1) {
+        lv_itUnit = UnitGroupUnitFromEnd(autoCAC5B761_g, autoCAC5B761_u);
+        if (lv_itUnit == null) { break; }
+        AddUnitOfInterest(lv_itUnit, 0.0, 0.0, "VisionBeacon", libNtve_ge_GoalTeam_Both, 0);
+    }
+    lv_itPlayer = 1;
+    for ( ; ( (auto18BB7A1B_ai >= 0 && lv_itPlayer <= auto18BB7A1B_ae) || (auto18BB7A1B_ai < 0 && lv_itPlayer >= auto18BB7A1B_ae) ) ; lv_itPlayer += auto18BB7A1B_ai ) {
+        libGame_gv_players[lv_itPlayer].lv_xPRecievedFromCreeps = 0.0;
+        libGame_gv_players[lv_itPlayer].lv_xPRecievedFromHeroes = 0.0;
+        libGame_gv_players[lv_itPlayer].lv_xPRecievedFromMinions = 0.0;
+        libGame_gv_players[lv_itPlayer].lv_xPRecievedFromStructures = 0.0;
+        libGame_gv_players[lv_itPlayer].lv_xPRecievedFromTrickle = 0.0;
+        libGame_gv_players[lv_itPlayer].lv_suppressLevelUpFXAndTeamXPTracking = true;
+    }
+    if (((GameTestConfigType() == 2) || (GameTestConfigType() == 3) || (GameTestConfigType() == 4))) {
+        TriggerExecute(libSprt_gt_PerformanceTestSpawnHeroesForHeroesPerformanceTestMap, true, false);
+    }
+    else {
+        libGame_gf_SpawnHeroesForBothTeams();
+    }
+    Wait(0.0625, c_timeGame);
+    if ((libAREN_gv_aRM_PlayCrowdCheerSounds == true)) {
+        libAREN_gf_ARM_UpdateWallaLevel(1);
+    }
+
+    lv_itPlayer = 1;
+    for ( ; ( (auto0404CEE8_ai >= 0 && lv_itPlayer <= auto0404CEE8_ae) || (auto0404CEE8_ai < 0 && lv_itPlayer >= auto0404CEE8_ae) ) ; lv_itPlayer += auto0404CEE8_ai ) {
+        libGame_gv_players[lv_itPlayer].lv_suppressLevelUpFXAndTeamXPTracking = false;
+    }
+    while (!((libGame_gv_gateTimerReady == true))) {
+        Wait(0.0625, c_timeGame);
+    }
+    TimerStart(libGame_gv_openTheGatesTimer, libAREN_gv_aRM_OpenTheGatesTime_C, false, c_timeGame);
+    libGame_gf_SendEventGameOpenTimerStarted();
+    libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_hearthStone = UnitGroupUnit(UnitGroup("HealingPadSearchUnit", libCore_gv_cOMPUTER_TeamOrder, libCore_gv_mAPOrderBaseRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), 1);
+    libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_hearthStone = UnitGroupUnit(UnitGroup("HealingPadSearchUnit", libCore_gv_cOMPUTER_TeamChaos, libCore_gv_mAPChaosBaseRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), 1);
+    TriggerExecute(libGame_gt_AnnounceCountdown, true, false);
+    TriggerExecute(libAREN_gt_ARM_StartRoundStructureAnimations, true, false);
+    DialogControlSetEnabled(libUIUI_gv_uIDebugPanel.lv_startGameButton, PlayerGroupAll(), true);
+    if ((libSprt_gv_performanceTestPerformanceTestRunning == true)) {
+        TriggerExecute(libSprt_gt_PerformanceTestSetHeroChoices, true, true);
+    }
+
+}
+
+void libAREN_gf_UIDebugPanelSpawnOrSwapHeroForPlayer (int lp_player) {
+    // Variable Declarations
+    int lv_itPlayer;
+    unit lv_itUnit;
+
+    // Automatic Variable Declarations
+    unitgroup auto96047B03_g;
+    int auto96047B03_u;
+    unitgroup auto55267F3D_g;
+    int auto55267F3D_u;
+
+    // Variable Initialization
+
+    // Implementation
+    if ((libGame_gv_players[lp_player].lv_heroIndex == 0)) {
+        return ;
+    }
+
+    if ((libAIAI_gf_HeroAIIsPlayerActive(lp_player, 2) == true)) {
+        libAIAI_gf_HeroAIDisableAIForPlayer(lp_player);
+    }
+
+    libGame_gf_TalentsRespecHeroForPlayer(lp_player);
+    libGame_gf_RemoveLevelUpHeroStatsForPlayer(UnitGetType(libGame_gv_players[lp_player].lv_heroUnit), lp_player);
+    libUIUI_gf_UIUnitStatusFramesResetUnitStatusFramesForPlayer(lp_player);
+    libGame_gf_SendEventDebugHeroSwapped(lp_player);
+    UnitClearSelection(lp_player);
+    PathDestroy(libGame_gv_players[lp_player].lv_pathDisplay);
+    UnitSetCustomValue(libGame_gv_players[lp_player].lv_heroUnit, libCore_gf_CustomValueIndex(libCore_ge_CustomValueIndexes_HeroIsSwappingIndex), 1.0);
+    UnitGroupRemove(libGame_gv_heroes, libGame_gv_players[lp_player].lv_heroUnit);
+    UnitRemove(libGame_gv_players[lp_player].lv_heroUnit);
+    auto96047B03_g = libGame_gv_players[lp_player].lv_heroUnitGroup;
+    auto96047B03_u = UnitGroupCount(auto96047B03_g, c_unitCountAll);
+    for (;; auto96047B03_u -= 1) {
+        lv_itUnit = UnitGroupUnitFromEnd(auto96047B03_g, auto96047B03_u);
+        if (lv_itUnit == null) { break; }
+        AIRemovePlayerUnit(lv_itUnit);
+        UnitRemove(lv_itUnit);
+    }
+    auto55267F3D_g = UnitGroup(null, lp_player, libAREN_gv_aRM_MechanicData[libAREN_gf_ArenaCurrentMechanicId()].lv_playableRegion, UnitFilter(0, 0, (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterEnemy), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    auto55267F3D_u = UnitGroupCount(auto55267F3D_g, c_unitCountAll);
+    for (;; auto55267F3D_u -= 1) {
+        lv_itUnit = UnitGroupUnitFromEnd(auto55267F3D_g, auto55267F3D_u);
+        if (lv_itUnit == null) { break; }
+        UnitKill(lv_itUnit);
+    }
+    libGame_gv_players[lp_player].lv_suppressLevelUpFXAndTeamXPTracking = true;
+    libGame_gv_players[lp_player].lv_heroIndex = 0;
+    libGame_gv_players[lp_player].lv_heroUnit = null;
+    libGame_gv_players[lp_player].lv_heroRequiresCustomRespawn = false;
+    UnitGroupClear(libGame_gv_players[lp_player].lv_heroUnitGroup);
+}
+
+void libAREN_gf_ARM_GameScoreUpdate (int lp_winningTeam) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((lp_winningTeam <= 0)) {
+        return ;
+    }
+
+    libAREN_gv_aRM_RoundScore[lp_winningTeam] += 1;
+    libGame_gv_gameScore_MinorVictoryScored[lp_winningTeam] = true;
+    libAREN_gv_aRM_RoundWinningTeam = lp_winningTeam;
+}
+
+trigger auto_libAREN_gf_ARM_RoundOver_Trigger = null;
+
+void libAREN_gf_ARM_RoundOver () {
+    if (auto_libAREN_gf_ARM_RoundOver_Trigger == null) {
+        auto_libAREN_gf_ARM_RoundOver_Trigger = TriggerCreate("auto_libAREN_gf_ARM_RoundOver_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libAREN_gf_ARM_RoundOver_Trigger, false, false);
+}
+
+bool auto_libAREN_gf_ARM_RoundOver_TriggerFunc (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itPlayer;
+    int lv_winningTeam;
+    int lv_winningTeamNPCPlayer;
+    int lv_losingTeam;
+    const fixed lv_endGameTimeDelay = 1.0;
+    unit lv_itUnit;
+
+    // Automatic Variable Declarations
+    const int autoDD341EFE_ae = libCore_gv_bALMaxPlayers;
+    const int autoDD341EFE_ai = 1;
+    unitgroup autoF3297E00_g;
+    int autoF3297E00_u;
+    const int auto777DCB35_ae = libCore_gv_bALMaxTeams;
+    const int auto777DCB35_ai = 1;
+    unitgroup auto726985BB_g;
+    int auto726985BB_u;
+    unitgroup auto57C96EDF_g;
+    int auto57C96EDF_u;
+    unitgroup auto8AC58306_g;
+    int auto8AC58306_u;
+    unitgroup autoE0BFDA6A_g;
+    int autoE0BFDA6A_u;
+    const int auto761FA0C3_ae = 10;
+    const int auto761FA0C3_ai = 1;
+    playergroup auto434C0DDD_g;
+    int auto434C0DDD_var;
+    playergroup autoBF8A0686_g;
+    int autoBF8A0686_var;
+    playergroup auto54601FCD_g;
+    playergroup auto3A364CCB_g;
+
+    // Variable Initialization
+    lv_winningTeam = -1;
+    lv_winningTeamNPCPlayer = -1;
+
+    // Implementation
+    lv_winningTeam = libAREN_gv_aRM_RoundWinningTeam;
+    lv_winningTeamNPCPlayer = libGame_gv_teams[lv_winningTeam].lv_nPCPlayer;
+    lv_losingTeam = libGame_gf_EnemyTeam(libAREN_gv_aRM_RoundWinningTeam);
+    libGame_gv_gameOver = true;
+    libGame_gf_SendEventClearHeroSpecificUI();
+    libGame_gf_AfkStopAfkWarningSystem();
+    lv_itPlayer = 1;
+    for ( ; ( (autoDD341EFE_ai >= 0 && lv_itPlayer <= autoDD341EFE_ae) || (autoDD341EFE_ai < 0 && lv_itPlayer >= autoDD341EFE_ae) ) ; lv_itPlayer += autoDD341EFE_ai ) {
+        autoF3297E00_g = libGame_gv_players[lv_itPlayer].lv_heroUnitGroup;
+        autoF3297E00_u = UnitGroupCount(autoF3297E00_g, c_unitCountAll);
+        for (;; autoF3297E00_u -= 1) {
+            lv_itUnit = UnitGroupUnitFromEnd(autoF3297E00_g, autoF3297E00_u);
+            if (lv_itUnit == null) { break; }
+            libNtve_gf_ChangeUnitDamage(lv_itUnit, libNtve_ge_UnitDamageTakenDealt_Damage_Deal, libNtve_ge_UnitDamageChangeOption_No);
+            libNtve_gf_ChangeUnitDamage(lv_itUnit, libNtve_ge_UnitDamageTakenDealt_Damage_Take, libNtve_ge_UnitDamageChangeOption_No);
+            UnitBehaviorAdd(lv_itUnit, "DisableAbilities", lv_itUnit, 1);
+        }
+    }
+    TimerPause(libGame_gv_gameTimer, true);
+    TimerPause(libGame_gv_matchGameplayTimer, true);
+    lv_itPlayer = 1;
+    for ( ; ( (auto777DCB35_ai >= 0 && lv_itPlayer <= auto777DCB35_ae) || (auto777DCB35_ai < 0 && lv_itPlayer >= auto777DCB35_ae) ) ; lv_itPlayer += auto777DCB35_ai ) {
+        RemoveUnitOfInterest(libGame_gv_teams[lv_itPlayer].lv_core, "LaneStaging", libAIAI_gf_ConvertIntegertoGoalTeam(lv_itPlayer));
+    }
+    auto726985BB_g = UnitGroup("TownMoonwellL3", c_playerAny, libAREN_gv_aRM_MechanicData[libAREN_gf_ArenaCurrentLevelIndex()].lv_playableRegion, UnitFilter(0, 0, 0, (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    auto726985BB_u = UnitGroupCount(auto726985BB_g, c_unitCountAll);
+    for (;; auto726985BB_u -= 1) {
+        lv_itUnit = UnitGroupUnitFromEnd(auto726985BB_g, auto726985BB_u);
+        if (lv_itUnit == null) { break; }
+        RemoveUnitOfInterest(lv_itUnit, "UseArenaMoonwell", libAIAI_gf_ConvertIntegertoGoalTeam(libGame_gf_TeamNumberOfPlayer(UnitGetOwner(lv_itUnit))));
+    }
+    auto57C96EDF_g = UnitGroup("XelNagaWatchTower", c_playerAny, libAREN_gv_aRM_MechanicData[libAREN_gf_ArenaCurrentLevelIndex()].lv_playableRegion, UnitFilter(0, 0, 0, (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    auto57C96EDF_u = UnitGroupCount(auto57C96EDF_g, c_unitCountAll);
+    for (;; auto57C96EDF_u -= 1) {
+        lv_itUnit = UnitGroupUnitFromEnd(auto57C96EDF_g, auto57C96EDF_u);
+        if (lv_itUnit == null) { break; }
+        RemoveUnitOfInterest(lv_itUnit, "VisionBeacon", libNtve_ge_GoalTeam_Both);
+    }
+    UnitBehaviorRemove(libGame_gv_teams[lv_losingTeam].lv_core, "CoreInvulnerability", 1);
+    GameRoundEnded(lv_winningTeam);
+    libUIUI_gf_DeathRecapShowHideToastButtonForPlayer(false, libCore_gv_oBSERVER_ObserverUIPlayer);
+    if ((libAREN_gv_aRM_PlayCrowdCheerSounds == true)) {
+        libAREN_gf_ARM_PlayNewCrowdCheerForTeam(SoundLink("ArenaMode_Crowd_GameWon", -1), lv_winningTeam);
+        libAREN_gf_ARM_PlayNewCrowdCheerForTeam(SoundLink("ArenaMode_Crowd_GameLost", -1), lv_losingTeam);
+    }
+
+    libSond_gf_SoundtrackApplyNewDefaultSoundtrackForPlayerGroup("Storm_Soundtrack_No_Sound", PlayerGroupAll());
+    if ((lv_winningTeam > 0)) {
+        auto8AC58306_g = UnitGroupAlliance(libGame_gv_teams[lv_winningTeam].lv_nPCPlayer, c_unitAllianceAlly, libAREN_gv_aRM_MechanicData[libAREN_gf_ArenaCurrentMechanicId()].lv_playableRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+        auto8AC58306_u = UnitGroupCount(auto8AC58306_g, c_unitCountAll);
+        for (;; auto8AC58306_u -= 1) {
+            lv_itUnit = UnitGroupUnitFromEnd(auto8AC58306_g, auto8AC58306_u);
+            if (lv_itUnit == null) { break; }
+            UnitBehaviorRemove(lv_itUnit, "Mounted", 1);
+            libNtve_gf_SendActorMessageToUnit(lv_itUnit, "Signal GameWon");
+        }
+        autoE0BFDA6A_g = UnitGroupAlliance(libGame_gv_teams[lv_winningTeam].lv_nPCPlayer, c_unitAllianceEnemy, libAREN_gv_aRM_MechanicData[libAREN_gf_ArenaCurrentMechanicId()].lv_playableRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+        autoE0BFDA6A_u = UnitGroupCount(autoE0BFDA6A_g, c_unitCountAll);
+        for (;; autoE0BFDA6A_u -= 1) {
+            lv_itUnit = UnitGroupUnitFromEnd(autoE0BFDA6A_g, autoE0BFDA6A_u);
+            if (lv_itUnit == null) { break; }
+            UnitBehaviorRemove(lv_itUnit, "Mounted", 1);
+            libNtve_gf_SendActorMessageToUnit(lv_itUnit, "Signal GameLost");
+        }
+    }
+
+    if ((libGame_gv_teams[lv_losingTeam].lv_core != null) && (libAREN_gv_aRM_PanCameraToCore == true)) {
+        lv_itPlayer = 1;
+        for ( ; ( (auto761FA0C3_ai >= 0 && lv_itPlayer <= auto761FA0C3_ae) || (auto761FA0C3_ai < 0 && lv_itPlayer >= auto761FA0C3_ae) ) ; lv_itPlayer += auto761FA0C3_ai ) {
+            VisRevealArea(lv_itPlayer, RegionCircle(UnitGetPosition(libGame_gv_teams[lv_losingTeam].lv_core), 15.0), 15.0, false);
+        }
+        auto434C0DDD_g = libCore_gv_activeHumanPlayers;
+        auto434C0DDD_var = -1;
+        while (true) {
+            	auto434C0DDD_var = PlayerGroupNextPlayer(auto434C0DDD_g, auto434C0DDD_var);
+            	if (auto434C0DDD_var<0) { break; }
+            	CameraLockInput(auto434C0DDD_var, true);
+            PlayerOptionOverride(auto434C0DDD_var, "camerafollow", "0");
+            libGame_gf_HeroDeathEnableDisableDeadSoundStateForPlayer(false, auto434C0DDD_var);
+        }
+        Wait(0.0625, c_timeGame);
+        autoBF8A0686_g = libCore_gv_activeHumanPlayers;
+        autoBF8A0686_var = -1;
+        while (true) {
+            	autoBF8A0686_var = PlayerGroupNextPlayer(autoBF8A0686_g, autoBF8A0686_var);
+            	if (autoBF8A0686_var<0) { break; }
+            	CameraFollowUnitGroup(autoBF8A0686_var, CameraFollowUnitGroupGet(autoBF8A0686_var), false, false);
+            libGame_gf_CameraPanCameraForPlayerAndUpdateMapBoundsIfNecessary(autoBF8A0686_var, UnitGetPosition(libGame_gv_teams[lv_losingTeam].lv_core), libGame_gv_gameOver_CameraPanTime_C, -1, 10, false);
+        }
+        libGame_gf_CameraPanCameraForPlayerAndUpdateMapBoundsIfNecessary(libCore_gv_oBSERVER_ObserverUIPlayer, UnitGetPosition(libGame_gv_teams[lv_losingTeam].lv_core), libGame_gv_gameOver_CameraPanTime_C, -1, 10, false);
+    }
+
+    TriggerExecute(libSprt_gt_DEBUGInspectTheBalanceProbebalanceprobe, true, false);
+    Wait(libAREN_gv_gameOver_CameraPanTime_C, c_timeGame);
+    libAREN_gf_ARM_GameScoreUpdate(lv_winningTeam);
+    if ((libAREN_gv_aRM_RoundScore[lv_winningTeam] == libAREN_gv_victoriesCount)) {
+        libGame_gf_PlayGameOverStinger(lv_winningTeam);
+    }
+
+    auto54601FCD_g = PlayerGroupAll();
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(auto54601FCD_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	libGame_gf_AnnouncementClearQueueForPlayer(lv_itPlayer);
+    }
+    libAREN_gf_ARM_CreateEffectOnUnitGroup(libGame_gf_PlayersOnTeamHeroes(lv_winningTeam, false), "UIArenaModeRoundWonSoundDummyPlayerOnly");
+    libAREN_gf_ARM_CreateEffectOnUnitGroup(libGame_gf_PlayersOnTeamHeroes(lv_losingTeam, false), "UIArenaModeRoundLostSoundDummyPlayerOnly");
+    libAIAI_gf_MinionAIPauseUnpauseMinionAISystem(true);
+    TriggerEnable(libGame_gt_XPTrickle, false);
+    if ((libGame_gv_gameOverCallback != null)) {
+        TriggerExecute(libGame_gv_gameOverCallback, true, true);
+    }
+
+    UISetFrameVisible(PlayerGroupAll(), c_syncFrameTypeStatusUI, false);
+    if ((libAREN_gv_aRM_PlayCrowdCheerSounds == true)) {
+        libAREN_gf_ARM_UpdateWallaLevel(0);
+    }
+
+    Wait(libAREN_gv_aRM_VictorySequenceDelay, c_timeGame);
+    auto3A364CCB_g = libCore_gv_activeHumanPlayers;
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(auto3A364CCB_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	libUIUI_gf_FullscreenOverlayStopandClearCutsceneQueueForPlayer(lv_itPlayer);
+        libUIUI_gf_UIHeroConsoleShowHideForPlayer(false, lv_itPlayer);
+        UISetMode(libCore_gv_playerGroupFromPlayer[lv_itPlayer], c_uiModeFullscreen, c_transitionDurationImmediate);
+        DialogControlSetVisible(libUIUI_gv_uIGameUIHandles.lv_talentsButton, libCore_gv_playerGroupFromPlayer[lv_itPlayer], false);
+        UISetFrameVisible(libCore_gv_playerGroupFromPlayer[lv_itPlayer], c_syncFrameTypeMinimapPanel, false);
+        libUIUI_gf_UIHeroTrackerArrowShowHideForPlayer(false, lv_itPlayer);
+        libUIUI_gf_UIGameUIShowHideConsolePanelForPlayer(false, lv_itPlayer);
+    }
+    libAREN_gf_TopBarTeamLevelUpdateTeamsLevelLabel3(lv_winningTeam);
+    libAREN_gf_ARM_EndRound();
+    return true;
+}
+
+void libAREN_gf_ARM_EndRound () {
+    // Variable Declarations
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    const int autoA253C5DD_ae = libCore_gv_bALMaxPlayers;
+    const int autoA253C5DD_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    Wait(libAREN_gv_gameOver_CoreAnimationWaitTime_C, c_timeGame);
+    libAREN_gf_ARM_TurnOnOffAltarSoundsforRegion(libAREN_gv_aRM_MechanicData[libAREN_gf_ArenaCurrentMechanicId()].lv_playableRegion, false);
+    CinematicFade(false, 2.0, c_fadeStyleNormal, Color(0.00, 0.00, 0.00), 0.0, true);
+    libAREN_gf_TopBarTeamLevelUpdateTeamsLevelLabel5();
+    lv_itPlayer = 1;
+    for ( ; ( (autoA253C5DD_ai >= 0 && lv_itPlayer <= autoA253C5DD_ae) || (autoA253C5DD_ai < 0 && lv_itPlayer >= autoA253C5DD_ae) ) ; lv_itPlayer += autoA253C5DD_ai ) {
+        libUIUI_gf_FullscreenOverlayStopandClearCutsceneQueueForPlayer(lv_itPlayer);
+    }
+    libAREN_gf_SendEventMapTributeWarning2(libAREN_gv_aRM_CurrentRoundIndex);
+    libAREN_gf_ARM_EndRoundResetDeathTimerFrame();
+}
+
+void libAREN_gf_ARM_EndRoundResetDeathTimerFrame () {
+    // Variable Declarations
+    int lv_itPlayer;
+    int lv_itTeam;
+    int lv_itFrameIndex;
+    int lv_itFrameIndex2;
+
+    // Automatic Variable Declarations
+    const int autoBB8D2A2B_ae = 2;
+    const int autoBB8D2A2B_ai = 1;
+    const int auto6AC10A01_ae = libCore_gv_bALMaxPlayers;
+    const int auto6AC10A01_ai = 1;
+    const int auto06621094_ae = libUIUI_gv_deathTimerPanel_MaxFrameCount;
+    const int auto06621094_ai = 1;
+    const int auto09719A2C_ae = libUIUI_gv_deathTimerPanel_MaxFrameCount;
+    const int auto09719A2C_ai = 1;
+    const int auto5DD6EE05_ae = libCore_gv_bALMaxPlayers;
+    const int auto5DD6EE05_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_itTeam = 1;
+    for ( ; ( (autoBB8D2A2B_ai >= 0 && lv_itTeam <= autoBB8D2A2B_ae) || (autoBB8D2A2B_ai < 0 && lv_itTeam >= autoBB8D2A2B_ae) ) ; lv_itTeam += autoBB8D2A2B_ai ) {
+        DialogControlSetVisible(libUIUI_gv_deathTimerPanel.lv_mainPanel[lv_itTeam], PlayerGroupAll(), false);
+        libUIUI_gv_deathTimerPanel.lv_mainPanel[lv_itTeam] = c_invalidDialogControlId;
+        libUIUI_gv_deathAnnouncement_TopMostHeroFrame[lv_itTeam] = 1;
+        libUIUI_gv_deathAnnouncement_NextHeroFrameToUse[lv_itTeam] = 1;
+        lv_itPlayer = 1;
+        for ( ; ( (auto6AC10A01_ai >= 0 && lv_itPlayer <= auto6AC10A01_ae) || (auto6AC10A01_ai < 0 && lv_itPlayer >= auto6AC10A01_ae) ) ; lv_itPlayer += auto6AC10A01_ai ) {
+            libUIUI_gv_deathAnnouncement_HeroFrameInUse[lv_itTeam][lv_itPlayer] = false;
+        }
+        libUIUI_gv_deathAnnouncement_VisibleHeroFrameCount[lv_itTeam] = 0;
+        lv_itFrameIndex = 1;
+        for ( ; ( (auto06621094_ai >= 0 && lv_itFrameIndex <= auto06621094_ae) || (auto06621094_ai < 0 && lv_itFrameIndex >= auto06621094_ae) ) ; lv_itFrameIndex += auto06621094_ai ) {
+            libUIUI_gv_deathAnnouncement_HeroesAssignedToFrame[lv_itTeam][lv_itFrameIndex].lv_deathAnnouncementPlayer = 0;
+            libUIUI_gv_deathAnnouncement_HeroesAssignedToFrame[lv_itTeam][lv_itFrameIndex].lv_deathAnnouncementHeroFrameInUse = false;
+            libUIUI_gv_deathAnnouncement_HeroesAssignedToFrame[lv_itTeam][lv_itFrameIndex].lv_deathAnnouncementPortrait = null;
+            libUIUI_gv_deathAnnouncement_HeroesAssignedToFrame[lv_itTeam][lv_itFrameIndex].lv_deathAnnouncementUnit = null;
+            libUIUI_gv_deathAnnouncement_HeroesAssignedToFrame[lv_itTeam][lv_itFrameIndex].lv_deathAnnouncementUnitName = null;
+            libUIUI_gv_deathTimerPanel_HeroesAssignedToFrame[lv_itTeam][lv_itFrameIndex].lv_deathTimerFramePlayer = 0;
+            libUIUI_gv_deathTimerPanel_HeroesAssignedToFrame[lv_itTeam][lv_itFrameIndex].lv_deathTimerFramePortrait = null;
+            libUIUI_gv_deathTimerPanel_HeroesAssignedToFrame[lv_itTeam][lv_itFrameIndex].lv_deathTimerFrameUnit = null;
+            libUIUI_gv_deathTimerPanel_HeroesAssignedToFrame[lv_itTeam][lv_itFrameIndex].lv_deathTimerFrameUnitName = null;
+            libUIUI_gv_deathTimerPanel_TimerGroups[lv_itTeam][lv_itFrameIndex].lv_frameCount = 0;
+            lv_itFrameIndex2 = 1;
+            for ( ; ( (auto09719A2C_ai >= 0 && lv_itFrameIndex2 <= auto09719A2C_ae) || (auto09719A2C_ai < 0 && lv_itFrameIndex2 >= auto09719A2C_ae) ) ; lv_itFrameIndex2 += auto09719A2C_ai ) {
+                libUIUI_gv_deathTimerPanel_TimerGroups[lv_itTeam][lv_itFrameIndex].lv_frames[lv_itFrameIndex2] = 0;
+            }
+            lv_itPlayer = 1;
+            for ( ; ( (auto5DD6EE05_ai >= 0 && lv_itPlayer <= auto5DD6EE05_ae) || (auto5DD6EE05_ai < 0 && lv_itPlayer >= auto5DD6EE05_ae) ) ; lv_itPlayer += auto5DD6EE05_ai ) {
+                libUIUI_gv_deathTimerPanel_TimerGroups[lv_itTeam][lv_itFrameIndex].lv_slideOut[lv_itPlayer] = false;
+            }
+        }
+    }
+    libUIUI_gv_deathTimerPanelIndex += 1;
+    TriggerExecute(libUIUI_gt_DeathTimerPanelInitialize, true, false);
+    DialogControlSetVisible(libUIUI_gv_deathTimerPanel.lv_mainPanel[1], PlayerGroupAll(), true);
+    DialogControlSetVisible(libUIUI_gv_deathTimerPanel.lv_mainPanel[2], PlayerGroupAll(), true);
+}
+
+void libAREN_gf_ARM_ClearHeroDeathEffect (int lp_player) {
+    // Automatic Variable Declarations
+    // Implementation
+    UnitKill(libGame_gv_players[lp_player].lv_gravestone);
+    TextTagDestroy(libGame_gv_players[lp_player].lv_gravestoneTextTag);
+    libGame_gv_players[lp_player].lv_isDead = false;
+    libUIUI_gf_FullscreenOverlaysShowHideDeathOverlay(false, lp_player);
+    libGame_gf_HeroDeathEnableDisableDeadSoundStateForPlayer(false, lp_player);
+    libGame_gv_players[lp_player].lv_cameraCameraLockInterrupt = false;
+    libGame_gv_players[lp_player].lv_cameraAllyPlayerToTrack = 0;
+    libGame_gv_players[lp_player].lv_cameraPlayerUnitToFocusOn = null;
+    libGame_gv_players[lp_player].lv_cameraPlayerUnitGroupToFocusOn = null;
+    libUIUI_gf_UIHeroConsoleShowHideUnitStatusFrameForPlayer(true, lp_player);
+}
+
+void libAREN_gf_ARM_GameOver () {
+    // Variable Declarations
+    int lv_itPlayer;
+    int lv_victoryTeam;
+    int lv_defeatTeam;
+
+    // Automatic Variable Declarations
+    playergroup auto37C659AD_g;
+    playergroup auto3E6E2D53_g;
+    const int auto12995983_ae = libCore_gv_bALMaxPlayers;
+    const int auto12995983_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    libAREN_gf_TopBarTeamLevelUpdateTeamsLevelLabel5();
+    if ((libAREN_gv_aRM_RoundScore[1] >= libAREN_gv_victoriesCount)) {
+        lv_victoryTeam = 1;
+    }
+    else if ((libAREN_gv_aRM_RoundScore[2] >= libAREN_gv_victoriesCount)) {
+        lv_victoryTeam = 2;
+    }
+    lv_defeatTeam = libGame_gf_EnemyTeam(lv_victoryTeam);
+    libGame_gf_AnnouncementAddItemForPlayerGroup(libGame_gv_teams[lv_victoryTeam].lv_teamPlayerGroup, libGame_ge_AnnouncementPriorities_Normal, libCore_ge_AnnouncerVOEvents_Victory, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+    libGame_gf_AnnouncementAddItemForPlayerGroup(libGame_gv_teams[libGame_gf_EnemyTeam(lv_victoryTeam)].lv_teamPlayerGroup, libGame_ge_AnnouncementPriorities_Normal, libCore_ge_AnnouncerVOEvents_Defeat, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+    if ((lv_victoryTeam == libGame_gv_teamOrderIndex_C)) {
+        libGame_gf_AnnouncementAddItemForPlayerGroup(libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], libGame_ge_AnnouncementPriorities_Normal, libCore_ge_AnnouncerVOEvents_BlueTeamWins, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+    }
+    else {
+        libGame_gf_AnnouncementAddItemForPlayerGroup(libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], libGame_ge_AnnouncementPriorities_Normal, libCore_ge_AnnouncerVOEvents_RedTeamWins, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+    }
+    auto37C659AD_g = libGame_gf_PlayersOnTeamHeroes(lv_victoryTeam, false);
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(auto37C659AD_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	libGame_gv_players[lv_itPlayer].lv_victoryDefeat = c_gameOverVictory;
+        UnitCreateEffectUnit(libGame_gv_players[lv_itPlayer].lv_heroUnit, "UIArenaModeRoundWonSoundDummyPlayerOnly", libGame_gv_players[lv_itPlayer].lv_heroUnit);
+    }
+    auto3E6E2D53_g = libGame_gf_PlayersOnTeamHeroes(lv_defeatTeam, false);
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(auto3E6E2D53_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	libGame_gv_players[lv_itPlayer].lv_victoryDefeat = c_gameOverDefeat;
+        UnitCreateEffectUnit(libGame_gv_players[lv_itPlayer].lv_heroUnit, "UIArenaModeRoundLostSoundDummyPlayerOnly", libGame_gv_players[lv_itPlayer].lv_heroUnit);
+    }
+    libUIUI_gf_GameOverSplashDisplayForAllPlayers(lv_victoryTeam);
+    Wait(5.0, c_timeGame);
+    lv_itPlayer = 1;
+    for ( ; ( (auto12995983_ai >= 0 && lv_itPlayer <= auto12995983_ae) || (auto12995983_ai < 0 && lv_itPlayer >= auto12995983_ae) ) ; lv_itPlayer += auto12995983_ai ) {
+        if ((PlayerStatus(lv_itPlayer) != c_playerStatusUnused)) {
+            libGame_gf_EndGameForPlayerStorm(lv_itPlayer);
+        }
+
+    }
+    KickFromGame(PlayerGroupAll());
+}
+
+void libAREN_gf_ARM_UpdateWallaLevel (int lp_newCheerLevel) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libAREN_gv_aRM_CurrentWallaLevel == lp_newCheerLevel)) {
+        return ;
+    }
+
+    if ((lp_newCheerLevel == 0)) {
+        SoundStop(libAREN_gv_aRM_CurrentWallaSound, true);
+        SoundStop(libAREN_gv_aRM_WallaFinaleSound, true);
+        libAREN_gv_aRM_WallaFinaleSound = null;
+        libAREN_gv_aRM_CurrentWallaLevel = lp_newCheerLevel;
+        return ;
+    }
+
+    SoundStop(libAREN_gv_aRM_CurrentWallaSound, true);
+    SoundPlayForPlayer(libAREN_gv_aRM_WallaSounds[lp_newCheerLevel], c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    libAREN_gv_aRM_CurrentWallaSound = SoundLastPlayed();
+    libAREN_gv_aRM_CurrentWallaLevel = lp_newCheerLevel;
+}
+
+void libAREN_gf_ARM_PlayNewCrowdCheerForTeam (soundlink lp_sound, int lp_team) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libAREN_gv_aRM_Debug_ShowMultikillCheers == true)) {
+        TextExpressionSetToken("Param/Expression/lib_AREN_D3D0C0C0", "A", StringToText((SoundLinkId(lp_sound))));
+        TextExpressionSetToken("Param/Expression/lib_AREN_D3D0C0C0", "B", IntToText(lp_team));
+        TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_AREN_D3D0C0C0"), true);
+    }
+
+    if ((lp_team > 0)) {
+        SoundPlayForPlayer(lp_sound, c_maxPlayers, GameAttributePlayersForTeam(lp_team), 100.0, 0.0);
+    }
+
+}
+
+void libAREN_gf_ARM_InitializeCrowdCheerEmitters () {
+    // Variable Declarations
+    const int lv_submapPerGame_C = libAREN_gv_aRM_MechanicsCountToPick_C;
+    int lv_submapIndex;
+    int lv_sectionIndex;
+    int lv_emitterIndex;
+    string lv_emitterPointName;
+    point lv_emitterPoint;
+
+    // Automatic Variable Declarations
+    const int auto0E5C1E80_ae = lv_submapPerGame_C;
+    const int auto0E5C1E80_ai = 1;
+    const int autoF77C923E_ae = libAREN_gv_aRM_CrowdStands_MaxEmittersPerSection_C;
+    const int autoF77C923E_ai = 1;
+
+    // Variable Initialization
+    lv_emitterPointName = "";
+
+    // Implementation
+    lv_submapIndex = 1;
+    for ( ; ( (auto0E5C1E80_ai >= 0 && lv_submapIndex <= auto0E5C1E80_ae) || (auto0E5C1E80_ai < 0 && lv_submapIndex >= auto0E5C1E80_ae) ) ; lv_submapIndex += auto0E5C1E80_ai ) {
+        lv_sectionIndex = 0;
+        libAREN_gv_aRM_CrowdStands_SectionCountPerSubmap[lv_submapIndex] = libAREN_gv_aRM_CrowdStands_MaxSectionsPerSubmap_C;
+        while ((lv_sectionIndex <= libAREN_gv_aRM_CrowdStands_SectionCountPerSubmap[lv_submapIndex])) {
+            lv_sectionIndex += 1;
+            lv_emitterIndex = 1;
+            for ( ; ( (autoF77C923E_ai >= 0 && lv_emitterIndex <= autoF77C923E_ae) || (autoF77C923E_ai < 0 && lv_emitterIndex >= autoF77C923E_ae) ) ; lv_emitterIndex += autoF77C923E_ai ) {
+                lv_emitterPointName = ("Cheer Map" + IntToString(lv_submapIndex) + "-Sxn" + IntToString(lv_sectionIndex) + "-Pt" + IntToString(lv_emitterIndex));
+                lv_emitterPoint = PointFromName(lv_emitterPointName);
+                if ((lv_emitterPoint != null)) {
+                    libAREN_gv_aRM_CrowdStands_SoundEmitters[lv_submapIndex][lv_sectionIndex][lv_emitterIndex] = lv_emitterPoint;
+                }
+                else {
+                    libAREN_gv_aRM_CrowdStands_EmitterCountPerSection[lv_submapIndex][lv_sectionIndex] = (lv_emitterIndex - 1);
+                    if ((lv_emitterIndex == 1)) {
+                        libAREN_gv_aRM_CrowdStands_SectionCountPerSubmap[lv_submapIndex] = (lv_sectionIndex - 1);
+                    }
+
+                    break;
+                }
+            }
+        }
+    }
+}
+
+trigger auto_libAREN_gf_ARM_Play3DCrowdCheersinStandsFavoringTeam_Trigger = null;
+int auto_libAREN_gf_ARM_Play3DCrowdCheersinStandsFavoringTeam_lp_killingTeam;
+
+void libAREN_gf_ARM_Play3DCrowdCheersinStandsFavoringTeam (int lp_killingTeam) {
+    auto_libAREN_gf_ARM_Play3DCrowdCheersinStandsFavoringTeam_lp_killingTeam = lp_killingTeam;
+
+    if (auto_libAREN_gf_ARM_Play3DCrowdCheersinStandsFavoringTeam_Trigger == null) {
+        auto_libAREN_gf_ARM_Play3DCrowdCheersinStandsFavoringTeam_Trigger = TriggerCreate("auto_libAREN_gf_ARM_Play3DCrowdCheersinStandsFavoringTeam_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libAREN_gf_ARM_Play3DCrowdCheersinStandsFavoringTeam_Trigger, false, false);
+}
+
+bool auto_libAREN_gf_ARM_Play3DCrowdCheersinStandsFavoringTeam_TriggerFunc (bool testConds, bool runActions) {
+    int lp_killingTeam = auto_libAREN_gf_ARM_Play3DCrowdCheersinStandsFavoringTeam_lp_killingTeam;
+
+    // Variable Declarations
+    int lv_currentSubmap;
+    int lv_sectionIndex;
+    int lv_emitterIndex;
+
+    // Automatic Variable Declarations
+    int auto0B31510F_ae;
+    const int auto0B31510F_ai = 1;
+    int auto34585523_ae;
+    const int auto34585523_ai = 1;
+
+    // Variable Initialization
+    lv_currentSubmap = libAREN_gv_aRM_MechanicsPicked[libAREN_gv_aRM_CurrentRoundIndex];
+
+    // Implementation
+    auto0B31510F_ae = libAREN_gv_aRM_CrowdStands_SectionCountPerSubmap[lv_currentSubmap];
+    lv_sectionIndex = 1;
+    for ( ; ( (auto0B31510F_ai >= 0 && lv_sectionIndex <= auto0B31510F_ae) || (auto0B31510F_ai < 0 && lv_sectionIndex >= auto0B31510F_ae) ) ; lv_sectionIndex += auto0B31510F_ai ) {
+        auto34585523_ae = libAREN_gv_aRM_CrowdStands_EmitterCountPerSection[lv_currentSubmap][lv_sectionIndex];
+        lv_emitterIndex = 1;
+        for ( ; ( (auto34585523_ai >= 0 && lv_emitterIndex <= auto34585523_ae) || (auto34585523_ai < 0 && lv_emitterIndex >= auto34585523_ae) ) ; lv_emitterIndex += auto34585523_ai ) {
+            if ((lp_killingTeam == libGame_gv_teamOrderIndex_C)) {
+                libNtve_gf_CreateActorAtPoint((("CheerEmitterOrderEnemySlain0" + IntToString(lv_emitterIndex))), libAREN_gv_aRM_CrowdStands_SoundEmitters[lv_currentSubmap][lv_sectionIndex][lv_emitterIndex]);
+                libNtve_gf_CreateActorAtPoint((("CheerEmitterChaosEnemySlain0" + IntToString(lv_emitterIndex))), libAREN_gv_aRM_CrowdStands_SoundEmitters[lv_currentSubmap][lv_sectionIndex][lv_emitterIndex]);
+            }
+            else {
+                libNtve_gf_CreateActorAtPoint((("CheerEmitterOrderAllySlain0" + IntToString(lv_emitterIndex))), libAREN_gv_aRM_CrowdStands_SoundEmitters[lv_currentSubmap][lv_sectionIndex][lv_emitterIndex]);
+                libNtve_gf_CreateActorAtPoint((("CheerEmitterChaosAllySlain0" + IntToString(lv_emitterIndex))), libAREN_gv_aRM_CrowdStands_SoundEmitters[lv_currentSubmap][lv_sectionIndex][lv_emitterIndex]);
+            }
+            Wait(0.0625, c_timeGame);
+        }
+    }
+    return true;
+}
+
+void libAREN_gf_ARM_AddArenaVO () {
+    // Automatic Variable Declarations
+    // Implementation
+    libAREN_gv_aRM_ArenaVO.lv_chooseHero = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("ChooseHero", false);
+    libAREN_gv_aRM_ArenaVO.lv_crazyMode = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("CrazyMode", false);
+    libAREN_gv_aRM_ArenaVO.lv_timeRunningOut = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("TimeRunningOut", false);
+    libAREN_gv_aRM_ArenaVO.lv_fountainDestroyedAlly = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("FountainDestroyed_Ally", false);
+    libAREN_gv_aRM_ArenaVO.lv_fountainDestroyedEnemy = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("FountainDestroyed_Enemy", false);
+    libAREN_gv_aRM_ArenaVO.lv_fountainDestroyedRed = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("FountainDestroyed_Red", false);
+    libAREN_gv_aRM_ArenaVO.lv_fountainDestroyedBlue = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("FountainDestroyed_Blue", false);
+    libAREN_gv_aRM_ArenaVO.lv_roundOneVictory = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("RoundOne_Victory", true);
+    libAREN_gv_aRM_ArenaVO.lv_roundOneLoss = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("RoundOne_Loss", true);
+    libAREN_gv_aRM_ArenaVO.lv_roundOneBlueWins = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("RoundOne_Victory_Blue", true);
+    libAREN_gv_aRM_ArenaVO.lv_roundOneRedWins = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("RoundOne_Victory_Red", true);
+    libAREN_gv_aRM_ArenaVO.lv_roundTwoVictoryTie = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("RoundTwo_VictoryFirst", true);
+    libAREN_gv_aRM_ArenaVO.lv_roundTwoLossTie = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("RoundTwo_LossFirst", true);
+    libAREN_gv_aRM_ArenaVO.lv_roundTwoBlueWinsTie = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("RoundTwo_VictoryFirst_Blue", true);
+    libAREN_gv_aRM_ArenaVO.lv_roundTwoRedWinsTie = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("RoundTwo_VictoryFirst_Red", true);
+    libAREN_gv_aRM_ArenaVO.lv_roundTwoVictoryFinish = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("RoundTwo_VictorySweep", true);
+    libAREN_gv_aRM_ArenaVO.lv_roundTwoLossFinish = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("RoundTwo_LossSweep", true);
+    libAREN_gv_aRM_ArenaVO.lv_roundTwoBlueWinsFinish = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("RoundTwo_VictorySweep_Blue", true);
+    libAREN_gv_aRM_ArenaVO.lv_roundTwoRedWinsFinish = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("RoundTwo_VictorySweep_Red", true);
+    libAREN_gv_aRM_ArenaVO.lv_roundThreeVictory = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("RoundThree_Victory", true);
+    libAREN_gv_aRM_ArenaVO.lv_roundThreeLoss = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("RoundThree_Loss", true);
+    libAREN_gv_aRM_ArenaVO.lv_roundThreeBlueWins = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("RoundThree_Victory_Blue", true);
+    libAREN_gv_aRM_ArenaVO.lv_roundThreeRedWins = libCore_gf_DataAnnouncerVOAddOutsideMapDataField("RoundThree_Victory_Red", true);
+}
+
+void libAREN_gf_ARM_ArenaPlayRoundOverAnnouncement (int lp_winningTeam, int lp_roundIndex) {
+    // Automatic Variable Declarations
+    int autoA9759227_val;
+
+    // Implementation
+    autoA9759227_val = lp_roundIndex;
+    if (autoA9759227_val == 1) {
+        libGame_gf_AnnouncementAddItemForPlayerGroup(libGame_gv_teams[lp_winningTeam].lv_teamPlayerGroup, libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_roundOneVictory, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+        libGame_gf_AnnouncementAddItemForPlayerGroup(libGame_gv_teams[libGame_gf_EnemyTeam(lp_winningTeam)].lv_teamPlayerGroup, libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_roundOneLoss, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+        if ((lp_winningTeam == libGame_gv_teamOrderIndex_C)) {
+            libGame_gf_AnnouncementAddItemForPlayerGroup(libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_roundOneBlueWins, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+        }
+        else {
+            libGame_gf_AnnouncementAddItemForPlayerGroup(libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_roundOneRedWins, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+        }
+    }
+    else if (autoA9759227_val == 2) {
+        if ((libAREN_gv_aRM_RoundScore[lp_winningTeam] == 2)) {
+            libGame_gf_AnnouncementAddItemForPlayerGroup(libGame_gv_teams[lp_winningTeam].lv_teamPlayerGroup, libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_roundTwoVictoryFinish, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+            libGame_gf_AnnouncementAddItemForPlayerGroup(libGame_gv_teams[libGame_gf_EnemyTeam(lp_winningTeam)].lv_teamPlayerGroup, libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_roundTwoLossFinish, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+            if ((lp_winningTeam == libGame_gv_teamOrderIndex_C)) {
+                libGame_gf_AnnouncementAddItemForPlayerGroup(libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_roundTwoBlueWinsFinish, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+            }
+            else {
+                libGame_gf_AnnouncementAddItemForPlayerGroup(libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_roundTwoRedWinsFinish, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+            }
+        }
+        else {
+            libGame_gf_AnnouncementAddItemForPlayerGroup(libGame_gv_teams[lp_winningTeam].lv_teamPlayerGroup, libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_roundTwoVictoryTie, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+            libGame_gf_AnnouncementAddItemForPlayerGroup(libGame_gv_teams[libGame_gf_EnemyTeam(lp_winningTeam)].lv_teamPlayerGroup, libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_roundTwoLossTie, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+            if ((lp_winningTeam == libGame_gv_teamOrderIndex_C)) {
+                libGame_gf_AnnouncementAddItemForPlayerGroup(libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_roundTwoBlueWinsTie, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+            }
+            else {
+                libGame_gf_AnnouncementAddItemForPlayerGroup(libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_roundTwoRedWinsTie, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+            }
+        }
+    }
+    else if (autoA9759227_val == 3) {
+        libGame_gf_AnnouncementAddItemForPlayerGroup(libGame_gv_teams[lp_winningTeam].lv_teamPlayerGroup, libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_roundThreeVictory, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+        libGame_gf_AnnouncementAddItemForPlayerGroup(libGame_gv_teams[libGame_gf_EnemyTeam(lp_winningTeam)].lv_teamPlayerGroup, libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_roundThreeLoss, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+        if ((lp_winningTeam == libGame_gv_teamOrderIndex_C)) {
+            libGame_gf_AnnouncementAddItemForPlayerGroup(libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_roundThreeBlueWins, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+        }
+        else {
+            libGame_gf_AnnouncementAddItemForPlayerGroup(libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_roundThreeRedWins, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+        }
+    }
+    else {
+    }
+}
+
+void libAREN_gf_ARM_WheresWeirdoDataInit () {
+    // Variable Declarations
+    int lv_itLevel;
+    unit lv_itWeirdoUnit;
+    int lv_itWeirdoIndex;
+
+    // Automatic Variable Declarations
+    const int auto28CFA2FD_ae = libAREN_gv_aRM_MechanicsCountToPick_C;
+    const int auto28CFA2FD_ai = 1;
+    unitgroup auto30D411B1_g;
+    int auto30D411B1_u;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_itLevel = 1;
+    for ( ; ( (auto28CFA2FD_ai >= 0 && lv_itLevel <= auto28CFA2FD_ae) || (auto28CFA2FD_ai < 0 && lv_itLevel >= auto28CFA2FD_ae) ) ; lv_itLevel += auto28CFA2FD_ai ) {
+        lv_itWeirdoIndex = 0;
+        auto30D411B1_g = UnitGroup("WheresWeirdo", c_playerAny, libAREN_gv_aRM_MechanicData[lv_itLevel].lv_playableRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+        auto30D411B1_u = UnitGroupCount(auto30D411B1_g, c_unitCountAll);
+        for (;; auto30D411B1_u -= 1) {
+            lv_itWeirdoUnit = UnitGroupUnitFromEnd(auto30D411B1_g, auto30D411B1_u);
+            if (lv_itWeirdoUnit == null) { break; }
+            lv_itWeirdoIndex += 1;
+            if ((lv_itWeirdoIndex > libAREN_gv_aRM_WheresWeirdoMaxPoints_C)) {
+                TextExpressionSetToken("Param/Expression/lib_AREN_DFA5E2E0", "A", IntToText(lv_itLevel));
+                TextExpressionSetToken("Param/Expression/lib_AREN_DFA5E2E0", "B", IntToText(libAREN_gv_aRM_WheresWeirdoMaxPoints_C));
+                TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_AREN_DFA5E2E0"), true);
+                break;
+            }
+
+            libAREN_gv_aRM_WheresWeirdoPoints[lv_itLevel][lv_itWeirdoIndex] = UnitGetPosition(lv_itWeirdoUnit);
+            UnitKill(lv_itWeirdoUnit);
+        }
+    }
+}
+
+void libAREN_gf_ARM_WheresWeirdoNewRoundSpawn () {
+    // Variable Declarations
+    point lv_spawnPoint;
+    int lv_locationNumber;
+    unit lv_itUnit;
+    playergroup lv_weirdoPoints;
+    int lv_itPoint;
+
+    // Automatic Variable Declarations
+    unitgroup auto46B495FF_g;
+    int auto46B495FF_u;
+    const int autoE66BE420_ae = libAREN_gv_aRM_WheresWeirdoMaxPoints_C;
+    const int autoE66BE420_ai = 1;
+
+    // Variable Initialization
+    lv_weirdoPoints = PlayerGroupEmpty();
+
+    // Implementation
+    auto46B495FF_g = UnitGroup("WheresWeirdo", c_playerAny, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    auto46B495FF_u = UnitGroupCount(auto46B495FF_g, c_unitCountAll);
+    for (;; auto46B495FF_u -= 1) {
+        lv_itUnit = UnitGroupUnitFromEnd(auto46B495FF_g, auto46B495FF_u);
+        if (lv_itUnit == null) { break; }
+        UnitKill(lv_itUnit);
+    }
+    if ((libAREN_gv_aRM_WheresWeirdoPoints[libAREN_gv_aRM_CurrentRoundIndex][1] == null)) {
+        return ;
+    }
+
+    lv_itPoint = 1;
+    for ( ; ( (autoE66BE420_ai >= 0 && lv_itPoint <= autoE66BE420_ae) || (autoE66BE420_ai < 0 && lv_itPoint >= autoE66BE420_ae) ) ; lv_itPoint += autoE66BE420_ai ) {
+        if ((libAREN_gv_aRM_WheresWeirdoPoints[libAREN_gf_ArenaCurrentLevelIndex()][lv_itPoint] != null)) {
+            PlayerGroupAdd(lv_weirdoPoints, lv_itPoint);
+        }
+
+    }
+    lv_locationNumber = PlayerGroupPlayer(lv_weirdoPoints, RandomInt(1, PlayerGroupCount(lv_weirdoPoints)));
+    lv_spawnPoint = libAREN_gv_aRM_WheresWeirdoPoints[libAREN_gf_ArenaCurrentLevelIndex()][lv_locationNumber];
+    UnitCreate(1, "WheresWeirdo", c_unitCreateIgnorePlacement, 0, lv_spawnPoint, PointGetFacing(lv_spawnPoint), null);
+    libAREN_gv_aRM_WheresWeirdoLastPoint = lv_spawnPoint;
+}
+
+void libAREN_gf_ARM_CreateEffectOnUnitGroup (playergroup lp_playerGroup, string lp_effect) {
+    // Variable Declarations
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    playergroup auto6D6C54A8_g;
+
+    // Variable Initialization
+
+    // Implementation
+    auto6D6C54A8_g = lp_playerGroup;
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(auto6D6C54A8_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	UnitCreateEffectUnit(libGame_gv_players[lv_itPlayer].lv_heroUnit, lp_effect, libGame_gv_players[lv_itPlayer].lv_heroUnit);
+    }
+}
+
+void libAREN_gf_ARM_TurnOnOffAltarSoundsforRegion (region lp_region, bool lp_onOff) {
+    // Variable Declarations
+    actor lv_actorRegion;
+
+    // Automatic Variable Declarations
+    bool autoA3D2E25D_val;
+
+    // Variable Initialization
+
+    // Implementation
+    ActorRegionCreate(null, "TriggerRegion", lp_region);
+    lv_actorRegion = libNtve_gf_ActorLastCreated();
+    autoA3D2E25D_val = lp_onOff;
+    if (autoA3D2E25D_val == true) {
+        ActorRegionSend(lv_actorRegion, c_actorIntersectAgainstRadiusContact, "Signal Activate", "Doodad", "ScopeContains _StartingPlatform");
+    }
+    else if (autoA3D2E25D_val == false) {
+        ActorRegionSend(lv_actorRegion, c_actorIntersectAgainstRadiusContact, "Signal Deactivate", "Doodad", "ScopeContains _StartingPlatform");
+    }
+    else {
+    }
+    ActorScopeKill(ActorScopeFromActor(lv_actorRegion));
+}
+
+int libAREN_gf_ARM_IntegerToArenaMechanic (int lp_value) {
+    // Automatic Variable Declarations
+    // Implementation
+    return lp_value;
+}
+
+int libAREN_gf_ARM_ArenaMechanicToInteger (int lp_mechanic) {
+    // Automatic Variable Declarations
+    // Implementation
+    return lp_mechanic;
+}
+
+void libAREN_gf_TopBarTeamLevelUpdateTeamsLevelLabel2 () {
+    // Variable Declarations
+    int lv_itTeam;
+    int lv_itImage;
+
+    // Automatic Variable Declarations
+    const int auto1DE2EE1B_ae = libCore_gv_bALMaxTeams;
+    const int auto1DE2EE1B_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    DialogControlCreateInPanelFromTemplate(libUIUI_gv_uIPartyFrame.lv_mainPanel, c_triggerControlTypePanel, "ArenaModeTeamScore/ArenaModeTeamScorePanel");
+    libAREN_gv_aRM_UI_TeamScorePanel = DialogControlLastCreated();
+    DialogControlSetPositionRelative(DialogControlLastCreated(), PlayerGroupAll(), c_anchorTop, libUIUI_gv_topBarPanel.lv_mainPanel, c_anchorTop, 0, 0);
+    lv_itTeam = 1;
+    for ( ; ( (auto1DE2EE1B_ai >= 0 && lv_itTeam <= auto1DE2EE1B_ae) || (auto1DE2EE1B_ai < 0 && lv_itTeam >= auto1DE2EE1B_ae) ) ; lv_itTeam += auto1DE2EE1B_ai ) {
+        DialogControlSetAnimationState(libUIUI_gv_uIGameUIHandles.lv_gameUIContainer, libGame_gv_teams[lv_itTeam].lv_teamPlayerGroupNoNPCPlayers, "TeamColors", ("Team" + IntToString(lv_itTeam) + "IsBlue"));
+    }
+    DialogControlSetVisible(libUIUI_gv_uIPartyFrame.lv_teamLevelInfoPanel[libGame_gv_teamOrderIndex_C], PlayerGroupAll(), false);
+    DialogControlSetVisible(libUIUI_gv_uIPartyFrame.lv_teamLevelInfoPanel[libGame_gv_teamChaosIndex_C], PlayerGroupAll(), false);
+}
+
+void libAREN_gf_TopBarTeamLevelUpdateTeamsLevelLabel (int lp_scorePanel) {
+    int init_i;
+    int init_j;
+
+    // Variable Declarations
+    int lv_itTeam;
+    int[libCore_gv_bALMaxTeams + 1][4] lv_dialogItem;
+    int lv_itImage;
+
+    // Automatic Variable Declarations
+    const int auto6199CE88_ae = libCore_gv_bALMaxTeams;
+    const int auto6199CE88_ai = 1;
+    int autoC3B8AB2A_ae;
+    const int autoC3B8AB2A_ai = 1;
+    const int auto3AB18594_ae = libCore_gv_bALMaxTeams;
+    const int auto3AB18594_ai = 1;
+    int autoF85E259F_ae;
+    const int autoF85E259F_ai = 1;
+
+    // Variable Initialization
+    for (init_i = 0; init_i <= libCore_gv_bALMaxTeams; init_i += 1) {
+        for (init_j = 0; init_j <= 3; init_j += 1) {
+            lv_dialogItem[init_i][init_j] = c_invalidDialogControlId;
+        }
+    }
+
+    // Implementation
+    lv_itTeam = 1;
+    for ( ; ( (auto6199CE88_ai >= 0 && lv_itTeam <= auto6199CE88_ae) || (auto6199CE88_ai < 0 && lv_itTeam >= auto6199CE88_ae) ) ; lv_itTeam += auto6199CE88_ai ) {
+        autoC3B8AB2A_ae = libAREN_gv_victoriesCount;
+        lv_itImage = 1;
+        for ( ; ( (autoC3B8AB2A_ai >= 0 && lv_itImage <= autoC3B8AB2A_ae) || (autoC3B8AB2A_ai < 0 && lv_itImage >= autoC3B8AB2A_ae) ) ; lv_itImage += autoC3B8AB2A_ai ) {
+            DialogControlHookup(lp_scorePanel, c_triggerControlTypePanel, libNtve_gf_ConvertStringToUILayoutFrameName(("Team" + IntToString(lv_itTeam) + "/Round" + IntToString(lv_itImage) + "Indicator")));
+            lv_dialogItem[lv_itTeam][lv_itImage] = DialogControlLastCreated();
+            DialogControlSetVisible(lv_dialogItem[lv_itTeam][lv_itImage], PlayerGroupAll(), true);
+        }
+    }
+    lv_itTeam = 1;
+    for ( ; ( (auto3AB18594_ai >= 0 && lv_itTeam <= auto3AB18594_ae) || (auto3AB18594_ai < 0 && lv_itTeam >= auto3AB18594_ae) ) ; lv_itTeam += auto3AB18594_ai ) {
+        autoF85E259F_ae = libAREN_gv_victoriesCount;
+        lv_itImage = 1;
+        for ( ; ( (autoF85E259F_ai >= 0 && lv_itImage <= autoF85E259F_ae) || (autoF85E259F_ai < 0 && lv_itImage >= autoF85E259F_ae) ) ; lv_itImage += autoF85E259F_ai ) {
+            if ((libAREN_gv_aRM_ScoreAtRoundStart[lv_itTeam] >= lv_itImage)) {
+                DialogControlSetAnimationState(lv_dialogItem[lv_itTeam][(((lv_itImage+1)%libAREN_gv_victoriesCount)+1)], PlayerGroupAll(), "RoundVictory", "On");
+            }
+            else {
+                DialogControlSetAnimationState(lv_dialogItem[lv_itTeam][(((lv_itImage+1)%libAREN_gv_victoriesCount)+1)], PlayerGroupAll(), "RoundVictory", "Off");
+            }
+        }
+    }
+}
+
+int libAREN_gf_GetIndexForVictoryIndicators (int lp_index) {
+    // Automatic Variable Declarations
+    // Implementation
+    return (((lp_index+1)%libAREN_gv_victoriesCount)+1);
+}
+
+int libAREN_gf_ARM_UI_RoundOverCreateDialog (int lp_team, string lp_template) {
+    // Automatic Variable Declarations
+    int autoCE1EA37E_val;
+
+    // Implementation
+    DialogCreate(500, 400, c_anchorCenter, 0, 0, true);
+    DialogSetImageVisible(DialogLastCreated(), false);
+    DialogSetFullscreen(DialogLastCreated(), true);
+    DialogControlCreateFromTemplate(DialogLastCreated(), c_triggerControlTypePanel, lp_template);
+    DialogControlSetFullDialog(DialogControlLastCreated(), libGame_gf_PlayersOnTeamHeroes(lp_team, false), true);
+    DialogControlSetVisible(DialogControlLastCreated(), libGame_gf_PlayersOnTeamHeroes(lp_team, false), true);
+    DialogSetVisible(DialogLastCreated(), libGame_gf_PlayersOnTeamHeroes(lp_team, false), true);
+    autoCE1EA37E_val = libAREN_gv_victoriesCount;
+    if (autoCE1EA37E_val == 2) {
+        DialogControlSendAnimationEvent(DialogControlLastCreated(), GameAttributePlayersForTeam(lp_team), ("Team" + IntToString(libAREN_gv_aRM_RoundWinningTeam) + "Victory" + IntToString(libAREN_gv_aRM_RoundScore[libAREN_gv_aRM_RoundWinningTeam])));
+    }
+    else if (autoCE1EA37E_val == 3) {
+        DialogControlSendAnimationEvent(DialogControlLastCreated(), GameAttributePlayersForTeam(lp_team), ("Bo5Team" + IntToString(libAREN_gv_aRM_RoundWinningTeam) + "Victory" + IntToString(libAREN_gv_aRM_RoundScore[libAREN_gv_aRM_RoundWinningTeam])));
+    }
+    else {
+    }
+    DialogControlHookup(DialogControlLastCreated(), c_triggerControlTypePanel, "RoundIndicators");
+    libAREN_gf_TopBarTeamLevelUpdateTeamsLevelLabel(DialogControlLastCreated());
+    return DialogLastCreated();
+}
+
+trigger auto_libAREN_gf_TopBarTeamLevelUpdateTeamsLevelLabel3_Trigger = null;
+int auto_libAREN_gf_TopBarTeamLevelUpdateTeamsLevelLabel3_lp_victoryTeam;
+
+void libAREN_gf_TopBarTeamLevelUpdateTeamsLevelLabel3 (int lp_victoryTeam) {
+    auto_libAREN_gf_TopBarTeamLevelUpdateTeamsLevelLabel3_lp_victoryTeam = lp_victoryTeam;
+
+    if (auto_libAREN_gf_TopBarTeamLevelUpdateTeamsLevelLabel3_Trigger == null) {
+        auto_libAREN_gf_TopBarTeamLevelUpdateTeamsLevelLabel3_Trigger = TriggerCreate("auto_libAREN_gf_TopBarTeamLevelUpdateTeamsLevelLabel3_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libAREN_gf_TopBarTeamLevelUpdateTeamsLevelLabel3_Trigger, false, false);
+}
+
+bool auto_libAREN_gf_TopBarTeamLevelUpdateTeamsLevelLabel3_TriggerFunc (bool testConds, bool runActions) {
+    int lp_victoryTeam = auto_libAREN_gf_TopBarTeamLevelUpdateTeamsLevelLabel3_lp_victoryTeam;
+
+    // Variable Declarations
+    int lv_defeatTeam;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_defeatTeam = libGame_gf_EnemyTeam(lp_victoryTeam);
+    if ((libAREN_gv_aRM_UI_RoundOverVictoryDialog != c_invalidDialogId)) {
+        DialogSetVisible(libAREN_gv_aRM_UI_RoundOverVictoryDialog, libGame_gf_PlayersOnTeamHeroes(lp_victoryTeam, false), true);
+        DialogSetVisible(libAREN_gv_aRM_UI_RoundOverDefeatDialog, libGame_gf_PlayersOnTeamHeroes(lv_defeatTeam, false), true);
+        return true;
+    }
+
+    libAREN_gv_aRM_UI_RoundOverVictoryDialog = libAREN_gf_ARM_UI_RoundOverCreateDialog(lp_victoryTeam, "ArenaModeRoundOver/ArenaModeRoundOverVictoryPanelTemplate");
+    libAREN_gv_aRM_UI_RoundOverDefeatDialog = libAREN_gf_ARM_UI_RoundOverCreateDialog(lv_defeatTeam, "ArenaModeRoundOver/ArenaModeRoundOverDefeatPanelTemplate");
+    Wait(1.5, c_timeGame);
+    if ((libAREN_gv_playRoundOverVO == true)) {
+        libAREN_gf_ARM_ArenaPlayRoundOverAnnouncement(libAREN_gv_aRM_RoundWinningTeam, libAREN_gf_ArenaCurrentRoundIndex());
+    }
+
+    return true;
+}
+
+void libAREN_gf_TopBarTeamLevelUpdateTeamsLevelLabel5 () {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libAREN_gv_aRM_UI_RoundOverVictoryDialog != c_invalidDialogId)) {
+        DialogDestroy(libAREN_gv_aRM_UI_RoundOverVictoryDialog);
+        libAREN_gv_aRM_UI_RoundOverVictoryDialog = c_invalidDialogId;
+    }
+
+    if ((libAREN_gv_aRM_UI_RoundOverDefeatDialog != c_invalidDialogId)) {
+        DialogDestroy(libAREN_gv_aRM_UI_RoundOverDefeatDialog);
+        libAREN_gv_aRM_UI_RoundOverDefeatDialog = c_invalidDialogId;
+    }
+
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Arena Map Initilization
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_ArenaMapInitilization_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libIGHS_gv_allHeroesPickedSound = SoundLink("ArenaMode_Crowd_GameStart_Buildup", -1);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_ArenaMapInitilization_Init () {
+    libAREN_gt_ARM_ArenaMapInitilization = TriggerCreate("libAREN_gt_ARM_ArenaMapInitilization_Func");
+    TriggerAddEventMapInit(libAREN_gt_ARM_ArenaMapInitilization);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Arena Initialize Visibility
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_ArenaInitializeVisibility_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Automatic Variable Declarations
+    playergroup auto046EB7DC_g;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto046EB7DC_g = libCore_gv_allHeroPlayersPlusObserver;
+    lv_player = -1;
+    while (true) {
+        	lv_player = PlayerGroupNextPlayer(auto046EB7DC_g, lv_player);
+        	if (lv_player<0) { break; }
+        	VisExploreArea(lv_player, RegionEntireMap(), true, false);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_ArenaInitializeVisibility_Init () {
+    libAREN_gt_ARM_ArenaInitializeVisibility = TriggerCreate("libAREN_gt_ARM_ArenaInitializeVisibility_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Arena Round Initialize Visibility
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_ArenaRoundInitializeVisibility_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+    revealer[13] lv_tempRevealer;
+
+    // Automatic Variable Declarations
+    playergroup auto065AFDDB_g;
+    playergroup auto46D0919D_g;
+    playergroup autoB7FDF610_g;
+    playergroup auto06E5F4C8_g;
+    const int auto7935163E_ae = 12;
+    const int auto7935163E_ai = 1;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((libAREN_gv_aRM_BaseRevealersEnabled == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto065AFDDB_g = libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroup;
+    lv_player = -1;
+    while (true) {
+        	lv_player = PlayerGroupNextPlayer(auto065AFDDB_g, lv_player);
+        	if (lv_player<0) { break; }
+        	VisRevealerCreate(lv_player, libCore_gv_mAPOrderBaseRegion);
+        VisRevealerEnable(VisRevealerLastCreated(), true);
+        libGame_gv_baseRevealers[lv_player] = VisRevealerLastCreated();
+    }
+    auto46D0919D_g = libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroup;
+    lv_player = -1;
+    while (true) {
+        	lv_player = PlayerGroupNextPlayer(auto46D0919D_g, lv_player);
+        	if (lv_player<0) { break; }
+        	VisRevealerCreate(lv_player, libCore_gv_mAPChaosBaseRegion);
+        VisRevealerEnable(VisRevealerLastCreated(), true);
+        libGame_gv_baseRevealers[lv_player] = VisRevealerLastCreated();
+    }
+    autoB7FDF610_g = libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroup;
+    lv_player = -1;
+    while (true) {
+        	lv_player = PlayerGroupNextPlayer(autoB7FDF610_g, lv_player);
+        	if (lv_player<0) { break; }
+        	VisRevealerCreate(lv_player, libCore_gv_mAPChaosBaseRegion);
+        VisRevealerEnable(VisRevealerLastCreated(), true);
+        lv_tempRevealer[lv_player] = VisRevealerLastCreated();
+    }
+    auto06E5F4C8_g = libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroup;
+    lv_player = -1;
+    while (true) {
+        	lv_player = PlayerGroupNextPlayer(auto06E5F4C8_g, lv_player);
+        	if (lv_player<0) { break; }
+        	VisRevealerCreate(lv_player, libCore_gv_mAPOrderBaseRegion);
+        VisRevealerEnable(VisRevealerLastCreated(), true);
+        lv_tempRevealer[lv_player] = VisRevealerLastCreated();
+    }
+    Wait(0.125, c_timeGame);
+    lv_player = 1;
+    for ( ; ( (auto7935163E_ai >= 0 && lv_player <= auto7935163E_ae) || (auto7935163E_ai < 0 && lv_player >= auto7935163E_ae) ) ; lv_player += auto7935163E_ai ) {
+        VisRevealerEnable(lv_tempRevealer[lv_player], false);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_ArenaRoundInitializeVisibility_Init () {
+    libAREN_gt_ARM_ArenaRoundInitializeVisibility = TriggerCreate("libAREN_gt_ARM_ArenaRoundInitializeVisibility_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Arena Map Start
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_ArenaMapStart_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((GameTestConfigType() == 1)) {
+        CinematicFade(true, 0.0, c_fadeStyleNormal, Color(0.00, 0.00, 0.00), 0.0, false);
+        CameraLockInput(1, false);
+        return true;
+    }
+
+    if (((GameTestConfigType() == 2) || (GameTestConfigType() == 3) || (GameTestConfigType() == 4))) {
+        CinematicFade(true, 0.0, c_fadeStyleNormal, Color(0.00, 0.00, 0.00), 0.0, false);
+        CameraLockInput(1, false);
+    }
+
+    Wait(0.125, c_timeGame);
+    libGame_gv_afk_UseBrawlAFKSystem = true;
+    libAREN_gf_ARM_PickMechanics();
+    libAREN_gf_ARM_WheresWeirdoDataInit();
+    if ((libCore_gv_sYSStartGame == true)) {
+        libAREN_gf_ARM_StartRound();
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_ArenaMapStart_Init () {
+    libAREN_gt_ARM_ArenaMapStart = TriggerCreate("libAREN_gt_ARM_ArenaMapStart_Func");
+    libAREN_gf_MapRavenLordTributeWarning3(libAREN_gt_ARM_ArenaMapStart);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Start Round Structure Animations
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_StartRoundStructureAnimations_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itTeam;
+    unit lv_itGate;
+    region lv_baseArea;
+    unit lv_itMoonwell;
+
+    // Automatic Variable Declarations
+    unitgroup auto3C16CD52_g;
+    int auto3C16CD52_u;
+    unitgroup autoEE059B0B_g;
+    int autoEE059B0B_u;
+    const int auto78115E99_ae = 2;
+    const int auto78115E99_ai = 1;
+    int auto765B6046_val;
+    unitgroup auto48F12F8D_g;
+    int auto48F12F8D_u;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto3C16CD52_g = UnitGroup(null, libCore_gv_cOMPUTER_TeamChaos, lv_baseArea, UnitFilter((1 << c_targetFilterStructure), 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    auto3C16CD52_u = UnitGroupCount(auto3C16CD52_g, c_unitCountAll);
+    for (;; auto3C16CD52_u -= 1) {
+        lv_itMoonwell = UnitGroupUnitFromEnd(auto3C16CD52_g, auto3C16CD52_u);
+        if (lv_itMoonwell == null) { break; }
+        if ((UnitTypeTestFlag(UnitGetType(lv_itMoonwell), c_unitFlagTownStructureMoonwell) == true)) {
+            ActorSend(libNtve_gf_MainActorofUnit(lv_itMoonwell), "Signal MoonwellReset");
+        }
+
+    }
+    autoEE059B0B_g = UnitGroup(null, libCore_gv_cOMPUTER_TeamOrder, lv_baseArea, UnitFilter((1 << c_targetFilterStructure), 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    autoEE059B0B_u = UnitGroupCount(autoEE059B0B_g, c_unitCountAll);
+    for (;; autoEE059B0B_u -= 1) {
+        lv_itMoonwell = UnitGroupUnitFromEnd(autoEE059B0B_g, autoEE059B0B_u);
+        if (lv_itMoonwell == null) { break; }
+        if ((UnitTypeTestFlag(UnitGetType(lv_itMoonwell), c_unitFlagTownStructureMoonwell) == true)) {
+            ActorSend(libNtve_gf_MainActorofUnit(lv_itMoonwell), "Signal MoonwellReset");
+        }
+
+    }
+    libNtve_gf_WaitForTimer(libGame_gv_openTheGatesTimer, (libCore_gv_bALOpenTheGatesDelay - 4.0), false);
+    ActorSend(libNtve_gf_MainActorofUnit(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core), "AnimBracketStop CoreStart");
+    ActorSend(libNtve_gf_MainActorofUnit(libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core), "AnimBracketStop CoreStart");
+    libNtve_gf_WaitForTimer(libGame_gv_openTheGatesTimer, 6.0, false);
+    lv_itTeam = 1;
+    for ( ; ( (auto78115E99_ai >= 0 && lv_itTeam <= auto78115E99_ae) || (auto78115E99_ai < 0 && lv_itTeam >= auto78115E99_ae) ) ; lv_itTeam += auto78115E99_ai ) {
+        auto765B6046_val = lv_itTeam;
+        if (auto765B6046_val == libGame_gv_teamOrderIndex_C) {
+            lv_baseArea = libCore_gv_mAPOrderBaseRegion;
+        }
+        else if (auto765B6046_val == libGame_gv_teamChaosIndex_C) {
+            lv_baseArea = libCore_gv_mAPChaosBaseRegion;
+        }
+        else {
+        }
+        auto48F12F8D_g = UnitGroup(null, libGame_gf_ComputerPlayerInTeam(lv_itTeam), lv_baseArea, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+        auto48F12F8D_u = UnitGroupCount(auto48F12F8D_g, c_unitCountAll);
+        for (;; auto48F12F8D_u -= 1) {
+            lv_itGate = UnitGroupUnitFromEnd(auto48F12F8D_g, auto48F12F8D_u);
+            if (lv_itGate == null) { break; }
+            if ((UnitTypeTestFlag(UnitGetType(lv_itGate), c_unitFlagTownStructureGate) == true)) {
+                ActorSend(libNtve_gf_MainActorofUnit(lv_itGate), "Signal PlayBuild");
+            }
+
+        }
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_StartRoundStructureAnimations_Init () {
+    libAREN_gt_ARM_StartRoundStructureAnimations = TriggerCreate("libAREN_gt_ARM_StartRoundStructureAnimations_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Gates Timer Expires
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_GatesTimerExpires_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itPlayer;
+    unit lv_itBlocker;
+
+    // Automatic Variable Declarations
+    const int auto117382D0_ae = libCore_gv_bALMaxPlayers;
+    const int auto117382D0_ai = 1;
+    unitgroup auto1DFEFDD6_g;
+    int auto1DFEFDD6_u;
+    unitgroup auto2CFBBE19_g;
+    int auto2CFBBE19_u;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libAREN_gv_aRM_PlayCrowdCheerSounds == true)) {
+        SoundPlayForPlayer(SoundLink("ArenaMode_Crowd_GameStart", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    }
+
+    lv_itPlayer = 1;
+    for ( ; ( (auto117382D0_ai >= 0 && lv_itPlayer <= auto117382D0_ae) || (auto117382D0_ai < 0 && lv_itPlayer >= auto117382D0_ae) ) ; lv_itPlayer += auto117382D0_ai ) {
+        libNtve_gf_SetUpgradeLevelForPlayer(lv_itPlayer, "GatesAreOpen", 1);
+    }
+    auto1DFEFDD6_g = UnitGroup("StormGameStartPathingBlocker", c_playerAny, libAREN_gv_aRM_MechanicData[libAREN_gf_ArenaCurrentMechanicId()].lv_playableRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    auto1DFEFDD6_u = UnitGroupCount(auto1DFEFDD6_g, c_unitCountAll);
+    for (;; auto1DFEFDD6_u -= 1) {
+        lv_itBlocker = UnitGroupUnitFromEnd(auto1DFEFDD6_g, auto1DFEFDD6_u);
+        if (lv_itBlocker == null) { break; }
+        UnitRemove(lv_itBlocker);
+    }
+    auto2CFBBE19_g = UnitGroup("StormGameStartPathingBlockerDiagonal", c_playerAny, libAREN_gv_aRM_MechanicData[libAREN_gf_ArenaCurrentMechanicId()].lv_playableRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    auto2CFBBE19_u = UnitGroupCount(auto2CFBBE19_g, c_unitCountAll);
+    for (;; auto2CFBBE19_u -= 1) {
+        lv_itBlocker = UnitGroupUnitFromEnd(auto2CFBBE19_g, auto2CFBBE19_u);
+        if (lv_itBlocker == null) { break; }
+        UnitRemove(lv_itBlocker);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_GatesTimerExpires_Init () {
+    libAREN_gt_ARM_GatesTimerExpires = TriggerCreate("libAREN_gt_ARM_GatesTimerExpires_Func");
+    TriggerAddEventTimer(libAREN_gt_ARM_GatesTimerExpires, libGame_gv_openTheGatesTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Restrict Abilities To Region For Unit
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_RestrictAbilitiesToRegionForUnit_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    region lv_roundRegion;
+
+    // Automatic Variable Declarations
+    unitgroup auto7DFEF32A_g;
+    int auto7DFEF32A_u;
+    unit auto7DFEF32A_var;
+
+    // Variable Initialization
+    lv_roundRegion = libAREN_gv_aRM_MechanicData[libAREN_gf_ArenaCurrentLevelIndex()].lv_playableRegion;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto7DFEF32A_g = libGame_gv_players[libGame_gf_HeroSpawnPlayer()].lv_heroUnitGroup;
+    auto7DFEF32A_u = UnitGroupCount(auto7DFEF32A_g, c_unitCountAll);
+    for (;; auto7DFEF32A_u -= 1) {
+        auto7DFEF32A_var = UnitGroupUnitFromEnd(auto7DFEF32A_g, auto7DFEF32A_u);
+        if (auto7DFEF32A_var == null) { break; }
+        if ((libGame_gf_UnitIsHero(auto7DFEF32A_var) == true)) {
+            libMapM_gf_RestrictAbilitiesToRegionForUnit(auto7DFEF32A_var, lv_roundRegion);
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_RestrictAbilitiesToRegionForUnit_Init () {
+    libAREN_gt_ARM_RestrictAbilitiesToRegionForUnit = TriggerCreate("libAREN_gt_ARM_RestrictAbilitiesToRegionForUnit_Func");
+    libGame_gf_HeroSpawn(libAREN_gt_ARM_RestrictAbilitiesToRegionForUnit);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Round Ends
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_RoundEnds_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itPlayer;
+    unit lv_itUnit;
+    bool[libCore_gv_bALMaxTeams + 1] lv_teamCoreAlive;
+
+    // Automatic Variable Declarations
+    const int auto91CA8C94_ae = libCore_gv_bALMaxPlayers;
+    const int auto91CA8C94_ai = 1;
+    unitgroup autoCE2CB49D_g;
+    int autoCE2CB49D_u;
+    const int auto0935D836_ae = libCore_gv_bALMaxPlayers;
+    const int auto0935D836_ai = 1;
+    const int auto34B8783C_ae = libCore_gv_bALMaxPlayers;
+    const int auto34B8783C_ai = 1;
+    playergroup auto28BBBEF3_g;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    SetHeroLeaderPanelEnabled(false);
+    if (((libAREN_gv_aRM_CurrentRoundIndex >= libAREN_gv_aRM_MechanicsPickedCount) || (libAREN_gv_aRM_RoundScore[1] >= libAREN_gv_victoriesCount) || (libAREN_gv_aRM_RoundScore[2] >= libAREN_gv_victoriesCount))) {
+        libAREN_gf_ARM_GameOver();
+        return true;
+    }
+
+    UISetWorldVisible(PlayerGroupAll(), false);
+    lv_itPlayer = 1;
+    for ( ; ( (auto91CA8C94_ai >= 0 && lv_itPlayer <= auto91CA8C94_ae) || (auto91CA8C94_ai < 0 && lv_itPlayer >= auto91CA8C94_ae) ) ; lv_itPlayer += auto91CA8C94_ai ) {
+        libAREN_gf_ARM_ClearHeroDeathEffect(lv_itPlayer);
+    }
+    lv_teamCoreAlive[libGame_gv_teamOrderIndex_C] = true;
+    lv_teamCoreAlive[libGame_gv_teamChaosIndex_C] = true;
+    autoCE2CB49D_g = UnitGroupAlliance(c_playerAny, c_unitAllianceAny, libAREN_gv_aRM_MechanicData[libAREN_gf_ArenaCurrentMechanicId()].lv_playableRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    autoCE2CB49D_u = UnitGroupCount(autoCE2CB49D_g, c_unitCountAll);
+    for (;; autoCE2CB49D_u -= 1) {
+        lv_itUnit = UnitGroupUnitFromEnd(autoCE2CB49D_g, autoCE2CB49D_u);
+        if (lv_itUnit == null) { break; }
+        ActorSend(libNtve_gf_MainActorofUnit(lv_itUnit), "AnimClear Victory 0.000000");
+    }
+    lv_itPlayer = 1;
+    for ( ; ( (auto0935D836_ai >= 0 && lv_itPlayer <= auto0935D836_ae) || (auto0935D836_ai < 0 && lv_itPlayer >= auto0935D836_ae) ) ; lv_itPlayer += auto0935D836_ai ) {
+        libAREN_gf_UIDebugPanelSpawnOrSwapHeroForPlayer(lv_itPlayer);
+    }
+    SetTalentsEnabled(true);
+    Wait(1.0, c_timeGame);
+    libGame_gv_announcement_SystemEnabled = true;
+    libSond_gf_MuteMostSoundChannelsForGameOverState(true);
+    lv_itPlayer = 1;
+    for ( ; ( (auto34B8783C_ai >= 0 && lv_itPlayer <= auto34B8783C_ae) || (auto34B8783C_ai < 0 && lv_itPlayer >= auto34B8783C_ae) ) ; lv_itPlayer += auto34B8783C_ai ) {
+        CameraLockInput(lv_itPlayer, false);
+    }
+    auto28BBBEF3_g = libCore_gv_activeHumanPlayers;
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(auto28BBBEF3_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	libUIUI_gf_UIHeroConsoleShowHideForPlayer(false, lv_itPlayer);
+        UISetMode(libCore_gv_playerGroupFromPlayer[lv_itPlayer], c_uiModeFullscreen, c_transitionDurationImmediate);
+        DialogControlSetVisible(libUIUI_gv_uIGameUIHandles.lv_talentsButton, libCore_gv_playerGroupFromPlayer[lv_itPlayer], true);
+        UISetFrameVisible(libCore_gv_playerGroupFromPlayer[lv_itPlayer], c_syncFrameTypeMinimapPanel, true);
+        libUIUI_gf_UIHeroTrackerArrowShowHideForPlayer(true, lv_itPlayer);
+        libUIUI_gf_UIGameUIShowHideConsolePanelForPlayer(true, lv_itPlayer);
+    }
+    UISetFrameVisible(PlayerGroupAll(), c_syncFrameTypeStatusUI, true);
+    libGame_gv_heroSpawnReady = false;
+    TextExpressionSetToken("Param/Expression/lib_AREN_0793A066", "A", IntToText((libAREN_gv_aRM_CurrentRoundIndex + 1)));
+    libIGHS_gf_SetShuffleScreenTitleText(TextExpressionAssemble("Param/Expression/lib_AREN_0793A066"));
+    libIGHS_gf_SetShuffleUIVictoryCounters(libAREN_gv_aRM_RoundWinningTeam, (((libAREN_gv_aRM_RoundScore[libAREN_gv_aRM_RoundWinningTeam]+1)%libAREN_gv_victoriesCount)+1));
+    if ((libGame_gv_shufflePickEnabled == true)) {
+        libIGHS_gf_ReshuffleHeroPicksAndShowShuffleUI();
+    }
+
+    libAREN_gf_ARM_StartRound();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_RoundEnds_Init () {
+    libAREN_gt_ARM_RoundEnds = TriggerCreate("libAREN_gt_ARM_RoundEnds_Func");
+    libAREN_gf_MapRavenLordTributeWarning2(libAREN_gt_ARM_RoundEnds);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Team Abandons 
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_TeamAbandons_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itTeam;
+    int lv_enemyTeam;
+
+    // Automatic Variable Declarations
+    const int autoAE598DBA_ae = libCore_gv_bALMaxTeams;
+    const int autoAE598DBA_ai = 1;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libAREN_gv_aRM_VictorySequencePlaying = true;
+    lv_itTeam = 1;
+    for ( ; ( (autoAE598DBA_ai >= 0 && lv_itTeam <= autoAE598DBA_ae) || (autoAE598DBA_ai < 0 && lv_itTeam >= autoAE598DBA_ae) ) ; lv_itTeam += autoAE598DBA_ai ) {
+        if ((EventTimer() == libGame_gv_teams[lv_itTeam].lv_abandonedTheGameTimer)) {
+            lv_enemyTeam = libGame_gf_EnemyTeam(lv_itTeam);
+            UIDisplayMessage(libGame_gv_teams[lv_enemyTeam].lv_teamPlayerGroupNoNPCPlayers, c_messageAreaChat, StringExternal("Param/Value/lib_AREN_DB6DAF68"));
+            UnitKill(libGame_gv_teams[lv_itTeam].lv_core);
+        }
+
+    }
+    if ((lv_enemyTeam == libGame_gv_teamOrderIndex_C)) {
+        if ((libAREN_gv_aRM_RoundScore[libGame_gv_teamOrderIndex_C] <= 0)) {
+            libAREN_gv_aRM_RoundScore[libGame_gv_teamOrderIndex_C] = 1;
+        }
+
+        libAREN_gv_aRM_RoundWinningTeam = libGame_gv_teamOrderIndex_C;
+    }
+    else {
+        if ((libAREN_gv_aRM_RoundScore[libGame_gv_teamChaosIndex_C] <= 0)) {
+            libAREN_gv_aRM_RoundScore[libGame_gv_teamChaosIndex_C] = 1;
+        }
+
+        libAREN_gv_aRM_RoundWinningTeam = libGame_gv_teamChaosIndex_C;
+    }
+    libAREN_gf_ARM_RoundOver();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_TeamAbandons_Init () {
+    libAREN_gt_ARM_TeamAbandons = TriggerCreate("libAREN_gt_ARM_TeamAbandons_Func");
+    TriggerAddEventTimer(libAREN_gt_ARM_TeamAbandons, libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_abandonedTheGameTimer);
+    TriggerAddEventTimer(libAREN_gt_ARM_TeamAbandons, libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_abandonedTheGameTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Init Walla Sounds
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_InitWallaSounds_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libAREN_gv_aRM_WallaSounds[1] = SoundLink("ArenaMode_Crowd_Walla_Low", -1);
+    libAREN_gv_aRM_WallaSounds[2] = SoundLink("ArenaMode_Crowd_Walla_Med", -1);
+    libAREN_gv_aRM_WallaSounds[3] = SoundLink("ArenaMode_Crowd_Walla_High", -1);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_InitWallaSounds_Init () {
+    libAREN_gt_ARM_InitWallaSounds = TriggerCreate("libAREN_gt_ARM_InitWallaSounds_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Hero Respawn Cheering
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_HeroRespawnCheering_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_owningPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_owningPlayer = libGame_gf_HeroRespawnPlayer();
+
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gv_gameOver == false))) {
+            return false;
+        }
+
+        if (!((libAREN_gv_aRM_PlayCrowdCheerSounds == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    SoundPlayForPlayer(SoundLink("ArenaMode_Crowd_HeroRespawn", -1), c_maxPlayers, PlayerGroupSingle(lv_owningPlayer), 100.0, 0.0);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_HeroRespawnCheering_Init () {
+    libAREN_gt_ARM_HeroRespawnCheering = TriggerCreate("libAREN_gt_ARM_HeroRespawnCheering_Func");
+    libGame_gf_HeroRespawn(libAREN_gt_ARM_HeroRespawnCheering);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Arena Mechanic Activated
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_ArenaMechanicActivated_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gv_gameOver == false))) {
+            return false;
+        }
+
+        if (!((libAREN_gv_aRM_PlayCrowdCheerSounds == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libAREN_gf_ARM_PlayNewCrowdCheerForTeam(SoundLink("ArenaMode_Crowd_EventReady", -1), libGame_gv_teamOrderIndex_C);
+    libAREN_gf_ARM_PlayNewCrowdCheerForTeam(SoundLink("ArenaMode_Crowd_EventReady", -1), libGame_gv_teamChaosIndex_C);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_ArenaMechanicActivated_Init () {
+    libAREN_gt_ARM_ArenaMechanicActivated = TriggerCreate("libAREN_gt_ARM_ArenaMechanicActivated_Func");
+    libAREN_gf_ArenaMechanicActivated(libAREN_gt_ARM_ArenaMechanicActivated);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Hero Takedown Cheering
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_HeroTakedownCheering_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_killingPlayerIndex;
+    int lv_teamOfKillingPlayer;
+    int lv_teamOfKilledPlayer;
+    actor lv_actorRegion;
+    string lv_actorMessageTeamString;
+    string lv_actorMessageLevelString;
+    string lv_cheerEffect;
+    int lv_killStreakOfKillingPlayer;
+
+    // Automatic Variable Declarations
+    int auto6916EC38_val;
+
+    // Variable Initialization
+    lv_killingPlayerIndex = libGame_gf_HeroKilledKillingPlayer();
+    lv_actorMessageTeamString = "";
+    lv_actorMessageLevelString = "";
+    lv_killStreakOfKillingPlayer = (libGame_gv_players[lv_killingPlayerIndex].lv_multikillStreak + 1);
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_killingPlayerIndex != 15))) {
+            return false;
+        }
+
+        if (!((libGame_gv_gameOver == false))) {
+            return false;
+        }
+
+        if (!((libAREN_gv_aRM_PlayCrowdCheerSounds == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_teamOfKillingPlayer = libGame_gf_TeamNumberOfPlayer(lv_killingPlayerIndex);
+    lv_teamOfKilledPlayer = libGame_gf_EnemyTeam(lv_teamOfKillingPlayer);
+    libAREN_gf_ARM_Play3DCrowdCheersinStandsFavoringTeam(lv_teamOfKillingPlayer);
+    auto6916EC38_val = lv_killStreakOfKillingPlayer;
+    if (auto6916EC38_val == 1) {
+        lv_cheerEffect = "";
+        lv_actorMessageLevelString = "";
+        libAREN_gf_ARM_PlayNewCrowdCheerForTeam(SoundLink("ArenaMode_Crowd_EnemySlain_1", -1), lv_teamOfKillingPlayer);
+        libAREN_gf_ARM_PlayNewCrowdCheerForTeam(SoundLink("ArenaMode_Crowd_AllySlain_1", -1), lv_teamOfKilledPlayer);
+    }
+    else if (auto6916EC38_val == 2) {
+        lv_cheerEffect = "UIGameArenaModeMultiKillTwoKillsPlayerOnly";
+        lv_actorMessageLevelString = "Double";
+        libAREN_gf_ARM_PlayNewCrowdCheerForTeam(SoundLink("ArenaMode_Crowd_EnemySlain_2", -1), lv_teamOfKillingPlayer);
+        libAREN_gf_ARM_PlayNewCrowdCheerForTeam(SoundLink("ArenaMode_Crowd_AllySlain_2", -1), lv_teamOfKilledPlayer);
+    }
+    else if (auto6916EC38_val == 3) {
+        lv_cheerEffect = "UIGameArenaModeMultiKillThreeKillsPlayerOnly";
+        lv_actorMessageLevelString = "Triple";
+        libAREN_gf_ARM_PlayNewCrowdCheerForTeam(SoundLink("ArenaMode_Crowd_EnemySlain_3", -1), lv_teamOfKillingPlayer);
+        libAREN_gf_ARM_PlayNewCrowdCheerForTeam(SoundLink("ArenaMode_Crowd_AllySlain_3", -1), lv_teamOfKilledPlayer);
+    }
+    else if (auto6916EC38_val == 4) {
+        lv_cheerEffect = "UIGameArenaModeMultiKillFourKillsPlayerOnly";
+        lv_actorMessageLevelString = "Quad";
+        libAREN_gf_ARM_PlayNewCrowdCheerForTeam(SoundLink("ArenaMode_Crowd_EnemySlain_4", -1), lv_teamOfKillingPlayer);
+        libAREN_gf_ARM_PlayNewCrowdCheerForTeam(SoundLink("ArenaMode_Crowd_AllySlain_4", -1), lv_teamOfKilledPlayer);
+    }
+    else if (auto6916EC38_val == 5) {
+        lv_cheerEffect = "UIGameArenaModeMultiKillFiveKillsPlayerOnly";
+        lv_actorMessageLevelString = "Penta";
+        libAREN_gf_ARM_PlayNewCrowdCheerForTeam(SoundLink("ArenaMode_Crowd_EnemySlain_5", -1), lv_teamOfKillingPlayer);
+        libAREN_gf_ARM_PlayNewCrowdCheerForTeam(SoundLink("ArenaMode_Crowd_AllySlain_5", -1), lv_teamOfKilledPlayer);
+    }
+    else {
+        lv_cheerEffect = "";
+        lv_actorMessageLevelString = "";
+    }
+    if ((lv_actorMessageLevelString != "")) {
+        if ((lv_teamOfKillingPlayer == libGame_gv_teamOrderIndex_C)) {
+            lv_actorMessageTeamString = "Order";
+        }
+        else {
+            lv_actorMessageLevelString = "Chaos";
+        }
+        ActorRegionSend(lv_actorRegion, c_actorIntersectAgainstRadiusContact, (("Signal " + lv_actorMessageTeamString + lv_actorMessageLevelString + "Kill")), "Doodad", "ScopeContains _Spectator");
+    }
+
+    if ((lv_cheerEffect != "")) {
+        libAREN_gf_ARM_CreateEffectOnUnitGroup(PlayerGroupSingle(lv_killingPlayerIndex), lv_cheerEffect);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_HeroTakedownCheering_Init () {
+    libAREN_gt_ARM_HeroTakedownCheering = TriggerCreate("libAREN_gt_ARM_HeroTakedownCheering_Func");
+    libGame_gf_HeroKilled(libAREN_gt_ARM_HeroTakedownCheering);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Killstreak Banner Sound Support
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_KillstreakBannerSoundSupport_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_playerIndex;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gv_gameOver == false))) {
+            return false;
+        }
+
+        if (!((libAREN_gv_aRM_PlayCrowdCheerSounds == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((EventGenericName() == libGame_gv_eventID_ArenaMode_Crowd_KillingSpree_Announce_C)) {
+        lv_playerIndex = libGame_gf_ArenaModeKillingSpreePlayer();
+        SoundPlayForPlayer(SoundLink("ArenaMode_Crowd_KillingSpree", -1), c_maxPlayers, PlayerGroupSingle(lv_playerIndex), 100.0, 0.0);
+    }
+
+    if ((EventGenericName() == libGame_gv_eventID_ArenaMode_Crowd_Mayhem_Announce_C)) {
+        lv_playerIndex = libGame_gf_ArenaModeMayhemPlayer();
+        SoundPlayForPlayer(SoundLink("ArenaMode_Crowd_Mayhem", -1), c_maxPlayers, PlayerGroupSingle(lv_playerIndex), 100.0, 0.0);
+    }
+
+    if ((EventGenericName() == libGame_gv_eventID_ArenaMode_Crowd_HotS_Announce_C)) {
+        lv_playerIndex = libGame_gf_ArenaModeHotSPlayer();
+        SoundPlayForPlayer(SoundLink("ArenaMode_Crowd_HOTS", -1), c_maxPlayers, PlayerGroupSingle(lv_playerIndex), 100.0, 0.0);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_KillstreakBannerSoundSupport_Init () {
+    libAREN_gt_ARM_KillstreakBannerSoundSupport = TriggerCreate("libAREN_gt_ARM_KillstreakBannerSoundSupport_Func");
+    libGame_gf_ArenaModeCrowdKillingSpree(libAREN_gt_ARM_KillstreakBannerSoundSupport);
+    libGame_gf_ArenaModeCrowdMayhem(libAREN_gt_ARM_KillstreakBannerSoundSupport);
+    libGame_gf_ArenaModeCrowdHotS(libAREN_gt_ARM_KillstreakBannerSoundSupport);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Where's Weirdo Died
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_WheresWeirdoDied_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    point lv_spawnPoint;
+    int lv_locationNumber;
+    playergroup lv_weirdoPoints;
+    int lv_itPoint;
+
+    // Automatic Variable Declarations
+    const int autoA5098059_ae = libAREN_gv_aRM_WheresWeirdoMaxPoints_C;
+    const int autoA5098059_ai = 1;
+
+    // Variable Initialization
+    lv_weirdoPoints = PlayerGroupEmpty();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(EventPlayerEffectUsedUnit(c_effectUnitCaster)) == "WheresWeirdo"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    Wait(libAREN_gv_aRM_WheresWeirdoRespawnDelay_C, c_timeGame);
+    if ((libGame_gv_gameOver == false)) {
+        lv_itPoint = 1;
+        for ( ; ( (autoA5098059_ai >= 0 && lv_itPoint <= autoA5098059_ae) || (autoA5098059_ai < 0 && lv_itPoint >= autoA5098059_ae) ) ; lv_itPoint += autoA5098059_ai ) {
+            if ((libAREN_gv_aRM_WheresWeirdoPoints[libAREN_gf_ArenaCurrentLevelIndex()][lv_itPoint] != null) && (libAREN_gv_aRM_WheresWeirdoPoints[libAREN_gf_ArenaCurrentLevelIndex()][lv_itPoint] != libAREN_gv_aRM_WheresWeirdoLastPoint)) {
+                PlayerGroupAdd(lv_weirdoPoints, lv_itPoint);
+            }
+
+        }
+        if ((PlayerGroupCount(lv_weirdoPoints) == 0)) {
+            Wait(RandomFixed(0.0, 5.0), c_timeGame);
+            UnitCreate(1, "WheresWeirdo", c_unitCreateIgnorePlacement, 0, libAREN_gv_aRM_WheresWeirdoLastPoint, PointGetFacing(lv_spawnPoint), null);
+            return true;
+        }
+
+        lv_locationNumber = PlayerGroupPlayer(lv_weirdoPoints, RandomInt(1, PlayerGroupCount(lv_weirdoPoints)));
+        lv_spawnPoint = libAREN_gv_aRM_WheresWeirdoPoints[libAREN_gf_ArenaCurrentLevelIndex()][lv_locationNumber];
+        UnitCreate(1, "WheresWeirdo", c_unitCreateIgnorePlacement, 0, lv_spawnPoint, PointGetFacing(lv_spawnPoint), null);
+        libAREN_gv_aRM_WheresWeirdoLastPoint = lv_spawnPoint;
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_WheresWeirdoDied_Init () {
+    libAREN_gt_ARM_WheresWeirdoDied = TriggerCreate("libAREN_gt_ARM_WheresWeirdoDied_Func");
+    TriggerAddEventPlayerEffectUsed(libAREN_gt_ARM_WheresWeirdoDied, c_playerAny, "WeirdoTimedLifeFate");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Healing Fountain Monitor
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_HealingFountainMonitor_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_owningPlayer;
+
+    // Automatic Variable Declarations
+    int autoF225839C_val;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(EventUnit()) == "TownMoonwellL3"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_owningPlayer = UnitGetOwner(EventUnit());
+    autoF225839C_val = lv_owningPlayer;
+    if (autoF225839C_val == libCore_gv_cOMPUTER_TeamOrder) {
+        libGame_gf_AnnouncementAddItemForPlayerGroup(libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroup, libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_fountainDestroyedAlly, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+        libGame_gf_AnnouncementAddItemForPlayerGroup(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroup, libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_fountainDestroyedEnemy, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+        libGame_gf_AnnouncementAddItemForPlayerGroup(libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_fountainDestroyedBlue, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+    }
+    else if (autoF225839C_val == libCore_gv_cOMPUTER_TeamChaos) {
+        libGame_gf_AnnouncementAddItemForPlayerGroup(libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroup, libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_fountainDestroyedEnemy, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+        libGame_gf_AnnouncementAddItemForPlayerGroup(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroup, libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_fountainDestroyedAlly, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+        libGame_gf_AnnouncementAddItemForPlayerGroup(libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], libGame_ge_AnnouncementPriorities_Normal, libAREN_gv_aRM_ArenaVO.lv_fountainDestroyedRed, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_HealingFountainMonitor_Init () {
+    libAREN_gt_ARM_HealingFountainMonitor = TriggerCreate("libAREN_gt_ARM_HealingFountainMonitor_Func");
+    TriggerAddEventUnitDied(libAREN_gt_ARM_HealingFountainMonitor, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_No Projectile Between Planes
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_NoProjectileBetweenPlanes_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((UnitFilterMatch(EventUnit(), UnitGetOwner(EventUnit()), UnitFilter((1 << c_targetFilterMissile), 0, 0, (1 << (c_targetFilterDead - 32)))) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitKill(EventUnit());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_NoProjectileBetweenPlanes_Init () {
+    libAREN_gt_ARM_NoProjectileBetweenPlanes = TriggerCreate("libAREN_gt_ARM_NoProjectileBetweenPlanes_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Debug_RoundOverDisplay
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_Debug_RoundOverDisplay_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libAREN_gv_aRM_RoundWinningTeam = 1;
+    libAREN_gv_aRM_RoundScore[1] = 1;
+    libAREN_gv_aRM_RoundScore[2] = 1;
+    libAREN_gf_TopBarTeamLevelUpdateTeamsLevelLabel3(libAREN_gv_aRM_RoundWinningTeam);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_Debug_RoundOverDisplay_Init () {
+    libAREN_gt_ARM_Debug_RoundOverDisplay = TriggerCreate("libAREN_gt_ARM_Debug_RoundOverDisplay_Func");
+    TriggerAddEventChatMessage(libAREN_gt_ARM_Debug_RoundOverDisplay, c_playerAny, "-rd", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Debug_Level
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_Debug_Level_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCore_gv_sYSHeroStartLevel = 20;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_Debug_Level_Init () {
+    libAREN_gt_ARM_Debug_Level = TriggerCreate("libAREN_gt_ARM_Debug_Level_Func");
+    TriggerAddEventChatMessage(libAREN_gt_ARM_Debug_Level, c_playerAny, "-level20", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Debug_SoundCheck
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_Debug_SoundCheck_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libAREN_gf_ARM_ArenaPlayRoundOverAnnouncement(1, 1);
+    Wait(3.0, c_timeGame);
+    libAREN_gf_ARM_ArenaPlayRoundOverAnnouncement(1, 2);
+    Wait(3.0, c_timeGame);
+    libAREN_gf_ARM_ArenaPlayRoundOverAnnouncement(1, 3);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_Debug_SoundCheck_Init () {
+    libAREN_gt_ARM_Debug_SoundCheck = TriggerCreate("libAREN_gt_ARM_Debug_SoundCheck_Func");
+    TriggerAddEventChatMessage(libAREN_gt_ARM_Debug_SoundCheck, c_playerAny, "SoundCheck", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Debug_SoundCheck2
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_Debug_SoundCheck2_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libAREN_gf_ARM_ArenaPlayRoundOverAnnouncement(2, 1);
+    Wait(3.0, c_timeGame);
+    libAREN_gf_ARM_ArenaPlayRoundOverAnnouncement(2, 2);
+    Wait(3.0, c_timeGame);
+    libAREN_gf_ARM_ArenaPlayRoundOverAnnouncement(2, 3);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_Debug_SoundCheck2_Init () {
+    libAREN_gt_ARM_Debug_SoundCheck2 = TriggerCreate("libAREN_gt_ARM_Debug_SoundCheck2_Func");
+    TriggerAddEventChatMessage(libAREN_gt_ARM_Debug_SoundCheck2, c_playerAny, "SoundCheck2", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Debug_SoundCheck3
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_Debug_SoundCheck3_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGame_gf_AnnouncementAddItemForPlayerGroup(libGame_gv_teams[1].lv_teamPlayerGroup, libGame_ge_AnnouncementPriorities_Normal, libCore_ge_AnnouncerVOEvents_Victory, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+    Wait(3.0, c_timeGame);
+    libGame_gf_AnnouncementAddItemForPlayerGroup(libGame_gv_teams[1].lv_teamPlayerGroup, libGame_ge_AnnouncementPriorities_Normal, libCore_ge_AnnouncerVOEvents_Defeat, "", null, null, null, null, null, libGame_gv_announcement_QuickSoundOnlyTimerDuration_C, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_Debug_SoundCheck3_Init () {
+    libAREN_gt_ARM_Debug_SoundCheck3 = TriggerCreate("libAREN_gt_ARM_Debug_SoundCheck3_Func");
+    TriggerAddEventChatMessage(libAREN_gt_ARM_Debug_SoundCheck3, c_playerAny, "SoundCheck3", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Debug_Cheer
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_Debug_Cheer_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    actor lv_actorRegion;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    ActorRegionCreate(null, "TriggerRegion", libAREN_gv_aRM_MechanicData[libAREN_gf_ArenaCurrentMechanicId()].lv_playableRegion);
+    lv_actorRegion = libNtve_gf_ActorLastCreated();
+    ActorRegionSend(lv_actorRegion, c_actorIntersectAgainstRadiusContact, "Signal OrderMegaKill", "Doodad", "ScopeContains _Spectator");
+    ActorRegionSend(lv_actorRegion, c_actorIntersectAgainstRadiusContact, "Signal ChaosMegaKill", "Doodad", "ScopeContains _Spectator");
+    ActorScopeKill(ActorScopeFromActor(lv_actorRegion));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_Debug_Cheer_Init () {
+    libAREN_gt_ARM_Debug_Cheer = TriggerCreate("libAREN_gt_ARM_Debug_Cheer_Func");
+    TriggerAddEventChatMessage(libAREN_gt_ARM_Debug_Cheer, c_playerAny, "Cheer", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Debug_Enable Cheer Debug Messages
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_Debug_EnableCheerDebugMessages_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libAREN_gv_aRM_Debug_ShowMultikillCheers = !(libAREN_gv_aRM_Debug_ShowMultikillCheers);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_Debug_EnableCheerDebugMessages_Init () {
+    libAREN_gt_ARM_Debug_EnableCheerDebugMessages = TriggerCreate("libAREN_gt_ARM_Debug_EnableCheerDebugMessages_Func");
+    TriggerAddEventChatMessage(libAREN_gt_ARM_Debug_EnableCheerDebugMessages, c_playerAny, "ShowCheers", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Debug_Play 3D Cheer
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_Debug_Play3DCheer_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_submapIndex;
+    int lv_sectionIndex;
+    int lv_emitterIndex;
+    int lv_killingTeam;
+    string lv_actorID;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_submapIndex = StringToInt(StringSub(EventChatMessage(false), 8, 8));
+    lv_sectionIndex = StringToInt(StringSub(EventChatMessage(false), 9, 9));
+    lv_emitterIndex = StringToInt(StringSub(EventChatMessage(false), 10, 10));
+    lv_killingTeam = StringToInt(StringSub(EventChatMessage(false), 12, 12));
+    lv_actorID = "";
+
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_actorID = ("CheerEmitterOrderEnemySlain0" + IntToString(lv_emitterIndex));
+    if ((libAREN_gv_aRM_Debug_ShowEmittersWhenEmitting == true)) {
+        TextExpressionSetToken("Param/Expression/lib_AREN_D6B5B726", "A", IntToText(lv_submapIndex));
+        TextExpressionSetToken("Param/Expression/lib_AREN_D6B5B726", "B", IntToText(lv_sectionIndex));
+        TextExpressionSetToken("Param/Expression/lib_AREN_D6B5B726", "C", IntToText(lv_emitterIndex));
+        TextExpressionSetToken("Param/Expression/lib_AREN_D6B5B726", "D", StringToText(lv_actorID));
+        TextExpressionSetToken("Param/Expression/lib_AREN_D6B5B726", "E", FixedToText(PointGetX(libAREN_gv_aRM_CrowdStands_SoundEmitters[lv_submapIndex][lv_sectionIndex][lv_emitterIndex]), 0));
+        TextExpressionSetToken("Param/Expression/lib_AREN_D6B5B726", "F", FixedToText(PointGetY(libAREN_gv_aRM_CrowdStands_SoundEmitters[lv_submapIndex][lv_sectionIndex][lv_emitterIndex]), 0));
+        TextExpressionSetToken("Param/Expression/lib_AREN_D6B5B726", "G", IntToText(lv_killingTeam));
+        TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_AREN_D6B5B726"), true);
+    }
+
+    libNtve_gf_CreateActorAtPoint((lv_actorID), libAREN_gv_aRM_CrowdStands_SoundEmitters[lv_submapIndex][lv_sectionIndex][lv_emitterIndex]);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_Debug_Play3DCheer_Init () {
+    libAREN_gt_ARM_Debug_Play3DCheer = TriggerCreate("libAREN_gt_ARM_Debug_Play3DCheer_Func");
+    TriggerAddEventChatMessage(libAREN_gt_ARM_Debug_Play3DCheer, c_playerAny, "play3d", false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Debug_Play All 3D Cheers
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_Debug_PlayAll3DCheers_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_killingTeam;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_killingTeam = StringToInt(StringSub(EventChatMessage(false), 11, 11));
+
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libAREN_gf_ARM_Play3DCrowdCheersinStandsFavoringTeam(lv_killingTeam);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_Debug_PlayAll3DCheers_Init () {
+    libAREN_gt_ARM_Debug_PlayAll3DCheers = TriggerCreate("libAREN_gt_ARM_Debug_PlayAll3DCheers_Func");
+    TriggerAddEventChatMessage(libAREN_gt_ARM_Debug_PlayAll3DCheers, c_playerAny, "playall3d", false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Debug_Show Emitter Data for Round
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_Debug_ShowEmitterDataforRound_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_submapIndex;
+    int lv_sectionIndex;
+    int lv_emitterIndex;
+
+    // Automatic Variable Declarations
+    int auto2651A401_ae;
+    const int auto2651A401_ai = 1;
+    int auto4958E7E3_ae;
+    const int auto4958E7E3_ai = 1;
+
+    // Variable Initialization
+    lv_submapIndex = StringToInt(StringSub(EventChatMessage(false), 14, 14));
+
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto2651A401_ae = libAREN_gv_aRM_CrowdStands_SectionCountPerSubmap[lv_submapIndex];
+    lv_sectionIndex = 1;
+    for ( ; ( (auto2651A401_ai >= 0 && lv_sectionIndex <= auto2651A401_ae) || (auto2651A401_ai < 0 && lv_sectionIndex >= auto2651A401_ae) ) ; lv_sectionIndex += auto2651A401_ai ) {
+        auto4958E7E3_ae = libAREN_gv_aRM_CrowdStands_EmitterCountPerSection[lv_submapIndex][lv_sectionIndex];
+        lv_emitterIndex = 1;
+        for ( ; ( (auto4958E7E3_ai >= 0 && lv_emitterIndex <= auto4958E7E3_ae) || (auto4958E7E3_ai < 0 && lv_emitterIndex >= auto4958E7E3_ae) ) ; lv_emitterIndex += auto4958E7E3_ai ) {
+            TextExpressionSetToken("Param/Expression/lib_AREN_41CFAC16", "A", IntToText(lv_submapIndex));
+            TextExpressionSetToken("Param/Expression/lib_AREN_41CFAC16", "B", IntToText(lv_sectionIndex));
+            TextExpressionSetToken("Param/Expression/lib_AREN_41CFAC16", "C", IntToText(lv_emitterIndex));
+            TextExpressionSetToken("Param/Expression/lib_AREN_41CFAC16", "D", FixedToText(PointGetX(libAREN_gv_aRM_CrowdStands_SoundEmitters[lv_submapIndex][lv_sectionIndex][lv_emitterIndex]), 0));
+            TextExpressionSetToken("Param/Expression/lib_AREN_41CFAC16", "E", FixedToText(PointGetY(libAREN_gv_aRM_CrowdStands_SoundEmitters[lv_submapIndex][lv_sectionIndex][lv_emitterIndex]), 0));
+            TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_AREN_41CFAC16"), true);
+        }
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_Debug_ShowEmitterDataforRound_Init () {
+    libAREN_gt_ARM_Debug_ShowEmitterDataforRound = TriggerCreate("libAREN_gt_ARM_Debug_ShowEmitterDataforRound_Func");
+    TriggerAddEventChatMessage(libAREN_gt_ARM_Debug_ShowEmitterDataforRound, c_playerAny, "CheerEmitters1", true);
+    TriggerAddEventChatMessage(libAREN_gt_ARM_Debug_ShowEmitterDataforRound, c_playerAny, "CheerEmitters2", true);
+    TriggerAddEventChatMessage(libAREN_gt_ARM_Debug_ShowEmitterDataforRound, c_playerAny, "CheerEmitters3", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ARM_Debug_Enable Emitter Debug Messages
+//--------------------------------------------------------------------------------------------------
+bool libAREN_gt_ARM_Debug_EnableEmitterDebugMessages_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libAREN_gv_aRM_Debug_ShowEmittersWhenEmitting = !(libAREN_gv_aRM_Debug_ShowEmittersWhenEmitting);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libAREN_gt_ARM_Debug_EnableEmitterDebugMessages_Init () {
+    libAREN_gt_ARM_Debug_EnableEmitterDebugMessages = TriggerCreate("libAREN_gt_ARM_Debug_EnableEmitterDebugMessages_Func");
+    TriggerAddEventChatMessage(libAREN_gt_ARM_Debug_EnableEmitterDebugMessages, c_playerAny, "ShowCheerEmitters", true);
+}
+
+void libAREN_InitTriggers () {
+    libAREN_gt_ARM_ArenaMapInitilization_Init();
+    libAREN_gt_ARM_ArenaInitializeVisibility_Init();
+    libAREN_gt_ARM_ArenaRoundInitializeVisibility_Init();
+    libAREN_gt_ARM_ArenaMapStart_Init();
+    libAREN_gt_ARM_StartRoundStructureAnimations_Init();
+    libAREN_gt_ARM_GatesTimerExpires_Init();
+    libAREN_gt_ARM_RestrictAbilitiesToRegionForUnit_Init();
+    libAREN_gt_ARM_RoundEnds_Init();
+    libAREN_gt_ARM_TeamAbandons_Init();
+    libAREN_gt_ARM_InitWallaSounds_Init();
+    libAREN_gt_ARM_HeroRespawnCheering_Init();
+    libAREN_gt_ARM_ArenaMechanicActivated_Init();
+    libAREN_gt_ARM_HeroTakedownCheering_Init();
+    libAREN_gt_ARM_KillstreakBannerSoundSupport_Init();
+    libAREN_gt_ARM_WheresWeirdoDied_Init();
+    libAREN_gt_ARM_HealingFountainMonitor_Init();
+    libAREN_gt_ARM_NoProjectileBetweenPlanes_Init();
+    libAREN_gt_ARM_Debug_RoundOverDisplay_Init();
+    libAREN_gt_ARM_Debug_Level_Init();
+    libAREN_gt_ARM_Debug_SoundCheck_Init();
+    libAREN_gt_ARM_Debug_SoundCheck2_Init();
+    libAREN_gt_ARM_Debug_SoundCheck3_Init();
+    libAREN_gt_ARM_Debug_Cheer_Init();
+    libAREN_gt_ARM_Debug_EnableCheerDebugMessages_Init();
+    libAREN_gt_ARM_Debug_Play3DCheer_Init();
+    libAREN_gt_ARM_Debug_PlayAll3DCheers_Init();
+    libAREN_gt_ARM_Debug_ShowEmitterDataforRound_Init();
+    libAREN_gt_ARM_Debug_EnableEmitterDebugMessages_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libAREN_InitLib_completed = false;
+
+void libAREN_InitLib () {
+    if (libAREN_InitLib_completed) {
+        return;
+    }
+
+    libAREN_InitLib_completed = true;
+
+    libAREN_InitLibraries();
+    libAREN_InitVariables();
+    libAREN_InitTriggers();
+}
+

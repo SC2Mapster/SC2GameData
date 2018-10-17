@@ -1,0 +1,274 @@
+include "TriggerLibs/HeroesLib"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Blackheart's Revenge (Mod)
+//--------------------------------------------------------------------------------------------------
+// Preset Declarations
+const int libMDoE_ge_MDoEUIModes_Idle = 0;
+const int libMDoE_ge_MDoEUIModes_AltarWarning = 1;
+const int libMDoE_ge_MDoEUIModes_AltarSpawned = 2;
+
+// Constants
+const string libMDoE_gv_mDoE_MechanicName_C = "DocksEscort";
+const int libMDoE_gv_gameStartPathingBlockerMaxCount_C = 100;
+const fixed libMDoE_gv_mDoE_DistanceToTravel = 109.7;
+const fixed libMDoE_gv_mDoE_TeleporterRevealArea_C = 5.0;
+const int libMDoE_gv_DoEs_TeleporterMaxCount = 3;
+
+// Structures
+struct libMDoE_gs_MDoE_Boat {
+    fixed lv_totalDistanceTravelledByBoat;
+    point lv_oldBoatPosition;
+    point lv_newBoatPosition;
+    fixed lv_progress;
+    fixed lv_life;
+    bool lv_boatHasGT80Life;
+    bool lv_boatHasGT50Life;
+    bool lv_boatHasGT40Life;
+    bool lv_boatHasGT20Life;
+    bool lv_boatHasFired80LifeCannonBarrage;
+    bool lv_boatHasFired50LifeCannonBarrage;
+    bool lv_boatHasFired20LifeCannonBarrage;
+    bool lv_boatCanBarragePlayers;
+    bool lv_boatAttackingCore;
+    timer lv_boatProgressTimer;
+    timer lv_boatAttackCoreTimer;
+};
+
+struct libMDoE_gs_MDoE_Cannons {
+    unitgroup lv_cannonUnitGroup;
+    unitgroup lv_activeCannonUnitGroup;
+    unitgroup lv_cannonsCurrentlyOnCooldown;
+    unitgroup lv_cannonUnitGroup1;
+    unitgroup lv_cannonUnitGroup2;
+    unitgroup lv_cannonUnitGroup3;
+    unitgroup lv_cannonUnitGroup4;
+    bool lv_firstCannonActivated;
+    bool lv_secondCannonActivated;
+    bool lv_thirdCannonActivated;
+    bool lv_fourthCannonActivated;
+    revealer[5][5] lv_orderCannonRevealer;
+    revealer[5][5] lv_chaosCannonRevealer;
+    playergroup lv_playersWhoHaveNotTurnedInAmmo;
+    int[11] lv_attackerCannonTextTag;
+    int[11] lv_defenderCannonTextTag;
+};
+
+struct libMDoE_gs_MDoE_AmmoCache {
+    unit[5] lv_unit;
+    int lv_amountOfAvailableLocations;
+    int lv_owningPlayer;
+    int lv_ammoExistingOnGround;
+    int lv_ammoCarriedByPlayers;
+    bool lv_playerPickedUpAmmoOnce;
+    int[5] lv_nextPointToSpawnAt;
+    point[5] lv_ammoSpawnPoints;
+    revealer[5] lv_ammoOrderRevealer;
+    revealer[5] lv_ammoChaosRevealer;
+    playergroup lv_playersWhoHaveNotPickedUpAmmo;
+    int[5] lv_ammoAttackerTextTag;
+    int[5] lv_ammoDefenderTextTag;
+    unitgroup lv_availableAmmoCaches;
+};
+
+struct libMDoE_gs_MDoE_Teleporter {
+    point lv_positionOrder;
+    point lv_positionChaos;
+    unit lv_exitUnitOrder;
+    unit lv_exitUnitChaos;
+    unit lv_entranceUnit;
+};
+
+struct libMDoE_gs_MDoEPanel {
+    int lv_mainPanel;
+    int[3] lv_towerPushEnergyGlobePower;
+    int lv_altarWarningFrame;
+    int lv_altarWarningInfoLabel;
+    int lv_altarWarningTimerLabel;
+    int lv_altarActiveBackgroundFrame;
+    int lv_altarActiveBackgroundImage;
+    int lv_altarActiveTimerLabel;
+    int lv_healthFrame;
+    int lv_mainPanel2;
+    int lv_AmmoCacheStatusFrame7;
+    int lv_AmmoCacheStatusFrame10;
+    int lv_AmmoCacheStatusFrame11;
+    int lv_AmmoCacheStatusFrame12;
+    int lv_AmmoCacheStatusFrame13;
+    int[3] lv_AmmoCacheStatusFrame2;
+    int[3] lv_AmmoCacheStatusFrame3;
+    int[3] lv_AmmoCacheStatusFrame4;
+    int[3] lv_AmmoCacheStatusFrame14;
+    int[3] lv_AmmoCacheStatusFrame15;
+    int lv_AmmoCacheStatusFrame5;
+    int lv_AmmoCacheStatusFrame6;
+    int lv_AmmoCacheStatusFrame8;
+    int lv_AmmoCacheStatusFrame9;
+    int lv_greedSpawnedFrame;
+    int lv_greedSpawnedInfoLabel;
+    int lv_CollectableAmmoCachesCounterBlue;
+    int lv_CollectableAmmoCachesCounterRed;
+    int lv_CollectableAmmoCachesLabelBlue;
+    int lv_CollectableAmmoCachesLabelRed;
+    int lv_AmmoCacheStatusFrame;
+    int lv_AmmoCacheStatusLabel;
+    int lv_AmmoCacheStatusLabel2;
+    int lv_CarriedAmmoCachesBackgroundBlue;
+    int lv_CarriedAmmoCachesBackgroundRed;
+    int lv_CarriedAmmoCachesBlue;
+    int lv_CarriedAmmoCachesRed;
+    int lv_CarriedAmmoCachesLabelBlue;
+    int lv_CarriedAmmoCachesLabelRed;
+    int[3] lv_cannonFiredFrame;
+    int lv_cannonFiredFrameIndex;
+    int lv_boatNotificationFrame;
+    int lv_boatNotificationLabel;
+    int lv_boatGoesToSurface;
+};
+
+struct libMDoE_gs_MDoEUITopPanel {
+    int lv_scorePanel;
+    int lv_boatIcon;
+    int lv_cannonballIcon;
+    int[3] lv_scoreHintLabel;
+    int[3] lv_scoreLabel;
+    int[3] lv_scoreSuffixLabel;
+    int[3] lv_boatProgressBar;
+    int[3] lv_boatProgressLabel;
+    int lv_topNotificationPanel;
+    int lv_helpText;
+    int[3] lv_shotsFiredPanel;
+    int[3] lv_coreHealthLabel;
+    int[3] lv_coreHealthLabelObs;
+    int lv_roundInstructionsPanel;
+    int lv_roundInstructionsTitle;
+    int lv_roundInstructionsDescription;
+};
+
+// Variable Declarations
+int[13] libMDoE_gv_mDoE_AIStartingGatesAssignments;
+int[libCore_gv_bALMaxTeams + 1] libMDoE_gv_victoryScore;
+point libMDoE_gv_orderStagingPoint;
+point[3] libMDoE_gv_chaosStagingPoints;
+point[libMDoE_gv_gameStartPathingBlockerMaxCount_C + 1] libMDoE_gv_gameStartPathingBlockerLocations;
+string[libMDoE_gv_gameStartPathingBlockerMaxCount_C + 1] libMDoE_gv_gameStartPathingBlockerTypes;
+int libMDoE_gv_gameStartPathingBlockerCount;
+point[21] libMDoE_gv_mDoE_BoatWaypoints;
+point libMDoE_gv_mDoE_NextWaypoint;
+fixed libMDoE_gv_mDoE_TimeForBoatToSucceed;
+libMDoE_gs_MDoE_Boat[3] libMDoE_gv_mDoE_Boat;
+bool libMDoE_gv_mDoE_Has50PercentProgressAudioPlayed;
+bool libMDoE_gv_mDoE_Has75PercentProgressAudioPlayed;
+int libMDoE_gv_mDoE_LaunchNumber;
+libMDoE_gs_MDoE_Cannons libMDoE_gv_mDoE_Cannons;
+int[3] libMDoE_gv_mDoE_CannonballTurnInCost;
+int[3] libMDoE_gv_mDoE_CannonballTurnedIn;
+libMDoE_gs_MDoE_AmmoCache libMDoE_gv_mDoE_AmmoCache;
+int libMDoE_gv_mDoE_WaygateCount;
+libMDoE_gs_MDoE_Teleporter[libMDoE_gv_DoEs_TeleporterMaxCount + 1] libMDoE_gv_mDoE_Teleporter;
+libMDoE_gs_MDoEPanel libMDoE_gv_MMTreasureVaultPanel;
+libMDoE_gs_MDoEUITopPanel libMDoE_gv_mDoeUITopPanel;
+
+// Function Declarations
+void libMDoE_gf_MDoEGameOverSequence ();
+void libMDoE_gf_InitializeLaneStagingPoints (point lp_orderPoint, point lp_chaosPoint1, point lp_chaosPoint2);
+void libMDoE_gf_AddRemoveStagingGoals (bool lp_toggle, int lp_attackingTeam);
+void libMDoE_gf_InitializeGameStartPathingBlockerLocations ();
+void libMDoE_gf_ReplaceGameStartPathingBlockers ();
+void libMDoE_gf_BoatMovingLogic (int lp_team);
+void libMDoE_gf_RunBoatProgressLogic (int lp_team);
+void libMDoE_gf_CalculateBoatProgressNew (int lp_team);
+void libMDoE_gf_AttackCore ();
+void libMDoE_gf_MDoEFireCannon (unit lp_cannon);
+void libMDoE_gf_MMCannonballsBattleshipShootingShakingCamera (point lp_targetLocation);
+void libMDoE_gf_MDoEActivateCannon (unit lp_unit, bool lp_ping);
+void libMDoE_gf_MDoEDisableCannon (unit lp_unit);
+void libMDoE_gf_MDoEDisableAllCannons ();
+void libMDoE_gf_MDoEActivateValidCannons ();
+void libMDoE_gf_MDoEActivateValidCannonsInUnitGroup (unitgroup lp_unitGroup, bool lp_pingUnits);
+void libMDoE_gf_MDoEResetCannonSetup ();
+void libMDoE_gf_PingAllActiveCannonsForPlayer (int lp_player);
+void libMDoE_gf_PingAllActiveCannonsForAllPlayers ();
+void libMDoE_gf_WarnAllPlayersThatDeactivatedCannonsAboutToActivate (unitgroup lp_cannonGroup);
+void libMDoE_gf_InitializeAllCannonTextTags ();
+void libMDoE_gf_CannonActivationWarningTextTagCreation (unit lp_cannonUnit);
+void libMDoE_gf_HideDefenderTextTagsOnAllCannonsForPlayer (int lp_player);
+void libMDoE_gf_ShowHideRelevantDefenderCannonTextRightClickMechanic ();
+void libMDoE_gf_HideAllCannonText ();
+int libMDoE_gf_DoESGetCannonballCountOnHero (int lp_player, unit lp_heroUnit);
+void libMDoE_gf_DoEsModifyHeroCannonballCount (int lp_player, unit lp_heroUnit, int lp_count);
+void libMDoE_gf_DoEsSetHeroCannonballCount (int lp_player, unit lp_heroUnit, int lp_count);
+void libMDoE_gf_DoEsResetCannonballCounter (int lp_newMaxCount);
+void libMDoE_gf_PlayerPicksUpAmmoDisplayText (int lp_player, unit lp_unit);
+void libMDoE_gf_PlayerTurnsInAmmoDisplayText (int lp_player, unit lp_unit);
+void libMDoE_gf_MDoESpawnInitialAmmoCaches (int lp_defendingTeam);
+void libMDoE_gf_MDoEUpdateAmmoSpawnLocationQueue ();
+void libMDoE_gf_HideTextTagsOnAllActiveAmmoCachesForPlayer (int lp_player);
+void libMDoE_gf_DoEs_AddTeleporter (unit lp_exitUnitChaos, unit lp_exitUnitOrder, unit lp_entranceUnit);
+void libMDoE_gf_DoEs_ActivateTeleporters ();
+void libMDoE_gf_MDoEUIInit (int lp_parentPanel);
+void libMDoE_gf_MMTVUISetMode (int lp_mode);
+void libMDoE_gf_MDoEUISwapCannonballFrameAlliance ();
+void libMDoE_gf_MDoEUIShowHideMainPanel (bool lp_showHide);
+void libMDoE_gf_MDoEUIShowHideMainPanel3 (bool lp_showHide);
+void libMDoE_gf_MDoEUIShowHideMainPanel2 (bool lp_showHide);
+void libMDoE_gf_MDoEUISetAltarWarningTimer (int lp_progressUnit);
+void libMDoE_gf_MDoEUISetAltarActiveTimer (int lp_progressUnit);
+void libMDoE_gf_MDoEUIUpdateCannonballCount (int lp_count, int lp_count2);
+void libMDoE_gf_MDoEUIShowHideCannonBarrageUI (bool lp_showHide);
+void libMDoE_gf_MDoEUISetCannonBarrageUIAllianceColors ();
+void libMDoE_gf_MDoEUIUpdateCannonBarrageShotsRemaining (int lp_count);
+void libMDoE_gf_MDoEUIShowHideCannonFiredFrame ();
+void libMDoE_gf_MDoEUIShowHideBoatIsNotAttackableFrame (bool lp_showHide);
+void libMDoE_gf_MDoEUIShowHideBoatAttackingCore (bool lp_showHide);
+void libMDoE_gf_DoEsUIUpdateCoreHealth ();
+void libMDoE_gf_MDoE_UIUpdateShipProgress (int lp_team);
+int libMDoE_gf_GetShotstoWin (int lp_itTeam);
+void libMDoE_gf_MDoEUIUpdateCannonBarrageShotsRemaining2 ();
+void libMDoE_gf_MDoETransmissionBoatHealth80 ();
+void libMDoE_gf_MDoETransmissionBoatHealth60 ();
+void libMDoE_gf_MDoETransmissionBoatHealth40 ();
+void libMDoE_gf_MDoETransmissionBoatHealth20 ();
+void libMDoE_gf_MDoETransmissionBoatProgress50 ();
+void libMDoE_gf_MDoETransmissionBoatProgress75 ();
+void libMDoE_gf_MDoETransmissionBoatProgress100 ();
+
+// Trigger Declarations
+trigger libMDoE_gt_IncludeDocksEscort;
+trigger libMDoE_gt_MDoEInit;
+trigger libMDoE_gt_MDoE_InitTowerCannonGoals;
+trigger libMDoE_gt_MDoE_AddInterceptGoaltoHeroesLeavingSafeZone;
+trigger libMDoE_gt_MDoE_RemoveInterceptGoalfromHeroesinSafeZone;
+trigger libMDoE_gt_MDoEInitPingData;
+trigger libMDoE_gt_InitialOpenTheGatesTimerStarts;
+trigger libMDoE_gt_OpenTheGameTimerExpires;
+trigger libMDoE_gt_RoundEnds;
+trigger libMDoE_gt_CoreDies;
+trigger libMDoE_gt_TeamsUpdated;
+trigger libMDoE_gt_BoatAttackTimerExpires;
+trigger libMDoE_gt_MDoE_PlayBoatSubmergeAnims;
+trigger libMDoE_gt_AttackCoreTracker;
+trigger libMDoE_gt_CannonballIsFired;
+trigger libMDoE_gt_HideCannonTextTagsOnRoundEnd;
+trigger libMDoE_gt_RoundEndsClearAmmo;
+trigger libMDoE_gt_HeroSwappedUpdateScoreValues;
+trigger libMDoE_gt_SpawnNewAmmoCache;
+trigger libMDoE_gt_DoEsCannonballHandedIn;
+trigger libMDoE_gt_DoEsHeroPicksUpCannonball;
+trigger libMDoE_gt_DoEsHeroLootsAmmoCacher;
+trigger libMDoE_gt_CannonballTimesOut;
+trigger libMDoE_gt_HeroDiesWithCannonball;
+trigger libMDoE_gt_DoEs_HeroUsedTeleporter;
+trigger libMDoE_gt_BoatDies;
+trigger libMDoE_gt_HeroSelectSetExtraInfoText;
+trigger libMDoE_gt_MDoEUIModInitialize;
+trigger libMDoE_gt_MDoEUIHandler;
+trigger libMDoE_gt_DisplayRoundInstructions;
+trigger libMDoE_gt_DoEsUICoreHealthInitialize;
+trigger libMDoE_gt_DoEsUICoreHealthUpdate;
+trigger libMDoE_gt_RoundEndsChangeTopBar;
+trigger libMDoE_gt_EndRound;
+
+// Library Initialization
+void libMDoE_InitVariables ();
+

@@ -1,0 +1,303 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+
+include "LibMMPP_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Pull Party
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libMMPP_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+}
+
+// Variable Initialization
+bool libMMPP_InitVariables_completed = false;
+
+void libMMPP_InitVariables () {
+    if (libMMPP_InitVariables_completed) {
+        return;
+    }
+
+    libMMPP_InitVariables_completed = true;
+
+    libMMPP_gv_tracerVictory = true;
+    libMMPP_gv_tychusVictory = true;
+}
+
+// Functions
+void libMMPP_gf_VictorySequence (unit lp_deadUnit, unit lp_killingUnit, int lp_team) {
+    // Automatic Variable Declarations
+    playergroup auto81D315E2_g;
+    int auto81D315E2_var;
+    playergroup auto2557329E_g;
+    int auto2557329E_var;
+    playergroup autoC59C0280_g;
+    int autoC59C0280_var;
+    playergroup auto4193A8FB_g;
+    int auto4193A8FB_var;
+
+    // Implementation
+    libGame_gv_gameOver = true;
+    UnitPauseAll(true);
+    GameSetGlobalTimeScale(0.25);
+    VisRevealerCreate(lp_team, RegionEntireMap());
+    libNtve_gf_SendActorMessageToGameRegion(RegionEntireMap(), "Signal Pause");
+    auto81D315E2_g = PlayerGroupAll();
+    auto81D315E2_var = -1;
+    while (true) {
+        	auto81D315E2_var = PlayerGroupNextPlayer(auto81D315E2_g, auto81D315E2_var);
+        	if (auto81D315E2_var<0) { break; }
+        	libNtve_gf_MakeUnitInvulnerable(libGame_gv_players[auto81D315E2_var].lv_heroUnit, true);
+        libNtve_gf_StopTimer(libGame_gv_players[auto81D315E2_var].lv_respawnTimer);
+        libNtve_gf_StopTimer(libGame_gv_players[auto81D315E2_var].lv_respawnSoundCueTimer);
+        libNtve_gf_SendActorMessageToUnit(libGame_gv_players[auto81D315E2_var].lv_heroUnit, "AnimSetPausedAll");
+    }
+    libMMPP_gf_VictorySeperateThread();
+    auto2557329E_g = libCore_gv_activeHumanPlayers;
+    auto2557329E_var = -1;
+    while (true) {
+        	auto2557329E_var = PlayerGroupNextPlayer(auto2557329E_g, auto2557329E_var);
+        	if (auto2557329E_var<0) { break; }
+        	CameraLockInput(auto2557329E_var, true);
+        PlayerOptionOverride(auto2557329E_var, "camerafollow", "0");
+    }
+    Wait(0.0625, c_timeGame);
+    autoC59C0280_g = libCore_gv_activeHumanPlayers;
+    autoC59C0280_var = -1;
+    while (true) {
+        	autoC59C0280_var = PlayerGroupNextPlayer(autoC59C0280_g, autoC59C0280_var);
+        	if (autoC59C0280_var<0) { break; }
+        	CameraFollowUnitGroup(autoC59C0280_var, CameraFollowUnitGroupGet(autoC59C0280_var), false, false);
+        libGame_gf_CameraPanCameraForPlayerAndUpdateMapBoundsIfNecessary(autoC59C0280_var, UnitGetPosition(lp_deadUnit), 2.0, -1, 10, false);
+    }
+    Wait(3.0, c_timeGame);
+    libGame_gf_PlayGameOverStinger(lp_team);
+    auto4193A8FB_g = libCore_gv_activeHumanPlayers;
+    auto4193A8FB_var = -1;
+    while (true) {
+        	auto4193A8FB_var = PlayerGroupNextPlayer(auto4193A8FB_g, auto4193A8FB_var);
+        	if (auto4193A8FB_var<0) { break; }
+        	libGame_gf_CameraPanCameraForPlayerAndUpdateMapBoundsIfNecessary(auto4193A8FB_var, UnitGetPosition(lp_killingUnit), 15.0, -1, 10, false);
+    }
+    libGame_gf_CameraPanCameraForPlayerAndUpdateMapBoundsIfNecessary(libCore_gv_oBSERVER_ObserverUIPlayer, UnitGetPosition(lp_killingUnit), 15.0, -1, 10, false);
+    if ((lp_team == libGame_gv_teamOrderIndex_C)) {
+        if ((libMMPP_gv_tychusVictory == true)) {
+            libCore_gf_SendActorMessageToDoodadsInRegion("Signal OrderVictory", RegionEntireMap(), null);
+        }
+
+    }
+    else {
+        if ((libMMPP_gv_tracerVictory == true)) {
+            libCore_gf_SendActorMessageToDoodadsInRegion("Signal ChaosVictory", RegionEntireMap(), null);
+        }
+
+    }
+    Wait(1.5, c_timeGame);
+    libGame_gf_PlayVictoryDefeatVO(lp_team);
+    libGame_gf_GameOver(lp_team);
+}
+
+trigger auto_libMMPP_gf_VictorySeperateThread_Trigger = null;
+
+void libMMPP_gf_VictorySeperateThread () {
+    if (auto_libMMPP_gf_VictorySeperateThread_Trigger == null) {
+        auto_libMMPP_gf_VictorySeperateThread_Trigger = TriggerCreate("auto_libMMPP_gf_VictorySeperateThread_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libMMPP_gf_VictorySeperateThread_Trigger, false, false);
+}
+
+bool auto_libMMPP_gf_VictorySeperateThread_TriggerFunc (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Implementation
+    Wait(1.0, c_timeGame);
+    libNtve_gf_SendActorMessageToGameRegion(RegionEntireMap(), "Signal Resume");
+    return true;
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: Tracer Easter Egg
+//--------------------------------------------------------------------------------------------------
+bool libMMPP_gt_TracerEasterEgg_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerEnable(libMMPP_gt_TychusEasterEgg, false);
+    if ((libMMPP_gv_tracerVictory == true)) {
+        libMMPP_gv_tracerVictory = false;
+        libMMPP_gv_tychusVictory = false;
+        libCore_gf_SendActorMessageToDoodadsInRegion("Signal ChaosVictory", RegionEntireMap(), null);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMMPP_gt_TracerEasterEgg_Init () {
+    libMMPP_gt_TracerEasterEgg = TriggerCreate("libMMPP_gt_TracerEasterEgg_Func");
+    TriggerAddEventPlayerEffectUsed(libMMPP_gt_TracerEasterEgg, c_playerAny, "TracerProcSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Tychus Easter Egg
+//--------------------------------------------------------------------------------------------------
+bool libMMPP_gt_TychusEasterEgg_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerEnable(libMMPP_gt_TracerEasterEgg, false);
+    if ((libMMPP_gv_tychusVictory == true)) {
+        libMMPP_gv_tychusVictory = false;
+        libMMPP_gv_tracerVictory = false;
+        libCore_gf_SendActorMessageToDoodadsInRegion("Signal OrderVictory", RegionEntireMap(), null);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMMPP_gt_TychusEasterEgg_Init () {
+    libMMPP_gt_TychusEasterEgg = TriggerCreate("libMMPP_gt_TychusEasterEgg_Func");
+    TriggerAddEventPlayerEffectUsed(libMMPP_gt_TychusEasterEgg, c_playerAny, "TychusProcSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Debug_Victory Anims
+//--------------------------------------------------------------------------------------------------
+bool libMMPP_gt_Debug_VictoryAnims_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCore_gf_SendActorMessageToDoodadsInRegion("AnimClearAllBut Stand", RegionEntireMap(), null);
+    TriggerDebugOutput(1, StringExternal("Param/Value/lib_MMPP_64ACD482"), true);
+    Wait(1.0, c_timeGame);
+    if ((EventChatMessage(false) == "-victory left")) {
+        TriggerDebugOutput(1, StringExternal("Param/Value/lib_MMPP_53241965"), true);
+        libCore_gf_SendActorMessageToDoodadsInRegion("Signal OrderVictory", RegionEntireMap(), null);
+    }
+    else {
+        TriggerDebugOutput(1, StringExternal("Param/Value/lib_MMPP_15956789"), true);
+        libCore_gf_SendActorMessageToDoodadsInRegion("Signal ChaosVictory", RegionEntireMap(), null);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMMPP_gt_Debug_VictoryAnims_Init () {
+    libMMPP_gt_Debug_VictoryAnims = TriggerCreate("libMMPP_gt_Debug_VictoryAnims_Func");
+    TriggerAddEventChatMessage(libMMPP_gt_Debug_VictoryAnims, c_playerAny, "-victory left", true);
+    TriggerAddEventChatMessage(libMMPP_gt_Debug_VictoryAnims, c_playerAny, "-victory right", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Debug_Victory Both
+//--------------------------------------------------------------------------------------------------
+bool libMMPP_gt_Debug_VictoryBoth_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCore_gf_SendActorMessageToDoodadsInRegion("AnimClearAllBut Stand", RegionEntireMap(), null);
+    TriggerDebugOutput(1, StringExternal("Param/Value/lib_MMPP_3A6E7246"), true);
+    Wait(1.0, c_timeGame);
+    libCore_gf_SendActorMessageToDoodadsInRegion("Signal OrderVictory", RegionEntireMap(), null);
+    libCore_gf_SendActorMessageToDoodadsInRegion("Signal ChaosVictory", RegionEntireMap(), null);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMMPP_gt_Debug_VictoryBoth_Init () {
+    libMMPP_gt_Debug_VictoryBoth = TriggerCreate("libMMPP_gt_Debug_VictoryBoth_Func");
+    TriggerAddEventChatMessage(libMMPP_gt_Debug_VictoryBoth, c_playerAny, "-victory", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Debug_End
+//--------------------------------------------------------------------------------------------------
+bool libMMPP_gt_Debug_End_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((EventChatMessage(false) == "-end left")) {
+        libMMPP_gf_VictorySequence(libGame_gv_players[EventPlayer()].lv_heroUnit, libGame_gv_players[EventPlayer()].lv_heroUnit, libGame_gv_teamOrderIndex_C);
+    }
+    else {
+        libMMPP_gf_VictorySequence(libGame_gv_players[EventPlayer()].lv_heroUnit, libGame_gv_players[EventPlayer()].lv_heroUnit, libGame_gv_teamChaosIndex_C);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libMMPP_gt_Debug_End_Init () {
+    libMMPP_gt_Debug_End = TriggerCreate("libMMPP_gt_Debug_End_Func");
+    TriggerAddEventChatMessage(libMMPP_gt_Debug_End, c_playerAny, "-end left", true);
+    TriggerAddEventChatMessage(libMMPP_gt_Debug_End, c_playerAny, "-end right", true);
+}
+
+void libMMPP_InitTriggers () {
+    libMMPP_gt_TracerEasterEgg_Init();
+    libMMPP_gt_TychusEasterEgg_Init();
+    libMMPP_gt_Debug_VictoryAnims_Init();
+    libMMPP_gt_Debug_VictoryBoth_Init();
+    libMMPP_gt_Debug_End_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libMMPP_InitLib_completed = false;
+
+void libMMPP_InitLib () {
+    if (libMMPP_InitLib_completed) {
+        return;
+    }
+
+    libMMPP_InitLib_completed = true;
+
+    libMMPP_InitLibraries();
+    libMMPP_InitVariables();
+    libMMPP_InitTriggers();
+}
+

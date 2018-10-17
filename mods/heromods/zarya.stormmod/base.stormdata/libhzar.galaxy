@@ -1,0 +1,1180 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/UILib"
+include "TriggerLibs/SoundLib"
+
+include "LibHZAR_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Zarya
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libHZAR_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+    libUIUI_InitVariables();
+    libSond_InitVariables();
+}
+
+// Variable Initialization
+bool libHZAR_InitVariables_completed = false;
+
+void libHZAR_InitVariables () {
+    int init_i;
+
+    if (libHZAR_InitVariables_completed) {
+        return;
+    }
+
+    libHZAR_InitVariables_completed = true;
+
+    libHZAR_gv_zaryaUI.lv_mainPanel = c_invalidDialogControlId;
+    libHZAR_gv_zaryaUI.lv_traitLabel = c_invalidDialogControlId;
+    for (init_i = 0; init_i <= libCore_gv_bALMaxPlayers; init_i += 1) {
+        libHZAR_gv_heroZaryaGravitonSurgeCameraTarget[init_i] = UnitGroupEmpty();
+    }
+    libHZAR_gv_heroZaryaTintStage1EnergyMax = 50.0;
+    libHZAR_gv_heroZaryaTintStage2EnergyMax = 75.0;
+    libHZAR_gv_heroZaryaTintStage3EnergyMax = 100.0;
+    libHZAR_gv_heroZaryaTintStage4EnergyMax = 120.0;
+    libHZAR_gv_heroZaryaUnscaledDamagetoEnergyConversionRate = 9.36;
+    libHZAR_gv_heroZaryaTogetherWeAreStrongUnscaledDamagetoEnergyConversionRate = 6.24;
+    for (init_i = 0; init_i <= libCore_gv_bALMaxPlayers; init_i += 1) {
+        libHZAR_gv_heroZaryaCurrentDamagetoEnergyConversionRate[init_i] = libHZAR_gv_heroZaryaUnscaledDamagetoEnergyConversionRate;
+    }
+    for (init_i = 0; init_i <= libCore_gv_bALMaxPlayers; init_i += 1) {
+        libHZAR_gv_heroZaryaEnergyTogetherWeAreStrongContributionRemaining[init_i] = libHZAR_gv_heroZaryaEnergyTogetherWeAreStrongContributionCap;
+    }
+    libHZAR_gv_heroZaryaBaseAttackPeriod = CatalogFieldValueGetAsFixed(c_gameCatalogEffect, "ZaryaWeaponCreatePersistent", "PeriodicPeriodArray[" + IntToString(0) + "]", c_playerAny);
+}
+
+// Functions
+void libHZAR_gf_HeroZaryaHeroSpecificStatusFrameUpdate (int lp_player, fixed lp_damageBoost) {
+    // Automatic Variable Declarations
+    // Implementation
+    TextExpressionSetToken("Param/Expression/lib_HZAR_F71512F5", "A", FixedToText((lp_damageBoost * 100.0), 0));
+    libNtve_gf_SetDialogItemText(libHZAR_gv_zaryaUI.lv_traitLabel, TextExpressionAssemble("Param/Expression/lib_HZAR_F71512F5"), libCore_gv_playerGroupFromPlayer[lp_player]);
+    CatalogFieldValueSetFixed(c_gameCatalogEffect, "ZaryaUIDamageBoostIndicationDamage", "Amount", lp_player, (lp_damageBoost * 100.0));
+}
+
+void libHZAR_gf_HeroZaryaIncrementHeroCountFunction () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHZAR_gv_heroZaryaTriggerRegistrationVariable += 1;
+    if ((libHZAR_gv_heroZaryaTriggerRegistrationVariable == 1)) {
+        TriggerEnable(libHZAR_gt_HeroZaryaGravitonSurgeStunDisplayManager, true);
+        TriggerEnable(libHZAR_gt_HeroZaryaEnergyGain, true);
+        TriggerEnable(libHZAR_gt_HeroZaryaEnergyDecay, true);
+        TriggerEnable(libHZAR_gt_HeroZaryaShieldingFCT, true);
+        TriggerEnable(libHZAR_gt_HeroZaryaGravitonSurgeTargetRelease, true);
+        TriggerEnable(libHZAR_gt_HeroZaryaGravitonSurgeTargetCache, true);
+        TriggerEnable(libHZAR_gt_HeroZaryaGravitonSurgeCameraPan, true);
+        TriggerEnable(libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongGain, true);
+        TriggerEnable(libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongRelease, true);
+        TriggerEnable(libHZAR_gt_HeroZaryaGravitonSurgeCameraTargetAcquisition, true);
+        TriggerEnable(libHZAR_gt_HeroZaryaCustomKillVO, true);
+        TriggerEnable(libHZAR_gt_HeroZaryaEnergyMaximumChargeFCT, true);
+        TriggerEnable(libHZAR_gt_HeroZaryaPainIsTemporary, true);
+        TriggerEnable(libHZAR_gt_HeroZaryaRefreshConversionRates, true);
+        TriggerEnable(libHZAR_gt_HeroZaryaExpulsionZoneClearOutFCT, true);
+        TriggerEnable(libHZAR_gt_HeroZaryaRespawnUIShow, true);
+        TriggerEnable(libHZAR_gt_HeroZaryaDeathUIHide, true);
+        TriggerEnable(libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongTriggerCreate, true);
+        TriggerEnable(libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongTriggerDestroy, true);
+        TriggerEnable(libHZAR_gt_HeroZaryaHeroGainsAttackSpeedBuff, true);
+        libHZAR_gv_heroZaryaExpulsionZoneClearOutAmountPerStack = CatalogFieldValueGetAsFixed(c_gameCatalogBehavior, "ZaryaExpulsionZoneClearOut", "Modification.VitalMaxArray[" + IntToString(c_unitVitalEnergy) + "]", 0);
+        libHZAR_gv_heroZaryaUnscaledDamagetoEnergyConversionRate = CatalogFieldValueGetAsFixed(c_gameCatalogBehavior, "ZaryaEnergyBoostDecay", "Period", 0);
+    }
+
+}
+
+void libHZAR_gf_HeroZaryaDecrementHeroCountFunction () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHZAR_gv_heroZaryaTriggerRegistrationVariable -= 1;
+    if ((libHZAR_gv_heroZaryaTriggerRegistrationVariable < 0)) {
+        libHZAR_gv_heroZaryaTriggerRegistrationVariable = 0;
+    }
+
+    if ((libHZAR_gv_heroZaryaTriggerRegistrationVariable == 0)) {
+        TriggerEnable(libHZAR_gt_HeroZaryaGravitonSurgeStunDisplayManager, false);
+        TriggerEnable(libHZAR_gt_HeroZaryaEnergyGain, false);
+        TriggerEnable(libHZAR_gt_HeroZaryaEnergyDecay, false);
+        TriggerEnable(libHZAR_gt_HeroZaryaShieldingFCT, false);
+        TriggerEnable(libHZAR_gt_HeroZaryaGravitonSurgeTargetRelease, false);
+        TriggerEnable(libHZAR_gt_HeroZaryaGravitonSurgeTargetCache, false);
+        TriggerEnable(libHZAR_gt_HeroZaryaGravitonSurgeCameraPan, false);
+        TriggerEnable(libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongGain, false);
+        TriggerEnable(libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongRelease, false);
+        TriggerEnable(libHZAR_gt_HeroZaryaGravitonSurgeCameraTargetAcquisition, false);
+        TriggerEnable(libHZAR_gt_HeroZaryaCustomKillVO, true);
+        TriggerEnable(libHZAR_gt_HeroZaryaEnergyMaximumChargeFCT, false);
+        TriggerEnable(libHZAR_gt_HeroZaryaPainIsTemporary, false);
+        TriggerEnable(libHZAR_gt_HeroZaryaRefreshConversionRates, false);
+        TriggerEnable(libHZAR_gt_HeroZaryaExpulsionZoneClearOutFCT, false);
+        TriggerEnable(libHZAR_gt_HeroZaryaRespawnUIShow, false);
+        TriggerEnable(libHZAR_gt_HeroZaryaDeathUIHide, false);
+        TriggerEnable(libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongTriggerCreate, false);
+        TriggerEnable(libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongTriggerDestroy, false);
+        TriggerEnable(libHZAR_gt_HeroZaryaHeroGainsAttackSpeedBuff, false);
+    }
+
+}
+
+void libHZAR_gf_HeroZaryaCustomFCT (unit lp_unit, int lp_player, fixed lp_amount, bool lp_isShield) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((lp_isShield == false) && (lp_amount > 1)) {
+        FloatingCombatElementCreateNumberTextAtUnit(PlayerGroupSingle(lp_player), "Zarya/ZaryaEnergyReceived", "", lp_unit, FixedToInt(lp_amount), StringExternal("Param/Value/lib_HZAR_9DF87DB3"), libNtve_gv_FloatingCombatTextAutoRandomSeed);
+    }
+
+    if ((lp_isShield == true) && (lp_amount > 1)) {
+        FloatingCombatElementCreateNumberTextAtUnit(PlayerGroupSingle(lp_player), "FloatingCombatElements/FloatingCombatNormalAmountReceived", "ShieldState", lp_unit, FixedToInt(lp_amount), StringExternal("Param/Value/lib_HZAR_4C295DD1"), libNtve_gv_FloatingCombatTextAutoRandomSeed);
+    }
+
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - Pain Is Temporary
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaPainIsTemporary_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_localPlayer;
+    unit lv_zaryaUnit;
+    fixed lv_newShieldAmount;
+    fixed lv_conversionRate;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_zaryaUnit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_localPlayer = EventPlayer();
+    lv_newShieldAmount = UnitGetPropertyFixed(lv_zaryaUnit, c_unitPropEnergy, c_unitPropCurrent);
+    lv_newShieldAmount += 0.5;
+    lv_newShieldAmount = Floor(lv_newShieldAmount);
+    lv_conversionRate = CatalogFieldValueGetAsFixed(c_gameCatalogBehavior, "ZaryaPainIsTemporary", "DamageResponse.ModifyLimit", lv_localPlayer);
+    lv_newShieldAmount *= lv_conversionRate;
+    CatalogFieldValueSetFixed(c_gameCatalogBehavior, "ZaryaPainIsTemporary", "DamageResponse.ModifyLimit", lv_localPlayer, lv_newShieldAmount);
+    if ((UnitIsValid(lv_zaryaUnit) == true)) {
+        UnitCreateEffectUnit(lv_zaryaUnit, "ZaryaPainIsTemporaryApplyBehavior", lv_zaryaUnit);
+        UnitSetPropertyFixed(lv_zaryaUnit, c_unitPropEnergy, 0.0);
+    }
+
+    CatalogFieldValueSetFixed(c_gameCatalogBehavior, "ZaryaPainIsTemporary", "DamageResponse.ModifyLimit", lv_localPlayer, lv_conversionRate);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaPainIsTemporary_Init () {
+    libHZAR_gt_HeroZaryaPainIsTemporary = TriggerCreate("libHZAR_gt_HeroZaryaPainIsTemporary_Func");
+    TriggerEnable(libHZAR_gt_HeroZaryaPainIsTemporary, false);
+    TriggerAddEventPlayerEffectUsed(libHZAR_gt_HeroZaryaPainIsTemporary, c_playerAny, "ZaryaPainIsTemporaryModifyUnit");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - Custom Kill VO
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaCustomKillVO_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_killingPlayer;
+    int lv_deadPlayer;
+    int lv_speakingPlayer;
+    string lv_killLine;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_killingPlayer = libGame_gf_CustomKillVOKillingPlayer();
+    lv_deadPlayer = libGame_gf_CustomKillVODeadPlayer();
+    lv_speakingPlayer = libGame_gf_CustomKillVOSpeakingPlayer();
+    lv_killLine = libGame_gf_CustomKillVOKillLine();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libHZAR_gv_heroZaryaGravitonSurgeCaster[lv_deadPlayer] != 0)) {
+        lv_speakingPlayer = libHZAR_gv_heroZaryaGravitonSurgeCaster[lv_deadPlayer];
+        libSond_gf_HeroVOPlayKillLine("ZaryaBase_UltimateKill", lv_speakingPlayer, lv_killingPlayer);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaCustomKillVO_Init () {
+    libHZAR_gt_HeroZaryaCustomKillVO = TriggerCreate("libHZAR_gt_HeroZaryaCustomKillVO_Func");
+    TriggerEnable(libHZAR_gt_HeroZaryaCustomKillVO, false);
+    libGame_gf_CustomKillVO(libHZAR_gt_HeroZaryaCustomKillVO);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - UI Initialize
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaUIInitialize_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_panel;
+    int lv_currentPanelLayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_panel = c_invalidDialogControlId;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    DialogControlCreateInPanelFromTemplate(libUIUI_gv_heroSpecificStatusContainer, c_triggerControlTypePanel, "Zarya/ZaryaTraitFrame");
+    DialogControlSetVisible(DialogControlLastCreated(), PlayerGroupAll(), false);
+    lv_currentPanelLayer += 1;
+    lv_panel = DialogControlLastCreated();
+    libHZAR_gv_zaryaUI.lv_mainPanel = DialogControlLastCreated();
+    DialogControlHookup(lv_panel, c_triggerControlTypeLabel, "UnitStatusFrame0/ZaryaTraitLabel");
+    libHZAR_gv_zaryaUI.lv_traitLabel = DialogControlLastCreated();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaUIInitialize_Init () {
+    libHZAR_gt_HeroZaryaUIInitialize = TriggerCreate("libHZAR_gt_HeroZaryaUIInitialize_Func");
+    libCore_gf_IncludeModInitialization(libHZAR_gt_HeroZaryaUIInitialize);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - UI Activate
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaUIActivate_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_localZaryaUnit;
+    playergroup lv_localZaryaPlayerGroup;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_localZaryaPlayerGroup = PlayerGroupEmpty();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    Wait(0.0625, c_timeGame);
+    lv_localZaryaUnit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_localZaryaPlayerGroup = libCore_gv_playerGroupFromPlayer[UnitGetOwner(lv_localZaryaUnit)];
+    DialogControlSetVisible(libHZAR_gv_zaryaUI.lv_mainPanel, lv_localZaryaPlayerGroup, true);
+    DialogControlSetVisible(libUIUI_gv_uIHeroConsole.lv_heroStatsEnergyStatFrame, lv_localZaryaPlayerGroup, true);
+    libNtve_gf_SetDialogItemUnit(libUIUI_gv_uIHeroConsole.lv_heroStatsEnergyStatFrame, lv_localZaryaUnit, lv_localZaryaPlayerGroup);
+    DialogControlHookup(libUIUI_gv_uIHeroConsole.lv_heroStatsEnergyStatFrame, c_triggerControlTypeUnitStatusBar, "HealthBar");
+    libNtve_gf_SetDialogItemTooltip(DialogControlLastCreated(), StringExternal("Param/Value/lib_HZAR_4E3EF24D"), lv_localZaryaPlayerGroup);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaUIActivate_Init () {
+    libHZAR_gt_HeroZaryaUIActivate = TriggerCreate("libHZAR_gt_HeroZaryaUIActivate_Func");
+    TriggerAddEventPlayerEffectUsed(libHZAR_gt_HeroZaryaUIActivate, c_playerAny, "ZaryaUIActivatorModifyUnit");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - Respawn UI Show
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaRespawnUIShow_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_player = libGame_gf_HeroRespawnPlayer();
+
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gv_players[lv_player].lv_heroData.lv_heroCatalogLink == "Zarya"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    DialogControlSetVisible(libUIUI_gv_uIHeroConsole.lv_heroStatsEnergyStatFrame, libCore_gv_playerGroupFromPlayer[lv_player], true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaRespawnUIShow_Init () {
+    libHZAR_gt_HeroZaryaRespawnUIShow = TriggerCreate("libHZAR_gt_HeroZaryaRespawnUIShow_Func");
+    libGame_gf_HeroRespawn(libHZAR_gt_HeroZaryaRespawnUIShow);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - Death UI Hide
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaDeathUIHide_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_player = libGame_gf_HeroKilledPlayer();
+
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gv_players[lv_player].lv_heroData.lv_heroCatalogLink == "Zarya"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    DialogControlSetVisible(libUIUI_gv_uIHeroConsole.lv_heroStatsEnergyStatFrame, libCore_gv_playerGroupFromPlayer[lv_player], false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaDeathUIHide_Init () {
+    libHZAR_gt_HeroZaryaDeathUIHide = TriggerCreate("libHZAR_gt_HeroZaryaDeathUIHide_Func");
+    libGame_gf_HeroKilled(libHZAR_gt_HeroZaryaDeathUIHide);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - Shielding FCT
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaShieldingFCT_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_ownerofShielded;
+    unit lv_caster;
+    unit lv_shieldedUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetOwner(EventUnit()) <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+
+        if (!((UnitFilterMatch(EventUnit(), UnitGetOwner(EventUnit()), libCore_gv_filtersHeroic) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_shieldedUnit = EventUnit();
+    if ((EventUnitBehaviorChange() == c_unitBehaviorChangeActivate)) {
+        lv_caster = UnitBehaviorEffectUnit(lv_shieldedUnit, EventUnitBehavior(), c_effectUnitCaster, 0);
+        libHZAR_gv_heroZaryaShieldCasterOwner[UnitGetOwner(lv_shieldedUnit)] = UnitGetOwner(lv_caster);
+    }
+    else if ((EventUnitBehaviorChange() == c_unitBehaviorChangeRefresh)) {
+        lv_caster = UnitBehaviorEffectUnit(lv_shieldedUnit, EventUnitBehavior(), c_effectUnitCaster, 0);
+        lv_ownerofShielded = UnitGetOwner(lv_shieldedUnit);
+        libHZAR_gv_heroZaryaShieldCasterOwner[lv_ownerofShielded] = UnitGetOwner(lv_caster);
+        libHZAR_gf_HeroZaryaCustomFCT(lv_shieldedUnit, lv_ownerofShielded, libHZAR_gv_heroZaryaShieldNumbers[lv_ownerofShielded], true);
+        libHZAR_gv_heroZaryaShieldNumbers[lv_ownerofShielded] = 0.0;
+    }
+    else if ((EventUnitBehaviorChange() == c_unitBehaviorChangeDeactivate)) {
+        lv_ownerofShielded = UnitGetOwner(lv_shieldedUnit);
+        libHZAR_gf_HeroZaryaCustomFCT(lv_shieldedUnit, lv_ownerofShielded, libHZAR_gv_heroZaryaShieldNumbers[lv_ownerofShielded], true);
+        libHZAR_gv_heroZaryaShieldNumbers[lv_ownerofShielded] = 0.0;
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaShieldingFCT_Init () {
+    libHZAR_gt_HeroZaryaShieldingFCT = TriggerCreate("libHZAR_gt_HeroZaryaShieldingFCT_Func");
+    TriggerEnable(libHZAR_gt_HeroZaryaShieldingFCT, false);
+    TriggerAddEventUnitBehaviorChange(libHZAR_gt_HeroZaryaShieldingFCT, null, "ZaryaPersonalBarrier", c_unitBehaviorChangeActivate);
+    TriggerAddEventUnitBehaviorChange(libHZAR_gt_HeroZaryaShieldingFCT, null, "ZaryaPersonalBarrier", c_unitBehaviorChangeRefresh);
+    TriggerAddEventUnitBehaviorChange(libHZAR_gt_HeroZaryaShieldingFCT, null, "ZaryaPersonalBarrier", c_unitBehaviorChangeDeactivate);
+    TriggerAddEventUnitBehaviorChange(libHZAR_gt_HeroZaryaShieldingFCT, null, "ZaryaShieldAlly", c_unitBehaviorChangeActivate);
+    TriggerAddEventUnitBehaviorChange(libHZAR_gt_HeroZaryaShieldingFCT, null, "ZaryaShieldAlly", c_unitBehaviorChangeRefresh);
+    TriggerAddEventUnitBehaviorChange(libHZAR_gt_HeroZaryaShieldingFCT, null, "ZaryaShieldAlly", c_unitBehaviorChangeDeactivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - Expulsion Zone - Clear Out FCT
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaExpulsionZoneClearOutFCT_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_zaryaPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_zaryaPlayer = EventPlayer();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libHZAR_gv_heroZaryaExpulsionZoneClearOutNumbers[lv_zaryaPlayer] += libHZAR_gv_heroZaryaExpulsionZoneClearOutAmountPerStack;
+    Wait(0.125, c_timeGame);
+    libHZAR_gf_HeroZaryaCustomFCT(EventUnit(), lv_zaryaPlayer, libHZAR_gv_heroZaryaExpulsionZoneClearOutNumbers[lv_zaryaPlayer], false);
+    libHZAR_gv_heroZaryaExpulsionZoneClearOutNumbers[lv_zaryaPlayer] = 0.0;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaExpulsionZoneClearOutFCT_Init () {
+    libHZAR_gt_HeroZaryaExpulsionZoneClearOutFCT = TriggerCreate("libHZAR_gt_HeroZaryaExpulsionZoneClearOutFCT_Func");
+    TriggerEnable(libHZAR_gt_HeroZaryaExpulsionZoneClearOutFCT, false);
+    TriggerAddEventUnitBehaviorChange(libHZAR_gt_HeroZaryaExpulsionZoneClearOutFCT, null, "ZaryaExpulsionZoneClearOut", c_unitBehaviorChangeCreate);
+    TriggerAddEventUnitBehaviorChange(libHZAR_gt_HeroZaryaExpulsionZoneClearOutFCT, null, "ZaryaExpulsionZoneClearOut", c_unitBehaviorChangeIncrease);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - Graviton Surge Camera Target Acquisition
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaGravitonSurgeCameraTargetAcquisition_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitGetOwner(EventUnit()) > 0) && (UnitGetOwner(EventUnit()) <= libCore_gv_bALMaxPlayers)) {
+        libHZAR_gv_heroZaryaGravitonSurgeCameraTarget[EventPlayer()] = libNtve_gf_ConvertUnitToUnitGroup(EventUnitCreatedUnit());
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaGravitonSurgeCameraTargetAcquisition_Init () {
+    libHZAR_gt_HeroZaryaGravitonSurgeCameraTargetAcquisition = TriggerCreate("libHZAR_gt_HeroZaryaGravitonSurgeCameraTargetAcquisition_Func");
+    TriggerEnable(libHZAR_gt_HeroZaryaGravitonSurgeCameraTargetAcquisition, false);
+    TriggerAddEventUnitCreated(libHZAR_gt_HeroZaryaGravitonSurgeCameraTargetAcquisition, null, "ZaryaGravitonSurge", null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - Graviton Surge Stun Display Manager
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaGravitonSurgeStunDisplayManager_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_stunnedUnit;
+    fixed lv_duration;
+    fixed lv_durationRemaining;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_stunnedUnit = EventUnit();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitHasBehavior2(EventUnit(), "ZaryaGravitonSurgeTargetDuration") == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_duration = UnitBehaviorDurationTotal(UnitBehaviorEffectUnit(lv_stunnedUnit, "ZaryaGravitonSurgePull", c_effectUnitCaster, 0), "ZaryaGravitonSurgeCasterDuration");
+    lv_durationRemaining = UnitBehaviorDuration(UnitBehaviorEffectUnit(lv_stunnedUnit, "ZaryaGravitonSurgePull", c_effectUnitCaster, 0), "ZaryaGravitonSurgeCasterDuration");
+    if ((lv_durationRemaining <= 0.0)) {
+        return true;
+    }
+
+    UnitBehaviorAdd(lv_stunnedUnit, "ZaryaGravitonSurgeTargetDuration", lv_stunnedUnit, 1);
+    UnitBehaviorSetDuration(lv_stunnedUnit, "ZaryaGravitonSurgeTargetDuration", lv_duration);
+    UnitBehaviorSetDurationRemaining(lv_stunnedUnit, "ZaryaGravitonSurgeTargetDuration", lv_durationRemaining);
+    UnitBehaviorSetDuration(lv_stunnedUnit, "ZaryaGravitonSurgePull", lv_duration);
+    UnitBehaviorSetDurationRemaining(lv_stunnedUnit, "ZaryaGravitonSurgePull", lv_durationRemaining);
+    UnitBehaviorSetDuration(lv_stunnedUnit, "ZaryaGravitonSurgePullInitial", lv_duration);
+    UnitBehaviorSetDurationRemaining(lv_stunnedUnit, "ZaryaGravitonSurgePullInitial", lv_durationRemaining);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaGravitonSurgeStunDisplayManager_Init () {
+    libHZAR_gt_HeroZaryaGravitonSurgeStunDisplayManager = TriggerCreate("libHZAR_gt_HeroZaryaGravitonSurgeStunDisplayManager_Func");
+    TriggerEnable(libHZAR_gt_HeroZaryaGravitonSurgeStunDisplayManager, false);
+    TriggerAddEventUnitBehaviorChange(libHZAR_gt_HeroZaryaGravitonSurgeStunDisplayManager, null, "ZaryaGravitonSurgePull", c_unitBehaviorChangeCreate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - Graviton Surge Camera Pan
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaGravitonSurgeCameraPan_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_localTriggeringUnit;
+    int lv_localTriggeringPlayer;
+    int lv_zaryaPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_localTriggeringUnit = EventUnit();
+    lv_localTriggeringPlayer = UnitGetOwner(lv_localTriggeringUnit);
+    lv_zaryaPlayer = UnitGetOwner(UnitBehaviorEffectUnit(lv_localTriggeringUnit, "ZaryaGravitonSurgePull", c_effectUnitCaster, 0));
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_localTriggeringPlayer >= 1))) {
+            return false;
+        }
+
+        if (!((lv_localTriggeringPlayer <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+
+        if (!((lv_zaryaPlayer >= 1))) {
+            return false;
+        }
+
+        if (!((lv_zaryaPlayer <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if (((lv_localTriggeringUnit == libGame_gv_players[lv_localTriggeringPlayer].lv_heroUnit) || (lv_localTriggeringUnit == libGame_gv_players[lv_localTriggeringPlayer].lv_activeVehicle))) {
+        libGame_gf_PlayerHeroDisplacementCameraLock(lv_localTriggeringUnit, EventUnitBehavior());
+        libUIUI_gf_FullscreenOverlayAddItemForPlayer(lv_localTriggeringPlayer, libUIUI_ge_FullscreenOverlayPriorities_Stasis, "Cutscenes\\GameUI_StasisOverlay.StormCutscene", "ZaryaGravitonSurgePull");
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaGravitonSurgeCameraPan_Init () {
+    libHZAR_gt_HeroZaryaGravitonSurgeCameraPan = TriggerCreate("libHZAR_gt_HeroZaryaGravitonSurgeCameraPan_Func");
+    TriggerEnable(libHZAR_gt_HeroZaryaGravitonSurgeCameraPan, false);
+    TriggerAddEventUnitBehaviorChange(libHZAR_gt_HeroZaryaGravitonSurgeCameraPan, null, "ZaryaGravitonSurgePull", c_unitBehaviorChangeCreate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - Graviton Surge Target Cache
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaGravitonSurgeTargetCache_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_localOwnerofTriggeringUnit;
+    int lv_gravitonSurgeTargetCount;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_localOwnerofTriggeringUnit = UnitGetOwner(EventUnit());
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_localOwnerofTriggeringUnit >= 1))) {
+            return false;
+        }
+
+        if (!((lv_localOwnerofTriggeringUnit <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libHZAR_gv_heroZaryaGravitonSurgeCaster[lv_localOwnerofTriggeringUnit] = UnitBehaviorEffectPlayer(EventUnit(), "ZaryaGravitonSurgePull", c_effectPlayerCaster, 0);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaGravitonSurgeTargetCache_Init () {
+    libHZAR_gt_HeroZaryaGravitonSurgeTargetCache = TriggerCreate("libHZAR_gt_HeroZaryaGravitonSurgeTargetCache_Func");
+    TriggerEnable(libHZAR_gt_HeroZaryaGravitonSurgeTargetCache, false);
+    TriggerAddEventUnitBehaviorChange(libHZAR_gt_HeroZaryaGravitonSurgeTargetCache, null, "ZaryaGravitonSurgePull", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - Graviton Surge Target Release
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaGravitonSurgeTargetRelease_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_localOwnerofTargetUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_localOwnerofTargetUnit = UnitGetOwner(EventUnit());
+
+    // Conditions
+    if (testConds) {
+        if (!(((lv_localOwnerofTargetUnit >= 1) && (lv_localOwnerofTargetUnit <= libCore_gv_bALMaxPlayers)))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libUIUI_gf_FullscreenOverlayRemoveItemFromQueueForPlayer(lv_localOwnerofTargetUnit, "Cutscenes\\GameUI_StasisOverlay.StormCutscene", "ZaryaGravitonSurgePull");
+    Wait(1.0, c_timeGame);
+    libHZAR_gv_heroZaryaGravitonSurgeCaster[lv_localOwnerofTargetUnit] = 0;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaGravitonSurgeTargetRelease_Init () {
+    libHZAR_gt_HeroZaryaGravitonSurgeTargetRelease = TriggerCreate("libHZAR_gt_HeroZaryaGravitonSurgeTargetRelease_Func");
+    TriggerEnable(libHZAR_gt_HeroZaryaGravitonSurgeTargetRelease, false);
+    TriggerAddEventUnitBehaviorChange(libHZAR_gt_HeroZaryaGravitonSurgeTargetRelease, null, "ZaryaGravitonSurgePull", c_unitBehaviorChangeDeactivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - Energy - Together We Are Strong Trigger Create
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongTriggerCreate_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_localShieldedUnit;
+    int lv_localShieldedPlayer;
+    int lv_zaryaPlayer;
+    trigger lv_localTrigger;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_localShieldedUnit = EventUnit();
+    lv_localShieldedPlayer = UnitGetOwner(lv_localShieldedUnit);
+    lv_zaryaPlayer = UnitGetOwner(UnitBehaviorEffectUnit(lv_localShieldedUnit, EventUnitBehavior(), c_effectUnitCaster, 0));
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_zaryaPlayer <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+
+        if (!((lv_zaryaPlayer != 0))) {
+            return false;
+        }
+
+        if (!((lv_localShieldedPlayer <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+
+        if (!((lv_localShieldedPlayer != 0))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libHZAR_gv_heroZaryaEnergyTogetherWeAreStrongShieldedAllyTrigger[lv_localShieldedPlayer] == null)) {
+        lv_localTrigger = TriggerCreate("libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongGain_Func");
+        TriggerAddEventUnitDealsDamage(lv_localTrigger, UnitRefFromVariable("lv_localShieldedUnit"), c_unitDamageTypeAny, c_unitDamageEither, null);
+        libHZAR_gv_heroZaryaEnergyTogetherWeAreStrongShieldedAllyTrigger[lv_localShieldedPlayer] = lv_localTrigger;
+        libHZAR_gv_heroZaryaEnergyTogetherWeAreStrongShieldedAllyUnitCount[lv_localShieldedPlayer] += 1;
+    }
+    else {
+        TriggerAddEventUnitDealsDamage(libHZAR_gv_heroZaryaEnergyTogetherWeAreStrongShieldedAllyTrigger[lv_localShieldedPlayer], UnitRefFromVariable("lv_localShieldedUnit"), c_unitDamageTypeAny, c_unitDamageEither, null);
+        libHZAR_gv_heroZaryaEnergyTogetherWeAreStrongShieldedAllyUnitCount[lv_localShieldedPlayer] += 1;
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongTriggerCreate_Init () {
+    libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongTriggerCreate = TriggerCreate("libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongTriggerCreate_Func");
+    TriggerEnable(libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongTriggerCreate, false);
+    TriggerAddEventUnitBehaviorChange(libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongTriggerCreate, null, "ZaryaShieldAlly", c_unitBehaviorChangeCreate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - Energy - Together We Are Strong Trigger Destroy
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongTriggerDestroy_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_localShieldedUnit;
+    int lv_localShieldedPlayer;
+    trigger lv_localTrigger;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_localShieldedUnit = EventUnit();
+    lv_localShieldedPlayer = UnitGetOwner(lv_localShieldedUnit);
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_localShieldedPlayer <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+
+        if (!((lv_localShieldedPlayer != 0))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libHZAR_gv_heroZaryaEnergyTogetherWeAreStrongShieldedAllyUnitCount[lv_localShieldedPlayer] -= 1;
+    if ((libHZAR_gv_heroZaryaEnergyTogetherWeAreStrongShieldedAllyUnitCount[lv_localShieldedPlayer] <= 0)) {
+        TriggerDestroy(libHZAR_gv_heroZaryaEnergyTogetherWeAreStrongShieldedAllyTrigger[lv_localShieldedPlayer]);
+        libHZAR_gv_heroZaryaEnergyTogetherWeAreStrongShieldedAllyTrigger[lv_localShieldedPlayer] = null;
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongTriggerDestroy_Init () {
+    libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongTriggerDestroy = TriggerCreate("libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongTriggerDestroy_Func");
+    TriggerEnable(libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongTriggerDestroy, false);
+    TriggerAddEventUnitBehaviorChange(libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongTriggerDestroy, null, "ZaryaShieldAlly", c_unitBehaviorChangeDestroy);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - Energy - Together We Are Strong Gain
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongGain_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_allyUnit;
+    int lv_allyOwner;
+    fixed lv_damageAmount;
+    fixed lv_shieldAmount;
+    fixed lv_incomingBoost;
+    unit lv_zaryaUnit;
+    int lv_zaryaOwner;
+    fixed lv_currentBoost;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitHasBehavior2(EventUnitDamageSourceUnit(), "ZaryaShieldAlly") == true))) {
+            return false;
+        }
+
+        if (!((UnitGetOwner(EventUnitDamageSourceUnit()) != UnitGetOwner(EventUnit())))) {
+            return false;
+        }
+
+        if (!((PlayerHasTalent(UnitGetOwner(UnitBehaviorEffectUnit(EventUnitDamageSourceUnit(), "ZaryaShieldAlly", c_effectUnitCaster, 0)), "ZaryaShieldAllyTogetherWeAreStrong") == true))) {
+            return false;
+        }
+
+        if (!((EventUnitDamageEffect() != "BribeKillEffect"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_allyUnit = EventUnitDamageSourceUnit();
+    lv_allyOwner = UnitGetOwner(lv_allyUnit);
+    if (((lv_allyOwner <= libCore_gv_bALMaxPlayers) && (lv_allyOwner >= 1) && (libHZAR_gv_heroZaryaEnergyTogetherWeAreStrongContributionRemaining[lv_allyOwner] <= 0.0))) {
+    }
+    else {
+        lv_zaryaUnit = UnitBehaviorEffectUnit(lv_allyUnit, "ZaryaShieldAlly", c_effectUnitCaster, 0);
+        lv_zaryaOwner = UnitGetOwner(lv_zaryaUnit);
+        lv_damageAmount = (EventUnitDamageAmount() + EventUnitDamageBehaviorShield());
+        lv_currentBoost = UnitGetPropertyFixed(lv_zaryaUnit, c_unitPropEnergy, c_unitPropCurrent);
+        lv_incomingBoost = (lv_damageAmount / libHZAR_gv_heroZaryaTogetherWeAreStrongUnscaledDamagetoEnergyConversionRate);
+        if ((lv_incomingBoost >= libHZAR_gv_heroZaryaEnergyTogetherWeAreStrongContributionRemaining[lv_allyOwner])) {
+            lv_incomingBoost = libHZAR_gv_heroZaryaEnergyTogetherWeAreStrongContributionRemaining[lv_allyOwner];
+            libHZAR_gv_heroZaryaEnergyTogetherWeAreStrongContributionRemaining[lv_allyOwner] = 0.0;
+        }
+        else {
+            libHZAR_gv_heroZaryaEnergyTogetherWeAreStrongContributionRemaining[lv_allyOwner] -= lv_incomingBoost;
+        }
+        if ((lv_incomingBoost > 1)) {
+            FloatingCombatElementCreateNumberTextAtUnit(PlayerGroupSingle(lv_zaryaOwner), "Zarya/ZaryaEnergyReceived", "", lv_zaryaUnit, FixedToInt(lv_incomingBoost), StringExternal("Param/Value/lib_HZAR_DDA5378D"), libNtve_gv_FloatingCombatTextAutoRandomSeed);
+        }
+
+        lv_incomingBoost += lv_currentBoost;
+        if ((UnitIsValid(lv_zaryaUnit) == true)) {
+            UnitSetPropertyFixed(lv_zaryaUnit, c_unitPropEnergy, lv_incomingBoost);
+            UnitBehaviorAdd(lv_zaryaUnit, "ZaryaEnergyDecayCountdown", lv_zaryaUnit, 1);
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongGain_Init () {
+    libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongGain = TriggerCreate("libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongGain_Func");
+    TriggerEnable(libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongGain, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - Energy - Together We Are Strong Release
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongRelease_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_ownerofTarget;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_ownerofTarget = UnitGetOwner(EventUnit());
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_ownerofTarget > 0))) {
+            return false;
+        }
+
+        if (!((lv_ownerofTarget <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libHZAR_gv_heroZaryaEnergyTogetherWeAreStrongContributionRemaining[lv_ownerofTarget] = libHZAR_gv_heroZaryaEnergyTogetherWeAreStrongContributionCap;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongRelease_Init () {
+    libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongRelease = TriggerCreate("libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongRelease_Func");
+    TriggerEnable(libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongRelease, false);
+    TriggerAddEventUnitBehaviorChange(libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongRelease, null, "ZaryaShieldAlly", c_unitBehaviorChangeDeactivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - Energy - Maximum Charge FCT
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaEnergyMaximumChargeFCT_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_localTriggeringHealAmount;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_localTriggeringHealAmount = EventUnitHealAmount();
+    if ((lv_localTriggeringHealAmount >= 1)) {
+        FloatingCombatElementCreateNumberTextAtUnit(PlayerGroupSingle(UnitGetOwner(EventUnit())), "Zarya/ZaryaEnergyReceived", "", EventUnit(), FixedToInt(EventUnitHealAmount()), StringExternal("Param/Value/lib_HZAR_D91F88FC"), libNtve_gv_FloatingCombatTextAutoRandomSeed);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaEnergyMaximumChargeFCT_Init () {
+    libHZAR_gt_HeroZaryaEnergyMaximumChargeFCT = TriggerCreate("libHZAR_gt_HeroZaryaEnergyMaximumChargeFCT_Func");
+    TriggerEnable(libHZAR_gt_HeroZaryaEnergyMaximumChargeFCT, false);
+    TriggerAddEventUnitHealed(libHZAR_gt_HeroZaryaEnergyMaximumChargeFCT, null, c_unitVitalEnergy, "ZaryaEnergyMaximumChargeCreateHealer");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - Energy Decay
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaEnergyDecay_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_zarya;
+    int lv_zaryaPlayer;
+    actor lv_zaryaActor;
+    fixed lv_newBoostAmount;
+    fixed lv_previousBoostAmount;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_zarya = EventUnit();
+    lv_zaryaPlayer = UnitGetOwner(EventUnit());
+    lv_zaryaActor = libNtve_gf_MainActorofUnit(lv_zarya);
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(lv_zarya) == "HeroZarya"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    while ((UnitIsAlive(lv_zarya) == true)) {
+        lv_newBoostAmount = UnitGetPropertyFixed(EventUnit(), c_unitPropEnergy, c_unitPropCurrent);
+        lv_newBoostAmount = Ceiling(lv_newBoostAmount);
+        if (((lv_newBoostAmount < libHZAR_gv_heroZaryaTintStage1EnergyMax) && (libHZAR_gv_heroZaryaCurrentTintStage[lv_zaryaPlayer] != 1))) {
+            ActorSend(lv_zaryaActor, "Signal EnergyStageA");
+            ActorSend(lv_zaryaActor, "Signal GE75Off");
+            libHZAR_gv_heroZaryaCurrentTintStage[lv_zaryaPlayer] = 1;
+        }
+
+        if (((lv_newBoostAmount >= libHZAR_gv_heroZaryaTintStage1EnergyMax) && (lv_newBoostAmount < libHZAR_gv_heroZaryaTintStage2EnergyMax) && (libHZAR_gv_heroZaryaCurrentTintStage[lv_zaryaPlayer] != 2))) {
+            ActorSend(lv_zaryaActor, "Signal EnergyStageB");
+            ActorSend(lv_zaryaActor, "Signal GE75Off");
+            if ((PlayerHasTalent(lv_zaryaPlayer, "ZaryaWeaponToTheLimit") == true)) {
+                ActorSend(lv_zaryaActor, "Signal ToTheLimitOn");
+            }
+
+            libHZAR_gv_heroZaryaCurrentTintStage[lv_zaryaPlayer] = 2;
+        }
+
+        if (((lv_newBoostAmount >= libHZAR_gv_heroZaryaTintStage2EnergyMax) && (lv_newBoostAmount < libHZAR_gv_heroZaryaTintStage3EnergyMax) && (libHZAR_gv_heroZaryaCurrentTintStage[lv_zaryaPlayer] != 3))) {
+            ActorSend(lv_zaryaActor, "Signal EnergyStageC");
+            ActorSend(lv_zaryaActor, "Signal GE75On");
+            if ((PlayerHasTalent(lv_zaryaPlayer, "ZaryaWeaponToTheLimit") == true)) {
+                ActorSend(lv_zaryaActor, "Signal ToTheLimitOn");
+            }
+
+            libHZAR_gv_heroZaryaCurrentTintStage[lv_zaryaPlayer] = 3;
+        }
+
+        if (((lv_newBoostAmount >= libHZAR_gv_heroZaryaTintStage3EnergyMax) && (lv_newBoostAmount <= libHZAR_gv_heroZaryaTintStage4EnergyMax) && (libHZAR_gv_heroZaryaCurrentTintStage[lv_zaryaPlayer] != 4))) {
+            ActorSend(lv_zaryaActor, "Signal EnergyStageD");
+            ActorSend(lv_zaryaActor, "Signal GE75On");
+            UnitCreateEffectUnit(lv_zarya, "ZaryaEnergyStageDOnModifyUnit", lv_zarya);
+            if ((PlayerHasTalent(lv_zaryaPlayer, "ZaryaWeaponToTheLimit") == true)) {
+                ActorSend(lv_zaryaActor, "Signal ToTheLimitOn");
+            }
+
+            libHZAR_gv_heroZaryaCurrentTintStage[lv_zaryaPlayer] = 4;
+        }
+
+        lv_newBoostAmount /= 100.0;
+        lv_newBoostAmount *= libHZAR_gv_heroZaryaEnergyEnergytoDamageConversionRate;
+        libHZAR_gf_HeroZaryaHeroSpecificStatusFrameUpdate(lv_zaryaPlayer, lv_newBoostAmount);
+        if ((lv_previousBoostAmount != lv_newBoostAmount)) {
+            lv_previousBoostAmount = lv_newBoostAmount;
+        }
+
+        Wait(0.125, c_timeGame);
+    }
+    libHZAR_gf_HeroZaryaHeroSpecificStatusFrameUpdate(lv_zaryaPlayer, 0.0);
+    lv_previousBoostAmount = 0.0;
+    ActorSend(lv_zaryaActor, "Signal EnergyStageA");
+    ActorSend(lv_zaryaActor, "Signal GE75Off");
+    libHZAR_gv_heroZaryaCurrentTintStage[lv_zaryaPlayer] = 0;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaEnergyDecay_Init () {
+    libHZAR_gt_HeroZaryaEnergyDecay = TriggerCreate("libHZAR_gt_HeroZaryaEnergyDecay_Func");
+    TriggerEnable(libHZAR_gt_HeroZaryaEnergyDecay, false);
+    TriggerAddEventUnitBehaviorChange(libHZAR_gt_HeroZaryaEnergyDecay, null, "ZaryaEnergyBoostDecay", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - Energy Gain
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaEnergyGain_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_zaryaUnit;
+    int lv_zaryaPlayer;
+    fixed lv_damageAbsorbed;
+    fixed lv_currentBoost;
+    fixed lv_damageToEnergyConversionRate;
+    fixed lv_incomingBoost;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_zaryaUnit = EventUnitBehaviorCasterUnit();
+    lv_zaryaPlayer = UnitGetOwner(lv_zaryaUnit);
+    lv_damageAbsorbed = EventUnitDamageAbsorbed();
+    lv_incomingBoost = lv_damageAbsorbed;
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_zaryaPlayer <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+
+        if (!((lv_zaryaPlayer != 0))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if (((UnitGetType(lv_zaryaUnit) != "HeroZarya") && (UnitGetType(libGame_gv_players[lv_zaryaPlayer].lv_activeVehicle) == "HeroZarya"))) {
+        lv_zaryaUnit = libGame_gv_players[lv_zaryaPlayer].lv_activeVehicle;
+    }
+
+    libHZAR_gv_heroZaryaShieldNumbers[lv_zaryaPlayer] += lv_damageAbsorbed;
+    lv_incomingBoost /= libHZAR_gv_heroZaryaCurrentDamagetoEnergyConversionRate[lv_zaryaPlayer];
+    if ((PlayerHasTalent(lv_zaryaPlayer, "ZaryaEnergyHitMe") == true)) {
+        lv_incomingBoost *= libHZAR_gv_heroZaryaEnergyHitMeModifier;
+    }
+
+    libHZAR_gf_HeroZaryaCustomFCT(lv_zaryaUnit, lv_zaryaPlayer, lv_incomingBoost, false);
+    lv_currentBoost = UnitGetPropertyFixed(lv_zaryaUnit, c_unitPropEnergy, c_unitPropCurrent);
+    lv_incomingBoost += lv_currentBoost;
+    if ((UnitIsValid(lv_zaryaUnit) == true)) {
+        UnitSetPropertyFixed(lv_zaryaUnit, c_unitPropEnergy, lv_incomingBoost);
+        UnitBehaviorAdd(lv_zaryaUnit, "ZaryaEnergyDecayCountdown", lv_zaryaUnit, 1);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaEnergyGain_Init () {
+    libHZAR_gt_HeroZaryaEnergyGain = TriggerCreate("libHZAR_gt_HeroZaryaEnergyGain_Func");
+    TriggerEnable(libHZAR_gt_HeroZaryaEnergyGain, false);
+    TriggerAddEventUnitDamageAbsorbed(libHZAR_gt_HeroZaryaEnergyGain, null, "ZaryaPersonalBarrier");
+    TriggerAddEventUnitDamageAbsorbed(libHZAR_gt_HeroZaryaEnergyGain, null, "ZaryaShieldAlly");
+    TriggerAddEventUnitDamageAbsorbed(libHZAR_gt_HeroZaryaEnergyGain, null, "ZaryaPersonalBarrierIAmTheStrongest");
+    TriggerAddEventUnitDamageAbsorbed(libHZAR_gt_HeroZaryaEnergyGain, null, "ZaryaPainIsTemporary");
+    TriggerAddEventUnitDamageAbsorbed(libHZAR_gt_HeroZaryaEnergyGain, null, "ZaryaShieldAllyGainTrain");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - Refresh Conversion Rates
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaRefreshConversionRates_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_localTriggeringPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_localTriggeringPlayer = UnitGetOwner(EventUnit());
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_localTriggeringPlayer > 0))) {
+            return false;
+        }
+
+        if (!((lv_localTriggeringPlayer <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libHZAR_gv_heroZaryaCurrentDamagetoEnergyConversionRate[lv_localTriggeringPlayer] != (libHZAR_gv_heroZaryaUnscaledDamagetoEnergyConversionRate * Pow(1.04, UnitXPGetCurrentLevel(EventUnit(), null))))) {
+        libHZAR_gv_heroZaryaCurrentDamagetoEnergyConversionRate[lv_localTriggeringPlayer] = (libHZAR_gv_heroZaryaUnscaledDamagetoEnergyConversionRate * Pow(1.04, UnitXPGetCurrentLevel(EventUnit(), null)));
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaRefreshConversionRates_Init () {
+    libHZAR_gt_HeroZaryaRefreshConversionRates = TriggerCreate("libHZAR_gt_HeroZaryaRefreshConversionRates_Func");
+    TriggerEnable(libHZAR_gt_HeroZaryaRefreshConversionRates, false);
+    TriggerAddEventUnitGainLevel(libHZAR_gt_HeroZaryaRefreshConversionRates, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Zarya - Hero Gains Attack Speed Buff
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_gt_HeroZaryaHeroGainsAttackSpeedBuff_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_zaryaUnit;
+    fixed lv_attackSpeedModifier;
+    fixed lv_newAttackPeriod;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_zaryaUnit = EventUnit();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(EventUnit()) == "HeroZarya"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_attackSpeedModifier = libCore_gf_GetWeaponAttackSpeedForUnit(lv_zaryaUnit);
+    lv_newAttackPeriod = (libHZAR_gv_heroZaryaBaseAttackPeriod * lv_attackSpeedModifier);
+    if ((lv_newAttackPeriod != 0.0)) {
+        CatalogFieldValueSetFixed(c_gameCatalogEffect, "ZaryaWeaponCreatePersistent", "PeriodicPeriodArray[" + IntToString(0) + "]", EventPlayer(), lv_newAttackPeriod);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHZAR_gt_HeroZaryaHeroGainsAttackSpeedBuff_Init () {
+    libHZAR_gt_HeroZaryaHeroGainsAttackSpeedBuff = TriggerCreate("libHZAR_gt_HeroZaryaHeroGainsAttackSpeedBuff_Func");
+    TriggerEnable(libHZAR_gt_HeroZaryaHeroGainsAttackSpeedBuff, false);
+    TriggerAddEventUnitBehaviorChangeFromCategory(libHZAR_gt_HeroZaryaHeroGainsAttackSpeedBuff, null, c_behaviorCategoryBuffAutoattackDPS, c_unitBehaviorChangeAny);
+    TriggerAddEventUnitBehaviorChangeFromCategory(libHZAR_gt_HeroZaryaHeroGainsAttackSpeedBuff, null, c_behaviorCategoryDebuffAutoattackDPS, c_unitBehaviorChangeAny);
+}
+
+void libHZAR_InitTriggers () {
+    libHZAR_gt_HeroZaryaPainIsTemporary_Init();
+    libHZAR_gt_HeroZaryaCustomKillVO_Init();
+    libHZAR_gt_HeroZaryaUIInitialize_Init();
+    libHZAR_gt_HeroZaryaUIActivate_Init();
+    libHZAR_gt_HeroZaryaRespawnUIShow_Init();
+    libHZAR_gt_HeroZaryaDeathUIHide_Init();
+    libHZAR_gt_HeroZaryaShieldingFCT_Init();
+    libHZAR_gt_HeroZaryaExpulsionZoneClearOutFCT_Init();
+    libHZAR_gt_HeroZaryaGravitonSurgeCameraTargetAcquisition_Init();
+    libHZAR_gt_HeroZaryaGravitonSurgeStunDisplayManager_Init();
+    libHZAR_gt_HeroZaryaGravitonSurgeCameraPan_Init();
+    libHZAR_gt_HeroZaryaGravitonSurgeTargetCache_Init();
+    libHZAR_gt_HeroZaryaGravitonSurgeTargetRelease_Init();
+    libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongTriggerCreate_Init();
+    libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongTriggerDestroy_Init();
+    libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongGain_Init();
+    libHZAR_gt_HeroZaryaEnergyTogetherWeAreStrongRelease_Init();
+    libHZAR_gt_HeroZaryaEnergyMaximumChargeFCT_Init();
+    libHZAR_gt_HeroZaryaEnergyDecay_Init();
+    libHZAR_gt_HeroZaryaEnergyGain_Init();
+    libHZAR_gt_HeroZaryaRefreshConversionRates_Init();
+    libHZAR_gt_HeroZaryaHeroGainsAttackSpeedBuff_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libHZAR_InitLib_completed = false;
+
+void libHZAR_InitLib () {
+    if (libHZAR_InitLib_completed) {
+        return;
+    }
+
+    libHZAR_InitLib_completed = true;
+
+    libHZAR_InitLibraries();
+    libHZAR_InitVariables();
+    libHZAR_InitTriggers();
+}
+

@@ -1,0 +1,193 @@
+include "TriggerLibs/HeroesLib"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Tomb Spider Queen
+//--------------------------------------------------------------------------------------------------
+// Preset Declarations
+const int libMSOC_ge_MMTombSpiderQueenAnimStates_FirstGems = 0;
+const int libMSOC_ge_MMTombSpiderQueenAnimStates_Active = 1;
+const int libMSOC_ge_MMTombSpiderQueenAnimStates_EventPrepare = 2;
+const int libMSOC_ge_MMTombSpiderQueenAnimStates_EventStart = 3;
+const int libMSOC_ge_MMTombSpiderQueenAnimStates_EventEnd = 4;
+const int libMSOC_ge_MMTombSpiderQueenState_Idle = 0;
+const int libMSOC_ge_MMTombSpiderQueenState_Collecting = 1;
+const int libMSOC_ge_MMTombSpiderQueenState_Summoning = 2;
+const int libMSOC_ge_MMTombSpiderQueenState_Active = 3;
+const int libMSOC_ge_MMTombSpiderQueenUIModes_Collecting = 0;
+const int libMSOC_ge_MMTombSpiderQueenUIModes_Releasing = 1;
+const int libMSOC_ge_MMTombSpiderQueenUIModes_Active = 2;
+
+// Constants
+const string libMSOC_gv_mMTombSpiderQueenMechanicName_C = "TombOfTheSpiderQueen";
+const int libMSOC_gv_mMTombSpiderQueenCount_C = 2;
+const fixed libMSOC_gv_mMTombSpiderQueenAuraDuration_C = 70.0;
+const fixed libMSOC_gv_mMTombSpiderQueenPostAuraWaitTime_C = 15.0;
+const fixed libMSOC_gv_mMTombSpiderQueenSpawnTimer_C = 30.0;
+const fixed libMSOC_gv_mMTombSpiderQueenInitialStatueTimer_C = 0.0;
+const fixed libMSOC_gv_mMTombSpiderQueenInteractTime_C = 2.0;
+const int libMSOC_gv_mMTombSpiderQueenActivationAmountStart_C = 50;
+const int libMSOC_gv_mMTombSpiderQueenActivationAmountIncrement_C = 5;
+const int libMSOC_gv_mMTombSpiderQueenActivationAmountCap_C = 80;
+const int libMSOC_gv_mMTombSpiderQueenGemCap_C = 200;
+const int libMSOC_gv_mMTombSpiderQueenHeroGem_C = 3;
+const int libMSOC_gv_mMTombSpiderQueenMinionPriest_C = 1;
+const int libMSOC_gv_mMTombSpiderQueenSiegeGiant_C = 2;
+const int libMSOC_gv_mMTombSpiderQueenKnight_C = 4;
+const int libMSOC_gv_mMTombSpiderQueenGolem_C = 5;
+const fixed libMSOC_gv_mMTombSpiderQueenAuraTimerTime_C = 70.0;
+const fixed libMSOC_gv_mMTombSpiderQueenTreasureChestEventDelay_C = 180.0;
+const int libMSOC_gv_mMTombSpiderQueenTreasureChestEventAreaMaxCount_C = 5;
+const int libMSOC_gv_mMTombSpiderQueenTreasureChestEventSpawnMaxCount_C = 5;
+const int libMSOC_gv_mMTombSpiderQueenSoulEatersMaxCount_C = 3;
+const fixed libMSOC_gv_mMTombSpiderQueenSoulEaterSummonTime = 15.0;
+const fixed libMSOC_gv_mMTombSpiderQueenAnimationHandlerTime = 11.0;
+
+// Structures
+struct libMSOC_gs_MMTombSpiderQueen {
+    point lv_positions;
+    unit lv_units;
+    actor lv_units2;
+    actor[3][4] lv_soulEffects;
+    int[libCore_gv_bALMaxTeams + 1] lv_ping;
+    int[libCore_gv_bALMaxPlayers + 1] lv_hintTextTag;
+    int[3] lv_countTextTagAlly;
+    int lv_countTextTagEnemy;
+    bool lv_active;
+    bool lv_summoning;
+};
+
+struct libMSOC_gs_MMTombSpiderQueenSoulEaterModeFrames {
+    int lv_mainPanel;
+    int lv_topSoulEaterEnabled;
+    int lv_topSoulEaterHealth;
+    int lv_topSoulEaterFlames;
+    int lv_midSoulEaterEnabled;
+    int lv_midSoulEaterHealth;
+    int lv_midSoulEaterFlames;
+    int lv_bottomSoulEaterEnabled;
+    int lv_bottomSoulEaterHealth;
+    int lv_bottomSoulEaterFlames;
+};
+
+struct libMSOC_gs_MMTombSpiderQueenPanel {
+    int lv_theCryptsPanel;
+    int[libCore_gv_bALMaxTeams + 1] lv_theCryptsTeamSoulFrame;
+    int[libCore_gv_bALMaxTeams + 1] lv_theCryptsTeamSoulCounterLabel;
+    int[libCore_gv_bALMaxTeams + 1] lv_theCryptsTeamSoulCounterLabel2;
+    int[libCore_gv_bALMaxTeams + 1] lv_theCryptsTurninGlow;
+    int lv_theCryptsSoulEaterFrame;
+    int lv_theCryptsSoulEaterCooldownFrame;
+    int lv_theCryptsSoulEaterCooldownLabel;
+    int lv_theCryptsSoulEaterFrameStatusLabel;
+    libMSOC_gs_MMTombSpiderQueenSoulEaterModeFrames lv_soulEaterModeBlueFrame;
+    libMSOC_gs_MMTombSpiderQueenSoulEaterModeFrames lv_soulEaterModeRedFrame;
+};
+
+// Variable Declarations
+libMSOC_gs_MMTombSpiderQueen[libMSOC_gv_mMTombSpiderQueenCount_C + 1] libMSOC_gv_mMTombSpiderQueen;
+unit[3] libMSOC_gv_mMTombSpiderQueenCooldownStatue;
+unitgroup libMSOC_gv_mMTombSpiderQueenGroup;
+int[3] libMSOC_gv_mMTombSpiderQueenSoulsTotal;
+int libMSOC_gv_mMTombSpiderQueenTotalTimesSpawned;
+revealer libMSOC_gv_mMTombSpiderQueenRevealer;
+bool libMSOC_gv_mMTombSpiderQueenFirstActivation;
+bool libMSOC_gv_mMTombSpiderQueenTurnInCompleteFirstTime;
+timer libMSOC_gv_mMTombSpiderQueenWaitTimer;
+timer libMSOC_gv_mMTombSpiderQueenAnimationHandlerTimer;
+unit[libMSOC_gv_mMTombSpiderQueenSoulEatersMaxCount_C + 1] libMSOC_gv_mMTombSpiderQueenQueensBirthing;
+timer libMSOC_gv_mMTombSpiderQueenSandGolemDeathTimer;
+timer libMSOC_gv_mMTombSpiderQueenSandGolemInitialTimer;
+point libMSOC_gv_mMTombSpiderQueenSandGolemDeathLocation;
+unit libMSOC_gv_mMTombSpiderQueenSandGolem;
+int libMSOC_gv_mMTombSpiderQueenSandGolemInitialTimerDuration_C;
+fixed libMSOC_gv_mMTombSpiderQueenSandGolemDeathTimerDuration_C;
+int[3] libMSOC_gv_mMTombSpiderQueenActivationAmountRequired;
+int[libCore_gv_bALMaxPlayers + 1] libMSOC_gv_mMTombSpiderQueenTotalGemsTurnedIn;
+int[libCore_gv_bALMaxPlayers + 1] libMSOC_gv_mMTombSpiderQueenGemsHeldForPlayer;
+point[3][4] libMSOC_gv_mMTombSpiderQueenSoulEaterSpawnPoints;
+unit[libMSOC_gv_mMTombSpiderQueenSoulEatersMaxCount_C + 1] libMSOC_gv_mMTombSpiderQueenSoulEaters;
+timer libMSOC_gv_mMTombSpiderQueenSoulEaterSummonTimer;
+int libMSOC_gv_mMTombSpiderQueenSummoningTeam;
+bool libMSOC_gv_mMTombSpiderQueenScalingStart;
+fixed libMSOC_gv_mMTombSpiderQueenSpiderQueenHealthDecay_C;
+timer libMSOC_gv_mMTombSpiderQueenScalingTimer;
+libMSOC_gs_MMTombSpiderQueenPanel libMSOC_gv_mMTombSpiderQueenPanel;
+bool libMSOC_gv_mMTombSpiderQueenHarrisonFinale;
+bool libMSOC_gv_mMTombSpiderQueenEventStartOn;
+bool libMSOC_gv_mMTombSpiderQueenDisableEvent;
+
+// Function Declarations
+void libMSOC_gf_MMTombSpiderQueenSetMapData (point lp_statuePosition, int lp_teamIndex, unit lp_soulCage);
+void libMSOC_gf_MMTombSpiderQueenUpdateSouls (int lp_team);
+void libMSOC_gf_MMTombSpiderQueenUpdateSoulPing (int lp_team);
+void libMSOC_gf_MMTombSpiderQueenAnimationHandlerMain (int lp_animState);
+void libMSOC_gf_MMTombSpiderQueenTurnInPointTeamColor (int lp_team);
+void libMSOC_gf_MMTombSpiderQueenDropSoulsForEnemy (point lp_location, int lp_count, bool lp_furtherDrop, int lp_soulOwner);
+void libMSOC_gf_MMTombSpiderQueenDropSoulsForAlly (point lp_location, int lp_count, bool lp_furtherDrop, int lp_soulOwner);
+int libMSOC_gf_MMTombSpiderQueenGetGemsHeldforUnit (unit lp_heroUnit);
+bool libMSOC_gf_MMTombSpiderQueenTurnInPossible ();
+void libMSOC_gf_MMTombSpiderQueenEnableDisableTurnInGoals (bool lp_toggleSetting, unit lp_turnInUnit);
+int libMSOC_gf_MMTombSpiderQueenSoulEatersCountAlive ();
+void libMSOC_gf_MMTombSpiderQueenSoulCollectionThresholdReached (int lp_winningTeam);
+void libMSOC_gf_MMTombSpiderQueenSpawnSoulEaters (int lp_enemyPlayer);
+void libMSOC_gf_MMTombSpiderQueenSoulEaterLifeMonitor ();
+void libMSOC_gf_MMTombSpiderQueenUpdateCameraLighting (unit lp_heroUnit);
+void libMSOC_gf_MMCountsUpdateDisplay (int lp_orderCount, int lp_chaosCount);
+void libMSOC_gf_MMTombSpiderQueenUICheckTurnInStatus (int lp_heldCount, int lp_teamNumber);
+void libMSOC_gf_MMTombSpiderQueenUIShowHidePanel (bool lp_showHide);
+void libMSOC_gf_MMTombSpiderQueenUIShowHideHealthPanels (bool lp_showHide, int lp_spawningTeam);
+void libMSOC_gf_MMTombSpiderQueenUIUpdateHealthPanels (int lp_soulEaterLane, fixed lp_healthPercent);
+void libMSOC_gf_MMTombSpiderQueenUISetModeForTeam (int lp_mode, int lp_teamThatActivateCage);
+void libMSOC_gf_MMTombSpiderQueenUISetSoulCountForTeam (int lp_count, int lp_countRequirement, bool lp_onCooldown, int lp_team);
+void libMSOC_gf_MMTombSpiderQueenUIInit (int lp_parentPanel);
+void libMSOC_gf_MMTombSpiderQueenSoulEaterSummoningUI (int lp_team);
+void libMSOC_gf_MMTombSpiderQueenSoulEaterUI (int lp_team);
+void libMSOC_gf_MMTombSpiderQueenTransmissionSoulCageActivatedQ (int lp_team);
+void libMSOC_gf_MMTombSpiderQueenTransmissionSoulEatersSpawnQ (int lp_summoningTeam);
+void libMSOC_gf_MMTombSpiderQueenTransmissionSoulEatersSpawningQ (int lp_summoningTeam);
+void libMSOC_gf_MMTombSpiderQueenTransmissionSoulEatersAreDeadQ ();
+
+// Trigger Declarations
+trigger libMSOC_gt_MMTombSpiderQueenAnnouncerInit;
+trigger libMSOC_gt_MMTombSpiderQueenInit;
+trigger libMSOC_gt_MMTombSpiderQueenPingDataInit;
+trigger libMSOC_gt_MMTombSpiderQueenUILightingInit;
+trigger libMSOC_gt_MMTombSpiderQueenGateOpen;
+trigger libMSOC_gt_MMTombSpiderQueenGameOver;
+trigger libMSOC_gt_MMTombSpiderQueenSandGolemDefenderSpawns;
+trigger libMSOC_gt_MMTombSpiderQueenSandGolemLanerSpawns;
+trigger libMSOC_gt_MMTombSpiderQueenSandGolemDeathTimerExpires;
+trigger libMSOC_gt_MMTombSpiderQueenSoulEatersDied;
+trigger libMSOC_gt_MMTombSpiderQueenSpawnSoulsCarrierDies;
+trigger libMSOC_gt_MMTombSpiderQueenSpawnSoulsNPCMindControlled;
+trigger libMSOC_gt_MMTombSpiderQueenSpawnSoulsHeroDies;
+trigger libMSOC_gt_MMTombSpiderQueenSoulSpawned;
+trigger libMSOC_gt_MMTombSpiderQueenSoulPickUp;
+trigger libMSOC_gt_MMTombSpiderQueenSoulStacksChange;
+trigger libMSOC_gt_MMTombSpiderQueenHandInSouls;
+trigger libMSOC_gt_MMTombSpiderQueenStartLightTransition;
+trigger libMSOC_gt_MMTombSpiderQueenSoulEaterImpactsATarget;
+trigger libMSOC_gt_MMTombSpiderQueenSoulEatersActive;
+trigger libMSOC_gt_MMTombSpiderQueenSoulEaterDies;
+trigger libMSOC_gt_MMTombSpiderQueenSoulEatersareDead;
+trigger libMSOC_gt_MMTombSpiderQueenAuraStartLightTransition;
+trigger libMSOC_gt_MMTombSpiderQueenSoulEaterSpawnXP;
+trigger libMSOC_gt_MMTombSpiderQueenScalingTimer;
+trigger libMSOC_gt_MMTombSpiderQueenUIModInitialize;
+trigger libMSOC_gt_MMTombSpiderQueenUIHandler;
+trigger libMSOC_gt_MMTombSpiderQueenHarrisonJonesProcced;
+trigger libMSOC_gt_HarrisonJonesVictory;
+trigger libMSOC_gt_MMTombSpiderQueenDebugEventStart;
+trigger libMSOC_gt_MMTombSpiderQueenDebugEnemyEventStart;
+trigger libMSOC_gt_MMTombSpiderQueenDebugSpiderSpawnRunMode;
+trigger libMSOC_gt_MMTombSpiderQueenDebugSpiderSpawnActive;
+trigger libMSOC_gt_MMTombSpiderQueenDebugSpiderSpawnRunModeEnemy;
+trigger libMSOC_gt_MMTombSpiderQueenDebugGemsSpawn;
+trigger libMSOC_gt_MMTombSpiderQueenDebugGemsNoDeath;
+trigger libMSOC_gt_MMTombSpiderQueenDebugShowSoulsCollected;
+trigger libMSOC_gt_MMTombSpiderQueenDebugKillSouleaters;
+trigger libMSOC_gt_MMTombSpiderQueenDebugNeutralSoul;
+
+// Library Initialization
+void libMSOC_InitVariables ();
+

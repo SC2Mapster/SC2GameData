@@ -1,0 +1,201 @@
+include "TriggerLibs/HeroesLib"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Sky Temple
+//--------------------------------------------------------------------------------------------------
+// Preset Declarations
+const int libMLCP_ge_MMSkyTempleTempleIndex__None = 0;
+const int libMLCP_ge_MMSkyTempleTempleIndex_Top = 1;
+const int libMLCP_ge_MMSkyTempleTempleIndex_Middle = 2;
+const int libMLCP_ge_MMSkyTempleTempleIndex_Bottom = 3;
+const int libMLCP_ge_MMSkyTempleUIModes_Idle = 0;
+const int libMLCP_ge_MMSkyTempleUIModes_Timer = 1;
+const int libMLCP_ge_MMSkyTempleUIModes_Temple = 2;
+const int libMLCP_ge_MMSkyTempleUIState_None = 0;
+const int libMLCP_ge_MMSkyTempleUIState_Idle = 1;
+const int libMLCP_ge_MMSkyTempleUIState_Preparing = 2;
+const int libMLCP_ge_MMSkyTempleUIState_Blessed = 3;
+
+// Constants
+const string libMLCP_gv_mMSkyTempleMechanicName_C = "SkyTemple";
+const int libMLCP_gv_mMSkyTempleMaxCount_C = 10;
+const int libMLCP_gv_mMSkyTempleTempleCaptureRadius_C = 5;
+const int libMLCP_gv_mMSkyTempleTempleCaptureTime_C = 2;
+const fixed libMLCP_gv_mMSkyTempleFirstTempleStartTime_C = 180.0;
+const fixed libMLCP_gv_mMSkyTempleTempleBlessWarningTimeLong_C = 30.0;
+const int libMLCP_gv_mMSkyTempleTempleCaptureOverTime_C = 0;
+const fixed libMLCP_gv_mMSkyTempleTempleCooldown_C = 120.0;
+const fixed libMLCP_gv_mMSkyTempleTempleFinalBlastLifeThreshold_C = 500.0;
+const int libMLCP_gv_mMSkyTempleTempleFinalShotCount_C = 5;
+const int libMLCP_gv_mMSkyTempleTempleTotalShots = 45;
+const fixed libMLCP_gv_mMSkyTempleTempleStageDuration_C = 40.0;
+
+// Structures
+struct libMLCP_gs_MMSkyTemple {
+    unit lv_temple;
+    point lv_blockerLoc;
+    unit lv_beacon;
+    int lv_beaconIndex;
+    int[3][7] lv_attackTownTargetingOrder;
+    int[3] lv_attackTownTargetingIndex;
+    unit lv_minimapIcon;
+    unit lv_bannerSconce;
+    bool lv_blessed;
+    fixed lv_progress;
+    int lv_spawnStage;
+    bool lv_finalStage;
+    int lv_finalShots;
+    unit lv_targetUnit;
+    int[libCore_gv_bALMaxTeams + 1] lv_targetPing;
+    int lv_helperText;
+    revealer[11] lv_targetRevealers;
+    int lv_targetRevealerCount;
+    point[7] lv_defenderSpawnPoints;
+    unit[6] lv_defenderArray;
+    unit lv_defenderBossPathingBlocker;
+    int lv_defenderAIIndex;
+    unitgroup lv_defendersActivated;
+};
+
+struct libMLCP_gs_MMSkyTemplePanelDEPRECATE {
+    int lv_capturePointsPanel;
+    int lv_capturePointsTimerModeFrame;
+    int lv_capturePointsTimerModeNameLabel;
+    int lv_capturePointsTimerModeTimeLabel;
+    int lv_capturePointsTempleModeFrame;
+    int[4] lv_capturePointsTempleBGImageBlue;
+    int[4] lv_capturePointsTempleBGImageRed;
+    int[4] lv_capturePointsTempleDisabledImage;
+    int[4] lv_capturePointsTempleEnabledImage;
+    int[4] lv_capturePointsTempleProgress2;
+    bool[4] lv_shotProgressBracketFadeIn;
+    int[4] lv_capturePointsTempleProgress1;
+    int[4] lv_capturePointsTempleFinalShotsPanel;
+    int[4][6] lv_capturePointsTempleFinalShots;
+    int[4] lv_capturePointsTempleTimerLabel;
+    int[4] lv_capturePointsTempleFireEffect;
+    int[31] lv_capturePointsTempleFireEffect2;
+    int[3] lv_capturePointsTempleFireEffect3;
+    int[3][6] lv_capturePointsTempleFireEffect4;
+    int[3][6] lv_capturePointsTempleFireEffect5;
+};
+
+struct libMLCP_gs_MMSkyTemplePanel {
+    int lv_mainContainerPanel;
+    int lv_capturePointsTimerModeFrame;
+    int lv_capturePointsTimerModeNameLabel;
+    int lv_capturePointsTimerModeTimeLabel;
+    int lv_capturePointsTempleModeFrame;
+};
+
+struct libMLCP_gs_MMSkyTempleIconProgressPanel {
+    int lv_containerPanel;
+    int lv_fireEffect;
+    int lv_shrineIcon;
+    int lv_shrineProgress;
+    int lv_shrineCaptureProgressMask;
+    int[6] lv_bullets;
+    int lv_cooldownLabel;
+};
+
+// Variable Declarations
+libMLCP_gs_MMSkyTemple[libMLCP_gv_mMSkyTempleMaxCount_C + 1] libMLCP_gv_mMSkyTemples;
+int libMLCP_gv_mMSkyTempleCount;
+fixed libMLCP_gv_mMSkyTempleTempleBlessWarningTime;
+bool libMLCP_gv_mMSkyTempleBlessingFirstTime;
+timer libMLCP_gv_mMSkyTempleBlessingWarningTimer;
+int libMLCP_gv_mMSkyTempleBlessIndex;
+int[libMLCP_gv_mMSkyTempleMaxCount_C + 1] libMLCP_gv_mMSkyTempleBlessTemplesActivationGoal;
+int[libMLCP_gv_mMSkyTempleMaxCount_C + 1] libMLCP_gv_mMSkyTempleBlessTemplesActivation;
+bool[libMLCP_gv_mMSkyTempleMaxCount_C + 1] libMLCP_gv_mMSkyTempleBlessTemplesDisabledForNext;
+bool[libMLCP_gv_mMSkyTempleMaxCount_C + 1] libMLCP_gv_mMSkyTempleBlessNextTemples;
+bool[libMLCP_gv_mMSkyTempleMaxCount_C + 1] libMLCP_gv_mMSkyTempleBlessLastTemples;
+bool libMLCP_gv_mMSkyTempleBlessNextTemples3ed;
+bool libMLCP_gv_mMSkyTempleBlessNextTemples1ed;
+int libMLCP_gv_mMSkyTempleBlessNextTemplesPreviousCount;
+int libMLCP_gv_mMSkyTempleBless1TempleRepeatCount;
+int libMLCP_gv_mMSkyTempleBless2TemplesRepeatCount;
+timer libMLCP_gv_mMSkyTempleBlessWarningLongWaitTimer;
+timer libMLCP_gv_mMSkyTempleObjectivePreviewTimer;
+fixed libMLCP_gv_mMSkyTempleObjectivePreviewDelay_C;
+unitgroup libMLCP_gv_mMSkyTempleDefenderWithGlobes;
+libMLCP_gs_MMSkyTemplePanelDEPRECATE libMLCP_gv_mMSkyTemplePanelDEPRECATE;
+libMLCP_gs_MMSkyTemplePanel libMLCP_gv_mMSkyTemplePanel;
+libMLCP_gs_MMSkyTempleIconProgressPanel[4] libMLCP_gv_mMSkyTemplePanelIcons;
+int[3] libMLCP_gv_mMSkyTempleDamageLabelExtraIndex;
+
+// Function Declarations
+void libMLCP_gf_MMSkyTempleAddTemple (unit lp_temple, point lp_blockerLoc, int lp_team1AttackingTown1_1, int lp_team1AttackingTown1_2, int lp_team1AttackingTown1_3, int lp_team1AttackingTown1_4, int lp_team1AttackingTown1_5, int lp_team1AttackingTown1_6, int lp_team1AttackingTown2_1, int lp_team1AttackingTown2_2, int lp_team1AttackingTown2_3, int lp_team1AttackingTown2_4, int lp_team1AttackingTown2_5, int lp_team1AttackingTown2_6);
+void libMLCP_gf_MMSkyTempleAddTempleDefenderSpawnLocations (point lp_location1, point lp_location2, point lp_location3, point lp_location4, point lp_location5);
+point libMLCP_gf_MMSkyTempleLocation (int lp_templeIndex);
+void libMLCP_gf_MMSkyTempleRandomNextTemples (int lp_blessCount, bool lp_removeDisabled);
+void libMLCP_gf_MMSkyTempleNextTemplesLogic ();
+void libMLCP_gf_MMSkyTemplePrepareTemples ();
+void libMLCP_gf_MMSkyTempleSetupPreview ();
+void libMLCP_gf_MMSkyTempleBlessTemple (int lp_templeIndex);
+void libMLCP_gf_MMSkyTempleBlessTempleDone (int lp_templeIndex);
+int libMLCP_gf_MMSkyTempleActivateTempleCount (bool lp_next);
+bool libMLCP_gf_MMSkyTempleAnyTempleActive ();
+void libMLCP_gf_MMSkyTemplePrepareTempleDefenders (int lp_templeIndex);
+void libMLCP_gf_MMSkyTemplePrepareTempleDefenderStatue (int lp_templeIndex, int lp_defenderIndex, unit lp_defender);
+void libMLCP_gf_MMSkyTempleActivateTempleDefenderWaves (int lp_templeIndex, int lp_stage);
+void libMLCP_gf_MMSkyTempleActivateTempleDefender (int lp_templeIndex, unit lp_defender);
+void libMLCP_gf_MMSkyTempleDeactivateTempleDefender (unit lp_defender);
+int libMLCP_gf_MMSkyTempleTempleIndexForDefenders (int lp_defenderAIIndex);
+unit libMLCP_gf_MMSkyTempleNextTarget (int lp_templeIndex);
+unitgroup libMLCP_gf_MMSkyTempleFinalShotNextTarget (int lp_templeIndex);
+unitgroup libMLCP_gf_MMSkyTempleClosestUnits (unitgroup lp_group, int lp_count, point lp_sourceLocation);
+bool libMLCP_gf_MMSkyTempleTownAlive (int lp_town, int lp_player);
+bool libMLCP_gf_MMSkyTempleTownAliveForFinalBlast (int lp_town, int lp_player);
+bool libMLCP_gf_MMSkyTempleBuildingGoodForFinalBlast (unit lp_building);
+int libMLCP_gf_MMSkyTempleTempleStage (int lp_index);
+void libMLCP_gf_MMSkyTempleBlessingProgress (int lp_templeIndex);
+void libMLCP_gf_MMSkyTempleClearTargetRevealers (int lp_templeIndex, fixed lp_delay);
+void libMLCP_gf_MMSkyTempleStopShooting (int lp_templeIndex);
+string libMLCP_gf_MMSkyTempleShootingBeam (fixed lp_distance);
+void libMLCP_gf_MMSkyTempleShootingPing (int lp_templeIndex, unit lp_target);
+void libMLCP_gf_MMSkyTempleShootingPingBackup (int lp_templeIndex, unit lp_target);
+void libMLCP_gf_MMSkyTempleBlessTempleFinalBlast (int lp_templeIndex);
+void libMLCP_gf_MMSkyTempleUIInit (int lp_parentPanel);
+void libMLCP_gf_MMSkyTempleUIShowHidePanel (bool lp_showHide);
+void libMLCP_gf_MMSkyTempleUISetMode (int lp_mode);
+void libMLCP_gf_MMSkyTempleUISetWarningTime (int lp_time);
+void libMLCP_gf_MMSkyTempleUIEnableDisableTemple (bool lp_enableDisable, int lp_templeIndex);
+void libMLCP_gf_MMSkyTempleUISetTempleCaptureProgress (int lp_templeIndex, int lp_team, int lp_progress, int lp_progerssMax);
+void libMLCP_gf_MMSkyTempleUISetTempleStage (int lp_templeIndex, int lp_stage, int lp_progress);
+void libMLCP_gf_MMSkyTempleUISetTempleOwner (int lp_team, int lp_templeIndex);
+void libMLCP_gf_MMSkyTempleUISetTempleContested (int lp_templeIndex, bool lp_team);
+void libMLCP_gf_MMSkyTempleUIShowDamageLabel (int lp_fromTeam, int lp_labelAnchor, int lp_damage);
+void libMLCP_gf_TempleMasterSendAwardData ();
+void libMLCP_gf_MMSkyTempleSetLevel ();
+void libMLCP_gf_MMSkyTempleTransmissionTempleActivationWarningQ (playergroup lp_players);
+void libMLCP_gf_MMSkyTempleTransmissionTempleActivatedQ (playergroup lp_players);
+void libMLCP_gf_MMSkyTempleTransmissionTempleDeactivatedQ (playergroup lp_players);
+
+// Trigger Declarations
+trigger libMLCP_gt_MMSkyTempleInit;
+trigger libMLCP_gt_MMSkyTemplePingDataInit;
+trigger libMLCP_gt_MMSkyTempleAnnouncerInit;
+trigger libMLCP_gt_MMSkyTempleGatesOpened;
+trigger libMLCP_gt_MMSkyTempleObjectivePreviewTimerExpires;
+trigger libMLCP_gt_MMSkyTempleBlessWarningTimerExpires;
+trigger libMLCP_gt_MMSkyTempleDefenderAttackLogic;
+trigger libMLCP_gt_MMSkyTempleTempleDefenderDies;
+trigger libMLCP_gt_MMSkyTempleBeaconCaptured;
+trigger libMLCP_gt_MMSkyTempleGameOver;
+trigger libMLCP_gt_MMSkyTempleBeaconColor;
+trigger libMLCP_gt_MMSkyTempleAttacks;
+trigger libMLCP_gt_MMSkyTempleUIModInitialize;
+trigger libMLCP_gt_MMSkyTempleUIHandler;
+trigger libMLCP_gt_MMSkyTempleUIHandlerCaptureProgress;
+trigger libMLCP_gt_MMSkyTempleHarrisonJonesEvent;
+trigger libMLCP_gt_MMSkyTempleHarrisonJonesEnding;
+trigger libMLCP_gt_MMSkyTempleDebugStart1;
+trigger libMLCP_gt_MMSkyTempleDebugStart;
+trigger libMLCP_gt_MMSkyTempleDebugNext;
+trigger libMLCP_gt_MMSkyTempleDebugScalingTime;
+trigger libMLCP_gt_MMSkyTempleSpawnTestTemple;
+
+// Library Initialization
+void libMLCP_InitVariables ();
+
