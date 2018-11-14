@@ -1,0 +1,201 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+
+include "LibORPH_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Orphea
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libORPH_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+}
+
+// Variable Initialization
+bool libORPH_InitVariables_completed = false;
+
+void libORPH_InitVariables () {
+    if (libORPH_InitVariables_completed) {
+        return;
+    }
+
+    libORPH_InitVariables_completed = true;
+
+}
+
+// Functions
+void libORPH_gf_HeroOrpheaIncrementHeroCountFunction () {
+    // Automatic Variable Declarations
+    // Implementation
+    libORPH_gv_heroOrpheaTriggerRegistrationVariable += 1;
+    if ((libORPH_gv_heroOrpheaTriggerRegistrationVariable == 1)) {
+        TriggerEnable(libORPH_gt_HeroOrpheaEternalFeastExpires, true);
+        TriggerEnable(libORPH_gt_HeroOrpheaEngulfingOblivionTakedown, true);
+    }
+
+}
+
+void libORPH_gf_HeroOrpheaDecrementHeroCountFunction () {
+    // Automatic Variable Declarations
+    // Implementation
+    libORPH_gv_heroOrpheaTriggerRegistrationVariable -= 1;
+    if ((libORPH_gv_heroOrpheaTriggerRegistrationVariable < 0)) {
+        libORPH_gv_heroOrpheaTriggerRegistrationVariable = 0;
+    }
+
+    if ((libORPH_gv_heroOrpheaTriggerRegistrationVariable == 0)) {
+        TriggerEnable(libORPH_gt_HeroOrpheaEternalFeastExpires, false);
+        TriggerEnable(libORPH_gt_HeroOrpheaEngulfingOblivionTakedown, false);
+    }
+
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: UI - Floating Combat Text - Quest Progress Via Effect
+//--------------------------------------------------------------------------------------------------
+bool libORPH_gt_UIFloatingCombatTextQuestProgressViaEffect_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_impactUnit;
+    unit lv_launchUnit;
+    int lv_launchPlayer;
+    string lv_questIdentifier;
+    point lv_deathUnitPosition;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_deathUnitPosition = EventPlayerEffectUsedPoint(c_effectLocationSourcePoint);
+    lv_launchPlayer = UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster));
+    if ((lv_launchPlayer <= libCore_gv_bALMaxPlayers) && (lv_launchPlayer > 0)) {
+        FloatingCombatElementCreateTextAtPointWithId(libCore_gv_playerGroupFromPlayer[lv_launchPlayer], "FloatingCombatElements/FloatingCombatQuestProgress", "", lv_deathUnitPosition, null, libNtve_gv_FloatingCombatTextAutoRandomSeed, "");
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libORPH_gt_UIFloatingCombatTextQuestProgressViaEffect_Init () {
+    libORPH_gt_UIFloatingCombatTextQuestProgressViaEffect = TriggerCreate("libORPH_gt_UIFloatingCombatTextQuestProgressViaEffect_Func");
+    TriggerAddEventPlayerEffectUsed(libORPH_gt_UIFloatingCombatTextQuestProgressViaEffect, c_playerAny, "OrpheaRavenousHungerModifyToken");
+    TriggerAddEventPlayerEffectUsed(libORPH_gt_UIFloatingCombatTextQuestProgressViaEffect, c_playerAny, "OrpheaRavenousHungerHeroModifyToken");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Orphea - Engulfing Oblivion Takedown
+//--------------------------------------------------------------------------------------------------
+bool libORPH_gt_HeroOrpheaEngulfingOblivionTakedown_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+    unit lv_unit;
+    unit lv_vehicle;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_player = libGame_gf_HeroParticipatedInTakedownKillingPlayer();
+    lv_unit = libGame_gv_players[lv_player].lv_heroUnit;
+    lv_vehicle = libGame_gv_players[lv_player].lv_activeVehicle;
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitIsAlive(lv_unit) == true))) {
+            return false;
+        }
+
+        if (!((PlayerHasTalent(lv_player, "OrpheaEngulfingOblivion") == true))) {
+            return false;
+        }
+
+        if (!(((UnitGetType(lv_unit) == "HeroOrphea") || (UnitGetType(lv_vehicle) == "HeroOrphea")))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(lv_unit, "OrpheaCrushingJawsEngulfingOblivionResetCooldown", lv_unit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libORPH_gt_HeroOrpheaEngulfingOblivionTakedown_Init () {
+    libORPH_gt_HeroOrpheaEngulfingOblivionTakedown = TriggerCreate("libORPH_gt_HeroOrpheaEngulfingOblivionTakedown_Func");
+    TriggerEnable(libORPH_gt_HeroOrpheaEngulfingOblivionTakedown, false);
+    libGame_gf_HeroParticipatedInTakedown(libORPH_gt_HeroOrpheaEngulfingOblivionTakedown);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Orphea - Eternal Feast Expires
+//--------------------------------------------------------------------------------------------------
+bool libORPH_gt_HeroOrpheaEternalFeastExpires_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    point lv_heroOrpheaEternalFeastPosition;
+    int lv_castingPlayer;
+    unit lv_castingUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_heroOrpheaEternalFeastPosition = EventPlayerEffectUsedPoint(c_effectLocationTargetPoint);
+    lv_castingPlayer = UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster));
+    lv_castingUnit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerHasTalent(UnitGetOwner(lv_castingUnit), "OrpheaEternalFeast") == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if (((UnitGroupCount(libNtve_gf_UnitsInRegionWithAllianceToPlayerMatchingCondition(null, "", "", lv_castingPlayer, c_unitAllianceEnemy, RegionCircle(lv_heroOrpheaEternalFeastPosition, 5.0), UnitFilter((1 << c_targetFilterHeroic), 0, (1 << c_targetFilterSelf) | (1 << c_targetFilterPlayer) | (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterImmuneToAOE) | (1 << c_targetFilterMissile), (1 << (c_targetFilterStasis - 32)) | (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterInvulnerable - 32))), 0), c_unitCountAlive) >= 1))) {
+        UnitCreateEffectPoint(lv_castingUnit, "OrpheaEternalFeastCreatePersistent", lv_heroOrpheaEternalFeastPosition);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libORPH_gt_HeroOrpheaEternalFeastExpires_Init () {
+    libORPH_gt_HeroOrpheaEternalFeastExpires = TriggerCreate("libORPH_gt_HeroOrpheaEternalFeastExpires_Func");
+    TriggerEnable(libORPH_gt_HeroOrpheaEternalFeastExpires, false);
+    TriggerAddEventPlayerEffectUsed(libORPH_gt_HeroOrpheaEternalFeastExpires, c_playerAny, "OrpheaEternalFeastOuterSearch");
+}
+
+void libORPH_InitTriggers () {
+    libORPH_gt_UIFloatingCombatTextQuestProgressViaEffect_Init();
+    libORPH_gt_HeroOrpheaEngulfingOblivionTakedown_Init();
+    libORPH_gt_HeroOrpheaEternalFeastExpires_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libORPH_InitLib_completed = false;
+
+void libORPH_InitLib () {
+    if (libORPH_InitLib_completed) {
+        return;
+    }
+
+    libORPH_InitLib_completed = true;
+
+    libORPH_InitLibraries();
+    libORPH_InitVariables();
+    libORPH_InitTriggers();
+}
+
