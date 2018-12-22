@@ -191,7 +191,7 @@
   <CAccumulatorToken id="FirebatIgniteMeltdownDamageAccumulator" parent="BaseTokenAccumulator">
     <ApplicationRule value="Add" />
     <TokenId value="FirebatIgniteMeltdownCounter" />
-    <Scale value="-0.05" />
+    <Scale value="-0.07" />
     <UnitSource Value="Target" />
   </CAccumulatorToken>
   <CAccumulatorToken id="FirebatWeaponBurnNoticeDotDamageToken" parent="BaseAccumulator">
@@ -212,13 +212,18 @@
   </CActorSimple>
   <CActorSimple id="FirebatBunkerDropPassengerHideModels">
     <Supporter Subject="_Unit" />
-    <On Terms="Effect.FirebatBunkerDropEnterBunkerEnteringBunkerApplyBehavior.Start; At Caster" Send="Create" />
-    <On Terms="Effect.FirebatBunkerDropEnterBunkerEnteringBunkerApplyBehavior.Start; At Caster" Target="_Unit" Send="StatusIncrement StatusBarHide" />
-    <On Terms="Effect.FirebatBunkerDropEnterBunkerEnteringBunkerApplyBehavior.Start; At Caster" Target="_Unit" Send="Signal InvisibleModel" />
+    <On Terms="Behavior.FirebatBunkerDropPassengerUnitInsideBunker.On" Send="Create" />
+    <On Terms="Behavior.FirebatBunkerDropPassengerUnitInsideBunker.On" Target="_Unit" Send="StatusIncrement StatusBarHide" />
+    <On Terms="Behavior.FirebatBunkerDropPassengerUnitInsideBunker.On" Target="_Unit" Send="Signal InvisibleModel" />
     <On Terms="Behavior.FirebatBunkerDropPassengerUnitInsideBunker.Off" Target="_Unit" Send="Signal RestoreModel" />
     <On Terms="Behavior.FirebatBunkerDropPassengerUnitInsideBunker.Off" Target="_Unit" Send="StatusDecrement StatusBarHide" />
     <On Terms="Behavior.FirebatBunkerDropPassengerUnitInsideBunker.Off" Send="Destroy" />
   </CActorSimple>
+  <CActorModel id="FirebatBunkerDropEnterBunkerChannelBuff" parent="StormModelAnimationStyleContinuousUnit">
+    <On Terms="Behavior.FirebatBunkerDropPassengerUnitEnteringBunker.On" Send="Create" />
+    <On Terms="Behavior.FirebatBunkerDropPassengerUnitEnteringBunker.Off" Send="AnimBracketStop BSD" />
+    <HostSiteOps Ops="SOpAttachCenter SOp2DRotation" HoldPosition="1" HoldRotation="1" />
+  </CActorModel>
   <CActorModel id="FirebatWeaponLeftLaunch" parent="StormModelAnimationStyleOneShotUnit">
     <Aliases value="_TimeStopAffectedActor" />
     <On Terms="StatusOn.*.TimeStopPaused" Send="AnimSetPausedAll" />
@@ -1067,7 +1072,7 @@
     <Buttons Face="FirebatEnduranceStimpack" Type="AbilCmd" AbilCmd="FirebatEnduranceStimpack,Execute" />
   </CBehaviorAbility>
   <CBehaviorTokenCounter id="FirebatIgniteMeltdownCounter" parent="StormGenericToken">
-    <Max value="6" />
+    <Max value="5" />
     <Init value="1" />
   </CBehaviorTokenCounter>
   <CBehaviorAbility id="FirebatJuggernautPlatingItem">
@@ -1093,6 +1098,9 @@
     <Period value="0.5" />
     <PeriodicEffect value="FirebatIgniteSearch" />
     <InitialEffect value="FirebatIgniteSearch" />
+    <AINotifySettings AreaEffect="FirebatIgniteSearch">
+      <Flags index="Disabled" value="1" />
+    </AINotifySettings>
     <BuffFlags index="UpdateDurationWhileDisabled" value="1" />
   </CBehaviorBuff>
   <CBehaviorBuff id="FirebatJetPropulsionDash">
@@ -1226,7 +1234,13 @@
   <CBehaviorBuff id="FirebatBunkerDropPassengerUnitEnteringBunker">
     <RemoveValidatorArray value="FirebatBunkerDropTargetNotDeadAndCasterNotDeadStunnedStasisPushPull" />
     <RemoveValidatorArray value="FirebatBunkerDropBunkerUnitNotDead" />
-    <InitialEffect value="FirebatBunkerDropEnterBunkerExpireSet" />
+    <Alignment value="Positive" />
+    <InfoFlags index="AlwaysUseGameText" value="1" />
+    <BehaviorCategories index="Restorable" value="1" />
+    <BuffFlags index="Countdown" value="0" />
+    <Duration value="0.5" />
+    <ExpireEffect value="FirebatBunkerDropEnterBunkerExpireSet" />
+    <InitialEffect value="UseVehicleDismountDecloakCasterSet" />
   </CBehaviorBuff>
   <CBehaviorBuff id="FirebatBunkerDropBunkerUnitOccupiedBehavior">
     <DisableValidatorArray value="FirebatBunkerDropSourceDoesNotHavePassengerUnitsTracked" />
@@ -1283,6 +1297,9 @@
       <AbilLinkDisableArray value="FirebatIgnite" />
       <AbilLinkDisableArray value="UseVehicle" />
     </Modification>
+    <AINotifySettings AreaEffect="FirebatCombustionFlashFireSearch">
+      <Flags index="HurtsEnemy" value="1" />
+    </AINotifySettings>
   </CBehaviorBuff>
   <CBehaviorBuff id="FirebatCombustionDebuff" parent="StormSlowParent">
     <Duration value="1" />
@@ -1709,6 +1726,10 @@
     <TrackerUnit Value="Source" />
     <Effect value="FirebatBunkerDropPassengerUnitInsideBunkerRemoveBehavior" />
   </CEffectEnumTrackedUnits>
+  <CEffectAddTrackedUnit id="FirebatBunkerDropEnteringBunkerPassengerUnitTrackerAdd">
+    <BehaviorLink value="FirebatBunkerDropPassengerUnitTracker" />
+    <TrackerUnit Effect="FirebatBunkerDropEnterBunkerInitialSet" Value="Target" />
+  </CEffectAddTrackedUnit>
   <CEffectAddTrackedUnit id="FirebatBunkerDropPassengerUnitTrackerAdd">
     <BehaviorLink value="FirebatBunkerDropPassengerUnitTracker" />
     <TrackerUnit Value="Target" />
@@ -1739,6 +1760,13 @@
       <Fraction Cooldown="1" />
     </Cost>
   </CEffectModifyUnit>
+  <CEffectCreateHealer id="FirebatFlameStreamFeedingTheFlameManaRestoration" parent="StormManaRestore">
+    <ValidatorArray value="TargetIsHero" />
+    <Chance value="0" />
+    <ImpactUnit Value="Caster" />
+    <PeriodCount value="0" />
+    <RechargeVitalRate value="5" />
+  </CEffectCreateHealer>
   <CEffectModifyTokenCount id="FirebatIgniteMeltdownCounterIncrement" parent="BaseEffectModifyTokenCount">
     <WhichUnit Value="Target" />
     <TokenId value="FirebatIgniteMeltdownCounter" />
@@ -1813,6 +1841,9 @@
     <PeriodicEffectArray value="FirebatJetPropulsionSquareSearchArea" />
     <PeriodicOffsetArray />
     <PeriodicPeriodArray value="0.0625" />
+    <AINotifySettings AreaEffect="FirebatJetPropulsionSquareSearchArea">
+      <Flags index="Disabled" value="1" />
+    </AINotifySettings>
   </CEffectCreatePersistent>
   <CEffectEnumArea id="FirebatJetPropulsionSquareInitialSearchArea">
     <LaunchLocation Value="TargetPoint" />
@@ -1920,7 +1951,7 @@
     <ValidatorArray value="TargetIsHero" />
     <Chance value="0" />
     <ImpactUnit Value="Caster" />
-    <Cost Abil="FirebatOilSpill,Execute" ChargeTimeUse="-2.5" CooldownOperation="Add" />
+    <Cost Abil="FirebatOilSpill,Execute" ChargeTimeUse="-2" CooldownOperation="Add" />
   </CEffectModifyUnit>
   <CEffectModifyUnit id="FirebatFlameStreamIgniteModifyCooldown">
     <ValidatorArray value="TargetIsHero" />
@@ -2166,12 +2197,12 @@
       <Radius value="2.25" />
     </AreaArray>
   </CEffectEnumArea>
-  <CEffectCreateHealer id="FirebatIgniteHeal" parent="StormHealingSpell">
+  <CEffectCreateHealer id="FirebatIgniteHeal" parent="StormSelfOnlyHealingSpell">
     <ImpactUnit Value="Caster" />
     <RechargeVitalRate value="30" />
     <Chance value="0" />
   </CEffectCreateHealer>
-  <CEffectCreateHealer id="FirebatOilSpillHeal" parent="StormHealingSpell">
+  <CEffectCreateHealer id="FirebatOilSpillHeal" parent="StormSelfOnlyHealingSpell">
     <ValidatorArray value="FirebatTargetDoesNotHaveLightEmUpMarkerBehavior" />
     <ValidatorArray value="FirebatIsFirebatUnit" />
     <RechargeVitalRate value="49" />
@@ -2293,6 +2324,7 @@
   </CEffectApplyBehavior>
   <CEffectSet id="FirebatBunkerDropEnterBunkerExpireSet">
     <EffectArray value="DismountDecloakCasterSet" />
+    <EffectArray value="FirebatBunkerDropEnteringBunkerPassengerUnitTrackerAdd" />
     <EffectArray value="FirebatBunkerDropPassengerUnitInsideBunkerApplyBehavior" />
     <EffectArray value="FirebatBunkerDropTurretTargetCreateUnit" />
     <EffectArray value="FirebatBunkerDropPassengerUnitArmorApplySwitch" />
@@ -2309,10 +2341,6 @@
   </CEffectSet>
   <CEffectApplyBehavior id="FirebatBunkerDropFirebatWarningApplyBehavior">
     <Behavior value="FirebatBunkerDropFirebatWarningBehavior" />
-  </CEffectApplyBehavior>
-  <CEffectApplyBehavior id="FirebatBunkerDropEnterBunkerEnteringBunkerApplyBehavior">
-    <WhichUnit Value="Caster" />
-    <Behavior value="FirebatBunkerDropPassengerUnitEnteringBunker" />
   </CEffectApplyBehavior>
   <CEffectSet id="FirebatWeaponCastSet">
     <EffectArray value="UniversalWeaponLaunchSet" />
@@ -2370,6 +2398,9 @@
     <PeriodicEffectArray value="FirebatWeaponLeftSearchSet" />
     <PeriodicPeriodArray value="0.0625" />
     <TimeScaleSource Value="Caster" />
+    <AINotifySettings AreaEffect="FirebatWeaponLeftConeSearch">
+      <Flags index="Disabled" value="1" />
+    </AINotifySettings>
   </CEffectCreatePersistent>
   <CEffectCreatePersistent id="FirebatWeaponRightSearchPersistent">
     <Marker Link="Effect/FirebatWeaponIncineratorGauntletsLeftConeSearchSet">
@@ -2379,6 +2410,9 @@
     <PeriodCount value="4" />
     <PeriodicEffectArray value="FirebatWeaponRightConeSearch" />
     <PeriodicPeriodArray value="0.0625" />
+    <AINotifySettings AreaEffect="FirebatWeaponRightConeSearch">
+      <Flags index="Disabled" value="1" />
+    </AINotifySettings>
     <TimeScaleSource Value="Caster" />
   </CEffectCreatePersistent>
   <CEffectSet id="FirebatWeaponLeftSearchSet">
@@ -2465,13 +2499,29 @@
     <CaseArray Validator="FirebatBunkerDropSmartCommandCombine" Effect="FirebatBunkerDropEnterBunkerInitialSet" />
   </CEffectSwitch>
   <CEffectSet id="FirebatBunkerDropEnterBunkerInitialSet">
-    <EffectArray value="FirebatBunkerDropPassengerUnitTrackerAdd" />
     <EffectArray value="FirebatBunkerDropBunkerUnitTrackerApplyBehavior" />
     <EffectArray value="FirebatBunkerDropBunkerUnitTrackerAdd" />
-    <EffectArray value="FirebatBunkerDropEnterBunkerEnteringBunkerApplyBehavior" />
+    <EffectArray value="FirebatBunkerDropEnterBunkerEnteringBunkerChannelCreatePersistent" />
     <ValidatorArray value="CasterNotHallucination" />
     <ValidatorArray value="CasterNotRooted" />
   </CEffectSet>
+  <CEffectCreatePersistent id="FirebatBunkerDropEnterBunkerEnteringBunkerChannelCreatePersistent">
+    <Flags index="Channeled" value="1" />
+    <InitialEffect value="FirebatBunkerDropEnterBunkerEnteringBunkerApplyBehavior" />
+    <FinalEffect value="FirebatBunkerDropEnterBunkerEnteringBunkerRemoveBehavior" />
+    <ExpireDelay value="0.5" />
+    <WhichLocation Value="CasterUnit" />
+    <PeriodicValidator value="FirebatBunkerDropCasterHasPassengerUnitEnteringBunkerBehavior" />
+    <TimeScaleSource Value="Caster" />
+  </CEffectCreatePersistent>
+  <CEffectApplyBehavior id="FirebatBunkerDropEnterBunkerEnteringBunkerApplyBehavior">
+    <WhichUnit Value="Caster" />
+    <Behavior value="FirebatBunkerDropPassengerUnitEnteringBunker" />
+  </CEffectApplyBehavior>
+  <CEffectRemoveBehavior id="FirebatBunkerDropEnterBunkerEnteringBunkerRemoveBehavior">
+    <WhichUnit Value="Caster" />
+    <BehaviorLink value="FirebatBunkerDropPassengerUnitEnteringBunker" />
+  </CEffectRemoveBehavior>
   <CEffectSet id="FirebatBunkerDropExitBunkerInitialSet">
     <EffectArray value="FirebatBunkerDropTurretPassengerUnitTrackerEnum" />
     <TargetLocationType value="Point" />
@@ -2596,6 +2646,7 @@
     <EffectArray value="FirebatFlameStreamDamage" />
     <EffectArray value="FirebatFlameStreamIgniteModifyCooldown" />
     <EffectArray value="FirebatFlameStreamFeedingtheFlameModifyCooldown" />
+    <EffectArray value="FirebatFlameStreamFeedingTheFlameManaRestoration" />
     <EffectArray value="FirebatFlameStreamSuppressiveFireApplyBehavior" />
     <EffectArray value="FirebatFlameStreamCrossfireApplyBehavior" />
     <EffectArray value="FirebatFlameStreamCrossfireDamage" />
@@ -2739,13 +2790,10 @@
   <CEffectApplyBehavior id="FirebatEnduranceStimpackApplyBehavior">
     <Behavior value="FirebatEnduranceStimpackBehavior" />
   </CEffectApplyBehavior>
-  <CEffectModifyUnit id="FirebatNeuralStimpackManaRestore">
+  <CEffectCreateHealer id="FirebatNeuralStimpackManaRestore" parent="StormManaRestore">
     <ImpactUnit Value="Source" />
-    <VitalArray index="Energy">
-      <Change value="30" />
-    </VitalArray>
-    <FloaterCreation value="Force" />
-  </CEffectModifyUnit>
+    <RechargeVitalRate value="30" />
+  </CEffectCreateHealer>
   <CEffectApplyBehavior id="FirebatNeuralStimpackApplyBehavior">
     <Behavior value="FirebatNeuralStimpackCooldownReductionBehavior" />
   </CEffectApplyBehavior>
@@ -4482,6 +4530,13 @@
         <Field value="Chance" />
         <Value value="1.000000" />
       </Modifications>
+      <Modifications>
+        <Type value="FlatModification" />
+        <Catalog value="Effect" />
+        <Entry value="FirebatFlameStreamFeedingTheFlameManaRestoration" />
+        <Field value="Chance" />
+        <Value value="1.000000" />
+      </Modifications>
     </AbilityModificationArray>
   </CTalent>
   <CTalent id="FirebatHeroicAbilityBunkerDrop">
@@ -4684,13 +4739,6 @@
         <Field value="AreaArray[0].Radius" />
         <Value value="0.300000" />
       </Modifications>
-      <Modifications>
-        <Type value="FlatModification" />
-        <Catalog value="Behavior" />
-        <Entry value="FirebatOilSpillSlow" />
-        <Field value="Modification.UnifiedMoveSpeedFactor" />
-        <Value value="-0.100000" />
-      </Modifications>
     </AbilityModificationArray>
   </CTalent>
   <CTalent id="FirebatIgniteHeatTreatment">
@@ -4805,8 +4853,8 @@
       <LayoutButtons Face="FirebatFlameStream" Type="AbilCmd" AbilCmd="FirebatFlameStream,Execute" Slot="Ability1" />
       <LayoutButtons Face="FirebatOilSpill" Type="AbilCmd" AbilCmd="FirebatOilSpill,Execute" Slot="Ability2" />
     </CardLayouts>
-    <Radius value="1" />
-    <InnerRadius value="1" />
+    <Radius value="0.9375" />
+    <InnerRadius value="0.9375" />
     <AIThinkTree value="AI/Blaze.aitree" />
     <InitializerFunction value="libHFIR_gf_HeroFirebatIncrementHeroCountFunction" />
     <DestructionFunction value="libHFIR_gf_HeroFirebatDecrementHeroCountFunction" />
@@ -4914,6 +4962,11 @@
   <CValidatorUnitHasBehavior id="FirebatBunkerDropTargetHasPassengerUnitEnteringBunkerBehavior">
     <Behavior value="FirebatBunkerDropPassengerUnitEnteringBunker" />
   </CValidatorUnitHasBehavior>
+  <CValidatorUnitCompareBehaviorCount id="FirebatBunkerDropCasterHasPassengerUnitEnteringBunkerBehavior">
+    <WhichUnit Value="Caster" />
+    <Compare value="GT" />
+    <Behavior value="FirebatBunkerDropPassengerUnitEnteringBunker" />
+  </CValidatorUnitCompareBehaviorCount>
   <CValidatorUnitHasBehavior id="FirebatBunkerDropTargetHasFirebatWarningBehavior">
     <Behavior value="FirebatBunkerDropFirebatWarningBehavior" />
   </CValidatorUnitHasBehavior>

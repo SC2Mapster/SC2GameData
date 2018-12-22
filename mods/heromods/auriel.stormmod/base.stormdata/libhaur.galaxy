@@ -37,8 +37,7 @@ void libHAUR_InitVariables () {
     libHAUR_gv_aurielUI.lv_traitLabel = c_invalidDialogControlId;
     libHAUR_gv_aurielUI.lv_aurielBestowHopeTargetStatus = c_invalidDialogControlId;
     libHAUR_gv_aurielUI.lv_aurielBestowHopeTargetDisplayName = c_invalidDialogControlId;
-    libHAUR_gv_aurielUI.lv_aurielBestowHopeTargetCutscene = c_invalidDialogControlId;
-    libHAUR_gv_aurielUI.lv_aurielBestowHopeTargetCutsceneSpecial = c_invalidDialogControlId;
+    libHAUR_gv_aurielUI.lv_aurielBestowHopeTargetPortrait = c_invalidDialogControlId;
     libHAUR_gv_aurielUI.lv_traitImageBar = c_invalidDialogControlId;
     libHAUR_gv_aurielUI.lv_traitImageMaxBar = c_invalidDialogControlId;
     for (init_i = 0; init_i <= libCore_gv_bALMaxPlayers; init_i += 1) {
@@ -129,21 +128,19 @@ void libHAUR_gf_HeroAurielDecrementHeroCountFunction () {
 
 }
 
+string libHAUR_gf_BestowHopeGetPortraitPathforUnit (unit lp_unit) {
+    // Automatic Variable Declarations
+    // Implementation
+    return libUIUI_gf_KillLogGetPortraitPathforUnit(lp_unit);
+}
+
 void libHAUR_gf_AurielUIBestowHope (int lp_aurielPlayer, unit lp_bestowHopeTarget) {
     // Automatic Variable Declarations
     // Implementation
     libNtve_gf_SetDialogItemUnit(libHAUR_gv_aurielUI.lv_aurielBestowHopeTargetStatus, lp_bestowHopeTarget, libCore_gv_playerGroupFromPlayer[lp_aurielPlayer]);
     DialogControlSetVisible(libHAUR_gv_aurielUI.lv_aurielBestowHopeTargetStatus, libCore_gv_playerGroupFromPlayer[lp_aurielPlayer], true);
     libNtve_gf_SetDialogItemText(libHAUR_gv_aurielUI.lv_aurielBestowHopeTargetDisplayName, libHAUR_gf_AurielUIUnitDisplayName(lp_bestowHopeTarget), PlayerGroupSingle(lp_aurielPlayer));
-    if ((UnitGetType(lp_bestowHopeTarget) != "HeroBaleog") && (UnitGetType(lp_bestowHopeTarget) != "HeroErik") && (UnitGetType(lp_bestowHopeTarget) != "HeroOlaf") && (UnitGetType(lp_bestowHopeTarget) != "RexxarMisha")) {
-        DialogControlSetVisible(libHAUR_gv_aurielUI.lv_aurielBestowHopeTargetCutscene, libCore_gv_playerGroupFromPlayer[lp_aurielPlayer], true);
-        DialogControlSetVisible(libHAUR_gv_aurielUI.lv_aurielBestowHopeTargetCutsceneSpecial, libCore_gv_playerGroupFromPlayer[lp_aurielPlayer], false);
-    }
-    else {
-        DialogControlSetVisible(libHAUR_gv_aurielUI.lv_aurielBestowHopeTargetCutscene, libCore_gv_playerGroupFromPlayer[lp_aurielPlayer], false);
-        DialogControlSetVisible(libHAUR_gv_aurielUI.lv_aurielBestowHopeTargetCutsceneSpecial, libCore_gv_playerGroupFromPlayer[lp_aurielPlayer], true);
-        DialogControlSendAnimationEvent(libHAUR_gv_aurielUI.lv_aurielBestowHopeTargetCutsceneSpecial, PlayerGroupAll(), (UnitGetType(lp_bestowHopeTarget)));
-    }
+    libNtve_gf_SetDialogItemImage(libHAUR_gv_aurielUI.lv_aurielBestowHopeTargetPortrait, libHAUR_gf_BestowHopeGetPortraitPathforUnit(lp_bestowHopeTarget), PlayerGroupSingle(lp_aurielPlayer));
 }
 
 text libHAUR_gf_AurielUIUnitDisplayName (unit lp_unit) {
@@ -330,10 +327,8 @@ bool libHAUR_gt_AurielUIInitialize_Func (bool testConds, bool runActions) {
         return true;
     }
 
-    DialogControlHookup(libUIUI_gv_heroSpecificStatusContainer, c_triggerControlTypeCutscene, "AurielBestowHopeFrame/TargetStatus/HeroCutscene/StatusCutscene");
-    libHAUR_gv_aurielUI.lv_aurielBestowHopeTargetCutscene = DialogControlLastCreated();
-    DialogControlHookup(libUIUI_gv_heroSpecificStatusContainer, c_triggerControlTypeCutscene, "AurielBestowHopeFrame/TargetStatus/HeroCutscene/StatusCutsceneSpecial");
-    libHAUR_gv_aurielUI.lv_aurielBestowHopeTargetCutsceneSpecial = DialogControlLastCreated();
+    DialogControlHookup(libUIUI_gv_heroSpecificStatusContainer, c_triggerControlTypeImage, "AurielBestowHopeFrame/TargetStatus/HeroPortrait");
+    libHAUR_gv_aurielUI.lv_aurielBestowHopeTargetPortrait = DialogControlLastCreated();
     DialogControlHookup(libUIUI_gv_heroSpecificStatusContainer, c_triggerControlTypeLabel, "AurielBestowHopeFrame/TargetStatus/UnitDisplayName");
     libHAUR_gv_aurielUI.lv_aurielBestowHopeTargetDisplayName = DialogControlLastCreated();
     DialogControlHookup(libUIUI_gv_heroSpecificStatusContainer, c_triggerControlTypeUnitStatus, "AurielBestowHopeFrame/TargetStatus");
@@ -355,30 +350,35 @@ void libHAUR_gt_AurielUIInitialize_Init () {
 //--------------------------------------------------------------------------------------------------
 bool libHAUR_gt_HeroAurielShieldofHopeSetShieldStrength_Func (bool testConds, bool runActions) {
     // Variable Declarations
+    unit lv_caster;
+    int lv_casterPlayer;
     unit lv_target;
-    int lv_targetPlayer;
     fixed lv_targetMissingHealth;
+    const fixed lv_shieldFraction = 0.5;
     fixed lv_shieldValue;
-    fixed lv_shieldFraction;
 
     // Automatic Variable Declarations
     // Variable Initialization
-    lv_shieldFraction = 0.5;
+    lv_caster = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_casterPlayer = UnitGetOwner(lv_caster);
+    lv_target = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_targetMissingHealth = (UnitGetPropertyFixed(lv_target, c_unitPropLifeMax, c_unitPropCurrent) - UnitGetPropertyFixed(lv_target, c_unitPropLife, c_unitPropCurrent));
+    lv_shieldValue = (lv_targetMissingHealth * lv_shieldFraction);
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_targetMissingHealth > 0.0))) {
+            return false;
+        }
+    }
 
     // Actions
     if (!runActions) {
         return true;
     }
 
-    lv_target = EventPlayerEffectUsedUnit(c_effectUnitTarget);
-    lv_targetPlayer = UnitGetOwner(lv_target);
-    lv_targetMissingHealth = (UnitGetPropertyFixed(lv_target, c_unitPropLifeMax, c_unitPropCurrent) - UnitGetPropertyFixed(lv_target, c_unitPropLife, c_unitPropCurrent));
-    if ((lv_targetMissingHealth > 0.0)) {
-        lv_shieldValue = (lv_targetMissingHealth * lv_shieldFraction);
-        CatalogFieldValueSetFixed(c_gameCatalogBehavior, "AurielShieldOfHopeShieldBehavior", "DamageResponse.ModifyLimit", lv_targetPlayer, lv_shieldValue);
-        UnitCreateEffectUnit(lv_target, "AurielShieldOfHopeApplyShieldBehavior", lv_target);
-    }
-
+    CatalogFieldValueSetFixed(c_gameCatalogBehavior, "AurielShieldOfHopeShieldBehavior", "DamageResponse.ModifyLimit", lv_casterPlayer, lv_shieldValue);
+    UnitCreateEffectUnit(lv_caster, "AurielShieldOfHopeApplyShieldBehavior", lv_target);
     return true;
 }
 
@@ -1472,7 +1472,7 @@ bool libHAUR_gt_HeroAurielResurrectRevivePlayer_Func (bool testConds, bool runAc
             lv_itViking = 1;
             for ( ; lv_itViking <= auto45FC9C2D_ae ; lv_itViking += 1 ) {
                 if ((lv_target == libHAUR_gv_heroAurielResurrectLostVikingsArray[lv_targetPlayer][lv_itViking].lv_spiritUnit)) {
-                    libGDHL_gf_HeroDeathRespawnHeroforPlayer(lv_targetHero);
+                    libGDHL_gf_VikingDownRespawnVikingforPlayer(lv_targetHero);
                     UnitSetPosition(lv_targetHero, lv_targetPosition, false);
                     UnitSetPropertyFixed(lv_targetHero, c_unitPropLifePercent, libHAUR_gv_heroAurielResurrectVitalScale);
                     UnitRemove(libHAUR_gv_heroAurielResurrectLostVikingsArray[lv_targetPlayer][lv_itViking].lv_spiritUnit);
