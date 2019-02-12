@@ -976,7 +976,6 @@ void libGDHL_gf_HeroDiabloIncrementHeroCountFunction () {
         TriggerEnable(libGDHL_gt_HeroDiabloInfernoBreathCast, true);
         TriggerEnable(libGDHL_gt_HeroDiabloInfernoBreathEnd, true);
         TriggerEnable(libGDHL_gt_HeroDiabloBlackSoulstoneStackTalentPicked, true);
-        TriggerEnable(libGDHL_gt_HeroDiabloBlackSoulstoneTalentsProc, true);
         TriggerEnable(libGDHL_gt_HeroDiabloOverpowerSetFacing, true);
     }
 
@@ -994,7 +993,6 @@ void libGDHL_gf_HeroDiabloDecrementHeroCountFunction () {
         TriggerEnable(libGDHL_gt_HeroDiabloInfernoBreathCast, false);
         TriggerEnable(libGDHL_gt_HeroDiabloInfernoBreathEnd, false);
         TriggerEnable(libGDHL_gt_HeroDiabloBlackSoulstoneStackTalentPicked, false);
-        TriggerEnable(libGDHL_gt_HeroDiabloBlackSoulstoneTalentsProc, false);
         TriggerEnable(libGDHL_gt_HeroDiabloOverpowerSetFacing, false);
     }
 
@@ -1828,7 +1826,10 @@ void libGDHL_gf_VikingDownRespawnVikingforPlayer (unit lp_viking) {
         libGame_gv_players[lv_lVPlayer].lv_cameraPlayerUnitGroupToFocusOn = null;
         libGame_gf_CameraUpdateCameraForPlayer(lv_lVPlayer);
     }
-
+    else {
+        libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Add, libGDHL_gv_aIHeroDelegateTokenValueAnyVikingAliveValue, libGame_gf_TeamNumberOfPlayer(lv_lVPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroAlive);
+        libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Remove, libGDHL_gv_aIHeroDelegateTokenValueAnyVikingAliveValue, libGame_gf_TeamNumberOfPlayer(lv_lVPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroDead);
+    }
     if ((libGDHL_gv_lostVikingsPlayer[lv_lVPlayer].lv_boat != null)) {
         UISetFrameVisible(libCore_gv_playerGroupFromPlayer[lv_lVPlayer], c_syncFrameTypeControlGroupPanel, true);
     }
@@ -1929,6 +1930,8 @@ void libGDHL_gf_VikingDownRespawnVikingforPlayer (unit lp_viking) {
         }
 
     }
+    libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Add, libGDHL_gv_aIHeroDelegateTokenValueVikingValue, libGame_gf_TeamNumberOfPlayer(lv_lVPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroAlive);
+    libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Remove, libGDHL_gv_aIHeroDelegateTokenValueVikingValue, libGame_gf_TeamNumberOfPlayer(lv_lVPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroDead);
 }
 
 trigger auto_libGDHL_gf_VikingDownUpdateStatsAwardXPMakeAnnouncements_Trigger = null;
@@ -2665,7 +2668,7 @@ void libGDHL_gf_HeroMurkyRespawnLogicCheck (int lp_player) {
     // Implementation
     lv_murky = libGame_gv_players[lp_player].lv_heroUnit;
     if ((((libGame_gv_heroDeathMurkyRespawnEggDeathTimeStamp[lp_player] >= (TimerGetElapsed(libGame_gv_gameTimer) - 0.0625)) && (libGame_gv_heroDeathMurkyRespawnEggDeathTimeStamp[lp_player] <= (TimerGetElapsed(libGame_gv_gameTimer) + 0.0625))) || ((libGame_gv_heroDeathMurkyRespawnEggs[lp_player] != null) && (UnitIsAlive(libGame_gv_heroDeathMurkyRespawnEggs[lp_player]) == true)))) {
-        UnitBehaviorRemove(lv_murky, "HomeShieldProtection", 1);
+        UnitBehaviorRemove(lv_murky, "HallOfStormsProtectionBuff", 1);
         libGame_gv_heroDeathMurkyRespawnEggPoint[lp_player] = UnitGetPosition(libGame_gv_heroDeathMurkyRespawnEggs[lp_player]);
         UnitSetPosition(lv_murky, libGame_gv_heroDeathMurkyRespawnEggPoint[lp_player], false);
         if ((PlayerHasTalent(lp_player, "MurkyEggHunt") == true)) {
@@ -4467,6 +4470,7 @@ void libGDHL_gt_HeroGenericSpeedRibbonController_Init () {
     TriggerAddEventUnitBehaviorChangeFromCategory(libGDHL_gt_HeroGenericSpeedRibbonController, null, c_behaviorCategoryFast, c_unitBehaviorChangeAny);
     TriggerAddEventUnitBehaviorChangeFromCategory(libGDHL_gt_HeroGenericSpeedRibbonController, null, c_behaviorCategorySlow, c_unitBehaviorChangeAny);
     TriggerAddEventUnitBehaviorChangeFromCategory(libGDHL_gt_HeroGenericSpeedRibbonController, null, c_behaviorCategoryPushOrPull, c_unitBehaviorChangeAny);
+    TriggerAddEventUnitBehaviorChangeFromCategory(libGDHL_gt_HeroGenericSpeedRibbonController, null, c_behaviorCategoryTimeStop, c_unitBehaviorChangeAny);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -4597,23 +4601,19 @@ bool libGDHL_gt_HearthstoneTeleport_Func (bool testConds, bool runActions) {
 
     UIAlert("HearthstoneUsed", lv_hearthstonePlayer, StringToText(""), null);
     libGame_gf_SendEventHeroPortedBackToTown(lv_hearthstonePlayer, lv_hearthstoneUnit);
-    if ((UnitAbilityCheck(lv_hearthstoneUnit, "Mount", true) == true) && (libCore_gv_sYSGameMode != libCore_ge_GameModes_Tutorial1Deprecated)) {
-        libGame_gf_ApplyMountBehaviorToHero(lv_hearthstoneUnit);
-    }
-
     return true;
 }
 
 //--------------------------------------------------------------------------------------------------
 void libGDHL_gt_HearthstoneTeleport_Init () {
     libGDHL_gt_HearthstoneTeleport = TriggerCreate("libGDHL_gt_HearthstoneTeleport_Func");
-    TriggerAddEventPlayerEffectUsed(libGDHL_gt_HearthstoneTeleport, c_playerAny, "PortBackToBaseTeleport");
+    TriggerAddEventPlayerEffectUsed(libGDHL_gt_HearthstoneTeleport, c_playerAny, "HearthstoneTeleport");
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: Hearthstone - Channel Behavior On
+// Trigger: Hearthstone - Channeling Buff - On
 //--------------------------------------------------------------------------------------------------
-bool libGDHL_gt_HearthstoneChannelBehaviorOn_Func (bool testConds, bool runActions) {
+bool libGDHL_gt_HearthstoneChannelingBuffOn_Func (bool testConds, bool runActions) {
     // Variable Declarations
     unit lv_hearthstoneUnit;
     int lv_hearthstonePlayer;
@@ -4641,20 +4641,20 @@ bool libGDHL_gt_HearthstoneChannelBehaviorOn_Func (bool testConds, bool runActio
 
     libUIUI_gf_PingPlayerStartsHearthStonePing(lv_hearthstonePlayer, UnitGetPosition(lv_hearthstoneUnit));
     libSond_gf_HeroVOHeroBeginsHearthing(lv_hearthstonePlayer);
-    libUIUI_gf_UIPartyFrameHeroPortBackToBaseStart(lv_hearthstonePlayer, lv_hearthstoneUnit);
+    libUIUI_gf_UIPartyFrameHeroHearthstoneStart(lv_hearthstonePlayer, lv_hearthstoneUnit);
     return true;
 }
 
 //--------------------------------------------------------------------------------------------------
-void libGDHL_gt_HearthstoneChannelBehaviorOn_Init () {
-    libGDHL_gt_HearthstoneChannelBehaviorOn = TriggerCreate("libGDHL_gt_HearthstoneChannelBehaviorOn_Func");
-    TriggerAddEventUnitBehaviorChange(libGDHL_gt_HearthstoneChannelBehaviorOn, null, "HeroGenericHearthing", c_unitBehaviorChangeCreate);
+void libGDHL_gt_HearthstoneChannelingBuffOn_Init () {
+    libGDHL_gt_HearthstoneChannelingBuffOn = TriggerCreate("libGDHL_gt_HearthstoneChannelingBuffOn_Func");
+    TriggerAddEventUnitBehaviorChange(libGDHL_gt_HearthstoneChannelingBuffOn, null, "HearthstoneChannelingBuff", c_unitBehaviorChangeCreate);
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: Hearthstone - Channel Behavior Off
+// Trigger: Hearthstone - Channeling Buff - Off
 //--------------------------------------------------------------------------------------------------
-bool libGDHL_gt_HearthstoneChannelBehaviorOff_Func (bool testConds, bool runActions) {
+bool libGDHL_gt_HearthstoneChannelingBuffOff_Func (bool testConds, bool runActions) {
     // Variable Declarations
     unit lv_hearthstoneUnit;
 
@@ -4672,15 +4672,15 @@ bool libGDHL_gt_HearthstoneChannelBehaviorOff_Func (bool testConds, bool runActi
 }
 
 //--------------------------------------------------------------------------------------------------
-void libGDHL_gt_HearthstoneChannelBehaviorOff_Init () {
-    libGDHL_gt_HearthstoneChannelBehaviorOff = TriggerCreate("libGDHL_gt_HearthstoneChannelBehaviorOff_Func");
-    TriggerAddEventUnitBehaviorChange(libGDHL_gt_HearthstoneChannelBehaviorOff, null, "HeroGenericHearthing", c_unitBehaviorChangeDestroy);
+void libGDHL_gt_HearthstoneChannelingBuffOff_Init () {
+    libGDHL_gt_HearthstoneChannelingBuffOff = TriggerCreate("libGDHL_gt_HearthstoneChannelingBuffOff_Func");
+    TriggerAddEventUnitBehaviorChange(libGDHL_gt_HearthstoneChannelingBuffOff, null, "HearthstoneChannelingBuff", c_unitBehaviorChangeDestroy);
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: Hearthstone - Channel Behavior Canceled
+// Trigger: Hearthstone - Channeling Buff - Canceled
 //--------------------------------------------------------------------------------------------------
-bool libGDHL_gt_HearthstoneChannelBehaviorCanceled_Func (bool testConds, bool runActions) {
+bool libGDHL_gt_HearthstoneChannelingBuffCanceled_Func (bool testConds, bool runActions) {
     // Variable Declarations
     unit lv_hearthstoneUnit;
     int lv_hearthstonePlayer;
@@ -4697,14 +4697,14 @@ bool libGDHL_gt_HearthstoneChannelBehaviorCanceled_Func (bool testConds, bool ru
 
     PingDestroy(libUIUI_gv_ping_PlayerHearth[lv_hearthstonePlayer]);
     SoundPlayOnUnitForPlayer(SoundLink("Gen_Hearthstone_Teleport_Fizzle", -1), lv_hearthstonePlayer, PlayerGroupSingle(lv_hearthstonePlayer), lv_hearthstoneUnit, 0.0, 100.0, 0.0);
-    libUIUI_gf_UIPartyFrameHeroPortBackToBaseFizzle(lv_hearthstonePlayer, lv_hearthstoneUnit);
+    libUIUI_gf_UIPartyFrameHeroHearthstoneFizzle(lv_hearthstonePlayer, lv_hearthstoneUnit);
     return true;
 }
 
 //--------------------------------------------------------------------------------------------------
-void libGDHL_gt_HearthstoneChannelBehaviorCanceled_Init () {
-    libGDHL_gt_HearthstoneChannelBehaviorCanceled = TriggerCreate("libGDHL_gt_HearthstoneChannelBehaviorCanceled_Func");
-    TriggerAddEventPlayerEffectUsed(libGDHL_gt_HearthstoneChannelBehaviorCanceled, c_playerAny, "PortBackToBaseChannelBuffCancelDummyModifyUnit");
+void libGDHL_gt_HearthstoneChannelingBuffCanceled_Init () {
+    libGDHL_gt_HearthstoneChannelingBuffCanceled = TriggerCreate("libGDHL_gt_HearthstoneChannelingBuffCanceled_Func");
+    TriggerAddEventPlayerEffectUsed(libGDHL_gt_HearthstoneChannelingBuffCanceled, c_playerAny, "HearthstoneChannelingBuffCancelDummyModifyUnit");
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -6396,7 +6396,7 @@ bool libGDHL_gt_HeroArthasArmyoftheDeadPortGhouls_Func (bool testConds, bool run
 void libGDHL_gt_HeroArthasArmyoftheDeadPortGhouls_Init () {
     libGDHL_gt_HeroArthasArmyoftheDeadPortGhouls = TriggerCreate("libGDHL_gt_HeroArthasArmyoftheDeadPortGhouls_Func");
     TriggerEnable(libGDHL_gt_HeroArthasArmyoftheDeadPortGhouls, false);
-    TriggerAddEventPlayerEffectUsed(libGDHL_gt_HeroArthasArmyoftheDeadPortGhouls, c_playerAny, "PortBackToBaseTeleport");
+    TriggerAddEventPlayerEffectUsed(libGDHL_gt_HeroArthasArmyoftheDeadPortGhouls, c_playerAny, "HearthstoneTeleport");
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -8666,7 +8666,7 @@ bool libGDHL_gt_HeroChenPurifyingBrewTalentProc_Func (bool testConds, bool runAc
         return true;
     }
 
-    if (((libGame_gf_CCReductionStunReducible(lv_behavior) != true) || (libGame_gf_CCReductionSilencedReducible(lv_behavior) != true))) {
+    if ((((UnitBehaviorHasCategoryFlag(lv_behavior, c_behaviorCategoryUnreducible) == true) && (UnitBehaviorHasCategoryFlag(lv_behavior, c_behaviorCategoryStun) == true)) || ((UnitBehaviorHasCategoryFlag(lv_behavior, c_behaviorCategoryUnreducible) == true) && (UnitBehaviorHasCategoryFlag(lv_behavior, c_behaviorCategoryDebuffSilence) == true)))) {
         return true;
     }
     else {
@@ -8895,65 +8895,6 @@ void libGDHL_gt_HeroDiabloInfernoBreathEnd_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: Hero - Diablo - Black Soulstone Talents Proc
-//--------------------------------------------------------------------------------------------------
-bool libGDHL_gt_HeroDiabloBlackSoulstoneTalentsProc_Func (bool testConds, bool runActions) {
-    // Variable Declarations
-    unit lv_diabloUnit;
-    int lv_diabloPlayer;
-    fixed lv_soulstoneStacks;
-    fixed lv_scale;
-    fixed lv_baseArmorValue;
-    fixed lv_scaleValue;
-    fixed lv_finalValue;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-    lv_diabloUnit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
-    lv_diabloPlayer = UnitGetOwner(lv_diabloUnit);
-    lv_soulstoneStacks = UnitBehaviorCount(lv_diabloUnit, "DiabloBlackSoulstoneTokenCounter");
-    lv_scale = 0.5;
-    lv_baseArmorValue = 25.0;
-    lv_scaleValue = (lv_scale * lv_soulstoneStacks);
-    lv_finalValue = (lv_scaleValue + lv_baseArmorValue);
-
-    // Conditions
-    if (testConds) {
-        if (!((lv_diabloPlayer > 0))) {
-            return false;
-        }
-
-        if (!((lv_diabloPlayer <= libCore_gv_bALMaxPlayers))) {
-            return false;
-        }
-
-        if (!((PlayerHasTalent(lv_diabloPlayer, "DiabloSoulShield") == true))) {
-            return false;
-        }
-    }
-
-    // Actions
-    if (!runActions) {
-        return true;
-    }
-
-    CatalogFieldValueSetFixed(c_gameCatalogBehavior, "DiabloSoulShieldSpellArmor", "ArmorModification.ArmorSet[" + IntToString(c_unitDamageTypeHero) + "].ArmorMitigationTable[" + IntToString(c_unitDamageTypeAbility) + "]", lv_diabloPlayer, lv_finalValue);
-    CatalogFieldValueSetFixed(c_gameCatalogBehavior, "DiabloSoulShieldSpellArmor", "ArmorModification.ArmorSet[" + IntToString(c_unitDamageTypeMerc) + "].ArmorMitigationTable[" + IntToString(c_unitDamageTypeAbility) + "]", lv_diabloPlayer, lv_finalValue);
-    CatalogFieldValueSetFixed(c_gameCatalogBehavior, "DiabloSoulShieldSpellArmor", "ArmorModification.ArmorSet[" + IntToString(c_unitDamageTypeMonster) + "].ArmorMitigationTable[" + IntToString(c_unitDamageTypeAbility) + "]", lv_diabloPlayer, lv_finalValue);
-    CatalogFieldValueSetFixed(c_gameCatalogBehavior, "DiabloSoulShieldSpellArmor", "ArmorModification.ArmorSet[" + IntToString(c_unitDamageTypeSummon) + "].ArmorMitigationTable[" + IntToString(c_unitDamageTypeAbility) + "]", lv_diabloPlayer, lv_finalValue);
-    CatalogFieldValueSetFixed(c_gameCatalogBehavior, "DiabloSoulShieldSpellArmor", "ArmorModification.ArmorSet[" + IntToString(c_unitDamageTypeStructure) + "].ArmorMitigationTable[" + IntToString(c_unitDamageTypeAbility) + "]", lv_diabloPlayer, lv_finalValue);
-    CatalogFieldValueSetFixed(c_gameCatalogBehavior, "DiabloSoulShieldSpellArmor", "ArmorModification.ArmorSet[" + IntToString(c_unitDamageTypeMinion) + "].ArmorMitigationTable[" + IntToString(c_unitDamageTypeAbility) + "]", lv_diabloPlayer, lv_finalValue);
-    return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-void libGDHL_gt_HeroDiabloBlackSoulstoneTalentsProc_Init () {
-    libGDHL_gt_HeroDiabloBlackSoulstoneTalentsProc = TriggerCreate("libGDHL_gt_HeroDiabloBlackSoulstoneTalentsProc_Func");
-    TriggerEnable(libGDHL_gt_HeroDiabloBlackSoulstoneTalentsProc, false);
-    TriggerAddEventPlayerEffectUsed(libGDHL_gt_HeroDiabloBlackSoulstoneTalentsProc, c_playerAny, "DiabloBlackSoulstoneSoulShieldApplyActiveBehavior");
-}
-
-//--------------------------------------------------------------------------------------------------
 // Trigger: Hero - Diablo - Black Soulstone Stack Talent Picked
 //--------------------------------------------------------------------------------------------------
 bool libGDHL_gt_HeroDiabloBlackSoulstoneStackTalentPicked_Func (bool testConds, bool runActions) {
@@ -8962,9 +8903,6 @@ bool libGDHL_gt_HeroDiabloBlackSoulstoneStackTalentPicked_Func (bool testConds, 
     unit lv_unit;
     int lv_player;
     fixed lv_tokenStacks;
-    fixed lv_scale;
-    fixed lv_scaleValue;
-    fixed lv_finalValue;
 
     // Automatic Variable Declarations
     // Variable Initialization
@@ -8972,9 +8910,6 @@ bool libGDHL_gt_HeroDiabloBlackSoulstoneStackTalentPicked_Func (bool testConds, 
     lv_unit = EventUnit();
     lv_player = UnitGetOwner(lv_unit);
     lv_tokenStacks = UnitBehaviorCount(lv_unit, "DiabloBlackSoulstoneTokenCounter");
-    lv_scale = 0.15;
-    lv_scaleValue = (lv_tokenStacks * lv_scale);
-    lv_finalValue = (lv_scaleValue / 100.0);
 
     // Conditions
     if (testConds) {
@@ -8988,23 +8923,8 @@ bool libGDHL_gt_HeroDiabloBlackSoulstoneStackTalentPicked_Func (bool testConds, 
         return true;
     }
 
-    if ((lv_behavior == "DiabloBlackSoulstoneDevilsDueTalentTokenCounter")) {
-        CatalogFieldValueSetFixed(c_gameCatalogEffect, "DiabloBlackSoulstoneAddDynamicDevilsDueTalentTokenCount", "Value", lv_player, lv_tokenStacks);
-        UnitCreateEffectUnit(lv_unit, "DiabloBlackSoulstoneAddDynamicDevilsDueTalentTokenCount", lv_unit);
-    }
-
-    if ((lv_behavior == "DiabloSoulShieldSpellArmor")) {
-        lv_scale = 50.0;
-        lv_scaleValue = (lv_tokenStacks * lv_scale);
-        lv_finalValue = (lv_scaleValue / 100.0);
-        CatalogFieldValueSetFixed(c_gameCatalogBehavior, "DiabloSoulShieldSpellArmor", "ArmorModification.ArmorSet[" + IntToString(c_unitDamageTypeHero) + "].ArmorMitigationTable[" + IntToString(c_unitDamageTypeAbility) + "]", lv_player, lv_finalValue);
-        CatalogFieldValueSetFixed(c_gameCatalogBehavior, "DiabloSoulShieldSpellArmor", "ArmorModification.ArmorSet[" + IntToString(c_unitDamageTypeMerc) + "].ArmorMitigationTable[" + IntToString(c_unitDamageTypeAbility) + "]", lv_player, lv_finalValue);
-        CatalogFieldValueSetFixed(c_gameCatalogBehavior, "DiabloSoulShieldSpellArmor", "ArmorModification.ArmorSet[" + IntToString(c_unitDamageTypeMonster) + "].ArmorMitigationTable[" + IntToString(c_unitDamageTypeAbility) + "]", lv_player, lv_finalValue);
-        CatalogFieldValueSetFixed(c_gameCatalogBehavior, "DiabloSoulShieldSpellArmor", "ArmorModification.ArmorSet[" + IntToString(c_unitDamageTypeSummon) + "].ArmorMitigationTable[" + IntToString(c_unitDamageTypeAbility) + "]", lv_player, lv_finalValue);
-        CatalogFieldValueSetFixed(c_gameCatalogBehavior, "DiabloSoulShieldSpellArmor", "ArmorModification.ArmorSet[" + IntToString(c_unitDamageTypeStructure) + "].ArmorMitigationTable[" + IntToString(c_unitDamageTypeAbility) + "]", lv_player, lv_finalValue);
-        CatalogFieldValueSetFixed(c_gameCatalogBehavior, "DiabloSoulShieldSpellArmor", "ArmorModification.ArmorSet[" + IntToString(c_unitDamageTypeMinion) + "].ArmorMitigationTable[" + IntToString(c_unitDamageTypeAbility) + "]", lv_player, lv_finalValue);
-    }
-
+    CatalogFieldValueSetFixed(c_gameCatalogEffect, "DiabloBlackSoulstoneAddDynamicDevilsDueTalentTokenCount", "Value", lv_player, lv_tokenStacks);
+    UnitCreateEffectUnit(lv_unit, "DiabloBlackSoulstoneAddDynamicDevilsDueTalentTokenCount", lv_unit);
     return true;
 }
 
@@ -9013,7 +8933,6 @@ void libGDHL_gt_HeroDiabloBlackSoulstoneStackTalentPicked_Init () {
     libGDHL_gt_HeroDiabloBlackSoulstoneStackTalentPicked = TriggerCreate("libGDHL_gt_HeroDiabloBlackSoulstoneStackTalentPicked_Func");
     TriggerEnable(libGDHL_gt_HeroDiabloBlackSoulstoneStackTalentPicked, false);
     TriggerAddEventUnitBehaviorChange(libGDHL_gt_HeroDiabloBlackSoulstoneStackTalentPicked, null, "DiabloBlackSoulstoneDevilsDueTalentTokenCounter", c_unitBehaviorChangeCreate);
-    TriggerAddEventUnitBehaviorChange(libGDHL_gt_HeroDiabloBlackSoulstoneStackTalentPicked, null, "DiabloSoulShieldSpellArmor", c_unitBehaviorChangeCreate);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -9457,14 +9376,16 @@ bool libGDHL_gt_HeroDryadAbolishMagicCCRecognition_Func (bool testConds, bool ru
         return true;
     }
 
-    if (((libGame_gf_CCReductionStunReducible(lv_behavior) == true) && (libGame_gf_CCReductionSilencedReducible(lv_behavior) == true))) {
+    if ((((UnitBehaviorHasCategoryFlag(lv_behavior, c_behaviorCategoryUnreducible) == true) && (UnitBehaviorHasCategoryFlag(lv_behavior, c_behaviorCategoryStun) == true)) || ((UnitBehaviorHasCategoryFlag(lv_behavior, c_behaviorCategoryUnreducible) == true) && (UnitBehaviorHasCategoryFlag(lv_behavior, c_behaviorCategoryDebuffSilence) == true)))) {
+        return true;
+    }
+    else {
         libGame_gf_CCRecognitionCCReduction(lv_unit, lv_behavior);
         if ((UnitBehaviorCount(lv_unit, "HeroGenericHasNoStatusBar") == 0) && (UnitBehaviorHasCategoryFlag(lv_behavior, c_behaviorCategoryRestorable) == true)) {
             libUIUI_gf_HeroConsoleUnitStatusBarsUpdateStunDeathBar(lv_behavior, UnitGetOwner(lv_unit));
         }
 
     }
-
     return true;
 }
 
@@ -12863,6 +12784,7 @@ bool libGDHL_gt_HeroLostVikingsSpawn_Func (bool testConds, bool runActions) {
     UnitControlGroupClear(lv_lVPlayer, 3);
     UnitControlGroupClear(lv_lVPlayer, 4);
     libNtve_gf_CreateUnitsAtPoint2(1, "HeroOlaf", 0, lv_lVPlayer, PointWithOffsetPolar(UnitGetPosition(lv_lVController), 1.5, 240.0), null);
+    libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Add, libGDHL_gv_aIHeroDelegateTokenValueVikingValue, libGame_gf_TeamNumberOfPlayer(lv_lVPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroAlive);
     UnitSetFacing(UnitLastCreated(), PointGetFacing(libGame_gv_players[lv_lVPlayer].lv_spawnPoint), 0.0);
     UnitGroupAdd(libGame_gv_players[lv_lVPlayer].lv_heroUnitGroup, UnitLastCreated());
     AIAddPlayerUnit(UnitLastCreated());
@@ -12876,6 +12798,7 @@ bool libGDHL_gt_HeroLostVikingsSpawn_Func (bool testConds, bool runActions) {
     libGDHL_gv_lostVikingsPlayer[lv_lVPlayer].lv_olafPath = PathLastCreated();
     libGDHL_gv_lostVikingsPlayer[lv_lVPlayer].lv_olaf = UnitLastCreated();
     libNtve_gf_CreateUnitsAtPoint2(1, "HeroBaleog", 0, lv_lVPlayer, PointWithOffsetPolar(UnitGetPosition(lv_lVController), 1.5, 120.0), null);
+    libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Add, libGDHL_gv_aIHeroDelegateTokenValueVikingValue, libGame_gf_TeamNumberOfPlayer(lv_lVPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroAlive);
     UnitSetFacing(UnitLastCreated(), PointGetFacing(libGame_gv_players[lv_lVPlayer].lv_spawnPoint), 0.0);
     UnitGroupAdd(libGame_gv_players[lv_lVPlayer].lv_heroUnitGroup, UnitLastCreated());
     AIAddPlayerUnit(UnitLastCreated());
@@ -12889,6 +12812,7 @@ bool libGDHL_gt_HeroLostVikingsSpawn_Func (bool testConds, bool runActions) {
     libGDHL_gv_lostVikingsPlayer[lv_lVPlayer].lv_baleogPath = PathLastCreated();
     libGDHL_gv_lostVikingsPlayer[lv_lVPlayer].lv_baleog = UnitLastCreated();
     libNtve_gf_CreateUnitsAtPoint2(1, "HeroErik", 0, lv_lVPlayer, PointWithOffsetPolar(UnitGetPosition(lv_lVController), 1.5, 0.0), null);
+    libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Add, libGDHL_gv_aIHeroDelegateTokenValueVikingValue, libGame_gf_TeamNumberOfPlayer(lv_lVPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroAlive);
     UnitSetFacing(UnitLastCreated(), PointGetFacing(libGame_gv_players[lv_lVPlayer].lv_spawnPoint), 0.0);
     UnitGroupAdd(libGame_gv_players[lv_lVPlayer].lv_heroUnitGroup, UnitLastCreated());
     AIAddPlayerUnit(UnitLastCreated());
@@ -13156,6 +13080,8 @@ bool libGDHL_gt_HeroLostVikingsVikingDies_Func (bool testConds, bool runActions)
         libUIUI_gf_FullscreenOverlaysShowHideDeathOverlay(true, lv_lVPlayer);
         libGame_gf_HeroDeathCheckForTeamDominatedAnnouncement(libGame_gf_TeamNumberOfPlayer(lv_lVPlayer));
         DialogControlSendAnimationEvent(libGDHL_gv_lostVikingsUI.lv_allDeathStatusFrame, libCore_gv_playerGroupFromPlayer[lv_lVPlayer], "UnitDead");
+        libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Add, libGDHL_gv_aIHeroDelegateTokenValueAnyVikingAliveValue, libGame_gf_TeamNumberOfPlayer(lv_lVPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroDead);
+        libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Remove, libGDHL_gv_aIHeroDelegateTokenValueAnyVikingAliveValue, libGame_gf_TeamNumberOfPlayer(lv_lVPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroAlive);
     }
 
     lv_vikingDeathIcon = (CatalogFieldValueGet(c_gameCatalogActor, UnitGetType(lv_deadUnit), "HeroIcon", 0));
@@ -13183,6 +13109,8 @@ bool libGDHL_gt_HeroLostVikingsVikingDies_Func (bool testConds, bool runActions)
         }
     }
 
+    libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Add, libGDHL_gv_aIHeroDelegateTokenValueVikingValue, libGame_gf_TeamNumberOfPlayer(lv_lVPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroDead);
+    libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Remove, libGDHL_gv_aIHeroDelegateTokenValueVikingValue, libGame_gf_TeamNumberOfPlayer(lv_lVPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroAlive);
     return true;
 }
 
@@ -13223,12 +13151,33 @@ bool libGDHL_gt_HeroLostVikingsVikingRemoved_Func (bool testConds, bool runActio
     autoE2C695E8_val = UnitGetType(lv_unit);
     if (autoE2C695E8_val == "HeroErik") {
         PathDestroy(libGDHL_gv_lostVikingsPlayer[lv_lVPlayer].lv_erikPath);
+        if ((TimerIsPaused(libGDHL_gv_lostVikingsPlayer[lv_lVPlayer].lv_erikDeathTimer) == true)) {
+            libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Remove, libGDHL_gv_aIHeroDelegateTokenValueVikingValue, libGame_gf_TeamNumberOfPlayer(lv_lVPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroAlive);
+        }
+        else {
+            libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Remove, libGDHL_gv_aIHeroDelegateTokenValueVikingValue, libGame_gf_TeamNumberOfPlayer(lv_lVPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroDead);
+        }
+        libNtve_gf_StopTimer(libGDHL_gv_lostVikingsPlayer[lv_lVPlayer].lv_erikDeathTimer);
     }
     else if (autoE2C695E8_val == "HeroBaleog") {
         PathDestroy(libGDHL_gv_lostVikingsPlayer[lv_lVPlayer].lv_baleogPath);
+        if ((TimerIsPaused(libGDHL_gv_lostVikingsPlayer[lv_lVPlayer].lv_baleogDeathTimer) == true)) {
+            libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Remove, libGDHL_gv_aIHeroDelegateTokenValueVikingValue, libGame_gf_TeamNumberOfPlayer(lv_lVPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroAlive);
+        }
+        else {
+            libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Remove, libGDHL_gv_aIHeroDelegateTokenValueVikingValue, libGame_gf_TeamNumberOfPlayer(lv_lVPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroDead);
+        }
+        libNtve_gf_StopTimer(libGDHL_gv_lostVikingsPlayer[lv_lVPlayer].lv_baleogDeathTimer);
     }
     else if (autoE2C695E8_val == "HeroOlaf") {
         PathDestroy(libGDHL_gv_lostVikingsPlayer[lv_lVPlayer].lv_olafPath);
+        if ((TimerIsPaused(libGDHL_gv_lostVikingsPlayer[lv_lVPlayer].lv_olafDeathTimer) == true)) {
+            libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Remove, libGDHL_gv_aIHeroDelegateTokenValueVikingValue, libGame_gf_TeamNumberOfPlayer(lv_lVPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroAlive);
+        }
+        else {
+            libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Remove, libGDHL_gv_aIHeroDelegateTokenValueVikingValue, libGame_gf_TeamNumberOfPlayer(lv_lVPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroDead);
+        }
+        libNtve_gf_StopTimer(libGDHL_gv_lostVikingsPlayer[lv_lVPlayer].lv_olafDeathTimer);
     }
     else {
     }
@@ -16213,7 +16162,7 @@ bool libGDHL_gt_HeroMedicHearthCleanup_Func (bool testConds, bool runActions) {
 void libGDHL_gt_HeroMedicHearthCleanup_Init () {
     libGDHL_gt_HeroMedicHearthCleanup = TriggerCreate("libGDHL_gt_HeroMedicHearthCleanup_Func");
     TriggerEnable(libGDHL_gt_HeroMedicHearthCleanup, false);
-    TriggerAddEventPlayerEffectUsed(libGDHL_gt_HeroMedicHearthCleanup, c_playerAny, "PortBackToBaseTeleport");
+    TriggerAddEventPlayerEffectUsed(libGDHL_gt_HeroMedicHearthCleanup, c_playerAny, "HearthstoneTeleport");
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -18127,7 +18076,7 @@ bool libGDHL_gt_HeroRaynorBansheeTeleport_Func (bool testConds, bool runActions)
         if (autoD0FD4CB9_var == null) { break; }
         if ((UnitGetType(autoD0FD4CB9_var) == "RaynorRaynorsBanshee")) {
             UnitSetPosition(autoD0FD4CB9_var, UnitGetPosition(libGame_gv_players[lv_player].lv_heroUnit), false);
-            UnitCreateEffectUnit(autoD0FD4CB9_var, "PortBackToBaseHealthRestore", autoD0FD4CB9_var);
+            UnitCreateEffectUnit(autoD0FD4CB9_var, "HearthstoneHealthCreateHealer", autoD0FD4CB9_var);
             UnitCreateEffectUnit(lv_unit, "RaynorRaynorsRaidersLeashTrackedUnits", lv_unit);
         }
 
@@ -18139,7 +18088,7 @@ bool libGDHL_gt_HeroRaynorBansheeTeleport_Func (bool testConds, bool runActions)
 void libGDHL_gt_HeroRaynorBansheeTeleport_Init () {
     libGDHL_gt_HeroRaynorBansheeTeleport = TriggerCreate("libGDHL_gt_HeroRaynorBansheeTeleport_Func");
     TriggerEnable(libGDHL_gt_HeroRaynorBansheeTeleport, false);
-    TriggerAddEventPlayerEffectUsed(libGDHL_gt_HeroRaynorBansheeTeleport, c_playerAny, "PortBackToBaseTeleport");
+    TriggerAddEventPlayerEffectUsed(libGDHL_gt_HeroRaynorBansheeTeleport, c_playerAny, "HearthstoneTeleport");
     TriggerAddEventPlayerEffectUsed(libGDHL_gt_HeroRaynorBansheeTeleport, c_playerAny, "UnderworldTeleport");
 }
 
@@ -19246,6 +19195,8 @@ bool libGDHL_gt_HeroRexxarMishaSpawn_Func (bool testConds, bool runActions) {
     DialogControlSetVisible(libGDHL_gv_rexxarUI.lv_rexxarMishaDarkImage, libCore_gv_playerGroupFromPlayer[lv_rexxarPlayer], false);
     DialogControlSetVisible(libGDHL_gv_rexxarUI.lv_rexxarMishaSkullImage, libCore_gv_playerGroupFromPlayer[lv_rexxarPlayer], false);
     UnitCreateEffectUnit(lv_rexxar, "RexxarMishaCreateDummyPersistent", lv_misha);
+    libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Add, libGDHL_gv_aIHeroDelegateTokenValueMishaValue, libGame_gf_TeamNumberOfPlayer(lv_rexxarPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroAlive);
+    libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Remove, libGDHL_gv_aIHeroDelegateTokenValueMishaValue, libGame_gf_TeamNumberOfPlayer(lv_rexxarPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroDead);
     while ((UnitIsAlive(lv_misha) == true) && (UnitIsAlive(lv_rexxar) == true)) {
         libGDHL_gf_HeroRexxarMishaThink(lv_rexxarPlayer);
         Wait(0.0625, c_timeGame);
@@ -19413,10 +19364,15 @@ void libGDHL_gt_HeroRexxarRexxarLosesMapMechanicStacks_Init () {
 // Trigger: Hero - Rexxar - Remove Misha
 //--------------------------------------------------------------------------------------------------
 bool libGDHL_gt_HeroRexxarRemoveMisha_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_rexxarPlayer;
+
     // Automatic Variable Declarations
     unitgroup auto39C2B936_g;
     int auto39C2B936_u;
     unit auto39C2B936_var;
+
+    // Variable Initialization
 
     // Conditions
     if (testConds) {
@@ -19430,11 +19386,19 @@ bool libGDHL_gt_HeroRexxarRemoveMisha_Func (bool testConds, bool runActions) {
         return true;
     }
 
-    auto39C2B936_g = UnitGroup("RexxarMisha", UnitGetOwner(EventUnit()), RegionEntireMap(), UnitFilter(0, 0, 0, 0), 0);
+    lv_rexxarPlayer = UnitGetOwner(EventUnit());
+    auto39C2B936_g = UnitGroup("RexxarMisha", lv_rexxarPlayer, RegionEntireMap(), UnitFilter(0, 0, 0, 0), 0);
     auto39C2B936_u = UnitGroupCount(auto39C2B936_g, c_unitCountAll);
     for (;; auto39C2B936_u -= 1) {
         auto39C2B936_var = UnitGroupUnitFromEnd(auto39C2B936_g, auto39C2B936_u);
         if (auto39C2B936_var == null) { break; }
+        if ((TimerIsPaused(libGDHL_gv_mishaDeathTimer[lv_rexxarPlayer]) == true)) {
+            libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Remove, libGDHL_gv_aIHeroDelegateTokenValueMishaValue, libGame_gf_TeamNumberOfPlayer(lv_rexxarPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroAlive);
+        }
+        else {
+            libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Remove, libGDHL_gv_aIHeroDelegateTokenValueMishaValue, libGame_gf_TeamNumberOfPlayer(lv_rexxarPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroDead);
+        }
+        libNtve_gf_StopTimer(libGDHL_gv_mishaDeathTimer[lv_rexxarPlayer]);
         UnitRemove(auto39C2B936_var);
     }
     return true;
@@ -19629,6 +19593,8 @@ bool libGDHL_gt_HeroRexxarMishaDies_Func (bool testConds, bool runActions) {
             libUIUI_gf_UIPartyFramePetDies(lv_rexxarPlayer, libGDHL_gv_mishaDeathTimer[lv_rexxarPlayer]);
         }
 
+        libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Remove, libGDHL_gv_aIHeroDelegateTokenValueMishaValue, libGame_gf_TeamNumberOfPlayer(lv_rexxarPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroAlive);
+        libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Add, libGDHL_gv_aIHeroDelegateTokenValueMishaValue, libGame_gf_TeamNumberOfPlayer(lv_rexxarPlayer), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroDead);
     }
 
     UnitSelect(EventUnit(), lv_rexxarPlayer, false);
@@ -19762,7 +19728,7 @@ bool libGDHL_gt_HeroRexxarMishaTeleport_Func (bool testConds, bool runActions) {
 
     // Conditions
     if (testConds) {
-        if (!(((EventPlayerEffectUsed() == "PortBackToBaseTeleport") || (libCore_gv_mAPMapStringID == "TowersOfDoom")))) {
+        if (!(((EventPlayerEffectUsed() == "HearthstoneTeleport") || (libCore_gv_mAPMapStringID == "TowersOfDoom")))) {
             return false;
         }
 
@@ -19784,7 +19750,7 @@ bool libGDHL_gt_HeroRexxarMishaTeleport_Func (bool testConds, bool runActions) {
         if ((UnitGetType(autoFF82D22F_var) == "RexxarMisha")) {
             UnitCreateEffectUnit(autoFF82D22F_var, "RexxarMishaHoldIssueStopOrder", autoFF82D22F_var);
             UnitSetPosition(autoFF82D22F_var, UnitGetPosition(libGame_gv_players[lv_player].lv_heroUnit), false);
-            UnitCreateEffectUnit(autoFF82D22F_var, "PortBackToBaseHealthRestore", autoFF82D22F_var);
+            UnitCreateEffectUnit(autoFF82D22F_var, "HearthstoneHealthCreateHealer", autoFF82D22F_var);
             Wait(0.0625, c_timeGame);
             libGDHL_gf_HeroRexxarMishaStopMishaandResetThink(autoFF82D22F_var);
         }
@@ -19797,7 +19763,7 @@ bool libGDHL_gt_HeroRexxarMishaTeleport_Func (bool testConds, bool runActions) {
 void libGDHL_gt_HeroRexxarMishaTeleport_Init () {
     libGDHL_gt_HeroRexxarMishaTeleport = TriggerCreate("libGDHL_gt_HeroRexxarMishaTeleport_Func");
     TriggerEnable(libGDHL_gt_HeroRexxarMishaTeleport, false);
-    TriggerAddEventPlayerEffectUsed(libGDHL_gt_HeroRexxarMishaTeleport, c_playerAny, "PortBackToBaseTeleport");
+    TriggerAddEventPlayerEffectUsed(libGDHL_gt_HeroRexxarMishaTeleport, c_playerAny, "HearthstoneTeleport");
     TriggerAddEventPlayerEffectUsed(libGDHL_gt_HeroRexxarMishaTeleport, c_playerAny, "UnderworldTeleport");
 }
 
@@ -20705,8 +20671,8 @@ bool libGDHL_gt_HeroSgtHammerCompleteHearthstone_Func (bool testConds, bool runA
 void libGDHL_gt_HeroSgtHammerCompleteHearthstone_Init () {
     libGDHL_gt_HeroSgtHammerCompleteHearthstone = TriggerCreate("libGDHL_gt_HeroSgtHammerCompleteHearthstone_Func");
     TriggerEnable(libGDHL_gt_HeroSgtHammerCompleteHearthstone, false);
-    TriggerAddEventUnitAbility(libGDHL_gt_HeroSgtHammerCompleteHearthstone, null, AbilityCommand("PortBackToBase", 0), c_abilEffectStageFinish, false);
-    TriggerAddEventUnitAbility(libGDHL_gt_HeroSgtHammerCompleteHearthstone, null, AbilityCommand("PortBackToBase", 0), c_unitAbilStageComplete, false);
+    TriggerAddEventUnitAbility(libGDHL_gt_HeroSgtHammerCompleteHearthstone, null, AbilityCommand("Hearthstone", 0), c_abilEffectStageFinish, false);
+    TriggerAddEventUnitAbility(libGDHL_gt_HeroSgtHammerCompleteHearthstone, null, AbilityCommand("Hearthstone", 0), c_unitAbilStageComplete, false);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -26212,9 +26178,9 @@ void libGDHL_InitTriggers () {
     libGDHL_gt_HeroGenericRevealCloakedOneOffDamageSource_Init();
     libGDHL_gt_HeroGenericSuperStealthActivateDeactivate_Init();
     libGDHL_gt_HearthstoneTeleport_Init();
-    libGDHL_gt_HearthstoneChannelBehaviorOn_Init();
-    libGDHL_gt_HearthstoneChannelBehaviorOff_Init();
-    libGDHL_gt_HearthstoneChannelBehaviorCanceled_Init();
+    libGDHL_gt_HearthstoneChannelingBuffOn_Init();
+    libGDHL_gt_HearthstoneChannelingBuffOff_Init();
+    libGDHL_gt_HearthstoneChannelingBuffCanceled_Init();
     libGDHL_gt_HeroicSummonsUnitGainsHeroicSummonBehavior_Init();
     libGDHL_gt_HeroAbathurDeepTunnelPing_Init();
     libGDHL_gt_HeroAbathurAbathurExitsTransport_Init();
@@ -26302,7 +26268,6 @@ void libGDHL_InitTriggers () {
     libGDHL_gt_HeroDiabloOverpowerSetFacing_Init();
     libGDHL_gt_HeroDiabloInfernoBreathCast_Init();
     libGDHL_gt_HeroDiabloInfernoBreathEnd_Init();
-    libGDHL_gt_HeroDiabloBlackSoulstoneTalentsProc_Init();
     libGDHL_gt_HeroDiabloBlackSoulstoneStackTalentPicked_Init();
     libGDHL_gt_HeroDemonHunterVaultDamageBuff_Init();
     libGDHL_gt_HeroDemonHunterManticoreProc_Init();

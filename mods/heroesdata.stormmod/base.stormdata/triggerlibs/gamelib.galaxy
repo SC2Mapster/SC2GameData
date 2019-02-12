@@ -45,7 +45,6 @@ void libGame_InitVariables () {
     libGame_InitVariables_completed = true;
 
     for (init_i = 0; init_i <= libCore_gv_bALMaxTeams; init_i += 1) {
-        libGame_gv_teams[init_i].lv_teamLevel = 1;
         libGame_gv_teams[init_i].lv_teamPlayerGroup = PlayerGroupEmpty();
         libGame_gv_teams[init_i].lv_teamPlayerGroupNoNPCPlayers = PlayerGroupEmpty();
         libGame_gv_teams[init_i].lv_multikillTimer = TimerCreate();
@@ -246,6 +245,7 @@ void libGame_InitVariables () {
         libGame_gv_players[init_i].lv_multikillTimer = TimerCreate();
         libGame_gv_players[init_i].lv_bribeChargeStackRequirement = 20;
         libGame_gv_players[init_i].lv_bribeTokenLink = "TalentBribeTokenCounter";
+        libGame_gv_players[init_i].lv_aIHeroDelegateTokenValue = libAIAI_gv_aITeamDelegateHeroTokenValueDefault;
         libGame_gv_players[init_i].lv_heroSpawnReady = true;
         libGame_gv_players[init_i].lv_playerLeftAnnouncementTimer = TimerCreate();
         libGame_gv_players[init_i].lv_heroData.lv_class = c_heroRoleWarrior;
@@ -345,8 +345,6 @@ void libGame_InitVariables () {
     for (init_i = 0; init_i <= libGame_gv_townMaxTownCount; init_i += 1) {
         libGame_gv_townTownData[init_i].lv_townHallIndex = -1;
     }
-    libGame_gv_baseRepulserFieldLaunchDistance = 12.0;
-    libGame_gv_baseRepulserFieldLaunchCutoffDistance = -1.0;
     libGame_gv_townBasicMinimapHealthMontior = true;
     libGame_gv_vehicleDragonKnightBullRushLaunchDistance = -30.0;
     libGame_gv_vehicleDragonKnightBullRushCutoffDistance = -1.0;
@@ -404,7 +402,10 @@ string libGame_ge_BehaviorCategoriesStorm_Ident (int lp_val) {
     else if (lp_val == c_behaviorCategoryHideNameplate) { return "HideNameplate"; }
     else if (lp_val == c_behaviorCategoryHideStatusFrame) { return "HideStatusFrame"; }
     else if (lp_val == c_behaviorCategoryHostileStasisRemoved) { return "HostileStasisRemoved"; }
-    else if (lp_val == c_behaviorCategoryHostileStasisRemoved+1) { return "Any"; }
+    else if (lp_val == c_behaviorCategoryUnreducible) { return "Unreducible"; }
+    else if (lp_val == c_behaviorCategoryImmuneToAllyDisplacement) { return "ImmuneToAllyDisplacement"; }
+    else if (lp_val == c_behaviorCategoryImmuneToEnemyDisplacement) { return "ImmuneToEnemyDisplacement"; }
+    else if (lp_val == c_behaviorCategoryImmuneToEnemyDisplacement+1) { return "Any"; }
     return null;
 }
 
@@ -1480,26 +1481,6 @@ void libGame_gf_CCRecognitionCCReduction (unit lp_unit, string lp_cCBehavior) {
         UnitBehaviorSetDurationRemaining(lp_unit, lp_cCBehavior, lv_reducedDuration);
     }
 
-}
-
-bool libGame_gf_CCReductionStunReducible (string lp_behavior) {
-    // Automatic Variable Declarations
-    // Implementation
-    if ((lp_behavior != "L90ETCMoshPitStun") && (lp_behavior != "L90ETCMoshPitDisplayBehavior") && (lp_behavior != "StitchesGorgeTargetTimer") && (lp_behavior != "StitchesGorgeInitialTargetBehavior") && (lp_behavior != "OctoGrabStun") && (lp_behavior != "HaymakerTargetBehaviorMicroStun") && (lp_behavior != "HaymakerTargetBehaviorStun") && (lp_behavior != "DevouringMawTargetBehavior")) {
-        return true;
-    }
-
-    return false;
-}
-
-bool libGame_gf_CCReductionSilencedReducible (string lp_behavior) {
-    // Automatic Variable Declarations
-    // Implementation
-    if ((lp_behavior != "SylvanasMindControlTarget")) {
-        return true;
-    }
-
-    return false;
 }
 
 void libGame_gf_DeathRecapSpecialCaseEvent (trigger t) {
@@ -6815,12 +6796,14 @@ void libGame_gf_HeroDeathRespawnHeroforPlayer (bool lp_respawnMounted, int lp_pl
     // Variable Declarations
     int lv_i;
     unit lv_heroUnit;
+    int lv_teamID;
 
     // Automatic Variable Declarations
     // Variable Initialization
 
     // Implementation
     lv_heroUnit = libGame_gv_players[lp_player].lv_heroUnit;
+    lv_teamID = libGame_gf_TeamNumberOfPlayer(lp_player);
     if ((UnitHasBehavior2(lv_heroUnit, "AbnormalRespawn") == true)) {
         return ;
     }
@@ -6839,7 +6822,7 @@ void libGame_gf_HeroDeathRespawnHeroforPlayer (bool lp_respawnMounted, int lp_pl
         UnitSetPropertyFixed(lv_heroUnit, c_unitPropEnergyPercent, 100.0);
     }
     libGame_gv_players[lp_player].lv_isDead = false;
-    UnitCreateEffectUnit(lv_heroUnit, "HealingPadSet", lv_heroUnit);
+    UnitCreateEffectUnit(lv_heroUnit, "HallOfStormsAllyApplySet", lv_heroUnit);
     if ((UnitGetType(lv_heroUnit) == "HeroMurky")) {
         libGDHL_gf_HeroMurkyRespawnLogicCheck(lp_player);
     }
@@ -6865,11 +6848,13 @@ void libGame_gf_HeroDeathRespawnHeroforPlayer (bool lp_respawnMounted, int lp_pl
     libGame_gv_players[lp_player].lv_cameraPlayerUnitGroupToFocusOn = libNtve_gf_ConvertUnitToUnitGroup(lv_heroUnit);
     libGame_gf_CameraUpdateCameraForPlayer(lp_player);
     libUIUI_gf_UIHeroConsoleShowHideUnitStatusFrameForPlayer(true, lp_player);
-    if ((lp_respawnMounted == true) && ((UnitHasBehavior2(lv_heroUnit, "HomeShieldProtection") == true) || (UnitGetType(lv_heroUnit) == "HeroMurky"))) {
+    if ((lp_respawnMounted == true) && ((UnitHasBehavior2(lv_heroUnit, "HallOfStormsProtectionBuff") == true) || (UnitGetType(lv_heroUnit) == "HeroMurky"))) {
         libGame_gf_ApplyMountBehaviorToHero(lv_heroUnit);
         libGame_gf_SendEventHeroSpecialCaseMounting(lp_player);
     }
 
+    libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Add, libGame_gv_players[lp_player].lv_aIHeroDelegateTokenValue, lv_teamID, libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroAlive);
+    libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Remove, libGame_gv_players[lp_player].lv_aIHeroDelegateTokenValue, lv_teamID, libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroDead);
 }
 
 void libGame_gf_HeroDeathAddSecondaryTexttoAnnouncementforPlayer (int lp_playerID, text lp_text) {
@@ -7358,6 +7343,29 @@ bool libGame_gf_HeroSelectionIsHeroSelectedForPlayersTeam (int lp_heroIndex, int
         	lv_i = PlayerGroupNextPlayer(auto7E1B80E2_g, lv_i);
         	if (lv_i<0) { break; }
         	if ((lv_i != libCore_gv_cOMPUTER_TeamOrder) && (lv_i != libCore_gv_cOMPUTER_TeamChaos) && (libGame_gv_players[lv_i].lv_heroIndex == lp_heroIndex)) {
+            return true;
+        }
+
+    }
+    return false;
+}
+
+bool libGame_gf_HeroSelectionIsSkinAlreadyInUsebyAnyPlayer (int lp_skinIndex) {
+    // Variable Declarations
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    playergroup autoF2B31097_g;
+
+    // Variable Initialization
+
+    // Implementation
+    autoF2B31097_g = PlayerGroupActive();
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(autoF2B31097_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	if ((libGame_gv_players[lv_itPlayer].lv_selectedSkin != 0) && (libGame_gv_players[lv_itPlayer].lv_selectedSkin == lp_skinIndex)) {
             return true;
         }
 
@@ -7856,6 +7864,7 @@ void libGame_gf_HeroSelectionRandomlyPickSkin (int lp_choosingPlayer) {
     int lv_randomChoice;
     string lv_skinLink;
     int lv_index;
+    int lv_randomSkinAttempts;
 
     // Automatic Variable Declarations
     int auto2E01BCDC_ae;
@@ -7884,6 +7893,15 @@ void libGame_gf_HeroSelectionRandomlyPickSkin (int lp_choosingPlayer) {
         else {
             lv_randomChoice = RandomInt(2, lv_allowedSkinCount);
             lv_skinLink = libGame_gv_players[lv_index].lv_heroData.lv_skinArray[DataTableGetInt(false, ("RAND_PickSkin_" + IntToString(lv_randomChoice)))];
+            while ((libGame_gf_HeroSelectionIsSkinAlreadyInUsebyAnyPlayer(libCore_gf_DataSkinsGetSkinIndexFromSkinLink(lv_skinLink)) == true)) {
+                lv_randomSkinAttempts += 1;
+                lv_randomChoice = RandomInt(2, lv_allowedSkinCount);
+                lv_skinLink = libGame_gv_players[lv_index].lv_heroData.lv_skinArray[DataTableGetInt(false, ("RAND_PickSkin_" + IntToString(lv_randomChoice)))];
+                if ((lv_randomSkinAttempts >= (lv_allowedSkinCount * 3))) {
+                    break;
+                }
+
+            }
         }
     }
     libGame_gv_players[lp_choosingPlayer].lv_selectedSkin = libCore_gf_DataSkinsGetSkinIndexFromSkinLink(lv_skinLink);
@@ -8701,6 +8719,7 @@ void libGame_gf_MinionSpawnMinion (int lp_lane, int lp_owner, int lp_type, point
 
     libGame_gf_CalculateSpawnedMinionGoalPoints(lp_owner, lp_spawnPoint);
     libAIAI_gf_MinionAIStartMinionAI(-1, UnitLastCreated(), lp_lane, libGame_gv_spawnedMinionFirstWaypointIndex, false, false, false, 0, false);
+    libAIAI_gf_AITeamDelegateAddRemoveMinionThreattoLane(lv_minionTeam, lp_lane, lv_minionUnitType, libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Add);
     if ((libMapM_gv_mMRavenTeamStats[lv_minionTeam].lv_cursed == true)) {
         libMapM_gf_MMRavenApplyCurseEffectOnMinion(UnitLastCreated());
     }
@@ -9422,12 +9441,18 @@ void libGame_gf_MinionDies (unit lp_minionUnit, int lp_killingPlayer, fixed lp_k
         }
 
         libGame_gf_AwardXPForNPCKill(lp_minionUnit, lv_minionOwner, lv_unitAttribute, lp_killingPlayer, libCore_gf_DataXPXPForMinion(lp_killXP, PlayerGroupPlayer(PlayerGroupAlliance(c_playerGroupAlly, lp_killingPlayer), 1), lp_minionUnit));
-        if ((lp_killingPlayer > 0) && (lp_killingPlayer <= libCore_gv_bALMaxEnginePlayerCount)) {
+        if (((lp_killingPlayer >= 1) && (lp_killingPlayer <= libCore_gv_bALMaxPlayers))) {
             libGame_gv_scoreValues[lp_killingPlayer].lv_minionKills += 1;
         }
 
     }
 
+    if ((UnitTypeTestAttribute(UnitGetType(lp_minionUnit), c_unitAttributeMerc) == true)) {
+        libAIAI_gf_AITeamDelegateAddRemoveMercLanertoLane(libGame_gf_TeamNumberOfPlayer(UnitGetOwner(lp_minionUnit)), libAIAI_gf_MinionAIGetLaneForMinion(lp_minionUnit), UnitGetType(lp_minionUnit), libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Remove, UnitGetCustomValue(lp_minionUnit, libCore_gf_CustomValueIndex(libCore_ge_CustomValueIndexes_AIThreatBase)));
+    }
+    else {
+        libAIAI_gf_AITeamDelegateAddRemoveMinionThreattoLane(libGame_gf_TeamNumberOfPlayer(UnitGetOwner(lp_minionUnit)), libAIAI_gf_MinionAIGetLaneForMinion(lp_minionUnit), UnitGetType(lp_minionUnit), libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Remove);
+    }
 }
 
 bool libGame_gf_TownAliveinLane (int lp_team, int lp_laneID) {
@@ -9452,6 +9477,29 @@ int libGame_gf_TownsAliveinLane (int lp_team, int lp_lane) {
     lv_town = 1;
     for ( ; ( (auto5E7C8C8A_ai >= 0 && lv_town <= auto5E7C8C8A_ae) || (auto5E7C8C8A_ai < 0 && lv_town >= auto5E7C8C8A_ae) ) ; lv_town += auto5E7C8C8A_ai ) {
         if ((libGame_gv_townTownData[lv_town].lv_owner == libGame_gf_ComputerPlayerInTeam(lp_team)) && (libGame_gv_townTownData[lv_town].lv_lane == lp_lane) && (libGame_gv_townTownData[lv_town].lv_townHallIndex > 0) && (UnitIsAlive(libGame_gv_townTownData[lv_town].lv_structureUnits[libGame_gv_townTownData[lv_town].lv_townHallIndex]) == true)) {
+            lv_townCount += 1;
+        }
+
+    }
+    return lv_townCount;
+}
+
+int libGame_gf_TownsTotalinLane (int lp_team, int lp_lane) {
+    // Variable Declarations
+    int lv_townCount;
+    int lv_town;
+
+    // Automatic Variable Declarations
+    int autoE387911A_ae;
+    const int autoE387911A_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    autoE387911A_ae = libGame_gv_townTownCount;
+    lv_town = 1;
+    for ( ; ( (autoE387911A_ai >= 0 && lv_town <= autoE387911A_ae) || (autoE387911A_ai < 0 && lv_town >= autoE387911A_ae) ) ; lv_town += autoE387911A_ai ) {
+        if ((libGame_gv_townTownData[lv_town].lv_owner == libGame_gf_ComputerPlayerInTeam(lp_team)) && (libGame_gv_townTownData[lv_town].lv_lane == lp_lane) && (libGame_gv_townTownData[lv_town].lv_townHallIndex > 0)) {
             lv_townCount += 1;
         }
 
@@ -10396,6 +10444,7 @@ bool auto_libGame_gf_LevelUpHero_TriggerFunc (bool testConds, bool runActions) {
     lv_level = libGame_gf_GetCustomValueLevelofHeroUnit(lp_hero);
     lv_heroIndex = libGame_gv_players[lv_player].lv_heroIndex;
     lv_team = libGame_gf_TeamNumberOfPlayer(UnitGetOwner(lp_hero));
+    libAIAI_gf_AITeamDelegateUpdateTeamLevelDifference(lv_player, lv_level);
     libGame_gv_teams[lv_team].lv_teamLevel = MaxI(libGame_gv_teams[libGame_gf_TeamNumberOfPlayer(lv_player)].lv_teamLevel, lv_level);
     libGame_gv_scoreValues[lv_player].lv_level = lv_level;
     if ((libSond_gf_SoundtrackIsIntroPlaying() == false) && (libCore_gv_sYSGameMode != libCore_ge_GameModes_ArenaMode) && (libCore_gv_sYSGameMode != libCore_ge_GameModes_AttackDefend)) {
@@ -10582,7 +10631,6 @@ bool auto_libGame_gf_SpawnHero_TriggerFunc (bool testConds, bool runActions) {
     StatEventAddDataString(StatEventLastCreated(), "Hero", (libGame_gv_players[lp_heroIndex].lv_heroData.lv_unitType));
     StatEventSend(StatEventLastCreated());
     ActorScopeSend(ActorScopeFromUnit(libGame_gv_players[lp_player].lv_heroUnit), "StatusIncrement PreventDestroyOnDeath");
-    UnitBehaviorAdd(libGame_gv_players[lp_player].lv_heroUnit, "NearShop", libGame_gv_players[lp_player].lv_heroUnit, 1);
     if ((libGame_gv_heroDeath_RespawnMounted == true) && (libGame_gv_players[lp_player].lv_disableMount == false)) {
         libGame_gf_SendEventHeroSpecialCaseMounting(lp_player);
         libGame_gf_ApplyMountBehaviorToHero(libGame_gv_players[lp_player].lv_heroUnit);
@@ -10610,6 +10658,7 @@ bool auto_libGame_gf_SpawnHero_TriggerFunc (bool testConds, bool runActions) {
     libGame_gf_LevelUpHero(libGame_gv_players[lp_player].lv_heroUnit);
     libUIUI_gf_UIObserverUIAddPlayerToObserverUI(lp_player);
     libSond_gv_soundtrack_UniqueSoundtrackEnabled[lp_player] = false;
+    libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Add, libGame_gv_players[lp_player].lv_aIHeroDelegateTokenValue, libGame_gf_TeamNumberOfPlayer(lp_player), libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroAlive);
     libGame_gf_SendEventHeroSpawn(lp_player);
     return true;
 }
@@ -11840,6 +11889,31 @@ void libGame_gf_TeleportPetstoHeroLocation (int lp_player, point lp_preTeleportL
     }
 }
 
+void libGame_gf_ModifyTokenCount (int lp_modification, string lp_tokenCounterBehavior, unit lp_unit) {
+    // Variable Declarations
+    int lv_count;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_count = FixedToInt(UnitGetTokenCount(lp_unit, (lp_tokenCounterBehavior)));
+    lv_count += lp_modification;
+    UnitSetTokenCount(lp_unit, (lp_tokenCounterBehavior), lv_count, lp_unit);
+}
+
+void libGame_gf_ResetTokenCount (string lp_tokenCounterBehavior, unit lp_unit) {
+    // Variable Declarations
+    int lv_defaultValue;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_defaultValue = CatalogFieldValueGetAsInt(c_gameCatalogBehavior, lp_tokenCounterBehavior, "Min", libCore_gv_cOMPUTER_Neutral);
+    UnitSetTokenCount(lp_unit, (lp_tokenCounterBehavior), lv_defaultValue, lp_unit);
+}
+
 void libGame_gf_TownAddStructureToTownArray (int lp_townIndex, unit lp_structureUnit, int lp_structurePresetValue, int lp_enemyTeam) {
     // Variable Declarations
     int lv_structureIndex;
@@ -12639,7 +12713,7 @@ bool libGame_gt_InitializeGameSystems_Func (bool testConds, bool runActions) {
         }
         else {
         }
-        libGame_gv_teams[lv_itTeam].lv_hearthStone = UnitGroupUnit(UnitGroup("HealingPadSearchUnit", libGame_gf_ComputerPlayerInTeam(lv_itTeam), lv_baseRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), 1);
+        libGame_gv_teams[lv_itTeam].lv_hearthStone = UnitGroupUnit(UnitGroup("HallOfStormsLocationUnit", libGame_gf_ComputerPlayerInTeam(lv_itTeam), lv_baseRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), 1);
     }
     GameTimeOfDayPause(true);
     return true;
@@ -14318,10 +14392,11 @@ bool libGame_gt_CCRecognitionStun_Func (bool testConds, bool runActions) {
         libUIUI_gf_HeroConsoleUnitStatusBarsUpdateStunDeathBar(lv_behavior, UnitGetOwner(lv_unit));
     }
 
-    if ((libGame_gf_CCReductionStunReducible(lv_behavior) == true)) {
+    if (((UnitBehaviorHasCategoryFlag(lv_behavior, c_behaviorCategoryUnreducible) == true) && (UnitBehaviorHasCategoryFlag(lv_behavior, c_behaviorCategoryStun) == true))) {
+    }
+    else {
         libGame_gf_CCRecognitionCCReduction(lv_unit, lv_behavior);
     }
-
     if (((lv_unit == libGame_gv_players[UnitGetOwner(lv_unit)].lv_heroUnit) || (lv_unit == libGame_gv_players[UnitGetOwner(lv_unit)].lv_activeVehicle))) {
         if ((lv_behavior == "StitchesHooked")) {
             libUIUI_gf_FullscreenOverlaysCreateCCEffectFlashForPlayer(UnitGetOwner(lv_unit), 0.0);
@@ -15610,7 +15685,7 @@ bool libGame_gt_StartGame_Func (bool testConds, bool runActions) {
     }
 
     TriggerExecute(libStEx_gt_TrainingModeInit, true, false);
-    TriggerExecute(libSprt_gt_StatTrackingStartTrackingforAllPlayers, true, false);
+    TriggerExecute(libSprt_gt_DEBUGStatTrackingStartTrackingforAllPlayers, true, false);
     return true;
 }
 
@@ -16820,11 +16895,13 @@ bool libGame_gt_HeroDeathHeroDies_Func (bool testConds, bool runActions) {
     unit lv_deadUnit;
     int lv_deadPlayer;
     int lv_killingPlayer;
+    int lv_deadPlayerTeamID;
 
     // Automatic Variable Declarations
     // Variable Initialization
     lv_deadUnit = EventUnit();
     lv_deadPlayer = EventPlayer();
+    lv_deadPlayerTeamID = libGame_gf_TeamNumberOfPlayer(lv_deadPlayer);
 
     // Conditions
     if (testConds) {
@@ -16874,6 +16951,8 @@ bool libGame_gt_HeroDeathHeroDies_Func (bool testConds, bool runActions) {
     libGame_gf_HeroDeathUpdateUIElementsForDeath(true, true, true, lv_deadPlayer, lv_killingPlayer);
     libGame_gf_HeroDeathEnableDisableDeadSoundStateForPlayer(true, lv_deadPlayer);
     libGame_gf_HeroDeathPortHeroBackAndSetDeathState(lv_deadPlayer, libGame_gv_players[lv_deadPlayer].lv_spawnPoint);
+    libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Remove, libGame_gv_players[lv_deadPlayer].lv_aIHeroDelegateTokenValue, lv_deadPlayerTeamID, libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroAlive);
+    libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam(libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Add, libGame_gv_players[lv_deadPlayer].lv_aIHeroDelegateTokenValue, lv_deadPlayerTeamID, libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroDead);
     return true;
 }
 
@@ -18953,6 +19032,7 @@ bool libGame_gt_TownStructureDies_Func (bool testConds, bool runActions) {
         libGame_gf_TownRemoveMoonwellMinimapIconsFromTown(lv_townIndex);
     }
 
+    libAIAI_gf_AITeamDelegateUpdateFortKeepcountinLaneforTeam(lv_victimTeam, AILaneWaypointGetClosestLane(UnitGetPosition(lv_dyingStructureUnit)));
     return true;
 }
 
@@ -19640,7 +19720,7 @@ bool libGame_gt_PlayerHomeShieldProtectionOn_Func (bool testConds, bool runActio
         return true;
     }
 
-    UnitCreateEffectUnit(lv_heroUnit, "HeroGenericHomeShieldProtectionMountModifyCooldown", lv_heroUnit);
+    UnitCreateEffectUnit(lv_heroUnit, "MountSummonCooldownResetModifyUnit", lv_heroUnit);
     if (((libGame_gv_players[lv_heroUnitOwner].lv_heroUnit == lv_heroUnit) || (libGame_gv_players[lv_heroUnitOwner].lv_activeVehicle == lv_heroUnit))) {
         libGame_gf_PlayerTurnMountCostsOnOffForPlayer(lv_heroUnitOwner, false);
     }
@@ -19651,7 +19731,7 @@ bool libGame_gt_PlayerHomeShieldProtectionOn_Func (bool testConds, bool runActio
 //--------------------------------------------------------------------------------------------------
 void libGame_gt_PlayerHomeShieldProtectionOn_Init () {
     libGame_gt_PlayerHomeShieldProtectionOn = TriggerCreate("libGame_gt_PlayerHomeShieldProtectionOn_Func");
-    TriggerAddEventUnitBehaviorChange(libGame_gt_PlayerHomeShieldProtectionOn, null, "HomeShieldProtection", c_unitBehaviorChangeActivate);
+    TriggerAddEventUnitBehaviorChange(libGame_gt_PlayerHomeShieldProtectionOn, null, "HallOfStormsProtectionBuff", c_unitBehaviorChangeActivate);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -19701,7 +19781,7 @@ bool libGame_gt_PlayerHomeShieldProtectionOff_Func (bool testConds, bool runActi
 //--------------------------------------------------------------------------------------------------
 void libGame_gt_PlayerHomeShieldProtectionOff_Init () {
     libGame_gt_PlayerHomeShieldProtectionOff = TriggerCreate("libGame_gt_PlayerHomeShieldProtectionOff_Func");
-    TriggerAddEventUnitBehaviorChange(libGame_gt_PlayerHomeShieldProtectionOff, null, "HomeShieldProtection", c_unitBehaviorChangeDeactivate);
+    TriggerAddEventUnitBehaviorChange(libGame_gt_PlayerHomeShieldProtectionOff, null, "HallOfStormsProtectionBuff", c_unitBehaviorChangeDeactivate);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -20587,9 +20667,9 @@ void libGame_gt_TownMidLateGamePowerTransitionOn_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: Base - Repulser Field - Launch Missile
+// Trigger: Hall Of Storms - Knockback Launch Missile
 //--------------------------------------------------------------------------------------------------
-bool libGame_gt_BaseRepulserFieldLaunchMissile_Func (bool testConds, bool runActions) {
+bool libGame_gt_HallOfStormsKnockbackLaunchMissile_Func (bool testConds, bool runActions) {
     // Variable Declarations
     unit lv_base;
     unit lv_targetUnit;
@@ -20610,90 +20690,90 @@ bool libGame_gt_BaseRepulserFieldLaunchMissile_Func (bool testConds, bool runAct
 
     lv_base = EventPlayerEffectUsedUnit(c_effectUnitCaster);
     lv_targetUnit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
-    lv_abilityRange = libGame_gv_baseRepulserFieldLaunchDistance;
-    lv_targetPoint = libNtve_gf_PointOffsetTowardsPoint(UnitGetPosition(lv_base), libGame_gv_baseRepulserFieldLaunchDistance, UnitGetPosition(lv_targetUnit));
+    lv_abilityRange = libGame_gv_hallOfStormsKnockbackLaunchDistance;
+    lv_targetPoint = libNtve_gf_PointOffsetTowardsPoint(UnitGetPosition(lv_base), libGame_gv_hallOfStormsKnockbackLaunchDistance, UnitGetPosition(lv_targetUnit));
     lv_actualTargetPoint = lv_targetPoint;
     if ((PointPathingPassable(lv_actualTargetPoint) == false)) {
         lv_actualTargetPoint = libNtve_gf_PointOffsetTowardsPoint(UnitGetPosition(libGame_gv_teams[libGame_gf_TeamNumberOfPlayer(UnitGetOwner(lv_base))].lv_core), 7.5, UnitGetPosition(lv_base));
     }
 
-    UnitCreateEffectPoint(lv_targetUnit, "RepulserFieldLaunchUnit", lv_actualTargetPoint);
+    UnitCreateEffectPoint(lv_targetUnit, "HallOfStormsKnockbackLaunchMissile", lv_actualTargetPoint);
     return true;
 }
 
 //--------------------------------------------------------------------------------------------------
-void libGame_gt_BaseRepulserFieldLaunchMissile_Init () {
-    libGame_gt_BaseRepulserFieldLaunchMissile = TriggerCreate("libGame_gt_BaseRepulserFieldLaunchMissile_Func");
-    TriggerAddEventPlayerEffectUsed(libGame_gt_BaseRepulserFieldLaunchMissile, c_playerAny, "BaseRepulserFieldPuntDummySet");
+void libGame_gt_HallOfStormsKnockbackLaunchMissile_Init () {
+    libGame_gt_HallOfStormsKnockbackLaunchMissile = TriggerCreate("libGame_gt_HallOfStormsKnockbackLaunchMissile_Func");
+    TriggerAddEventPlayerEffectUsed(libGame_gt_HallOfStormsKnockbackLaunchMissile, c_playerAny, "HallOfStormsKnockbackDummySet");
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: Base - Safe Zone Punt
+// Trigger: Hall Of Storms - Knockback Unit Enters Region
 //--------------------------------------------------------------------------------------------------
-bool libGame_gt_BaseSafeZonePunt_Func (bool testConds, bool runActions) {
+bool libGame_gt_HallOfStormsKnockbackUnitEntersRegion_Func (bool testConds, bool runActions) {
     // Automatic Variable Declarations
     // Actions
     if (!runActions) {
         return true;
     }
 
-    if ((UnitHasBehavior2(libGame_gf_UnitEntersSafeZonePuntRegionUnit(), "KillUnitOnRepulserFieldImpact") == true)) {
+    if ((UnitHasBehavior2(libGame_gf_UnitEntersSafeZonePuntRegionUnit(), "HallOfStormsKnockbackKillable") == true)) {
         UnitKill(libGame_gf_UnitEntersSafeZonePuntRegionUnit());
     }
     else {
-        UnitCreateEffectPoint(libGame_gf_UnitEntersSafeZonePuntRegionUnit(), "RepulserFieldLaunchUnit", libGame_gf_UnitEntersSafeZonePuntRegionPuntPoint());
-        PlayerCreateEffectUnit(UnitGetOwner(libGame_gf_UnitEntersSafeZonePuntRegionUnit()), "BaseRepulserFieldSet", libGame_gf_UnitEntersSafeZonePuntRegionUnit());
+        UnitCreateEffectPoint(libGame_gf_UnitEntersSafeZonePuntRegionUnit(), "HallOfStormsKnockbackLaunchMissile", libGame_gf_UnitEntersSafeZonePuntRegionPuntPoint());
+        PlayerCreateEffectUnit(UnitGetOwner(libGame_gf_UnitEntersSafeZonePuntRegionUnit()), "HallOfStormsKnockbackImpactSet", libGame_gf_UnitEntersSafeZonePuntRegionUnit());
     }
     return true;
 }
 
 //--------------------------------------------------------------------------------------------------
-void libGame_gt_BaseSafeZonePunt_Init () {
-    libGame_gt_BaseSafeZonePunt = TriggerCreate("libGame_gt_BaseSafeZonePunt_Func");
-    TriggerEnable(libGame_gt_BaseSafeZonePunt, false);
-    libGame_gf_UnitEntersSafeZonePuntRegion(libGame_gt_BaseSafeZonePunt);
+void libGame_gt_HallOfStormsKnockbackUnitEntersRegion_Init () {
+    libGame_gt_HallOfStormsKnockbackUnitEntersRegion = TriggerCreate("libGame_gt_HallOfStormsKnockbackUnitEntersRegion_Func");
+    TriggerEnable(libGame_gt_HallOfStormsKnockbackUnitEntersRegion, false);
+    libGame_gf_UnitEntersSafeZonePuntRegion(libGame_gt_HallOfStormsKnockbackUnitEntersRegion);
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: Base - Unit Enters Safe Zone
+// Trigger: Hall Of Storms - Unit Enters Region
 //--------------------------------------------------------------------------------------------------
-bool libGame_gt_BaseUnitEntersSafeZone_Func (bool testConds, bool runActions) {
+bool libGame_gt_HallOfStormsUnitEntersRegion_Func (bool testConds, bool runActions) {
     // Automatic Variable Declarations
     // Actions
     if (!runActions) {
         return true;
     }
 
-    UnitCreateEffectUnit(libGame_gf_UnitEntersSafeZoneRegionUnit(), "HealingPadSet", libGame_gf_UnitEntersSafeZoneRegionUnit());
+    UnitCreateEffectUnit(libGame_gf_UnitEntersSafeZoneRegionUnit(), "HallOfStormsAllyApplySet", libGame_gf_UnitEntersSafeZoneRegionUnit());
     return true;
 }
 
 //--------------------------------------------------------------------------------------------------
-void libGame_gt_BaseUnitEntersSafeZone_Init () {
-    libGame_gt_BaseUnitEntersSafeZone = TriggerCreate("libGame_gt_BaseUnitEntersSafeZone_Func");
-    TriggerEnable(libGame_gt_BaseUnitEntersSafeZone, false);
-    libGame_gf_UnitEntersSafeZoneRegion(libGame_gt_BaseUnitEntersSafeZone);
+void libGame_gt_HallOfStormsUnitEntersRegion_Init () {
+    libGame_gt_HallOfStormsUnitEntersRegion = TriggerCreate("libGame_gt_HallOfStormsUnitEntersRegion_Func");
+    TriggerEnable(libGame_gt_HallOfStormsUnitEntersRegion, false);
+    libGame_gf_UnitEntersSafeZoneRegion(libGame_gt_HallOfStormsUnitEntersRegion);
 }
 
 //--------------------------------------------------------------------------------------------------
-// Trigger: Base - Unit Exits Safe Zone
+// Trigger: Hall Of Storms - Unit Exits Region
 //--------------------------------------------------------------------------------------------------
-bool libGame_gt_BaseUnitExitsSafeZone_Func (bool testConds, bool runActions) {
+bool libGame_gt_HallOfStormsUnitExitsRegion_Func (bool testConds, bool runActions) {
     // Automatic Variable Declarations
     // Actions
     if (!runActions) {
         return true;
     }
 
-    UnitBehaviorRemove(libGame_gf_UnitExitsSafeZoneRegionUnit(), "HomeShieldProtection", 1);
+    UnitBehaviorRemove(libGame_gf_UnitExitsSafeZoneRegionUnit(), "HallOfStormsProtectionBuff", 1);
     return true;
 }
 
 //--------------------------------------------------------------------------------------------------
-void libGame_gt_BaseUnitExitsSafeZone_Init () {
-    libGame_gt_BaseUnitExitsSafeZone = TriggerCreate("libGame_gt_BaseUnitExitsSafeZone_Func");
-    TriggerEnable(libGame_gt_BaseUnitExitsSafeZone, false);
-    libGame_gf_UnitExitsSafeZoneRegion(libGame_gt_BaseUnitExitsSafeZone);
+void libGame_gt_HallOfStormsUnitExitsRegion_Init () {
+    libGame_gt_HallOfStormsUnitExitsRegion = TriggerCreate("libGame_gt_HallOfStormsUnitExitsRegion_Func");
+    TriggerEnable(libGame_gt_HallOfStormsUnitExitsRegion, false);
+    libGame_gf_UnitExitsSafeZoneRegion(libGame_gt_HallOfStormsUnitExitsRegion);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -21532,10 +21612,10 @@ void libGame_InitTriggers () {
     libGame_gt_InitializeTownSystem_Init();
     libGame_gt_InitializeMoonwellIconsonTowns_Init();
     libGame_gt_TownMidLateGamePowerTransitionOn_Init();
-    libGame_gt_BaseRepulserFieldLaunchMissile_Init();
-    libGame_gt_BaseSafeZonePunt_Init();
-    libGame_gt_BaseUnitEntersSafeZone_Init();
-    libGame_gt_BaseUnitExitsSafeZone_Init();
+    libGame_gt_HallOfStormsKnockbackLaunchMissile_Init();
+    libGame_gt_HallOfStormsKnockbackUnitEntersRegion_Init();
+    libGame_gt_HallOfStormsUnitEntersRegion_Init();
+    libGame_gt_HallOfStormsUnitExitsRegion_Init();
     libGame_gt_VehicleReconnectionMonitor_Init();
     libGame_gt_KaelthasEntersVehicle_Init();
     libGame_gt_KaelthasStopsOccupyingVehicle_Init();
