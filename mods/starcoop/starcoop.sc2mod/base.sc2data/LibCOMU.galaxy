@@ -909,7 +909,7 @@ bool auto_libCOMU_gf_CT_ApplyDamageBounce2_TriggerFunc (bool testConds, bool run
         for (;; auto0317252B_u -= 1) {
             auto0317252B_var = UnitGroupUnitFromEnd(auto0317252B_g, auto0317252B_u);
             if (auto0317252B_var == null) { break; }
-            UnitDamage(lp_damagedUnit, "AttackDummyImpact", auto0317252B_var, (lv_bouncedDamageAmount / lv_bounceTargetsUnitCount));
+            UnitDamage(lp_damagedUnit, "DiffusionDummyImpact", auto0317252B_var, (lv_bouncedDamageAmount / lv_bounceTargetsUnitCount));
         }
         if ((UnitGetPropertyFixed(lp_damagedUnit, c_unitPropShieldsMax, c_unitPropCurrent) != 0.0)) {
             UnitSetPropertyFixed(lp_damagedUnit, c_unitPropShields, (UnitGetPropertyFixed(lp_damagedUnit, c_unitPropShields, c_unitPropCurrent) + lv_bouncedDamageAmount));
@@ -1004,7 +1004,7 @@ void libCOMU_gf_CT_ApplySideStep (unit lp_damagedUnit, unit lp_damagingUnit) {
     }
 }
 
-void libCOMU_gf_CT_ApplyFear (unit lp_damagedUnit, unit lp_damagingUnit) {
+void libCOMU_gf_CT_ApplyFear (unit lp_damagedUnit, unit lp_damagingUnit, fixed lp_damageAmount) {
     // Variable Declarations
     point lv_attackLocation;
     int lv_fearChance;
@@ -1013,7 +1013,7 @@ void libCOMU_gf_CT_ApplyFear (unit lp_damagedUnit, unit lp_damagingUnit) {
     // Variable Initialization
 
     // Implementation
-    if (((libCOMU_gv_cT_MutatorEnabledQuickList[(libCOMU_ge_CT_MutatorQuickList_CT_QuickFear)] == false) || (PlayerGroupHasPlayer(libCOOC_gf_HumanPlayers(), UnitGetOwner(lp_damagedUnit)) == false) || (PlayerGroupHasPlayer(PlayerGroupAlliance(c_playerGroupEnemy, UnitGetOwner(lp_damagingUnit)), UnitGetOwner(lp_damagedUnit)) == false) || (UnitFilterMatch(lp_damagedUnit, 1, UnitFilter(0, 0, (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile), (1 << (c_targetFilterHidden - 32)))) == false) || (UnitHasBehavior2(lp_damagedUnit, "MutatorFear") == true))) {
+    if (((libCOMU_gv_cT_MutatorEnabledQuickList[(libCOMU_ge_CT_MutatorQuickList_CT_QuickFear)] == false) || (PlayerGroupHasPlayer(libCOOC_gf_HumanPlayers(), UnitGetOwner(lp_damagedUnit)) == false) || (PlayerGroupHasPlayer(PlayerGroupAlliance(c_playerGroupEnemy, UnitGetOwner(lp_damagingUnit)), UnitGetOwner(lp_damagedUnit)) == false) || (UnitFilterMatch(lp_damagedUnit, 1, UnitFilter(0, 0, (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile), (1 << (c_targetFilterHidden - 32)))) == false) || (UnitHasBehavior2(lp_damagedUnit, "MutatorFear") == true) || (lp_damageAmount <= 0.0))) {
         return ;
     }
     else {
@@ -9259,7 +9259,7 @@ bool libCOMU_gt_CT_UnitDamage_Func (bool testConds, bool runActions) {
         libCOMU_gf_CT_ApplyEvolve(EventUnitDamageSourceUnit(), EventUnit());
     }
 
-    libCOMU_gf_CT_ApplyFear(EventUnit(), EventUnitDamageSourceUnit());
+    libCOMU_gf_CT_ApplyFear(EventUnit(), EventUnitDamageSourceUnit(), EventUnitDamageAmount());
     return true;
 }
 
@@ -9416,6 +9416,7 @@ void libCOMU_gt_CT_PlagueDeath_Init () {
 //--------------------------------------------------------------------------------------------------
 bool libCOMU_gt_CT_OutbreakSpawn_Func (bool testConds, bool runActions) {
     // Variable Declarations
+    unitgroup lv_spawnedUnits;
     unit lv_spawningStructure;
     unit lv_targetStructure;
     int lv_minSpawn;
@@ -9430,6 +9431,7 @@ bool libCOMU_gt_CT_OutbreakSpawn_Func (bool testConds, bool runActions) {
     int autoCBD94259_var;
 
     // Variable Initialization
+    lv_spawnedUnits = UnitGroupEmpty();
 
     // Actions
     if (!runActions) {
@@ -9453,7 +9455,7 @@ bool libCOMU_gt_CT_OutbreakSpawn_Func (bool testConds, bool runActions) {
 
     if ((GameGetMissionTime() >= 900.0)) {
         libNtve_gf_CreateUnitsWithDefaultFacing(1, "InfestedMedic", 0, UnitGetOwner(lv_spawningStructure), PointWithOffsetPolar(UnitGetPosition(lv_spawningStructure), 1.0, libNtve_gf_RandomAngle()));
-        UnitGroupAddUnitGroup(libCOMU_gv_cT_OnDeathSpawns, UnitLastCreatedGroup());
+        UnitGroupAddUnitGroup(lv_spawnedUnits, UnitLastCreatedGroup());
         libCOMU_gf_CT_RegisterSpawnedUnitGroup(UnitLastCreatedGroup());
     }
 
@@ -9470,16 +9472,19 @@ bool libCOMU_gt_CT_OutbreakSpawn_Func (bool testConds, bool runActions) {
     for ( ; autoCBD94259_var <= autoCBD94259_ae; autoCBD94259_var += 1 ) {
         if ((GameGetMissionTime() <= 400.0)) {
             libNtve_gf_CreateUnitsWithDefaultFacing(1, "InfestedCivilian", 0, UnitGetOwner(lv_spawningStructure), PointWithOffsetPolar(UnitGetPosition(lv_spawningStructure), 1.0, libNtve_gf_RandomAngle()));
+            UnitGroupAddUnitGroup(lv_spawnedUnits, UnitLastCreatedGroup());
         }
         else if (((GameGetMissionTime() <= 1200.0) || (libCOMI_gf_DifficultyValueFixed4(libCOMI_gf_DifficultyLevelForPlayerCoop(1), true, true, false, false, false, false) == true) || (libCOMI_gf_DifficultyValueFixed4(libCOMI_gf_DifficultyLevelForPlayerCoop(2), true, true, false, false, false, false) == true))) {
             libNtve_gf_CreateUnitsWithDefaultFacing(1, "InfestedTerranCampaign", 0, UnitGetOwner(lv_spawningStructure), PointWithOffsetPolar(UnitGetPosition(lv_spawningStructure), 1.0, libNtve_gf_RandomAngle()));
+            UnitGroupAddUnitGroup(lv_spawnedUnits, UnitLastCreatedGroup());
         }
         else if (true) {
             libNtve_gf_CreateUnitsWithDefaultFacing(1, "InfestedAbomination", 0, UnitGetOwner(lv_spawningStructure), PointWithOffsetPolar(UnitGetPosition(lv_spawningStructure), 1.0, libNtve_gf_RandomAngle()));
+            UnitGroupAddUnitGroup(lv_spawnedUnits, UnitLastCreatedGroup());
         }
-        UnitGroupIssueOrder(UnitLastCreatedGroup(), OrderTargetingPoint(AbilityCommand("attack", 0), UnitGetPosition(lv_targetStructure)), c_orderQueueReplace);
-        UnitGroupAddUnitGroup(libCOMU_gv_cT_OnDeathSpawns, UnitLastCreatedGroup());
-        libCOMU_gf_CT_RegisterSpawnedUnitGroup(UnitLastCreatedGroup());
+        UnitGroupIssueOrder(lv_spawnedUnits, OrderTargetingPoint(AbilityCommand("attack", 0), UnitGetPosition(lv_targetStructure)), c_orderQueueReplace);
+        UnitGroupAddUnitGroup(libCOMU_gv_cT_OnDeathSpawns, lv_spawnedUnits);
+        libCOMU_gf_CT_RegisterSpawnedUnitGroup(lv_spawnedUnits);
     }
     return true;
 }
