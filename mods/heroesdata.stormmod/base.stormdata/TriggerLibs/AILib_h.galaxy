@@ -1,0 +1,261 @@
+include "TriggerLibs/HeroesLib_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: AI
+//--------------------------------------------------------------------------------------------------
+// Preset Declarations
+const int libAIAI_ge_DefenderAIState_Idle = 0;
+const int libAIAI_ge_DefenderAIState_Fighting = 1;
+const int libAIAI_ge_DefenderAIState_Leashing = 2;
+string libAIAI_ge_DefenderAIState_Ident (int lp_val);
+const int libAIAI_ge_HeroAIDifficulty_Null = 0;
+const int libAIAI_ge_HeroAIDifficulty_HeroAITutorial1Enemy = 1;
+const int libAIAI_ge_HeroAIDifficulty_HeroAITutorial1Ally = 2;
+const int libAIAI_ge_HeroAIDifficulty_HeroAITutorialMapMechanicEnemy = 3;
+const int libAIAI_ge_HeroAIDifficulty_HeroAITutorialMapMechanicAlly = 4;
+const int libAIAI_ge_HeroAIDifficulty_HeroAITryMeMode = 5;
+const int libAIAI_ge_HeroAIDifficulty_HeroAITryMeModeAlly = 6;
+const int libAIAI_ge_HeroAIDifficulty_HeroAIVeryEasy = 7;
+const int libAIAI_ge_HeroAIDifficulty_HeroAIVeryEasyWithHumanAlly = 8;
+const int libAIAI_ge_HeroAIDifficulty_HeroAIEasy = 9;
+const int libAIAI_ge_HeroAIDifficulty_HeroAIEasyWithHumanAlly = 10;
+const int libAIAI_ge_HeroAIDifficulty_HeroAIMedium = 11;
+const int libAIAI_ge_HeroAIDifficulty_HeroAIVeryHard = 12;
+const int libAIAI_ge_HeroAIDifficulty_HeroAIElite = 13;
+string libAIAI_ge_HeroAIDifficulty_Ident (int lp_val);
+const int libAIAI_ge_AITeamDelegateActivateDeactivateMapToken_Activate = 0;
+const int libAIAI_ge_AITeamDelegateActivateDeactivateMapToken_Deactivate = 1;
+const int libAIAI_ge_AITeamDelegateMapNonEventMapValueOperations_Increase = 0;
+const int libAIAI_ge_AITeamDelegateMapNonEventMapValueOperations_Decrease = 1;
+const int libAIAI_ge_AITeamDelegateMapNonEventMapValueOperations_Disabled = 2;
+const int libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroAlive = 0;
+const int libAIAI_ge_AITeamDelegateLivingDeadHeroStatusUpdates_HeroDead = 1;
+const int libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Add = 0;
+const int libAIAI_ge_AITeamDelegateAddRemoveLaneValue_Remove = 1;
+
+// Constants
+const int libAIAI_gv_aIDefenderIndexMod = 2;
+const fixed libAIAI_gv_aIDefenderCloseEnoughDistance = 0.5;
+const fixed libAIAI_gv_aIDefenderFarFromLeashPosition = 2.5;
+const int libAIAI_gv_aIDefenderMaxLeashCount = 3;
+const fixed libAIAI_gv_aIDefenderMinAgroTime = 1.0;
+const fixed libAIAI_gv_aIDefenderNoTargetsExtraAgroTime = 0.25;
+const fixed libAIAI_gv_aIDefenderMinLeashTime = 1.0;
+const fixed libAIAI_gv_aIDefenderLeashReAnnounceTime = 4.0;
+const fixed libAIAI_gv_aIDefenderMinTimeBeforeCasting = 3.0;
+const fixed libAIAI_gv_aIHeroChooseTalentDelayBetweenPicks = 1.0;
+const fixed libAIAI_gv_aIHeroChooseTalentDelayInCaseOfRejoin = 300.0;
+const int libAIAI_gv_aITowerIndexMod = 2;
+const fixed libAIAI_gv_aIGateNearbyRange = 5.0;
+const int libAIAI_gv_aIMaxPathDistance = 65536;
+const int libAIAI_gv_defenderAIMaxNumberOfDefenderAI = 200;
+const int libAIAI_gv_defenderAIMaxNumberOfDefendersPerGroup = 20;
+const string libAIAI_gv_heroAILegacyGoal = "Legacy";
+const int libAIAI_gv_heroAIComputerPlayerType = 2;
+const int libAIAI_gv_heroAINumberofDifficultyLevels = 13;
+const int libAIAI_gv_heroAIMaxNumberofTalentBuilds = 10;
+const fixed libAIAI_gv_aITeamDelegatePeriodicMapValueAdjustmentInterval_C = 1.0;
+const int libAIAI_gv_aITeamDelegateHeroTokenValueDefault_C = 10;
+
+// Structures
+struct libAIAI_gs_DefenderAI {
+    bool lv_used;
+    int lv_defenderCount;
+    unitgroup lv_defendersGroup;
+    unit[libAIAI_gv_defenderAIMaxNumberOfDefendersPerGroup + 1] lv_defenderUnits;
+    point[libAIAI_gv_defenderAIMaxNumberOfDefendersPerGroup + 1] lv_leashPositions;
+    region lv_leashRegion;
+    region lv_aggoRegion;
+    bool lv_healOnLeash;
+    bool lv_canSeeCloaked;
+    bool lv_aggroOnComputerPlayers;
+    bool lv_showLeashedText;
+    bool lv_campDeathEventDispatched;
+    int lv_state;
+    int lv_leashCount;
+    unitgroup lv_validTargets;
+    bool[libCore_gv_bALMaxEnginePlayerCount + 1] lv_playerIsThreat;
+    fixed lv_timeStarted;
+    fixed lv_minAgroTime;
+    fixed lv_minLeashTime;
+    fixed lv_lastAnnouncedLeashing;
+    fixed lv_fightStartTime;
+    int lv_debugLabel;
+    unit lv_debugUnit;
+};
+
+struct libAIAI_gs_AIHeroTeamPlayerData {
+    playergroup lv_players;
+    playergroup lv_humanPlayers;
+    playergroup lv_aIPlayers;
+};
+
+struct libAIAI_gs_HeroAITalentBuild {
+    fixed lv_chance;
+    string[libCore_gv_talents_MaxTiers_C + 1] lv_talents;
+};
+
+struct libAIAI_gs_AIHeroData {
+    unit lv_currentHeroUnit;
+    bool lv_aIEnabled;
+    int lv_difficulty;
+    fixed lv_allowedToChooseTalentsTime;
+    int lv_pickedTalentBuild;
+    int lv_numberOfTalentBuilds;
+    libAIAI_gs_HeroAITalentBuild[libAIAI_gv_heroAIMaxNumberofTalentBuilds + 1] lv_talentBuilds;
+};
+
+// Variable Declarations
+int[libAIAI_gv_heroAINumberofDifficultyLevels + 1] libAIAI_gv_aIHeroHighestHeroSelectTier;
+bool libAIAI_gv_towerSystemOn;
+libAIAI_gs_DefenderAI[libAIAI_gv_defenderAIMaxNumberOfDefenderAI + 1] libAIAI_gv_defenderAI;
+int libAIAI_gv_defenderAIDefenderAIUpperBound;
+string libAIAI_gv_defenderAILastCreatedDefenderAIIndex;
+bool libAIAI_gv_defenderAICreepNeedsNewOrder;
+bool libAIAI_gv_defenderAIDisplayAIStatus;
+bool libAIAI_gv_heroAIActive;
+trigger libAIAI_gv_heroAICustomRegisterDangerUnitsTrigger;
+libAIAI_gs_AIHeroTeamPlayerData[3] libAIAI_gv_heroAITeamPlayerData;
+libAIAI_gs_AIHeroData[13] libAIAI_gv_aIHeroes;
+fixed[libCore_gv_bALMaxTeams + 1] libAIAI_gv_HeroAITakeOverHeroTime;
+fixed libAIAI_gv_heroAITakeOverHeroRateLimitSeconds;
+bool libAIAI_gv_heroAIAIChoosesTalents;
+bool libAIAI_gv_heroAIDisplayAIStatus;
+unitfilter libAIAI_gv_uF_MinionAI_GetNearestEnemyStructure;
+abilcmd libAIAI_gv_aIMoveAbil;
+abilcmd libAIAI_gv_aIAcquireMoveAbil;
+abilcmd libAIAI_gv_aITurnAbil;
+abilcmd libAIAI_gv_aIAttackAbil;
+abilcmd libAIAI_gv_aIAttackAllyAbil;
+abilcmd libAIAI_gv_aIAttackAbilMerc;
+abilcmd libAIAI_gv_aIAttackAbilBoss;
+abilcmd libAIAI_gv_aIStopAbil;
+int libAIAI_gv_aITeamDelegateNonEventMapIncreaseAmount;
+int libAIAI_gv_aITeamDelegateNonEventMapDecreaseAmount;
+int libAIAI_gv_aITeamDelegateNonEventMapValuePeriodicRateChange;
+timer libAIAI_gv_aITeamDelegatePeriodicMapValueAdjustmentTimer;
+fixed[libCore_gv_dataMinionTypeCount + 1] libAIAI_gv_aITeamDelegateMinionAIThreatValues;
+
+// Function Declarations
+int libAIAI_gf_MinionAIGetNextWaypointIndexForMinion (unit lp_minion);
+int libAIAI_gf_MinionAIGetLaneForMinion (unit lp_minion);
+int libAIAI_gf_MinionAIGetTeamToAttackForMinion (unit lp_minion);
+void libAIAI_gf_MinionAIUnhookUnitFromMinionAI (unit lp_unit);
+void libAIAI_gf_MinionAIStartMinionAI (int lp_waveNumberOveride, unit lp_unit, int lp_lane, int lp_nextWaypoint, bool lp_pathToInitialWaypoint, bool lp_aggresiveLeashing, bool lp_ignoresPathing, int lp_teamToAttack, bool lp_prefersStructureTargets);
+void libAIAI_gf_MinionAITurnMinionAISystemOnOff (bool lp_onOff);
+void libAIAI_gf_MinionAIPauseUnpauseMinionAISystem (bool lp_pauseUnpause);
+void libAIAI_gf_MinionAIMinionsIgnoreLaneRequirements (bool lp_trueFalse);
+void libAIAI_gf_MinionAISetRangeToFindUnitsFrom (int lp_minionIndex, fixed lp_attackRange);
+void libAIAI_gf_MinionAISetMinionTargetUnit (unit lp_minionUnit, unit lp_targetUnit);
+bool libAIAI_gf_MinionAIIsUnitLaneTheSameAsOtherUnit (unit lp_unit1, unit lp_unit2);
+void libAIAI_gf_TowerTurnTowerSystemOnOff (bool lp_onOff);
+int libAIAI_gf_DefenderAIDetermineState (int lp_defenderAIIndex, int lp_oldState);
+void libAIAI_gf_DefenderAIStateLogic (int lp_defenderAIIndex);
+void libAIAI_gf_DefenderAIUpdateValidTargetList (int lp_defenderAIIndex);
+void libAIAI_gf_DefenderAITransitionDefenderAIIntoState (int lp_defenderAIIndex, int lp_state);
+void libAIAI_gf_DefenderAIIssueFightingOrderToCreep (int lp_defenderAIIndex, int lp_creep);
+void libAIAI_gf_DefenderAICreepDies (int lp_defenderAIIndex, unit lp_unit, int lp_killingPlayer);
+int libAIAI_gf_DefenderAINewIndex ();
+void libAIAI_gf_StartDefenderAI (bool lp_canSeeCloakedUnits, unitgroup lp_defenders, region lp_leashRegion, region lp_aggroRegion, bool lp_healOnLeash);
+void libAIAI_gf_AddUnitsToDefenderAI (int lp_defenderAIIndex, unitgroup lp_defenders);
+void libAIAI_gf_SetDefendersAggroOnComputerPlayers (int lp_aIIndex, bool lp_aggro);
+void libAIAI_gf_SetDefendersShowLeashedText (int lp_aIIndex, bool lp_show);
+int libAIAI_gf_LastCreatedDefenderAI ();
+int libAIAI_gf_DefenderAIIndexOfUnit (unit lp_unit);
+unitgroup libAIAI_gf_DefenderGroup (int lp_defenderAIIndex);
+unit libAIAI_gf_DefenderUnit (int lp_defenderAIIndex, int lp_index);
+int libAIAI_gf_DefenderUnitCount (int lp_defenderAIIndex);
+region libAIAI_gf_DefenderAgroRegion (int lp_defenderAIIndex);
+region libAIAI_gf_DefenderLeashRegion (int lp_defenderAIIndex);
+unitgroup libAIAI_gf_DefenderValidTargets (int lp_defenderAIIndex);
+bool libAIAI_gf_DefendersAreFighting (int lp_defenderAIIndex);
+bool libAIAI_gf_DefendersAreLeashing (int lp_defenderAIIndex);
+bool libAIAI_gf_DefendersAnyOutsideLeashRegion (int lp_defenderAIIndex);
+point libAIAI_gf_DefenderMovePointIntoRegion (point lp_point, region lp_region);
+void libAIAI_gf_SetDefenderLeashLocation (int lp_defenderAIIndex, int lp_index, point lp_loc);
+void libAIAI_gf_DefenderAIUpdateAIStatus (int lp_defenderIndex);
+void libAIAI_gf_DefenderAIToggleAIStatus (bool lp_show);
+void libAIAI_gf_HeroAICleanupAllAIData ();
+text libAIAI_gf_HeroAIDifficultyDisplayText (int lp_player);
+void libAIAI_gf_HeroAIGeneralPreInit ();
+void libAIAI_gf_HeroAIEnableAIForPlayer (int lp_trigPlayer);
+void libAIAI_gf_HeroAIDisableAIForPlayer (int lp_trigPlayer);
+void libAIAI_gf_HeroAISetAIDifficultyLevel (int lp_player, int lp_difficulty);
+void libAIAI_gf_HeroAISetupUnitDangerTracking (unit lp_unit);
+bool libAIAI_gf_HeroAIPreInitHasAlliedHuman (int lp_faction);
+void libAIAI_gf_HeroAITalentPreInit ();
+void libAIAI_gf_HeroAIInitTalentBuilds (int lp_trigPlayer);
+void libAIAI_gf_HeroAIChooseAITalentBuild (int lp_trigPlayer, fixed lp_totalChance);
+int libAIAI_gf_HeroAIDetermineClosestAITalentBuild (int lp_trigPlayer);
+void libAIAI_gf_HeroAIPickSpecificUltimateIfControllingHumanSlot (int lp_trigPlayer, string lp_ultimateTalent);
+void libAIAI_gf_HeroAIEnableTalentPicking (int lp_trigPlayer, bool lp_enable);
+void libAIAI_gf_HeroAIPickTalent (int lp_trigPlayer, int lp_buttonIndex, int lp_talentIndex);
+bool libAIAI_gf_HeroAITrytoPickSpecificTalent (int lp_trigPlayer, string lp_talent);
+bool libAIAI_gf_HeroAIRandomlyPickAnyAvailableTalent (int lp_trigPlayer);
+bool libAIAI_gf_HeroAISelectNextTalentInBuild (int lp_trigPlayer);
+bool libAIAI_gf_HeroAIChooseTalentViaSpecialHeroLogic (int lp_trigPlayer);
+void libAIAI_gf_HeroAIChooseTalents (int lp_faction);
+string libAIAI_gf_HeroAIGetGoalName (unit lp_unit);
+void libAIAI_gf_HeroAIUpdateTeamPlayerData (int lp_team);
+void libAIAI_gf_HeroAIReleaseHeroControl (int lp_player);
+void libAIAI_gf_HeroAITakeOverHeroForPlayer (int lp_player);
+void libAIAI_gf_HeroAISetupTownData ();
+void libAIAI_gf_HeroAISetupTeamData ();
+void libAIAI_gf_HeroAIStartAI ();
+bool libAIAI_gf_HeroAIIsPlayerActive (int lp_trigPlayer, int lp_type);
+bool libAIAI_gf_HeroAICanPlayerPingPlayerForHelp (int lp_pingingPlayer, int lp_pingedPlayer);
+bool libAIAI_gf_HeroAIAIDifficultyLevelShouldUseHero (int lp_player, int lp_heroIndex);
+bool libAIAI_gf_HeroAIIsAIEnabledForPlayer (int lp_trigPlayer);
+bool libAIAI_gf_HeroAITeamHasHumanPlayers (int lp_faction);
+int libAIAI_gf_HeroAITeamIndexOfFaction (int lp_faction);
+void libAIAI_gf_HeroAIUpdateAIStatus (int lp_trigPlayer);
+void libAIAI_gf_HeroAIUpdateAIStatusHelper (int lp_trigPlayer, int lp_statusLabel, int lp_difficultyLabel);
+void libAIAI_gf_HeroAILostVikingsClearDebuggingUI (int lp_trigPlayer);
+int libAIAI_gf_ConvertIntegertoGoalTeam (int lp_teamNumber);
+fixed libAIAI_gf_AIGetActiveWeaponRange (unit lp_unit);
+bool libAIAI_gf_AIUnitBehindEnemyGateEstimate (point lp_selfPosition, int lp_selfPlayer, unit lp_enemyUnit);
+bool libAIAI_gf_AIIsPointBehindEnemyGateEstimate (point lp_selfPosition, int lp_selfPlayer, point lp_otherPoint);
+void libAIAI_gf_AITeamDelegateSetMapValueIncreaseAmount (int lp_value);
+void libAIAI_gf_AITeamDelegateSetMapValueDecreaseAmount (int lp_value);
+void libAIAI_gf_AITeamDelegateSetPeriodicMapValueAction (int lp_modificationType);
+void libAIAI_gf_AITeamDelegateAdjustMapNonEventValue (int lp_Adjustment);
+void libAIAI_gf_AITeamDelegateResetMapNonEventValue ();
+void libAIAI_gf_AITeamDelegateAdjustMapEventProgressforTeam (int lp_Adjustment, int lp_teamID);
+void libAIAI_gf_AITeamDelegateAdjustEventCarriedPotentialSufficient (int lp_Adjustment, int lp_teamID);
+void libAIAI_gf_AITeamDelegateResetEventCarriedPotentialSufficient (int lp_teamID);
+void libAIAI_gf_AITeamDelegateResetMapEventProgressforTeam (int lp_teamID);
+void libAIAI_gf_AITeamDelegateActivateDeactivateMapEvent (int lp_activateDeactivate);
+void libAIAI_gf_AITeamDelegateActivateDeactivateMapReward (int lp_activateDeactivate);
+void libAIAI_gf_AITeamDelegateModifyHeroStatusTokensforTeam (int lp_addRemove, int lp_tokenValue, int lp_teamID, int lp_livingDeadToken);
+void libAIAI_gf_AITeamDelegateAddRemoveMercLanertoLane (int lp_teamID, int lp_laneSpawned, string lp_mercUnitType, int lp_addRemove, fixed lp_threatValue);
+int libAIAI_gf_GetMinionPresetIndexfromUnitType (string lp_minionUnitType);
+void libAIAI_gf_AITeamDelegateAddRemoveMinionThreattoLane (int lp_teamID, int lp_laneSpawned, string lp_minionUnitType, int lp_addRemove);
+void libAIAI_gf_AITeamDelegateUpdateFortKeepcountinLaneforTeam (int lp_ownerTeamID, int lp_laneID);
+void libAIAI_gf_AITeamDelegateUpdateTeamLevelDifference (int lp_playerID, int lp_playerLevel);
+int libAIAI_gf_GetTalentTierforTeam (int lp_teamID);
+
+// Trigger Declarations
+trigger libAIAI_gt_IncludeAI;
+trigger libAIAI_gt_MinionAIUpdateMercPath;
+trigger libAIAI_gt_TowerDestroyed;
+trigger libAIAI_gt_InitializeTowerAISystem;
+trigger libAIAI_gt_TerminateTowerAISystem;
+trigger libAIAI_gt_DefenderAICreepsAttacked;
+trigger libAIAI_gt_DefenderAIDefenderAILogic;
+trigger libAIAI_gt_HeroAIGameStarted;
+trigger libAIAI_gt_HeroAIUpdateTalentSelection;
+trigger libAIAI_gt_HeroAIUpdateDebugDisplay;
+trigger libAIAI_gt_HeroAITakeOverHero;
+trigger libAIAI_gt_HeroAIReleaseHeroControl;
+trigger libAIAI_gt_HeroAITownDataInitialized;
+trigger libAIAI_gt_DEBUGSetAIBuild;
+trigger libAIAI_gt_HeroAILostVikingsDebuggingUpdate;
+trigger libAIAI_gt_AITeamDelegateStartPeriodicMapValueAdjustmentTimer;
+trigger libAIAI_gt_AITeamDelegatePeriodicMapValueAdjustment;
+trigger libAIAI_gt_AITeamDelegateInitializeMinionThreatValues;
+trigger libAIAI_gt_AITeamDelegateInitializeLaneStatusforTeam;
+trigger libAIAI_gt_AITeamDelegateUpdateTeamTalentTierDifferences;
+
+// Library Initialization
+void libAIAI_InitVariables ();
+

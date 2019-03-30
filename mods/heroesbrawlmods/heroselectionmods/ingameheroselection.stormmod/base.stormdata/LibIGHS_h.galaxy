@@ -1,0 +1,178 @@
+include "TriggerLibs/HeroesLib"
+
+//--------------------------------------------------------------------------------------------------
+// Library: In Game Hero Selection
+//--------------------------------------------------------------------------------------------------
+// Preset Declarations
+const int libIGHS_ge_ShufflePickMode_RoleLocked = 0;
+const int libIGHS_ge_ShufflePickMode_Unlocked = 1;
+const int libIGHS_ge_ShufflePickMode_AllSameHero = 2;
+const int libIGHS_ge_ShufflePickMode_CuratedList = 3;
+const int libIGHS_ge_ShufflePickMode_NotInitialized = 4;
+
+// Constants
+const int libIGHS_gv_aRM_TeamComp_PickHeroHeroesCount_C = 3;
+const int libIGHS_gv_curatedHeroCountMax = 100;
+const int libIGHS_gv_curatedSkinCountMax = 100;
+const int libIGHS_gv_curatedMountCountMax = 40;
+const string libIGHS_gv_eventID_ShufflePickUIShown_C = "ShufflePickUIShown";
+
+// Structures
+struct libIGHS_gs_ShufflePlayerSettings {
+    string[libIGHS_gv_aRM_TeamComp_PickHeroHeroesCount_C + 1] lv_heroPickOptions;
+    int lv_currentOptionSelected;
+    bool lv_isLockedIn;
+};
+
+struct libIGHS_gs_ShuffleSettings {
+    int lv_shufflePickMode;
+    libIGHS_gs_ShufflePlayerSettings[libCore_gv_bALMaxPlayers + 1] lv_players;
+    int lv_totalTimeAllowedToPickHeroes;
+    timer lv_heroPickTimer;
+    bool lv_shufflePickInProgress;
+    text lv_titleText;
+    bool lv_randomizeSkinsAndMounts;
+    fixed lv_crazyModeChance;
+    bool lv_showHeroPickSuggestions;
+    bool lv_showHeroClassIcons;
+    string lv_everyonesHero;
+    string[6] lv_crazyModeHeroesPicked;
+};
+
+struct libIGHS_gs_CuratedHero {
+    string lv_heroLink;
+    int lv_team;
+};
+
+struct libIGHS_gs_CuratedSkin {
+    string lv_skinLink;
+    string lv_requiredHero;
+    int lv_team;
+};
+
+struct libIGHS_gs_CuratedMount {
+    string lv_mountLink;
+    int lv_team;
+    string lv_requiredHero;
+};
+
+struct libIGHS_gs_ShuffleUI {
+    int lv_dialog;
+    int lv_mainPanel;
+    int lv_countdownLabel;
+    int lv_finalCountdownFrame;
+    int lv_titleLabel;
+    int lv_arenaModeTitlePanel;
+    int lv_nonArenaModeTitlePanel;
+    int lv_extraInfoLabel;
+    int lv_victoryCount;
+    int[libCore_gv_bALMaxTeams + 1] lv_teamRoundIndicatorFrame;
+    int[libCore_gv_bALMaxTeams + 1][4] lv_roundWinIndicatorImageBackgrounds;
+    int[libCore_gv_bALMaxTeams + 1][4] lv_roundWinIndicatorImages;
+    int lv_pickHeroPanel;
+    int[libCore_gv_bALMaxPlayersOnATeam + 1] lv_playerHeroPanelPerPlayer;
+    int[libCore_gv_bALMaxPlayersOnATeam + 1] lv_playerIdLabel;
+    int[libCore_gv_bALMaxPlayers + 1] lv_playerClassLabel;
+    int[libCore_gv_bALMaxPlayersOnATeam + 1][libIGHS_gv_aRM_TeamComp_PickHeroHeroesCount_C + 1] lv_playerHeroButton;
+    int[libCore_gv_bALMaxPlayersOnATeam + 1][libIGHS_gv_aRM_TeamComp_PickHeroHeroesCount_C + 1] lv_playerHeroButtonLabel;
+    int[libCore_gv_bALMaxPlayersOnATeam + 1][libIGHS_gv_aRM_TeamComp_PickHeroHeroesCount_C + 1] lv_playerHeroButtonImage;
+    int[libCore_gv_bALMaxPlayersOnATeam + 1][libIGHS_gv_aRM_TeamComp_PickHeroHeroesCount_C + 1] lv_playerHeroButtonBorder;
+    int[libCore_gv_bALMaxPlayersOnATeam + 1][libIGHS_gv_aRM_TeamComp_PickHeroHeroesCount_C + 1] lv_playerHeroRoleImage;
+    int[libCore_gv_bALMaxPlayersOnATeam + 1][libIGHS_gv_aRM_TeamComp_PickHeroHeroesCount_C + 1] lv_playerHeroRoleBackground;
+    int[libIGHS_gv_aRM_TeamComp_PickHeroHeroesCount_C + 1] lv_playerSuggestedHeroImage;
+    int[libCore_gv_bALMaxPlayersOnATeam + 1][libIGHS_gv_aRM_TeamComp_PickHeroHeroesCount_C + 1] lv_playerHeroButtonBorderSelected;
+    int[libCore_gv_bALMaxPlayersOnATeam + 1] lv_playerReadyButton;
+    int[libCore_gv_bALMaxPlayersOnATeam + 1] lv_playerReadyLabel;
+    int[libCore_gv_bALMaxPlayersOnATeam + 1] lv_voiceChatFrame;
+    int[libCore_gv_bALMaxPlayersOnATeam + 1] lv_heroContainerFrame;
+    int[libCore_gv_bALMaxPlayersOnATeam + 1] lv_heroCutsceneFrame;
+    int lv_abilitiesInfoButton;
+    int lv_talentsInfoButton;
+    int lv_debugCrazyBtn;
+    int lv_debugRerollBtn;
+};
+
+// Variable Declarations
+libIGHS_gs_ShuffleSettings libIGHS_gv_shuffleSettings;
+libIGHS_gs_CuratedHero[libIGHS_gv_curatedHeroCountMax + 1] libIGHS_gv_curatedHeroes;
+int libIGHS_gv_curatedHeroCount;
+libIGHS_gs_CuratedHero[libIGHS_gv_curatedHeroCountMax + 1] libIGHS_gv_removedCuratedHeroes;
+int libIGHS_gv_removedCuratedHeroCount;
+libIGHS_gs_CuratedSkin[libIGHS_gv_curatedSkinCountMax + 1] libIGHS_gv_curatedSkins;
+int libIGHS_gv_curatedSkinCount;
+libIGHS_gs_CuratedMount[libIGHS_gv_curatedMountCountMax + 1] libIGHS_gv_curatedMounts;
+int libIGHS_gv_curatedMountCount;
+libIGHS_gs_ShuffleUI libIGHS_gv_shuffleUI;
+bool libIGHS_gv_dEBUG_ShuffleDebugEnabled;
+bool libIGHS_gv_dEBUG_ShuffleTimerIsPaused;
+int libIGHS_gv_dEBUG_100PicksCheatUsed;
+soundlink libIGHS_gv_allHeroesPickedSound;
+
+// Function Declarations
+void libIGHS_gf_InitializeShufflePickRoleLocked (text lp_shuffleScreenTitle, bool lp_randomizeMountsAndSkins, bool lp_showHeroClassIcons, int lp_timeAllowedToPick, fixed lp_crazyModeChance);
+void libIGHS_gf_InitializeShufflePickUnlocked (text lp_shuffleScreenTitle, bool lp_randomizeMountsAndSkins, bool lp_showHeroClassIcons, int lp_timeAllowedToPick, fixed lp_crazyModeChance, bool lp_usePickSuggestions);
+void libIGHS_gf_InitializeShufflePickAllSameHero (text lp_shuffleScreenTitle, bool lp_randomizeMountsAndSkins, bool lp_showHeroClassIcons, int lp_timeAllowedToPick, string lp_everyonesHero);
+void libIGHS_gf_InitializeShufflePickCuratedHeroList (text lp_shuffleScreenTitle, bool lp_randomizeMountsAndSkins, bool lp_showHeroClassIcons, int lp_timeAllowedToPick, trigger lp_curatedListInitializationTrigger, bool lp_usePickSuggestions);
+void libIGHS_gf_ReshuffleHeroPicksAndShowShuffleUI ();
+void libIGHS_gf_SetShuffleScreenTitleText (text lp_text);
+void libIGHS_gf_SetShuffleScreenExtraInfoTextForPlayer (int lp_playerID, text lp_text);
+void libIGHS_gf_SetShuffleUIVictoryCounters (int lp_winningTeam, int lp_victoryCount);
+void libIGHS_gf_ClearEveryonesHero ();
+bool libIGHS_gf_HeroAlreadyBeenPickedForCrazyMode (string lp_hero);
+void libIGHS_gf_ResetAllHeroPicks ();
+void libIGHS_gf_PrepareHeroPicksRoleLocked ();
+void libIGHS_gf_PrepareHeroPicksUnlocked ();
+void libIGHS_gf_PrepareHeroPicksAllSameHero ();
+void libIGHS_gf_PrepareHeroPicksCuratedHeroList ();
+int libIGHS_gf_GetClassofHero (string lp_heroLink);
+int libIGHS_gf_GetCountofHeroPickAppearencesonTeam (string lp_hero, int lp_team);
+string libIGHS_gf_GetRandomShufflePickEnabledHero (bool lp_usingCrazyMode);
+bool libIGHS_gf_IsHeroValidforShufflePick (string lp_hero, bool lp_usingCrazyMode);
+bool libIGHS_gf_AreAllPlayersLockedIn ();
+void libIGHS_gf_SetHeroSkinAndMountForPlayer (int lp_player);
+bool libIGHS_gf_IsCuratedHeroinRemovedList (string lp_heroLink, int lp_team);
+string libIGHS_gf_GetRandomCuratedHero (int lp_team);
+void libIGHS_gf_AddHeroToCuratedHeroList (string lp_hero, int lp_team);
+void libIGHS_gf_AddAllValidHeroesToCuratedHeroList ();
+void libIGHS_gf_RemoveHeroFromCuratedHeroList (string lp_hero, int lp_team);
+void libIGHS_gf_AddSkinToCuratedSkinList (string lp_skin, string lp_heroThatUsesSkin, int lp_team);
+void libIGHS_gf_SetSkinforPlayerUsingCuratedList (int lp_player);
+void libIGHS_gf_SetSkinforAllPlayersUsingCuratedList ();
+void libIGHS_gf_AddMountToCuratedMountList (string lp_mount, string lp_hero, int lp_team);
+void libIGHS_gf_SetMountforPlayerUsingCuratedList (int lp_player);
+void libIGHS_gf_SetMountforAllPlayersUsingCuratedList ();
+void libIGHS_gf_ARM_HeroPickUIInit ();
+void libIGHS_gf_ShowShufflePickUI ();
+void libIGHS_gf_SelectPickOptionforPlayer (int lp_player, int lp_newPick);
+void libIGHS_gf_LockUnlockHeroChoice (bool lp_toggle, int lp_player);
+void libIGHS_gf_ShowPickOptionsforAllPlayers ();
+void libIGHS_gf_ShowCalloutsDuringHeroPickCountdown (timer lp_timer);
+void libIGHS_gf_ShowHidePlayersHeroCutscene (int lp_player, bool lp_showOrHide);
+void libIGHS_gf_ShowPickSuggestionsforTeam (int lp_team);
+void libIGHS_gf_SetVictoryCount (int lp_victoryCount);
+void libIGHS_gf_ShufflePickWorldFadeIn ();
+int libIGHS_gf_GetHeroPickDisplayColumn (int lp_viewerPlayer, int lp_subjectPlayer);
+void libIGHS_gf_ShufflePickUIShown (trigger t);
+void libIGHS_gf_SendEventShufflePickUIShown ();
+void libIGHS_gf_ShufflePickDebugMessage (text lp_text);
+void libIGHS_gf_MuteUnmuteSoundChannelsNotUsedForHeroSelection (bool lp_muteUnmute);
+
+// Trigger Declarations
+trigger libIGHS_gt_MapInitializationSetHeroesCallback;
+trigger libIGHS_gt_ShufflePickHeroSelectionCallback;
+trigger libIGHS_gt_PlayerClicksaShuffleUIButton;
+trigger libIGHS_gt_HeroPickCountdownTimerExpires;
+trigger libIGHS_gt_DEBUGEnableDebugMode;
+trigger libIGHS_gt_DEBUGInitUnlockedPick;
+trigger libIGHS_gt_DEBUGInitRoleLockedPick;
+trigger libIGHS_gt_DEBUGInitAllSameHeroPick;
+trigger libIGHS_gt_DEBUGInitCuratedList;
+trigger libIGHS_gt_DEBUGCurateHeroesforDebugging;
+trigger libIGHS_gt_DEBUGPauseUnpauseShuffleTimer;
+trigger libIGHS_gt_DEBUGSetRoleOptionforPlayer;
+trigger libIGHS_gt_DEBUGSetHeroPicksforPlayer;
+trigger libIGHS_gt_DEBUG100Picks;
+
+// Library Initialization
+void libIGHS_InitVariables ();
+

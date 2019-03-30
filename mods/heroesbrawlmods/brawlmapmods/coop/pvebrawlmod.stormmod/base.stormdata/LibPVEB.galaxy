@@ -1,0 +1,3309 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/AILib"
+include "TriggerLibs/UILib"
+include "TriggerLibs/StartingExperienceLib"
+include "TriggerLibs/SoundLib"
+include "TriggerLibs/GameDataHelperLib"
+include "TriggerLibs/SupportLib"
+
+include "LibPVEB_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: PvE Brawl Mod
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libPVEB_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+    libAIAI_InitVariables();
+    libUIUI_InitVariables();
+    libStEx_InitVariables();
+    libSond_InitVariables();
+    libGDHL_InitVariables();
+    libSprt_InitVariables();
+}
+
+// Variable Initialization
+bool libPVEB_InitVariables_completed = false;
+
+void libPVEB_InitVariables () {
+    int init_i;
+
+    if (libPVEB_InitVariables_completed) {
+        return;
+    }
+
+    libPVEB_InitVariables_completed = true;
+
+    libPVEB_gv_pBNPCHeroLevel = 1;
+    libPVEB_gv_filtersPvEEventHeroic = UnitFilter((1 << c_targetFilterHeroic), 0, (1 << c_targetFilterMissile) | (1 << c_targetFilterItem), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)));
+    libPVEB_gv_pvEPickupPreplacedPickups = UnitGroupEmpty();
+    libPVEB_gv_pvEPickupItemsOnGround = UnitGroupEmpty();
+    libPVEB_gv_pvEPickupCurrentRotationStep = 1;
+    libPVEB_gv_pvEPickupRolloverRotationStep = 5;
+    libPVEB_gv_pBNPCHeroUnits = UnitGroupEmpty();
+    libPVEB_gv_pBNPCMinions = UnitGroupEmpty();
+    for (init_i = 0; init_i <= libCore_gv_bALMaxPlayers; init_i += 1) {
+        libPVEB_gv_pvEResurrectSpiritTextTag[init_i] = c_textTagNone;
+    }
+    for (init_i = 0; init_i <= libCore_gv_bALMaxPlayers; init_i += 1) {
+        libPVEB_gv_pvEResurrectSpiritTextTagSelf[init_i] = c_textTagNone;
+    }
+    for (init_i = 0; init_i <= libCore_gv_bALMaxPlayers; init_i += 1) {
+        libPVEB_gv_pvEResurrectNotifyTargetPlayerReviveInterruptedTimer[init_i] = TimerCreate();
+    }
+    for (init_i = 0; init_i <= libCore_gv_bALMaxPlayers; init_i += 1) {
+        libPVEB_gv_pvEResurrectResurrectionCastersUnitGroup[init_i] = UnitGroupEmpty();
+    }
+    for (init_i = 0; init_i <= libCore_gv_bALMaxPlayers; init_i += 1) {
+        libPVEB_gv_pvEResurrectRevivingDialog[init_i].lv_panel = c_invalidDialogId;
+        libPVEB_gv_pvEResurrectRevivingDialog[init_i].lv_label = c_invalidDialogId;
+    }
+    libPVEB_gv_tutorialVeteranPanel.lv_mainPanel = c_invalidDialogControlId;
+    libPVEB_gv_tutorialVeteranPanel.lv_directiveTextFrame = c_invalidDialogControlId;
+    libPVEB_gv_tutorialVeteranPanel.lv_directiveTitleLabel = c_invalidDialogControlId;
+    libPVEB_gv_tutorialVeteranPanel.lv_directiveDescriptionLabel = c_invalidDialogControlId;
+    libPVEB_gv_tutorialVeteranPanel.lv_mainPanelSmall = c_invalidDialogControlId;
+    libPVEB_gv_tutorialVeteranPanel.lv_directiveTextFrameSmall = c_invalidDialogControlId;
+    libPVEB_gv_tutorialVeteranPanel.lv_directiveTitleLabelSmall = c_invalidDialogControlId;
+    libPVEB_gv_tutorialVeteranPanel.lv_directiveDescriptionLabelSmall = c_invalidDialogControlId;
+    libPVEB_gv_pB_GameDifficulty = libPVEB_ge_PVEGameDifficulty_Normal;
+    libPVEB_gv_gameOverResult = c_gameOverTie;
+    libPVEB_gv_pBGameOverScreen.lv_victoryLabel = c_invalidDialogControlId;
+    libPVEB_gv_pBGameOverScreen.lv_victoryLabelGlow = c_invalidDialogControlId;
+    libPVEB_gv_pBGameOverScreen.lv_defeatLabel = c_invalidDialogControlId;
+    libPVEB_gv_pBGameOverScreen.lv_defeatLabelGlow = c_invalidDialogControlId;
+    libPVEB_gv_pBGameOverScreen.lv_timeLabel = c_invalidDialogControlId;
+    libPVEB_gv_pBGameOverScreen.lv_finalTimeLabel = c_invalidDialogControlId;
+    libPVEB_gv_pBGameOverPlayerXPGain = 100.0;
+    for (init_i = 0; init_i <= libPVEB_gv_pvEWaveCount_Max_C; init_i += 1) {
+        libPVEB_gv_pvEWaves[init_i].lv_units = UnitGroupEmpty();
+        libPVEB_gv_pvEWaves[init_i].lv_unitsWaitingAtWaypoint = UnitGroupEmpty();
+        libPVEB_gv_pvEWaves[init_i].lv_unitsLeashing = UnitGroupEmpty();
+        libPVEB_gv_pvEWaves[init_i].lv_wayPointPre = 1;
+        libPVEB_gv_pvEWaves[init_i].lv_wayPointNext = 1;
+    }
+}
+
+// Presets
+// Functions
+void libPVEB_gf_PBUpdateTeamLevel (int lp_teamIndex, int lp_newLevel) {
+    // Variable Declarations
+    int lv_itPlayer;
+    fixed lv_xPValue;
+
+    // Automatic Variable Declarations
+    playergroup auto9EDFC47E_g;
+
+    // Variable Initialization
+
+    // Implementation
+    libPVEB_gv_pBNPCHeroLevel = lp_newLevel;
+    auto9EDFC47E_g = libGame_gf_PlayersOnTeamHeroes(lp_teamIndex, false);
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(auto9EDFC47E_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	lv_xPValue = (libCore_gf_GetTotalXPForLevel(lp_newLevel) - UnitGetPropertyFixed(libGame_gv_players[lv_itPlayer].lv_heroUnit, c_unitPropXP, c_unitPropCurrent));
+        if ((lv_xPValue >= 1)) {
+            libGame_gf_GrantXPToPlayer(lv_xPValue, lv_itPlayer, libGame_ge_XPSources_Debug);
+        }
+        else {
+            TextExpressionSetToken("Param/Expression/lib_PVEB_8E480156", "A", IntToText(lp_teamIndex));
+            TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_PVEB_8E480156"), true);
+            return ;
+        }
+    }
+}
+
+bool libPVEB_gf_PlayerHeroNearby (point lp_location) {
+    // Variable Declarations
+    int lv_itPlayer;
+    unit lv_itUnit;
+
+    // Automatic Variable Declarations
+    playergroup auto9CA35189_g;
+    unitgroup autoB7588DE3_g;
+    int autoB7588DE3_u;
+
+    // Variable Initialization
+
+    // Implementation
+    auto9CA35189_g = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamOrderIndex_C, false);
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(auto9CA35189_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	autoB7588DE3_g = libGame_gv_players[lv_itPlayer].lv_heroUnitGroup;
+        autoB7588DE3_u = UnitGroupCount(autoB7588DE3_g, c_unitCountAll);
+        for (;; autoB7588DE3_u -= 1) {
+            lv_itUnit = UnitGroupUnitFromEnd(autoB7588DE3_g, autoB7588DE3_u);
+            if (lv_itUnit == null) { break; }
+            if ((UnitIsAlive(lv_itUnit) == true) && (DistanceBetweenPoints(UnitGetPosition(lv_itUnit), lp_location) < 12.0)) {
+                return true;
+            }
+
+        }
+    }
+    return false;
+}
+
+void libPVEB_gf_AwardXPForNPCKill (unit lp_killedUnit, int lp_killedUnitPlayer, int lp_killedUnitClassification, int lp_killingPlayer, fixed lp_killedUnitXPAward) {
+    // Variable Declarations
+    playergroup lv_killCreditGroup;
+    unit lv_itUnit;
+    int lv_itPlayer;
+    unitgroup lv_nearbyUnits;
+    int lv_creditPlayer;
+    playergroup lv_xPAwardGroup;
+
+    // Automatic Variable Declarations
+    unitgroup autoED2F3891_g;
+    int autoED2F3891_u;
+    playergroup autoF6897E69_g;
+    playergroup auto7FC0AD7C_g;
+    playergroup autoC236D394_g;
+    playergroup autoE7203753_g;
+
+    // Variable Initialization
+    lv_killCreditGroup = PlayerGroupEmpty();
+    lv_nearbyUnits = UnitGroupEmpty();
+    lv_xPAwardGroup = PlayerGroupEmpty();
+
+    // Implementation
+    if (((libCore_gv_sYSXPOn == false) || (lp_killedUnitXPAward <= 0.0) || (UnitHasBehavior2(lp_killedUnit, "UnitGivesNoXP") == true))) {
+        return ;
+    }
+
+    if ((PlayerGroupHasPlayer(libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamOrderIndex_C, false), lp_killingPlayer) == true)) {
+        PlayerGroupAdd(lv_killCreditGroup, lp_killingPlayer);
+        PlayerGroupAdd(lv_xPAwardGroup, lp_killingPlayer);
+    }
+
+    lv_nearbyUnits = UnitGroupSearch(null, lp_killedUnitPlayer, UnitGetPosition(lp_killedUnit), libCore_gv_bALXPRadius, UnitFilter(0, 0, (1 << c_targetFilterPlayer) | (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    autoED2F3891_g = lv_nearbyUnits;
+    autoED2F3891_u = UnitGroupCount(autoED2F3891_g, c_unitCountAll);
+    for (;; autoED2F3891_u -= 1) {
+        lv_itUnit = UnitGroupUnitFromEnd(autoED2F3891_g, autoED2F3891_u);
+        if (lv_itUnit == null) { break; }
+        if (((UnitHasBehavior2(lv_itUnit, "EarnsXP") == true) || ((UnitTypeTestAttribute(UnitGetType(lv_itUnit), c_unitAttributeHeroic) == true) && (UnitHasBehavior2(lv_itUnit, "AbathurUltimateEvolutionVehicleCasterBehavior") == false) && (UnitTestState(lv_itUnit, c_unitStateHallucination) == false)))) {
+            lv_creditPlayer = UnitGetOwner(lv_itUnit);
+            if ((PlayerGroupHasPlayer(libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamOrderIndex_C, false), lv_creditPlayer) == true)) {
+                PlayerGroupAdd(lv_xPAwardGroup, lv_creditPlayer);
+            }
+
+            if ((lv_creditPlayer == libGDHL_gv_chogallPairs[libGame_gf_TeamNumberOfPlayer(lv_creditPlayer)].lv_choPlayer)) {
+                PlayerGroupAdd(lv_xPAwardGroup, libGDHL_gv_chogallPairs[libGame_gf_TeamNumberOfPlayer(lv_creditPlayer)].lv_gallPlayer);
+            }
+            else {
+                if ((lv_creditPlayer == libGDHL_gv_chogallPairs[libGame_gf_TeamNumberOfPlayer(lv_creditPlayer)].lv_gallPlayer)) {
+                    PlayerGroupAdd(lv_xPAwardGroup, libGDHL_gv_chogallPairs[libGame_gf_TeamNumberOfPlayer(lv_creditPlayer)].lv_choPlayer);
+                }
+
+            }
+        }
+
+    }
+    autoF6897E69_g = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamOrderIndex_C, false);
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(autoF6897E69_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	if ((DistanceBetweenPoints(CameraGetTarget(lv_itPlayer), UnitGetPosition(lp_killedUnit)) <= libCore_gv_bALXPRadius)) {
+            PlayerGroupAdd(lv_killCreditGroup, lv_itPlayer);
+        }
+
+    }
+    if ((libSprt_gv_dEBUGXPTextEnabled == true)) {
+        TextExpressionSetToken("Param/Expression/lib_PVEB_6A36C84F", "A", UnitTypeGetName(UnitGetType(lp_killedUnit)));
+        TextExpressionSetToken("Param/Expression/lib_PVEB_6A36C84F", "B", FixedToText(lp_killedUnitXPAward, c_fixedPrecisionAny));
+        TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_PVEB_6A36C84F"), true);
+    }
+
+    auto7FC0AD7C_g = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamOrderIndex_C, false);
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(auto7FC0AD7C_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	libGame_gf_GrantXPToPlayer(lp_killedUnitXPAward, lv_itPlayer, lp_killedUnitClassification);
+    }
+    autoC236D394_g = lv_xPAwardGroup;
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(autoC236D394_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	libGame_gf_ScoreValuesRecordXPContributionForPlayer(lv_itPlayer, lp_killedUnitXPAward, true);
+    }
+    autoE7203753_g = lv_killCreditGroup;
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(autoE7203753_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	if ((lv_itPlayer == lp_killingPlayer)) {
+            SoundPlayOnUnitForPlayer(SoundLink("XP_Gain_Direct", -1), c_maxPlayers, PlayerGroupSingle(lv_itPlayer), lp_killedUnit, 0.0, 100.0, 0.0);
+        }
+        else {
+            SoundPlayOnUnitForPlayer(SoundLink("XP_Gain_Indirect", -1), c_maxPlayers, PlayerGroupSingle(lv_itPlayer), lp_killedUnit, 0.0, 100.0, 0.0);
+        }
+        if ((lp_killedUnitClassification != libGame_ge_XPSources_Structure)) {
+            libUIUI_gf_UIFloatingCombatTextH16MidXP(lv_itPlayer, lp_killedUnit, libCore_ge_FloatingTextType_XPSmall, FixedToInt(lp_killedUnitXPAward));
+        }
+        else {
+            libUIUI_gf_UIFloatingCombatTextH16MidXP(lv_itPlayer, lp_killedUnit, libCore_ge_FloatingTextType_XPLarge, FixedToInt(lp_killedUnitXPAward));
+        }
+    }
+}
+
+void libPVEB_gf_PvEPickupInitializePickup (int lp_activation, string lp_pickup, string lp_carryBehavior) {
+    // Automatic Variable Declarations
+    int autoE3FB0576_val;
+
+    // Implementation
+    libPVEB_gv_pvEPickupPickupsTotalPickupsInitialized += 1;
+    libPVEB_gv_pvEPickupPickupsTotal[libPVEB_gv_pvEPickupPickupsTotalPickupsInitialized] = lp_pickup;
+    libPVEB_gv_pvEPickupPickupsCarryBehavior[libPVEB_gv_pvEPickupPickupsTotalPickupsInitialized] = lp_carryBehavior;
+    autoE3FB0576_val = lp_activation;
+    if (autoE3FB0576_val == libPVEB_ge_PvEPickupPickupActivationType_Instant) {
+        libPVEB_gv_pvEPickupPickupsInstantPickupsInitialized += 1;
+        libPVEB_gv_pvEPickupPickupsInstant[libPVEB_gv_pvEPickupPickupsInstantPickupsInitialized] = lp_pickup;
+    }
+    else if (autoE3FB0576_val == libPVEB_ge_PvEPickupPickupActivationType_Target) {
+        libPVEB_gv_pvEPickupPickupsTargetPickupsInitialized += 1;
+        libPVEB_gv_pvEPickupPickupsTarget[libPVEB_gv_pvEPickupPickupsTargetPickupsInitialized] = lp_pickup;
+    }
+    else {
+    }
+}
+
+void libPVEB_gf_PvEPickupSpawnPickup (string lp_type, point lp_position, bool lp_droppedItem) {
+    // Variable Declarations
+    int lv_itRandomPick;
+    int lv_itIterator;
+
+    // Automatic Variable Declarations
+    int auto2D02F364_ae;
+    const int auto2D02F364_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    if ((UnitGroupCount(libPVEB_gv_pvEPickupItemsOnGround, c_unitCountAll) >= libPVEB_gv_pvEPickupMaxActivePickups_C)) {
+        return ;
+    }
+
+    libNtve_gf_CreateUnitsWithDefaultFacing(1, lp_type, c_unitCreateIgnorePlacement, 0, lp_position, null);
+    libNtve_gf_CreateModelAtPoint("PVESpecialAbilityPickupSpawnFX", lp_position);
+    if ((lp_droppedItem == false)) {
+        auto2D02F364_ae = libPVEB_gv_pvEPickupPickupsTotalPickupsInitialized;
+        lv_itIterator = 1;
+        for ( ; ( (auto2D02F364_ai >= 0 && lv_itIterator <= auto2D02F364_ae) || (auto2D02F364_ai < 0 && lv_itIterator >= auto2D02F364_ae) ) ; lv_itIterator += auto2D02F364_ai ) {
+            if ((libPVEB_gv_pvEPickupPickupsTotal[lv_itIterator] == UnitGetType(UnitLastCreated()))) {
+                libPVEB_gv_pvEPickupLastPickupSpawned = libPVEB_gv_pvEPickupPickupsTotal[lv_itIterator];
+            }
+
+        }
+    }
+
+    if ((libPVEB_gv_pvEPickupPlacingPreplacedPickups == false)) {
+        UnitBehaviorAddPlayer(UnitLastCreated(), "PickupRevealer", libStEx_gv_pLAYER_11_ORDER, 1);
+    }
+
+    UnitGroupAdd(libPVEB_gv_pvEPickupItemsOnGround, UnitLastCreated());
+
+    StatEventCreate("Pickup Spawned");
+    StatEventAddDataString(StatEventLastCreated(), "Pickup Type", (UnitGetType(UnitLastCreated())));
+    StatEventSend(StatEventLastCreated());
+
+}
+
+void libPVEB_gf_PvEPickupSpawnRandom (point lp_position) {
+    // Variable Declarations
+    int lv_itRandom;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_itRandom = RandomInt(1, libPVEB_gv_pvEPickupPickupsTotalPickupsInitialized);
+    while ((libPVEB_gv_pvEPickupPickupsTotal[lv_itRandom] == libPVEB_gv_pvEPickupLastPickupSpawned)) {
+        lv_itRandom = RandomInt(1, libPVEB_gv_pvEPickupPickupsTotalPickupsInitialized);
+    }
+    libPVEB_gf_PvEPickupSpawnPickup(libPVEB_gv_pvEPickupPickupsTotal[lv_itRandom], lp_position, false);
+}
+
+void libPVEB_gf_PvEPickupSpawnRandomInRotation (string lp_specialSpawn, point lp_position) {
+    // Variable Declarations
+    int lv_itRandom;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    if ((libPVEB_gv_pvEPickupCurrentRotationStep != libPVEB_gv_pvEPickupRolloverRotationStep)) {
+        lv_itRandom = RandomInt(1, libPVEB_gv_pvEPickupPickupsTotalPickupsInitialized);
+        while (((libPVEB_gv_pvEPickupPickupsTotal[lv_itRandom] == lp_specialSpawn) || (libPVEB_gv_pvEPickupPickupsTotal[lv_itRandom] == libPVEB_gv_pvEPickupLastPickupSpawned))) {
+            lv_itRandom = RandomInt(1, libPVEB_gv_pvEPickupPickupsTotalPickupsInitialized);
+        }
+        libPVEB_gf_PvEPickupSpawnPickup(libPVEB_gv_pvEPickupPickupsTotal[lv_itRandom], lp_position, false);
+        libPVEB_gv_pvEPickupCurrentRotationStep += 1;
+    }
+    else {
+        libPVEB_gf_PvEPickupSpawnPickup(lp_specialSpawn, lp_position, false);
+        libPVEB_gv_pvEPickupCurrentRotationStep = 1;
+    }
+}
+
+void libPVEB_gf_PvEPickupSwapPickup (unit lp_caster, point lp_targetLocation, string lp_abilityBehavior) {
+    // Variable Declarations
+    int lv_itIterator;
+
+    // Automatic Variable Declarations
+    int autoDA0BE90B_ae;
+    const int autoDA0BE90B_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    autoDA0BE90B_ae = libPVEB_gv_pvEPickupPickupsTotalPickupsInitialized;
+    lv_itIterator = 1;
+    for ( ; ( (autoDA0BE90B_ai >= 0 && lv_itIterator <= autoDA0BE90B_ae) || (autoDA0BE90B_ai < 0 && lv_itIterator >= autoDA0BE90B_ae) ) ; lv_itIterator += autoDA0BE90B_ai ) {
+        if ((lp_abilityBehavior == libPVEB_gv_pvEPickupPickupsCarryBehavior[lv_itIterator])) {
+            libPVEB_gf_PvEPickupSpawnPickup(libPVEB_gv_pvEPickupPickupsTotal[lv_itIterator], lp_targetLocation, true);
+            UnitBehaviorRemove(lp_caster, lp_abilityBehavior, 1);
+            break;
+        }
+
+    }
+}
+
+void libPVEB_gf_PvEPickupStoreHeldPickups () {
+    // Variable Declarations
+    int lv_itPlayerIterator;
+    int lv_itBehaviorIterator;
+
+    // Automatic Variable Declarations
+    const int auto8F7120F0_ae = libCore_gv_bALMaxPlayers;
+    const int auto8F7120F0_ai = 1;
+    int autoAC7BA3F2_ae;
+    const int autoAC7BA3F2_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_itPlayerIterator = 1;
+    for ( ; ( (auto8F7120F0_ai >= 0 && lv_itPlayerIterator <= auto8F7120F0_ae) || (auto8F7120F0_ai < 0 && lv_itPlayerIterator >= auto8F7120F0_ae) ) ; lv_itPlayerIterator += auto8F7120F0_ai ) {
+        if ((libGame_gf_TeamNumberOfPlayer(lv_itPlayerIterator) == libGame_gv_teamOrderIndex_C)) {
+            autoAC7BA3F2_ae = libPVEB_gv_pvEPickupPickupsTotalPickupsInitialized;
+            lv_itBehaviorIterator = 1;
+            for ( ; ( (autoAC7BA3F2_ai >= 0 && lv_itBehaviorIterator <= autoAC7BA3F2_ae) || (autoAC7BA3F2_ai < 0 && lv_itBehaviorIterator >= autoAC7BA3F2_ae) ) ; lv_itBehaviorIterator += autoAC7BA3F2_ai ) {
+                if ((UnitBehaviorCount(libGame_gv_players[lv_itPlayerIterator].lv_heroUnit, libPVEB_gv_pvEPickupPickupsCarryBehavior[lv_itBehaviorIterator]) == 1)) {
+                    libPVEB_gv_pvEPickupHeldPickups[lv_itPlayerIterator] = libPVEB_gv_pvEPickupPickupsCarryBehavior[lv_itBehaviorIterator];
+                    break;
+                }
+
+            }
+        }
+
+    }
+}
+
+void libPVEB_gf_PvEPickupRestoreHeldPickups () {
+    // Variable Declarations
+    int lv_itPlayerIterator;
+    int lv_itPickupIterator;
+
+    // Automatic Variable Declarations
+    const int auto2AE43986_ae = libCore_gv_bALMaxPlayers;
+    const int auto2AE43986_ai = 1;
+    int auto28B55BDD_ae;
+    const int auto28B55BDD_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_itPlayerIterator = 1;
+    for ( ; ( (auto2AE43986_ai >= 0 && lv_itPlayerIterator <= auto2AE43986_ae) || (auto2AE43986_ai < 0 && lv_itPlayerIterator >= auto2AE43986_ae) ) ; lv_itPlayerIterator += auto2AE43986_ai ) {
+        auto28B55BDD_ae = libPVEB_gv_pvEPickupPickupsTotalPickupsInitialized;
+        lv_itPickupIterator = 1;
+        for ( ; ( (auto28B55BDD_ai >= 0 && lv_itPickupIterator <= auto28B55BDD_ae) || (auto28B55BDD_ai < 0 && lv_itPickupIterator >= auto28B55BDD_ae) ) ; lv_itPickupIterator += auto28B55BDD_ai ) {
+            UnitBehaviorRemove(libGame_gv_players[lv_itPlayerIterator].lv_heroUnit, libPVEB_gv_pvEPickupPickupsCarryBehavior[lv_itPickupIterator], 1);
+        }
+        if ((libPVEB_gv_pvEPickupHeldPickups[lv_itPlayerIterator] != null)) {
+            UnitBehaviorAdd(libGame_gv_players[lv_itPlayerIterator].lv_heroUnit, libPVEB_gv_pvEPickupHeldPickups[lv_itPlayerIterator], libGame_gv_players[lv_itPlayerIterator].lv_heroUnit, 1);
+        }
+
+    }
+}
+
+void libPVEB_gf_PvEPickupDespawnPickupsInRegion (region lp_region) {
+    // Automatic Variable Declarations
+    unitgroup auto5E397DB4_g;
+    int auto5E397DB4_u;
+    unit auto5E397DB4_var;
+
+    // Implementation
+    auto5E397DB4_g = libPVEB_gv_pvEPickupItemsOnGround;
+    auto5E397DB4_u = UnitGroupCount(auto5E397DB4_g, c_unitCountAll);
+    for (;; auto5E397DB4_u -= 1) {
+        auto5E397DB4_var = UnitGroupUnitFromEnd(auto5E397DB4_g, auto5E397DB4_u);
+        if (auto5E397DB4_var == null) { break; }
+        if ((libNtve_gf_UnitInRegion(auto5E397DB4_var, lp_region) == true)) {
+            UnitRemove(auto5E397DB4_var);
+        }
+
+    }
+}
+
+void libPVEB_gf_RemoveTalent (string lp_talent) {
+    // Automatic Variable Declarations
+    // Implementation
+    SetTalentEnabled(lp_talent, false);
+    SetTalentHidden(lp_talent, true);
+}
+
+playergroup libPVEB_gf_PBPlayersOnHumanTeam () {
+    // Automatic Variable Declarations
+    // Implementation
+    return libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamOrderIndex_C, false);
+}
+
+playergroup libPVEB_gf_PBPlayersOnComputerTeam () {
+    // Automatic Variable Declarations
+    // Implementation
+    return libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamChaosIndex_C, false);
+}
+
+bool libPVEB_gf_PBIsValidHumanTeamPlayer (int lp_player) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((PlayerGroupHasPlayer(libPVEB_gf_PBPlayersOnHumanTeam(), lp_player) == true) && (PlayerStatus(lp_player) == c_playerStatusActive) && (PlayerType(lp_player) != c_playerTypeHostile)) {
+        return true;
+    }
+
+    return false;
+}
+
+bool libPVEB_gf_PBIsValidHumanPlayer (int lp_player) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libPVEB_gf_PBIsValidHumanTeamPlayer(lp_player) == true) && (PlayerType(lp_player) == c_playerTypeUser)) {
+        return true;
+    }
+
+    return false;
+}
+
+bool libPVEB_gf_PBPlayerHeroIsDead (int lp_player) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((UnitIsAlive(libGame_gv_players[lp_player].lv_heroUnit) == true) && (UnitHasBehavior2(libGame_gv_players[lp_player].lv_heroUnit, "Dead") == false)) {
+        return false;
+    }
+
+    return true;
+}
+
+void libPVEB_gf_PBSetNPCHeroStats (string lp_hero, int lp_player, fixed lp_health) {
+    // Variable Declarations
+    string lv_unitActor;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    if ((lp_health != 0.0)) {
+        CatalogFieldValueSetFixed(c_gameCatalogUnit, lp_hero, "LifeMax", lp_player, lp_health);
+        CatalogFieldValueSetFixed(c_gameCatalogUnit, lp_hero, "LifeStart", lp_player, lp_health);
+    }
+
+}
+
+void libPVEB_gf_PBSpawnNPCHero (string lp_hero, point lp_spawnLocation, int lp_level) {
+    // Automatic Variable Declarations
+    // Implementation
+    libPVEB_gf_PBSpawnNPCHeroWithXP(lp_hero, lp_spawnLocation, libCore_gf_GetTotalXPForLevel(lp_level));
+}
+
+void libPVEB_gf_PBSpawnNPCHeroWithXP (string lp_hero, point lp_spawnLocation, fixed lp_xP) {
+    // Variable Declarations
+    int lv_player;
+    int lv_heroIndex;
+    bool lv_result;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    if ((libCore_gv_sYSHeroStartLevel != 1)) {
+        libCore_gv_sYSHeroStartLevel = 1;
+    }
+
+    lv_heroIndex = libPVEB_gf_PBNPCHeroIndex(lp_hero);
+    if ((lv_heroIndex <= 0)) {
+        TriggerDebugOutput(1, StringExternal("Param/Value/lib_PVEB_3C33352B"), true);
+        return ;
+    }
+
+    lv_player = libPVEB_gv_pBNPCHeroes[lv_heroIndex].lv_player;
+    if ((libPVEB_gv_pBNPCHeroes[lv_heroIndex].lv_skin != null)) {
+        PlayerSetSkin(lv_player, libPVEB_gv_pBNPCHeroes[lv_heroIndex].lv_skin);
+    }
+
+    libGame_gv_players[lv_player].lv_spawnPoint = lp_spawnLocation;
+    libUIUI_gf_UIDebugPanelSpawnOrSwapHeroForPlayer(libCore_gf_GetIndexFromHero(lp_hero), libCore_gf_DataSkinsGetSkinIndexFromSkinLink(libPVEB_gv_pBNPCHeroes[lv_heroIndex].lv_skin), 0, lp_xP, lv_player, 0);
+    libPVEB_gv_pBNPCHeroes[lv_heroIndex].lv_heroUnit = libGame_gv_players[lv_player].lv_heroUnit;
+    UnitBehaviorAdd(libPVEB_gv_pBNPCHeroes[lv_heroIndex].lv_heroUnit, "HackedMountSuppressor", libPVEB_gv_pBNPCHeroes[lv_heroIndex].lv_heroUnit, 1);
+    UnitBehaviorAdd(libPVEB_gv_pBNPCHeroes[lv_heroIndex].lv_heroUnit, "CoreDetection", libPVEB_gv_pBNPCHeroes[lv_heroIndex].lv_heroUnit, 1);
+    libNtve_gf_SendActorMessageToUnit(libPVEB_gv_pBNPCHeroes[lv_heroIndex].lv_heroUnit, libNtve_gf_SetScale(libPVEB_gv_pBNPCHeroResizeRatio, libPVEB_gv_pBNPCHeroResizeRatio, libPVEB_gv_pBNPCHeroResizeRatio, 0.0));
+    libPVEB_gf_SendEventNPCHeroSpawned(lv_player, libPVEB_gv_pBNPCHeroes[lv_heroIndex].lv_heroUnit);
+}
+
+void libPVEB_gf_PBPrepareNPCHero (string lp_hero, string lp_skin) {
+    // Variable Declarations
+    int lv_index;
+    int lv_itIndex;
+    string lv_unitTypeString;
+    string lv_heroUnitType;
+
+    // Automatic Variable Declarations
+    int auto939F6B83_ae;
+    const int auto939F6B83_ai = 1;
+
+    // Variable Initialization
+    lv_unitTypeString = "";
+
+    // Implementation
+    lv_index = libPVEB_gf_PBNPCHeroIndex(lp_hero);
+    if ((lv_index <= 0)) {
+        auto939F6B83_ae = libPVEB_gv_pBNPCHeroesCount;
+        lv_itIndex = 1;
+        for ( ; ( (auto939F6B83_ai >= 0 && lv_itIndex <= auto939F6B83_ae) || (auto939F6B83_ai < 0 && lv_itIndex >= auto939F6B83_ae) ) ; lv_itIndex += auto939F6B83_ai ) {
+            if ((libPVEB_gv_pBNPCHeroes[lv_itIndex].lv_hero == null)) {
+                lv_index = lv_itIndex;
+                break;
+            }
+
+        }
+        if ((lv_index <= 0)) {
+            if ((libPVEB_gv_pBNPCHeroesCount >= libPVEB_gv_pBNPCHero_MaxCount_C)) {
+                TriggerDebugOutput(1, StringExternal("Param/Value/lib_PVEB_9D4502DB"), true);
+                return ;
+            }
+
+            libPVEB_gv_pBNPCHeroesCount += 1;
+            lv_index = libPVEB_gv_pBNPCHeroesCount;
+        }
+
+        libPVEB_gv_pBNPCHeroes[lv_index].lv_hero = lp_hero;
+    }
+
+    PreloadObject(c_gameCatalogHero, (libPVEB_gv_pBNPCHeroes[lv_index].lv_hero), false);
+    lv_unitTypeString = CatalogFieldValueGet(c_gameCatalogHero, lp_hero, "Unit", c_playerAny);
+    libPVEB_gv_pBNPCHeroes[lv_index].lv_unitType = (lv_unitTypeString);
+    libPVEB_gv_pBNPCHeroes[lv_index].lv_skin = lp_skin;
+    libPVEB_gv_pBNPCHeroes[lv_index].lv_player = PlayerGroupPlayer(libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamChaosIndex_C, false), lv_index);
+    libUIUI_gf_UIDebugPanelCleanUpHeroForPlayer(libPVEB_gv_pBNPCHeroes[lv_index].lv_player);
+    libPVEB_gv_pBHeroCatalogChangePlayerIndex = lv_index;
+    TriggerExecute(libPVEB_gv_pBHeroCatalogChangeCallback, true, false);
+    libCore_gf_DataLoadHeroDataIntoIndex(lp_hero, libPVEB_gv_pBNPCHeroes[lv_index].lv_player);
+    libCore_gf_DataLoadSkinDataIntoIndex(lp_skin, libPVEB_gv_pBNPCHeroes[lv_index].lv_player);
+    PreloadObject(c_gameCatalogSkin, (libPVEB_gv_pBNPCHeroes[lv_index].lv_skin), false);
+    libGame_gv_players[libPVEB_gv_pBNPCHeroes[lv_index].lv_player].lv_disableMount = true;
+    if ((libPVEB_gv_pBNPCHeroes[lv_index].lv_radiusScaledHero != lp_hero)) {
+        libPVEB_gv_pBNPCHeroes[lv_index].lv_radiusScaledHero = lp_hero;
+        CatalogFieldValueSet(c_gameCatalogUnit, libPVEB_gv_pBNPCHeroes[lv_index].lv_unitType, "Radius", libPVEB_gv_pBNPCHeroes[lv_index].lv_player, FixedToString((StringToFixed(CatalogFieldValueGet(c_gameCatalogUnit, libPVEB_gv_pBNPCHeroes[lv_index].lv_unitType, "Radius", libCore_gv_cOMPUTER_Neutral)) * libPVEB_gv_pBNPCHeroResizeRatio), c_fixedPrecisionAny));
+        CatalogFieldValueSet(c_gameCatalogUnit, libPVEB_gv_pBNPCHeroes[lv_index].lv_unitType, "InnerRadius", libPVEB_gv_pBNPCHeroes[lv_index].lv_player, FixedToString((StringToFixed(CatalogFieldValueGet(c_gameCatalogUnit, libPVEB_gv_pBNPCHeroes[lv_index].lv_unitType, "InnerRadius", libCore_gv_cOMPUTER_Neutral)) * libPVEB_gv_pBNPCHeroResizeRatio), c_fixedPrecisionAny));
+    }
+
+}
+
+void libPVEB_gf_PBResetNPCHero (string lp_hero) {
+    // Variable Declarations
+    int lv_index;
+    string lv_unitTypeString;
+    string lv_heroUnitType;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_unitTypeString = "";
+
+    // Implementation
+    lv_index = libPVEB_gf_PBNPCHeroIndex(lp_hero);
+    if ((lv_index <= 0)) {
+        TriggerDebugOutput(1, StringExternal("Param/Value/lib_PVEB_0B85984B"), true);
+        return ;
+    }
+
+    libPVEB_gv_pBNPCHeroes[lv_index].lv_hero = null;
+    libPVEB_gv_pBNPCHeroes[lv_index].lv_unitType = null;
+    libUIUI_gf_UIDebugPanelCleanUpHeroForPlayer(libPVEB_gv_pBNPCHeroes[lv_index].lv_player);
+}
+
+int libPVEB_gf_PBNPCHeroPlayerFromUnitType (string lp_unitType) {
+    // Variable Declarations
+    int lv_index;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_index = libPVEB_gf_PBNPCHeroIndexFromUnitType(lp_unitType);
+    if ((lv_index <= 0)) {
+        return -1;
+    }
+
+    return libPVEB_gv_pBNPCHeroes[lv_index].lv_player;
+}
+
+unit libPVEB_gf_PBNPCHeroUnit (string lp_hero) {
+    // Variable Declarations
+    int lv_index;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_index = libPVEB_gf_PBNPCHeroIndex(lp_hero);
+    if ((lv_index <= 0)) {
+        return null;
+    }
+
+    return libPVEB_gv_pBNPCHeroes[lv_index].lv_heroUnit;
+}
+
+string libPVEB_gf_PBNPCHeroFromUnitType (string lp_heroUnitType) {
+    // Variable Declarations
+    int lv_index;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_index = libPVEB_gf_PBNPCHeroIndexFromUnitType(lp_heroUnitType);
+    if ((lv_index <= 0)) {
+        return null;
+    }
+
+    return libPVEB_gv_pBNPCHeroes[lv_index].lv_hero;
+}
+
+string libPVEB_gf_PBNPCHeroUnitType (string lp_hero) {
+    // Variable Declarations
+    int lv_index;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_index = libPVEB_gf_PBNPCHeroIndex(lp_hero);
+    if ((lv_index <= 0)) {
+        return null;
+    }
+
+    return libPVEB_gv_pBNPCHeroes[lv_index].lv_unitType;
+}
+
+int libPVEB_gf_PBNPCHeroIndexFromPlayer (int lp_player) {
+    // Variable Declarations
+    int lv_itIndex;
+
+    // Automatic Variable Declarations
+    int auto74AB6D3C_ae;
+    const int auto74AB6D3C_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    if ((lp_player < 1) && (lp_player > libCore_gv_bALMaxEnginePlayerCount)) {
+        return -1;
+    }
+
+    auto74AB6D3C_ae = libPVEB_gv_pBNPCHeroesCount;
+    lv_itIndex = 1;
+    for ( ; ( (auto74AB6D3C_ai >= 0 && lv_itIndex <= auto74AB6D3C_ae) || (auto74AB6D3C_ai < 0 && lv_itIndex >= auto74AB6D3C_ae) ) ; lv_itIndex += auto74AB6D3C_ai ) {
+        if ((libPVEB_gv_pBNPCHeroes[lv_itIndex].lv_player == lp_player)) {
+            return lv_itIndex;
+        }
+
+    }
+    return -1;
+}
+
+int libPVEB_gf_PBNPCHeroIndexFromUnitType (string lp_heroUnitType) {
+    // Variable Declarations
+    int lv_itIndex;
+
+    // Automatic Variable Declarations
+    int autoC117795D_ae;
+    const int autoC117795D_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    autoC117795D_ae = libPVEB_gv_pBNPCHeroesCount;
+    lv_itIndex = 1;
+    for ( ; ( (autoC117795D_ai >= 0 && lv_itIndex <= autoC117795D_ae) || (autoC117795D_ai < 0 && lv_itIndex >= autoC117795D_ae) ) ; lv_itIndex += autoC117795D_ai ) {
+        if ((libPVEB_gv_pBNPCHeroes[lv_itIndex].lv_unitType == lp_heroUnitType)) {
+            return lv_itIndex;
+        }
+
+    }
+    return -1;
+}
+
+int libPVEB_gf_PBNPCHeroIndex (string lp_hero) {
+    // Variable Declarations
+    int lv_itIndex;
+
+    // Automatic Variable Declarations
+    int auto6F6A199E_ae;
+    const int auto6F6A199E_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    auto6F6A199E_ae = libPVEB_gv_pBNPCHeroesCount;
+    lv_itIndex = 1;
+    for ( ; ( (auto6F6A199E_ai >= 0 && lv_itIndex <= auto6F6A199E_ae) || (auto6F6A199E_ai < 0 && lv_itIndex >= auto6F6A199E_ae) ) ; lv_itIndex += auto6F6A199E_ai ) {
+        if ((libPVEB_gv_pBNPCHeroes[lv_itIndex].lv_hero == lp_hero)) {
+            return lv_itIndex;
+        }
+
+    }
+    return 0;
+}
+
+void libPVEB_gf_PVENPCHeroSpawned (trigger t) {
+    // Automatic Variable Declarations
+    // Implementation
+    TriggerAddEventGeneric(t, libPVEB_gv_eventID_NPCHeroSpawn_C);
+}
+
+void libPVEB_gf_SendEventNPCHeroSpawned (int lp_player, unit lp_heroUnit) {
+    // Automatic Variable Declarations
+    // Implementation
+    DataTableSetInt(false, TriggerEventParamName(libPVEB_gv_eventID_NPCHeroSpawn_C, libPVEB_gv_eventParam_NPCHeroSpawn_Player_C), lp_player);
+    DataTableSetUnit(false, TriggerEventParamName(libPVEB_gv_eventID_NPCHeroSpawn_C, libPVEB_gv_eventParam_NPCHeroSpawn_HeroUnit_C), lp_heroUnit);
+    TriggerSendEvent(libPVEB_gv_eventID_NPCHeroSpawn_C);
+}
+
+int libPVEB_gf_NPCHeroSpawnedPlayer () {
+    // Automatic Variable Declarations
+    // Implementation
+    return DataTableGetInt(false, TriggerEventParamName(libPVEB_gv_eventID_NPCHeroSpawn_C, libPVEB_gv_eventParam_NPCHeroSpawn_Player_C));
+}
+
+unit libPVEB_gf_NPCHeroSpawnedUnit () {
+    // Automatic Variable Declarations
+    // Implementation
+    return DataTableGetUnit(false, TriggerEventParamName(libPVEB_gv_eventID_NPCHeroSpawn_C, libPVEB_gv_eventParam_NPCHeroSpawn_HeroUnit_C));
+}
+
+void libPVEB_gf_PBSpawnNPCMinions (string lp_type, int lp_player, point lp_pos, fixed lp_angle, int lp_flags) {
+    // Variable Declarations
+    string lv_unitType;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_unitType = lp_type;
+    if ((lv_unitType == "ZergZergling")) {
+        libPVEB_gv_pBNPCMinionZerglingIndex += 1;
+        if ((libPVEB_gv_pBNPCMinionZerglingIndex == 4)) {
+            libPVEB_gv_pBNPCMinionZerglingIndex = 0;
+        }
+        else {
+            lv_unitType = "ZergZerglingNotMinion";
+        }
+    }
+
+    UnitCreate(1, lv_unitType, lp_flags, lp_player, lp_pos, lp_angle, null);
+    UnitGroupAdd(libPVEB_gv_pBNPCMinions, UnitLastCreated());
+    UnitDestroyAIThinkTree(UnitLastCreated());
+    UnitBehaviorRemove(UnitLastCreated(), "50PercentCCReduction", 1);
+}
+
+void libPVEB_gf_PvEResurrectCheckActiveSpirits (bool lp_targetHeroDead) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((lp_targetHeroDead == true)) {
+        libPVEB_gv_pvEResurrectActiveSpirits += 1;
+    }
+    else {
+        libPVEB_gv_pvEResurrectActiveSpirits -= 1;
+    }
+    if ((libPVEB_gv_pvEResurrectActiveSpirits < 0)) {
+        libPVEB_gv_pvEResurrectActiveSpirits = 0;
+    }
+
+    if ((libPVEB_gv_pvEResurrectActiveSpirits == 0)) {
+        TriggerEnable(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveStart, false);
+        TriggerEnable(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterrupted, false);
+        TriggerEnable(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterruptedTimerExpired, false);
+        TriggerEnable(libPVEB_gt_PvEResurrectRevivePlayer, false);
+    }
+    else {
+        TriggerEnable(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveStart, true);
+        TriggerEnable(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterruptedTimerExpired, true);
+        TriggerEnable(libPVEB_gt_PvEResurrectRevivePlayer, true);
+    }
+}
+
+void libPVEB_gf_PvEResurrectAddRemoveDeadHeroArrow (bool lp_addorRemove, int lp_player) {
+    // Variable Declarations
+    playergroup lv_playerGroup;
+    int lv_arrowIndex;
+    unit lv_deadUnitHero;
+    unit lv_deadUnitSpirit;
+
+    // Automatic Variable Declarations
+    const int auto5861D913_ae = libUIUI_gv_uI_MaxHeroGroupStatusFrames;
+    const int auto5861D913_ai = 1;
+    const int auto0C6A7DE8_ae = libUIUI_gv_uI_MaxHeroGroupStatusFrames;
+    const int auto0C6A7DE8_ai = 1;
+
+    // Variable Initialization
+    lv_playerGroup = PlayerGroupEmpty();
+
+    // Implementation
+    return ;
+    lv_deadUnitHero = libGame_gv_players[lp_player].lv_heroUnit;
+    if ((lp_addorRemove == true)) {
+        lv_deadUnitSpirit = libPVEB_gv_pvEResurrectSpirit[lp_player];
+        libNtve_gf_AddPlayerGroupToPlayerGroup(PlayerGroupAll(), lv_playerGroup);
+        PlayerGroupRemove(lv_playerGroup, lp_player);
+        lv_arrowIndex = 1;
+        for ( ; ( (auto0C6A7DE8_ai >= 0 && lv_arrowIndex <= auto0C6A7DE8_ae) || (auto0C6A7DE8_ai < 0 && lv_arrowIndex >= auto0C6A7DE8_ae) ) ; lv_arrowIndex += auto0C6A7DE8_ai ) {
+            if ((libUIUI_gv_uIHeroTrackerArrows.lv_unit[lv_arrowIndex] == null)) {
+                libUIUI_gv_uIHeroTrackerArrows.lv_unit[lv_arrowIndex] = lv_deadUnitHero;
+                libNtve_gf_SetDialogItemUnit(libUIUI_gv_uIHeroTrackerArrows.lv_arrow[lv_arrowIndex], lv_deadUnitSpirit, lv_playerGroup);
+                libNtve_gf_SetDialogItemImage(libUIUI_gv_uIHeroTrackerArrows.lv_portraitImage[lv_arrowIndex], (CatalogFieldValueGet(c_gameCatalogActor, UnitGetType(lv_deadUnitHero), "HeroIcon", lp_player)), lv_playerGroup);
+                return ;
+            }
+
+        }
+    }
+    else {
+        lv_arrowIndex = 1;
+        for ( ; ( (auto5861D913_ai >= 0 && lv_arrowIndex <= auto5861D913_ae) || (auto5861D913_ai < 0 && lv_arrowIndex >= auto5861D913_ae) ) ; lv_arrowIndex += auto5861D913_ai ) {
+            if ((libUIUI_gv_uIHeroTrackerArrows.lv_unit[lv_arrowIndex] == lv_deadUnitHero)) {
+                libUIUI_gv_uIHeroTrackerArrows.lv_unit[lv_arrowIndex] = null;
+                return ;
+            }
+
+        }
+    }
+}
+
+void libPVEB_gf_PvEResurrectRevivePlayerInstantly (int lp_playerIndex, point lp_location) {
+    // Variable Declarations
+    playergroup lv_vOGroup;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_vOGroup = PlayerGroupEmpty();
+
+    // Implementation
+    if ((UnitIsAlive(libGame_gv_players[lp_playerIndex].lv_heroUnit) == true)) {
+        return ;
+    }
+
+    UnitBehaviorRemove(libGame_gv_players[lp_playerIndex].lv_heroUnit, "PVEResurrectIcon", 1);
+    UnitGroupClear(libPVEB_gv_pvEResurrectResurrectionCastersUnitGroup[lp_playerIndex]);
+    libPVEB_gf_PvEResurrectAddRemoveDeadHeroArrow(false, lp_playerIndex);
+    if ((libGame_gv_players[lp_playerIndex].lv_heroRequiresCustomRespawn == true)) {
+        libGame_gf_SendEventRequestCustomRespawn(lp_playerIndex, false, lp_location, 100);
+    }
+    else {
+        libGame_gf_HeroDeathRespawnHeroforPlayer(false, lp_playerIndex, lp_location, 100);
+    }
+    libPVEB_gf_PvEResurrectRevivePlayerCleanup(lp_playerIndex);
+    libGame_gf_HeroDeathEnableDisableDeadSoundStateForPlayer(false, lp_playerIndex);
+    PlayerGroupAdd(lv_vOGroup, lp_playerIndex);
+    libSond_gf_HeroVOPlayResurrected(lp_playerIndex, lv_vOGroup);
+    if ((libNtve_gf_PlayerInCinematicMode(lp_playerIndex) == false)) {
+        TextExpressionSetToken("Param/Expression/lib_PVEB_D3C8FC72", "A", PlayerName(lp_playerIndex));
+        TextExpressionSetToken("Param/Expression/lib_PVEB_D3C8FC72", "B", UnitGetName(libGame_gv_players[lp_playerIndex].lv_heroUnit));
+        UIDisplayMessage(PlayerGroupAll(), c_messageAreaChat, TextExpressionAssemble("Param/Expression/lib_PVEB_D3C8FC72"));
+    }
+
+    libPVEB_gf_PvEResurrectCheckActiveSpirits(false);
+}
+
+void libPVEB_gf_PvEResurrectRevivePlayerCleanup (int lp_player) {
+    // Variable Declarations
+    unit lv_heroUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    SoundPlayForPlayer(SoundLink("ResurrectChannelEndSound", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    lv_heroUnit = libGame_gv_players[lp_player].lv_heroUnit;
+    UnitRemove(libPVEB_gv_pvEResurrectSpirit[lp_player]);
+    libPVEB_gv_pvEResurrectSpirit[lp_player] = null;
+    libNtve_gf_StopTimer(libGame_gv_players[lp_player].lv_respawnTimer);
+    libNtve_gf_StopTimer(libGame_gv_players[lp_player].lv_respawnSoundCueTimer);
+    UnitCreateEffectUnit(lv_heroUnit, "AbilityUseResponseSetDismountDecloak", lv_heroUnit);
+    DialogDestroy(libPVEB_gv_pvEResurrectRevivingDialog[lp_player].lv_panel);
+    TextTagDestroy(libPVEB_gv_pvEResurrectSpiritTextTag[lp_player]);
+    TextTagDestroy(libPVEB_gv_pvEResurrectSpiritTextTagSelf[lp_player]);
+    UnitBehaviorRemove(lv_heroUnit, "HallOfStormsHealBuff", 1);
+    UnitBehaviorRemove(lv_heroUnit, "HallOfStormsProtectionBuff", 1);
+    UnitBehaviorAdd(libGame_gv_players[lp_player].lv_heroUnit, "PVEResurrectInvulnerability", libGame_gv_players[lp_player].lv_heroUnit, 1);
+    ActorSend(ActorFromActor(libNtve_gf_MainActorofUnit(lv_heroUnit), "HallOfStormsHealBuffFX"), "Destroy Immediate");
+}
+
+trigger auto_libPVEB_gf_PVECreateDirectiveMessage_Trigger = null;
+text auto_libPVEB_gf_PVECreateDirectiveMessage_lp_title;
+text auto_libPVEB_gf_PVECreateDirectiveMessage_lp_description;
+int auto_libPVEB_gf_PVECreateDirectiveMessage_lp_style;
+
+void libPVEB_gf_PVECreateDirectiveMessage (text lp_title, text lp_description, int lp_style) {
+    auto_libPVEB_gf_PVECreateDirectiveMessage_lp_title = lp_title;
+    auto_libPVEB_gf_PVECreateDirectiveMessage_lp_description = lp_description;
+    auto_libPVEB_gf_PVECreateDirectiveMessage_lp_style = lp_style;
+
+    if (auto_libPVEB_gf_PVECreateDirectiveMessage_Trigger == null) {
+        auto_libPVEB_gf_PVECreateDirectiveMessage_Trigger = TriggerCreate("auto_libPVEB_gf_PVECreateDirectiveMessage_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libPVEB_gf_PVECreateDirectiveMessage_Trigger, false, false);
+}
+
+bool auto_libPVEB_gf_PVECreateDirectiveMessage_TriggerFunc (bool testConds, bool runActions) {
+    text lp_title = auto_libPVEB_gf_PVECreateDirectiveMessage_lp_title;
+    text lp_description = auto_libPVEB_gf_PVECreateDirectiveMessage_lp_description;
+    int lp_style = auto_libPVEB_gf_PVECreateDirectiveMessage_lp_style;
+
+    // Variable Declarations
+    fixed lv_fadeDuration;
+
+    // Automatic Variable Declarations
+    int auto25AC8687_val;
+
+    // Variable Initialization
+
+    // Implementation
+    UIClearMessages(PlayerGroupAll(), c_messageAreaAll);
+    libPVEB_gf_PVEDestroyCurrentDirectiveMessage();
+    auto25AC8687_val = lp_style;
+    if (auto25AC8687_val == libPVEB_ge_PVEDirectiveStyle_ObjectiveDiscovered) {
+        SoundPlayForPlayer(SoundLink("UI_PvEBrawl_ObjectiveDiscovered", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    }
+    else if (auto25AC8687_val == libPVEB_ge_PVEDirectiveStyle_ObjectiveCompleted) {
+        SoundPlayForPlayer(SoundLink("UI_PvEBrawl_ObjectiveComplete", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    }
+    else if (auto25AC8687_val == libPVEB_ge_PVEDirectiveStyle_ObjectiveFailed) {
+        SoundPlayForPlayer(SoundLink("MX_TutorialVet_Failed", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    }
+    else if (auto25AC8687_val == libPVEB_ge_PVEDirectiveStyle_ObjectiveUpdated) {
+        SoundPlayForPlayer(SoundLink("UI_PvEBrawl_ObjectiveUpdated", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    }
+    else if (auto25AC8687_val == libPVEB_ge_PVEDirectiveStyle_ObjectiveBegins) {
+        SoundPlayForPlayer(SoundLink("UI_PvEBrawl_ObjectiveDiscovered", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    }
+    else {
+    }
+    libNtve_gf_SetDialogItemText(libPVEB_gv_tutorialVeteranPanel.lv_directiveTitleLabel, lp_title, PlayerGroupAll());
+    libNtve_gf_SetDialogItemText(libPVEB_gv_tutorialVeteranPanel.lv_directiveDescriptionLabel, lp_description, PlayerGroupAll());
+    TriggerExecute(libPVEB_gt_PVEDisplayDirectivePanelMessage, true, false);
+    return true;
+}
+
+void libPVEB_gf_PVEDestroyCurrentDirectiveMessage () {
+    // Automatic Variable Declarations
+    // Implementation
+    TriggerStop(libPVEB_gt_PVEDisplayDirectivePanelMessage);
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_directiveTextFrame, PlayerGroupAll(), false);
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_directiveTitleLabel, PlayerGroupAll(), false);
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_directiveDescriptionLabel, PlayerGroupAll(), false);
+}
+
+trigger auto_libPVEB_gf_PVECreateDirectiveMessageSmall_Trigger = null;
+text auto_libPVEB_gf_PVECreateDirectiveMessageSmall_lp_title;
+text auto_libPVEB_gf_PVECreateDirectiveMessageSmall_lp_description;
+int auto_libPVEB_gf_PVECreateDirectiveMessageSmall_lp_style;
+
+void libPVEB_gf_PVECreateDirectiveMessageSmall (text lp_title, text lp_description, int lp_style) {
+    auto_libPVEB_gf_PVECreateDirectiveMessageSmall_lp_title = lp_title;
+    auto_libPVEB_gf_PVECreateDirectiveMessageSmall_lp_description = lp_description;
+    auto_libPVEB_gf_PVECreateDirectiveMessageSmall_lp_style = lp_style;
+
+    if (auto_libPVEB_gf_PVECreateDirectiveMessageSmall_Trigger == null) {
+        auto_libPVEB_gf_PVECreateDirectiveMessageSmall_Trigger = TriggerCreate("auto_libPVEB_gf_PVECreateDirectiveMessageSmall_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libPVEB_gf_PVECreateDirectiveMessageSmall_Trigger, false, false);
+}
+
+bool auto_libPVEB_gf_PVECreateDirectiveMessageSmall_TriggerFunc (bool testConds, bool runActions) {
+    text lp_title = auto_libPVEB_gf_PVECreateDirectiveMessageSmall_lp_title;
+    text lp_description = auto_libPVEB_gf_PVECreateDirectiveMessageSmall_lp_description;
+    int lp_style = auto_libPVEB_gf_PVECreateDirectiveMessageSmall_lp_style;
+
+    // Variable Declarations
+    fixed lv_fadeDuration;
+
+    // Automatic Variable Declarations
+    int auto53C802F8_val;
+
+    // Variable Initialization
+
+    // Implementation
+    UIClearMessages(PlayerGroupAll(), c_messageAreaAll);
+    libPVEB_gf_PVEDestroyCurrentDirectiveMessageSmall();
+    auto53C802F8_val = lp_style;
+    if (auto53C802F8_val == libPVEB_ge_PVEDirectiveStyle_ObjectiveDiscovered) {
+        SoundPlayForPlayer(SoundLink("UI_PvEBrawl_ObjectiveDiscovered", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    }
+    else if (auto53C802F8_val == libPVEB_ge_PVEDirectiveStyle_ObjectiveCompleted) {
+        SoundPlayForPlayer(SoundLink("UI_PvEBrawl_ObjectiveComplete", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    }
+    else if (auto53C802F8_val == libPVEB_ge_PVEDirectiveStyle_ObjectiveFailed) {
+        SoundPlayForPlayer(SoundLink("MX_TutorialVet_Failed", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    }
+    else if (auto53C802F8_val == libPVEB_ge_PVEDirectiveStyle_ObjectiveUpdated) {
+        SoundPlayForPlayer(SoundLink("UI_PvEBrawl_ObjectiveUpdated", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    }
+    else if (auto53C802F8_val == libPVEB_ge_PVEDirectiveStyle_ObjectiveBegins) {
+        SoundPlayForPlayer(SoundLink("UI_PvEBrawl_ObjectiveDiscovered", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    }
+    else {
+    }
+    libNtve_gf_SetDialogItemText(libPVEB_gv_tutorialVeteranPanel.lv_directiveTitleLabelSmall, lp_title, PlayerGroupAll());
+    libNtve_gf_SetDialogItemText(libPVEB_gv_tutorialVeteranPanel.lv_directiveDescriptionLabelSmall, lp_description, PlayerGroupAll());
+    TriggerExecute(libPVEB_gt_PVEDisplayDirectivePanelMessageSmall, true, false);
+    return true;
+}
+
+void libPVEB_gf_PVEDestroyCurrentDirectiveMessageSmall () {
+    // Automatic Variable Declarations
+    // Implementation
+    TriggerStop(libPVEB_gt_PVEDisplayDirectivePanelMessageSmall);
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_directiveTextFrameSmall, PlayerGroupAll(), false);
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_directiveTitleLabelSmall, PlayerGroupAll(), false);
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_directiveDescriptionLabelSmall, PlayerGroupAll(), false);
+}
+
+int libPVEB_gf_PBGameDifficulty () {
+    // Automatic Variable Declarations
+    // Implementation
+    return libPVEB_gv_pB_GameDifficulty;
+}
+
+int libPVEB_gf_PVEDifficultyValueInt (int lp_normal, int lp_hard) {
+    // Automatic Variable Declarations
+    int auto6E10BDC8_val;
+
+    // Implementation
+    auto6E10BDC8_val = libPVEB_gf_PBGameDifficulty();
+    if (auto6E10BDC8_val == libPVEB_ge_PVEGameDifficulty_Hard) {
+        return lp_hard;
+    }
+    else {
+        return lp_normal;
+    }
+}
+
+fixed libPVEB_gf_PVEDifficultyValueReal (fixed lp_normal, fixed lp_hard) {
+    // Automatic Variable Declarations
+    int auto5DB7D1D2_val;
+
+    // Implementation
+    auto5DB7D1D2_val = libPVEB_gf_PBGameDifficulty();
+    if (auto5DB7D1D2_val == libPVEB_ge_PVEGameDifficulty_Hard) {
+        return lp_hard;
+    }
+    else {
+        return lp_normal;
+    }
+}
+
+void libPVEB_gf_PBVictoryDefeatEffect (bool lp_victory) {
+    // Variable Declarations
+    int lv_itPlayer;
+    int lv_winningTeam;
+    int lv_losingTeam;
+    const fixed lv_endGameTimeDelay = 7.0;
+
+    // Automatic Variable Declarations
+    playergroup autoB2DFF775_g;
+    playergroup autoA8114404_g;
+    playergroup auto1783CDDA_g;
+    const int auto86F1E917_ae = libCore_gv_bALMaxPlayers;
+    const int auto86F1E917_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    libGame_gf_SendEventGameOverEvent();
+    if ((lp_victory == true)) {
+        lv_winningTeam = libGame_gv_teamOrderIndex_C;
+        lv_losingTeam = libGame_gv_teamChaosIndex_C;
+    }
+    else {
+        lv_winningTeam = libGame_gv_teamChaosIndex_C;
+        lv_losingTeam = libGame_gv_teamOrderIndex_C;
+    }
+    autoB2DFF775_g = libGame_gf_PlayersOnTeamHeroes(lv_winningTeam, false);
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(autoB2DFF775_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	if ((PlayerStatus(lv_itPlayer) != c_playerStatusUnused)) {
+            CameraLockInput(lv_itPlayer, true);
+            libGame_gv_players[lv_itPlayer].lv_victoryDefeat = c_gameOverVictory;
+        }
+
+    }
+    autoA8114404_g = libGame_gf_PlayersOnTeamHeroes(lv_losingTeam, false);
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(autoA8114404_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	if ((PlayerStatus(lv_itPlayer) != c_playerStatusUnused)) {
+            CameraLockInput(lv_itPlayer, true);
+            libGame_gv_players[lv_itPlayer].lv_victoryDefeat = c_gameOverDefeat;
+        }
+
+    }
+    TriggerEnable(libGame_gt_XPTrickle, false);
+    auto1783CDDA_g = libCore_gv_activeHumanPlayers;
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(auto1783CDDA_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	libUIUI_gf_UIHeroConsoleShowHideForPlayer(false, lv_itPlayer);
+        UISetMode(libCore_gv_playerGroupFromPlayer[lv_itPlayer], c_uiModeFullscreen, c_transitionDurationImmediate);
+        DialogControlSetVisible(libUIUI_gv_uIGameUIHandles.lv_talentsButton, libCore_gv_playerGroupFromPlayer[lv_itPlayer], false);
+        UISetFrameVisible(libCore_gv_playerGroupFromPlayer[lv_itPlayer], c_syncFrameTypeMinimapPanel, false);
+        libUIUI_gf_UIHeroTrackerArrowShowHideForPlayer(false, lv_itPlayer);
+        libUIUI_gf_UIGameUIShowHideConsolePanelForPlayer(false, lv_itPlayer);
+    }
+    DialogControlSetVisible(libUIUI_gv_uIObserverUI.lv_mainPanel, libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], false);
+    DialogControlHookupStandard(c_triggerControlTypePanel, "UIContainer/ConsoleUIContainer");
+    DialogControlSetVisible(DialogControlLastCreated(), libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], false);
+    if ((libGame_gv_gameOverCallback != null)) {
+        TriggerExecute(libGame_gv_gameOverCallback, true, true);
+    }
+
+    libPVEB_gf_PBDisplayGameOverSplash(lp_victory);
+    UISetFrameVisible(PlayerGroupAll(), c_syncFrameTypeStatusUI, false);
+    if ((libGame_gv_endofMatchAwardsDisabled == true)) {
+        Wait(lv_endGameTimeDelay, c_timeGame);
+    }
+
+    lv_itPlayer = 1;
+    for ( ; ( (auto86F1E917_ai >= 0 && lv_itPlayer <= auto86F1E917_ae) || (auto86F1E917_ai < 0 && lv_itPlayer >= auto86F1E917_ae) ) ; lv_itPlayer += auto86F1E917_ai ) {
+        if ((PlayerStatus(lv_itPlayer) != c_playerStatusUnused)) {
+            libPVEB_gf_PBEndGameForPlayer(lv_itPlayer);
+        }
+
+    }
+    GameSetReplayKeyframesEnabled(false);
+    Wait(10.0, c_timeGame);
+}
+
+void libPVEB_gf_PBVictoryDefeat (bool lp_victory, region lp_victoryArea, point lp_victoryLocation) {
+    // Variable Declarations
+    int lv_itPlayer;
+    unit lv_itHeroUnit;
+    int lv_winningTeam;
+
+    // Automatic Variable Declarations
+    const int autoAC679FCA_ae = libCore_gv_bALMaxPlayers;
+    const int autoAC679FCA_ai = 1;
+    unitgroup autoD7CD1F3F_g;
+    int autoD7CD1F3F_u;
+    playergroup auto743879D6_g;
+    playergroup auto967A0373_g;
+    unitgroup autoB6DE536C_g;
+    int autoB6DE536C_u;
+    unitgroup autoCC13B469_g;
+    int autoCC13B469_u;
+    unitgroup auto81F36931_g;
+    int auto81F36931_u;
+    playergroup autoDB6239D5_g;
+
+    // Variable Initialization
+    lv_winningTeam = -1;
+
+    // Implementation
+    libGame_gv_gameOver = true;
+    if ((lp_victory == true)) {
+        libPVEB_gv_gameOverResult = c_gameOverVictory;
+    }
+    else {
+        libPVEB_gv_gameOverResult = c_gameOverDefeat;
+    }
+    TimerPause(libGame_gv_gameTimer, true);
+    TimerPause(libGame_gv_matchGameplayTimer, true);
+    UnitPauseAll(true);
+    lv_itPlayer = 1;
+    for ( ; ( (autoAC679FCA_ai >= 0 && lv_itPlayer <= autoAC679FCA_ae) || (autoAC679FCA_ai < 0 && lv_itPlayer >= autoAC679FCA_ae) ) ; lv_itPlayer += autoAC679FCA_ai ) {
+        autoD7CD1F3F_g = libGame_gv_players[lv_itPlayer].lv_heroUnitGroup;
+        autoD7CD1F3F_u = UnitGroupCount(autoD7CD1F3F_g, c_unitCountAll);
+        for (;; autoD7CD1F3F_u -= 1) {
+            lv_itHeroUnit = UnitGroupUnitFromEnd(autoD7CD1F3F_g, autoD7CD1F3F_u);
+            if (lv_itHeroUnit == null) { break; }
+            libNtve_gf_ChangeUnitDamage(lv_itHeroUnit, libNtve_ge_UnitDamageTakenDealt_Damage_Deal, libNtve_ge_UnitDamageChangeOption_No);
+            libNtve_gf_ChangeUnitDamage(lv_itHeroUnit, libNtve_ge_UnitDamageTakenDealt_Damage_Take, libNtve_ge_UnitDamageChangeOption_No);
+        }
+    }
+    if ((lp_victoryArea != null)) {
+        VisRevealerCreate(libCore_gv_cOMPUTER_TeamOrder, lp_victoryArea);
+    }
+
+    auto743879D6_g = libCore_gv_activeHumanPlayers;
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(auto743879D6_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	CameraLockInput(lv_itPlayer, true);
+        PlayerOptionOverride(lv_itPlayer, "camerafollow", "0");
+        libGame_gf_HeroDeathEnableDisableDeadSoundStateForPlayer(false, lv_itPlayer);
+    }
+    Wait(0.0625, c_timeGame);
+    auto967A0373_g = libCore_gv_activeHumanPlayers;
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(auto967A0373_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	CameraFollowUnitGroup(lv_itPlayer, CameraFollowUnitGroupGet(lv_itPlayer), false, false);
+        if ((lp_victoryLocation != null)) {
+            libGame_gf_CameraPanCameraForPlayerAndUpdateMapBoundsIfNecessary(lv_itPlayer, lp_victoryLocation, libGame_gv_gameOver_CameraPanTime_C, -1, 10, false);
+        }
+
+    }
+    if ((lp_victoryLocation != null)) {
+        libGame_gf_CameraPanCameraForPlayerAndUpdateMapBoundsIfNecessary(libCore_gv_oBSERVER_ObserverUIPlayer, lp_victoryLocation, libGame_gv_gameOver_CameraPanTime_C, -1, 10, false);
+    }
+
+    SetTalentsEnabled(false);
+    libGame_gv_gameOver_DetermineWinningTeamHasRun = true;
+    if ((lp_victory == true)) {
+        lv_winningTeam = libGame_gv_teamOrderIndex_C;
+    }
+    else {
+        lv_winningTeam = libGame_gv_teamChaosIndex_C;
+    }
+    TriggerQueueClear(c_triggerQueueRemove);
+    TransmissionClearAll();
+    libSond_gf_MuteMostSoundChannelsForGameOverState(true);
+    libSond_gf_SoundtrackSetUniqueSoundtrackState(false);
+    if ((lp_victory == true)) {
+        libSond_gf_SoundtrackApplyNewDefaultSoundtrackForPlayerGroup("Storm_Music_Stinger_Victory", libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroup);
+    }
+    else {
+        libSond_gf_SoundtrackApplyNewDefaultSoundtrackForPlayerGroup("Storm_Music_Stinger_Defeat", libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroup);
+    }
+    autoB6DE536C_g = libGame_gv_heroes;
+    autoB6DE536C_u = UnitGroupCount(autoB6DE536C_g, c_unitCountAll);
+    for (;; autoB6DE536C_u -= 1) {
+        lv_itHeroUnit = UnitGroupUnitFromEnd(autoB6DE536C_g, autoB6DE536C_u);
+        if (lv_itHeroUnit == null) { break; }
+        if ((UnitGetType(lv_itHeroUnit) == "HeroTassadar")) {
+            UnitBehaviorAdd(lv_itHeroUnit, "TassadarDistortionBeamSuppression", lv_itHeroUnit, 1);
+        }
+
+        if ((UnitGetType(lv_itHeroUnit) == "HeroDiablo")) {
+            UnitBehaviorRemove(lv_itHeroUnit, "DiabloLightningBreathActive", 1);
+        }
+
+    }
+    if ((lp_victoryArea != null)) {
+        autoCC13B469_g = UnitGroupAlliance(libCore_gv_cOMPUTER_TeamOrder, c_unitAllianceAlly, lp_victoryArea, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+        autoCC13B469_u = UnitGroupCount(autoCC13B469_g, c_unitCountAll);
+        for (;; autoCC13B469_u -= 1) {
+            lv_itHeroUnit = UnitGroupUnitFromEnd(autoCC13B469_g, autoCC13B469_u);
+            if (lv_itHeroUnit == null) { break; }
+            UnitBehaviorRemove(lv_itHeroUnit, "Mounted", 1);
+            libNtve_gf_SendActorMessageToUnit(lv_itHeroUnit, "Signal GameWon");
+        }
+        auto81F36931_g = UnitGroupAlliance(libCore_gv_cOMPUTER_TeamOrder, c_unitAllianceEnemy, lp_victoryArea, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+        auto81F36931_u = UnitGroupCount(auto81F36931_g, c_unitCountAll);
+        for (;; auto81F36931_u -= 1) {
+            lv_itHeroUnit = UnitGroupUnitFromEnd(auto81F36931_g, auto81F36931_u);
+            if (lv_itHeroUnit == null) { break; }
+            UnitBehaviorRemove(lv_itHeroUnit, "Mounted", 1);
+            libNtve_gf_SendActorMessageToUnit(lv_itHeroUnit, "Signal GameLost");
+        }
+    }
+
+    if ((lp_victoryLocation != null)) {
+        Wait(libGame_gv_gameOver_CameraPanTime_C, c_timeGame);
+    }
+
+    autoDB6239D5_g = PlayerGroupAll();
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(autoDB6239D5_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	libGame_gf_AnnouncementClearQueueForPlayer(lv_itPlayer);
+    }
+    UISetFrameVisible(PlayerGroupAll(), c_syncFrameTypeObjectivePanel, false);
+    libGame_gv_announcement_SystemEnabled = false;
+    libGame_gf_PlayVictoryDefeatVO(lv_winningTeam);
+    libPVEB_gf_PBVictoryDefeatEffect(lp_victory);
+}
+
+void libPVEB_gf_PBEndGameForPlayer (int lp_player) {
+    // Automatic Variable Declarations
+    // Implementation
+    libGame_gv_gameScore_BrawlModeCScore[lp_player] = libPVEB_gv_pBGameOverPlayerXPGain;
+    libGame_gf_ScoreValuesReportForPlayer(lp_player);
+    libGame_gv_players[lp_player].lv_gameEndedForPlayer = true;
+    GameOver(lp_player, libGame_gv_players[lp_player].lv_victoryDefeat, false, false);
+}
+
+void libPVEB_gf_PBDisplayGameOverSplash (bool lp_victory) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libPVEB_gv_pBGameOverScreen.lv_timeLabel == c_invalidDialogControlId)) {
+        DialogControlHookup(libUIUI_gv_gameOverSplash.lv_victoryFrame, c_triggerControlTypeLabel, "VictoryLabel");
+        libPVEB_gv_pBGameOverScreen.lv_victoryLabel = DialogControlLastCreated();
+        libNtve_gf_SetDialogItemText(DialogControlLastCreated(), StringExternal("DOCSTR_MissionComplete"), PlayerGroupAll());
+        DialogControlHookup(libUIUI_gv_gameOverSplash.lv_victoryFrame, c_triggerControlTypeLabel, "VictoryLabelGlow");
+        libPVEB_gv_pBGameOverScreen.lv_victoryLabelGlow = DialogControlLastCreated();
+        libNtve_gf_SetDialogItemText(DialogControlLastCreated(), StringExternal("DOCSTR_MissionComplete"), PlayerGroupAll());
+        DialogControlHookup(libUIUI_gv_gameOverSplash.lv_defeatFrame, c_triggerControlTypeLabel, "DefeatLabel");
+        libPVEB_gv_pBGameOverScreen.lv_defeatLabel = DialogControlLastCreated();
+        libNtve_gf_SetDialogItemText(DialogControlLastCreated(), StringExternal("DOCSTR_MissionFailed"), PlayerGroupAll());
+        DialogControlHookup(libUIUI_gv_gameOverSplash.lv_defeatFrame, c_triggerControlTypeLabel, "DefeatLabelGlow");
+        libPVEB_gv_pBGameOverScreen.lv_defeatLabelGlow = DialogControlLastCreated();
+        libNtve_gf_SetDialogItemText(DialogControlLastCreated(), StringExternal("DOCSTR_MissionFailed"), PlayerGroupAll());
+        DialogControlHookup(libUIUI_gv_gameOverSplash.lv_victoryFrame, c_triggerControlTypeLabel, "TimeLabel");
+        libPVEB_gv_pBGameOverScreen.lv_timeLabel = DialogControlLastCreated();
+        DialogControlHookup(libUIUI_gv_gameOverSplash.lv_victoryFrame, c_triggerControlTypeLabel, "FinalTime");
+        libPVEB_gv_pBGameOverScreen.lv_finalTimeLabel = DialogControlLastCreated();
+        libNtve_gf_SetDialogItemText(DialogControlLastCreated(), StringExternal("Param/Value/lib_PVEB_382AAE31"), PlayerGroupAll());
+    }
+
+    if ((libPVEB_gv_pBGameOverScreenCallback != null)) {
+        TriggerExecute(libPVEB_gv_pBGameOverScreenCallback, true, false);
+    }
+
+    if ((lp_victory == true)) {
+        libUIUI_gf_GameOverSplashDisplayForAllPlayers(libGame_gv_teamOrderIndex_C);
+    }
+    else {
+        libUIUI_gf_GameOverSplashDisplayForAllPlayers(libGame_gv_teamChaosIndex_C);
+    }
+}
+
+void libPVEB_gf_DebugSelectPlayerHero (int lp_player, int lp_playerToSelect, bool lp_exclude) {
+    // Automatic Variable Declarations
+    // Implementation
+    ConsoleCommand(("AllianceControl " + IntToString(lp_playerToSelect) + " " + IntToString(lp_player) + " 1"), true, true);
+    if ((lp_exclude == true)) {
+        UnitClearSelection(lp_player);
+    }
+
+    UnitSelect(libGame_gv_players[lp_playerToSelect].lv_heroUnit, lp_player, true);
+}
+
+void libPVEB_gf_PvEWaveRoutineSingleWave (int lp_waveIndex) {
+    // Variable Declarations
+    unit lv_itUnit;
+    point lv_ptPre;
+    point lv_ptNext;
+    point lv_ptUnit;
+    point lv_ptAnchor;
+    fixed lv_angelLane;
+    fixed lv_angelUnit;
+    fixed lv_distanceUnitPre;
+    fixed lv_distanceUnitNext;
+    fixed lv_offset;
+    bool lv_arrived;
+
+    // Automatic Variable Declarations
+    unitgroup auto2BA96A95_g;
+    int auto2BA96A95_u;
+    unitgroup autoD33EDCDC_g;
+    int autoD33EDCDC_u;
+
+    // Variable Initialization
+
+    // Implementation
+    if ((libPVEB_gf_PvEIsValidWaveIndex(lp_waveIndex) == false)) {
+        TextExpressionSetToken("Param/Expression/lib_PVEB_6F9B5A22", "A", IntToText(lp_waveIndex));
+        TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_PVEB_6F9B5A22"), true);
+        return ;
+    }
+
+    if (((libPVEB_gv_pvEWaves[lp_waveIndex].lv_used == false) || (libPVEB_gv_pvEWaves[lp_waveIndex].lv_sent == false))) {
+        return ;
+    }
+
+    if ((libNtve_gf_UnitGroupIsDead(libPVEB_gv_pvEWaves[lp_waveIndex].lv_units) == true)) {
+        libPVEB_gv_pvEWaves[lp_waveIndex].lv_used = false;
+        libPVEB_gv_pvEWaves[lp_waveIndex].lv_sent = false;
+        return ;
+    }
+
+    lv_ptPre = libPVEB_gv_pvEWaves[lp_waveIndex].lv_waypoints[libPVEB_gv_pvEWaves[lp_waveIndex].lv_wayPointPre];
+    lv_ptNext = libPVEB_gv_pvEWaves[lp_waveIndex].lv_waypoints[libPVEB_gv_pvEWaves[lp_waveIndex].lv_wayPointNext];
+    lv_angelLane = AngleBetweenPoints(lv_ptPre, lv_ptNext);
+    if ((UnitGroupCount(libPVEB_gv_pvEWaves[lp_waveIndex].lv_units, c_unitCountAlive) == UnitGroupCount(libPVEB_gv_pvEWaves[lp_waveIndex].lv_unitsWaitingAtWaypoint, c_unitCountAlive))) {
+        if ((libPVEB_gv_pvEWaves[lp_waveIndex].lv_wayPointNext < libPVEB_gv_pvEWaves[lp_waveIndex].lv_wayPointCount)) {
+            libPVEB_gv_pvEWaves[lp_waveIndex].lv_wayPointPre = libPVEB_gv_pvEWaves[lp_waveIndex].lv_wayPointNext;
+            libPVEB_gv_pvEWaves[lp_waveIndex].lv_wayPointNext += 1;
+        }
+
+        auto2BA96A95_g = libPVEB_gv_pvEWaves[lp_waveIndex].lv_units;
+        auto2BA96A95_u = UnitGroupCount(auto2BA96A95_g, c_unitCountAll);
+        for (;; auto2BA96A95_u -= 1) {
+            lv_itUnit = UnitGroupUnitFromEnd(auto2BA96A95_g, auto2BA96A95_u);
+            if (lv_itUnit == null) { break; }
+            UnitIssueOrder(lv_itUnit, OrderTargetingPoint(AbilityCommand("attack", 0), libPVEB_gv_pvEWaves[lp_waveIndex].lv_waypoints[libPVEB_gv_pvEWaves[lp_waveIndex].lv_wayPointNext]), c_orderQueueReplace);
+        }
+        UnitGroupClear(libPVEB_gv_pvEWaves[lp_waveIndex].lv_unitsWaitingAtWaypoint);
+        UnitGroupClear(libPVEB_gv_pvEWaves[lp_waveIndex].lv_unitsLeashing);
+        return ;
+    }
+
+    autoD33EDCDC_g = libPVEB_gv_pvEWaves[lp_waveIndex].lv_units;
+    autoD33EDCDC_u = UnitGroupCount(autoD33EDCDC_g, c_unitCountAll);
+    for (;; autoD33EDCDC_u -= 1) {
+        lv_itUnit = UnitGroupUnitFromEnd(autoD33EDCDC_g, autoD33EDCDC_u);
+        if (lv_itUnit == null) { break; }
+        lv_ptUnit = UnitGetPosition(lv_itUnit);
+        lv_distanceUnitPre = AbsF(DistanceBetweenPoints(lv_ptPre, lv_ptUnit));
+        lv_distanceUnitNext = AbsF(DistanceBetweenPoints(lv_ptNext, lv_ptUnit));
+        if ((UnitGroupHasUnit(libPVEB_gv_pvEWaves[lp_waveIndex].lv_unitsWaitingAtWaypoint, lv_itUnit) == true)) {
+            if ((lv_distanceUnitNext > libPVEB_gv_pvEWaveLeashDistance_On_C)) {
+                UnitIssueOrder(lv_itUnit, OrderTargetingPoint(AbilityCommand("move", 0), lv_ptNext), c_orderQueueReplace);
+            }
+            else if ((lv_distanceUnitNext <= libPVEB_gv_pvEWaveLeashDistance_Off_C) && (lv_distanceUnitNext > libPVEB_gv_pvEWaveWaypointDistance_C)) {
+                UnitIssueOrder(lv_itUnit, OrderTargetingPoint(AbilityCommand("attack", 0), lv_ptNext), c_orderQueueReplace);
+            }
+            else if (true) {
+                if ((UnitHasAIThinkTree(lv_itUnit) == false)) {
+                    UnitCreateAIThinkTree(lv_itUnit);
+                }
+
+            }
+            continue;
+        }
+        else {
+            if ((lv_distanceUnitNext < libPVEB_gv_pvEWaveWaypointDistance_C)) {
+                UnitGroupAdd(libPVEB_gv_pvEWaves[lp_waveIndex].lv_unitsWaitingAtWaypoint, lv_itUnit);
+                UnitGroupRemove(libPVEB_gv_pvEWaves[lp_waveIndex].lv_unitsLeashing, lv_itUnit);
+                if ((UnitHasAIThinkTree(lv_itUnit) == false)) {
+                    UnitCreateAIThinkTree(lv_itUnit);
+                }
+
+                continue;
+            }
+
+        }
+        lv_angelUnit = AngleBetweenPoints(lv_ptPre, lv_ptUnit);
+        lv_offset = AbsF((lv_distanceUnitPre * Sin((lv_angelUnit - lv_angelLane))));
+        if ((lv_offset >= libPVEB_gv_pvEWaveLeashDistance_On_C)) {
+            lv_ptAnchor = PointWithOffsetPolar(lv_ptPre, AbsF((lv_distanceUnitPre * Cos((lv_angelUnit - lv_angelLane)))), lv_angelLane);
+            UnitIssueOrder(lv_itUnit, OrderTargetingPoint(AbilityCommand("move", 0), lv_ptAnchor), c_orderQueueReplace);
+            UnitGroupAdd(libPVEB_gv_pvEWaves[lp_waveIndex].lv_unitsLeashing, lv_itUnit);
+            libCore_gf_StorePointForUnit(lv_itUnit, 1, lv_ptAnchor);
+            if ((UnitHasAIThinkTree(lv_itUnit) == true)) {
+                UnitDestroyAIThinkTree(lv_itUnit);
+            }
+
+            continue;
+        }
+
+        if ((lv_offset < libPVEB_gv_pvEWaveLeashDistance_Off_C) && (UnitGroupHasUnit(libPVEB_gv_pvEWaves[lp_waveIndex].lv_unitsLeashing, lv_itUnit) == true)) {
+            UnitIssueOrder(lv_itUnit, OrderTargetingPoint(AbilityCommand("attack", 0), libCore_gf_PointStoredForUnit(lv_itUnit, 1)), c_orderQueueReplace);
+            UnitGroupRemove(libPVEB_gv_pvEWaves[lp_waveIndex].lv_unitsLeashing, lv_itUnit);
+            if ((UnitHasAIThinkTree(lv_itUnit) == false)) {
+                UnitCreateAIThinkTree(lv_itUnit);
+            }
+
+            continue;
+        }
+
+        if ((UnitOrder(lv_itUnit, 0) == null)) {
+            UnitIssueOrder(lv_itUnit, OrderTargetingPoint(AbilityCommand("attack", 0), lv_ptNext), c_orderQueueReplace);
+        }
+
+    }
+}
+
+bool libPVEB_gf_PvEIsValidWaveIndex (int lp_index) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((lp_index > 0) && (lp_index <= libPVEB_gv_pvEWaveCount)) {
+        return true;
+    }
+
+    return false;
+}
+
+void libPVEB_gf_PvEAddUnitToAttackWave (int lp_waveIndex, unit lp_unit) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libPVEB_gf_PvEIsValidWaveIndex(lp_waveIndex) == false)) {
+        TextExpressionSetToken("Param/Expression/lib_PVEB_05B9281B", "A", IntToText(lp_waveIndex));
+        TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_PVEB_05B9281B"), true);
+        return ;
+    }
+
+    UnitGroupAdd(libPVEB_gv_pvEWaves[lp_waveIndex].lv_units, lp_unit);
+    if ((UnitHasAIThinkTree(lp_unit) == false)) {
+        UnitCreateAIThinkTree(lp_unit);
+    }
+
+}
+
+void libPVEB_gf_PvEAddUnitGroupToAttackWave (int lp_waveIndex, unitgroup lp_units) {
+    // Variable Declarations
+    unit lv_itUnit;
+
+    // Automatic Variable Declarations
+    unitgroup auto41172428_g;
+    int auto41172428_u;
+
+    // Variable Initialization
+
+    // Implementation
+    if ((libPVEB_gf_PvEIsValidWaveIndex(lp_waveIndex) == false)) {
+        TextExpressionSetToken("Param/Expression/lib_PVEB_F173A950", "A", IntToText(lp_waveIndex));
+        TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_PVEB_F173A950"), true);
+        return ;
+    }
+
+    UnitGroupAddUnitGroup(libPVEB_gv_pvEWaves[lp_waveIndex].lv_units, lp_units);
+    auto41172428_g = lp_units;
+    auto41172428_u = UnitGroupCount(auto41172428_g, c_unitCountAll);
+    for (;; auto41172428_u -= 1) {
+        lv_itUnit = UnitGroupUnitFromEnd(auto41172428_g, auto41172428_u);
+        if (lv_itUnit == null) { break; }
+        if ((UnitHasAIThinkTree(lv_itUnit) == false)) {
+            UnitCreateAIThinkTree(lv_itUnit);
+        }
+
+    }
+}
+
+void libPVEB_gf_PvEAddAttackWaveWaypoint (int lp_waveIndex, point lp_waypoint) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libPVEB_gf_PvEIsValidWaveIndex(lp_waveIndex) == false)) {
+        TextExpressionSetToken("Param/Expression/lib_PVEB_E5494798", "A", IntToText(lp_waveIndex));
+        TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_PVEB_E5494798"), true);
+        return ;
+    }
+
+    if ((libPVEB_gv_pvEWaves[lp_waveIndex].lv_wayPointCount >= libPVEB_gv_pvEWaveWaypointCount_Max_C)) {
+        TriggerDebugOutput(1, StringExternal("Param/Value/lib_PVEB_29A116A7"), true);
+        return ;
+    }
+
+    libPVEB_gv_pvEWaves[lp_waveIndex].lv_wayPointCount += 1;
+    libPVEB_gv_pvEWaves[lp_waveIndex].lv_waypoints[libPVEB_gv_pvEWaves[lp_waveIndex].lv_wayPointCount] = lp_waypoint;
+}
+
+void libPVEB_gf_PvECreateAttackWave () {
+    // Variable Declarations
+    int lv_waveIndex;
+    int lv_itWaveIndex;
+
+    // Automatic Variable Declarations
+    int auto3E10FE25_ae;
+    const int auto3E10FE25_ai = 1;
+
+    // Variable Initialization
+    lv_waveIndex = -1;
+
+    // Implementation
+    lv_waveIndex = -1;
+    auto3E10FE25_ae = libPVEB_gv_pvEWaveCount;
+    lv_itWaveIndex = 1;
+    for ( ; ( (auto3E10FE25_ai >= 0 && lv_itWaveIndex <= auto3E10FE25_ae) || (auto3E10FE25_ai < 0 && lv_itWaveIndex >= auto3E10FE25_ae) ) ; lv_itWaveIndex += auto3E10FE25_ai ) {
+        if ((libPVEB_gv_pvEWaves[lv_itWaveIndex].lv_used == false)) {
+            lv_waveIndex = lv_itWaveIndex;
+            break;
+        }
+
+    }
+    if ((lv_waveIndex <= 0)) {
+        if ((libPVEB_gv_pvEWaveCount >= libPVEB_gv_pvEWaveCount_Max_C)) {
+            TriggerDebugOutput(1, StringExternal("Param/Value/lib_PVEB_A44181BD"), true);
+            return ;
+        }
+
+        libPVEB_gv_pvEWaveCount += 1;
+        lv_waveIndex = libPVEB_gv_pvEWaveCount;
+    }
+
+    libPVEB_gv_pvEWaves[lv_waveIndex].lv_used = true;
+    libPVEB_gv_pvEWaves[lv_waveIndex].lv_wayPointCount = 0;
+    libPVEB_gv_pvEWaves[lv_waveIndex].lv_wayPointPre = 1;
+    libPVEB_gv_pvEWaves[lv_waveIndex].lv_wayPointNext = 1;
+    libPVEB_gv_pvEWaves[lv_waveIndex].lv_units = UnitGroupEmpty();
+    libPVEB_gv_pvEWaves[lv_waveIndex].lv_unitsWaitingAtWaypoint = UnitGroupEmpty();
+    libPVEB_gv_pvEWaves[lv_waveIndex].lv_unitsLeashing = UnitGroupEmpty();
+    libPVEB_gv_pvEWaves[lv_waveIndex].lv_sent = false;
+    DataTableSetInt(false, "LastCreatedPvEAttackWaveIndex", lv_waveIndex);
+}
+
+int libPVEB_gf_PvELastCreatedAttackWave () {
+    // Automatic Variable Declarations
+    // Implementation
+    return DataTableGetInt(false, "LastCreatedPvEAttackWaveIndex");
+}
+
+void libPVEB_gf_PvESendAttackWave (int lp_waveIndex) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libPVEB_gf_PvEIsValidWaveIndex(lp_waveIndex) == false)) {
+        TextExpressionSetToken("Param/Expression/lib_PVEB_224FA292", "A", IntToText(lp_waveIndex));
+        TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_PVEB_224FA292"), true);
+        return ;
+    }
+
+    libPVEB_gv_pvEWaves[lp_waveIndex].lv_wayPointNext = (libPVEB_gv_pvEWaves[lp_waveIndex].lv_wayPointPre + 1);
+    libPVEB_gv_pvEWaves[lp_waveIndex].lv_sent = true;
+    TriggerExecute(libPVEB_gt_PvEWaveRoutine, true, false);
+}
+
+bool libPVEB_gf_MinionAITestPastNextWaypoint (point lp_minionIndex, point lp_minionIndex2, point lp_minionIndex3) {
+    // Automatic Variable Declarations
+    // Implementation
+    return (DistanceSquaredBetweenPoints(lp_minionIndex, lp_minionIndex2) >= (DistanceSquaredBetweenPoints(lp_minionIndex, lp_minionIndex3) + DistanceSquaredBetweenPoints(lp_minionIndex2, lp_minionIndex3)));
+}
+
+void libPVEB_gf_PvECreateDefenderAI (unitgroup lp_defenders, region lp_defendRegion, region lp_leashRegion, bool lp_healOnLeash) {
+    // Automatic Variable Declarations
+    // Implementation
+    libAIAI_gf_StartDefenderAI(false, lp_defenders, lp_leashRegion, lp_defendRegion, lp_healOnLeash);
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: #Include MM PvE Brawl Mod
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_IncludeMMPvEBrawlMod_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerExecute(libPVEB_gt_PVEDirectivePanelInitialize, true, false);
+    TriggerExecute(libPVEB_gt_InitializeArrows, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_IncludeMMPvEBrawlMod_Init () {
+    libPVEB_gt_IncludeMMPvEBrawlMod = TriggerCreate("libPVEB_gt_IncludeMMPvEBrawlMod_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: PB Hero Spawned
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_PBHeroSpawned_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_owner;
+    int lv_heroIndex;
+    unit lv_itUnit;
+
+    // Automatic Variable Declarations
+    unitgroup auto02C619CA_g;
+    int auto02C619CA_u;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_owner = libGame_gf_HeroSpawnPlayer();
+    lv_heroIndex = libPVEB_gf_PBNPCHeroIndexFromPlayer(lv_owner);
+    auto02C619CA_g = libGame_gv_players[lv_owner].lv_heroUnitGroup;
+    auto02C619CA_u = UnitGroupCount(auto02C619CA_g, c_unitCountAll);
+    for (;; auto02C619CA_u -= 1) {
+        lv_itUnit = UnitGroupUnitFromEnd(auto02C619CA_g, auto02C619CA_u);
+        if (lv_itUnit == null) { break; }
+        if ((libPVEB_gv_pvEBrawlSetting.lv_hearthDisabled == true)) {
+            UnitAbilityShow(lv_itUnit, "Hearthstone", false);
+            UnitBehaviorAdd(lv_itUnit, "HearthstonePermanentDisableAbilityBuff", lv_itUnit, 1);
+        }
+
+        if ((libPVEB_gv_pvEBrawlSetting.lv_mountDisabled == true)) {
+            if ((UnitGetType(lv_itUnit) == "HeroFalstad")) {
+                UnitAbilityShow(lv_itUnit, "FalstadFlight", false);
+            }
+            else if ((UnitGetType(lv_itUnit) == "HeroAbathur")) {
+            }
+            else if (((UnitGetType(lv_itUnit) == "HeroMedivh") || (UnitGetType(lv_itUnit) == "HeroMedivhRaven"))) {
+                UnitAbilityShow(lv_itUnit, "MedivhTransformRaven", false);
+                UnitAbilityEnable(lv_itUnit, "MedivhTransformRaven", false);
+                UnitAbilityShow(lv_itUnit, "MedivhTransformRavenLand", false);
+                UnitAbilityShow(lv_itUnit, "MedivhTransformRavenBirdsEyeView", false);
+                UnitAbilityShow(lv_itUnit, "MedivhTransformRavenFountain", false);
+                UnitAbilityShow(lv_itUnit, "MedivhTransformRavenGuardianMorph", false);
+                UnitAbilityShow(lv_itUnit, "MedivhTransformRavenMorph", false);
+            }
+            else if ((UnitGetType(lv_itUnit) == "HeroDehaka")) {
+                UnitAbilityShow(lv_itUnit, "DehakaBrushstalker", false);
+                UnitAbilityEnable(lv_itUnit, "DehakaBrushstalker", false);
+            }
+            else if (true) {
+                UnitAbilityShow(lv_itUnit, "Mount", false);
+                UnitAbilityEnable(lv_itUnit, "Mount", false);
+                UnitAbilityShow(lv_itUnit, "Dismount", false);
+                UnitAbilityEnable(lv_itUnit, "Dismount", false);
+            }
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_PBHeroSpawned_Init () {
+    libPVEB_gt_PBHeroSpawned = TriggerCreate("libPVEB_gt_PBHeroSpawned_Func");
+    libGame_gf_HeroSpawn(libPVEB_gt_PBHeroSpawned);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Initialize Arrows
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_InitializeArrows_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    const int auto456ED543_ae = libCore_gv_bALMaxPlayers;
+    const int auto456ED543_ai = 1;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_itPlayer = 1;
+    for ( ; ( (auto456ED543_ai >= 0 && lv_itPlayer <= auto456ED543_ae) || (auto456ED543_ai < 0 && lv_itPlayer >= auto456ED543_ae) ) ; lv_itPlayer += auto456ED543_ai ) {
+        if ((libGame_gv_players[lv_itPlayer].lv_heroUnit != null)) {
+            libUIUI_gf_UIHeroTrackerArrowShowHideForPlayer(true, lv_itPlayer);
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_InitializeArrows_Init () {
+    libPVEB_gt_InitializeArrows = TriggerCreate("libPVEB_gt_InitializeArrows_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Initialize Possible AI Players
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_InitializePossibleAIPlayers_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    playergroup auto3E1E5E89_g;
+    int auto3E1E5E89_var;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    Wait(2.5, c_timeGame);
+    auto3E1E5E89_g = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamOrderIndex_C, false);
+    auto3E1E5E89_var = -1;
+    while (true) {
+        	auto3E1E5E89_var = PlayerGroupNextPlayer(auto3E1E5E89_g, auto3E1E5E89_var);
+        	if (auto3E1E5E89_var<0) { break; }
+        	libUIUI_gf_UIEnableMapMechanicButtonForPlayer(auto3E1E5E89_var, true);
+        if ((libAIAI_gf_HeroAIIsPlayerActive(auto3E1E5E89_var, 2) == true)) {
+            libAIAI_gf_HeroAIEnableAIForPlayer(auto3E1E5E89_var);
+            Wait(RandomFixed(0.1, 0.25), c_timeGame);
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_InitializePossibleAIPlayers_Init () {
+    libPVEB_gt_InitializePossibleAIPlayers = TriggerCreate("libPVEB_gt_InitializePossibleAIPlayers_Func");
+    libGame_gf_GameOpenTimerStarted(libPVEB_gt_InitializePossibleAIPlayers);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init PVE Brawl Mod
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_InitPVEBrawlMod_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libUIUI_gf_UIPartyFrameShowHideCoreHealth(false);
+    libUIUI_gf_UIPartyFrameShowHideTeamPanelforPlayerGroup(libGame_gv_teamChaosIndex_C, false, PlayerGroupAll());
+    libCore_gf_DataHeroVOMapDataField(libCore_ge_HeroVOEvents_Comeback, "");
+    libCore_gf_DataAnnouncerVOMapDataField(libCore_ge_AnnouncerVOEvents_AllyFirstBlood, "", false);
+    libCore_gf_DataAnnouncerVOMapDataField(libCore_ge_AnnouncerVOEvents_EnemyFirstBlood, "", false);
+    libCore_gf_DataAnnouncerVOMapDataField(libCore_ge_AnnouncerVOEvents_EnemyKilledNonparticipants, "", false);
+    libCore_gf_DataAnnouncerVOMapDataField(libCore_ge_AnnouncerVOEvents_EnemyKilledParticipants, "", false);
+    libCore_gf_DataAnnouncerVOMapDataField(libCore_ge_AnnouncerVOEvents_LetTheBattleBegin, "", false);
+    libCore_gf_DataAnnouncerVOMapDataField(libCore_ge_AnnouncerVOEvents_KillingSpreeStart, "", false);
+    libCore_gf_DataAnnouncerVOMapDataField(libCore_ge_AnnouncerVOEvents_KillingSpreeEndYou, "", false);
+    libCore_gf_DataAnnouncerVOMapDataField(libCore_ge_AnnouncerVOEvents_KillingSpreeUpgrade1Mayhem, "", false);
+    libCore_gf_DataAnnouncerVOMapDataField(libCore_ge_AnnouncerVOEvents_KillingSpreeUpgrade2Untouchable, "", false);
+    libCore_gf_DataAnnouncerVOMapDataField(libCore_ge_AnnouncerVOEvents_KillingSpreeUpgrade3HeroOfTheStorm, "", false);
+    libCore_gf_DataAnnouncerVOMapDataField(libCore_ge_AnnouncerVOEvents_KillingSpreeUpgrade4AllStarDEP, "", false);
+    libCore_gf_DataAnnouncerVOMapDataField(libCore_ge_AnnouncerVOEvents_TeamKill, "", false);
+    libCore_gf_DataAnnouncerVOMapDataField(libCore_ge_AnnouncerVOEvents_DoubleKill, "", false);
+    libCore_gf_DataAnnouncerVOMapDataField(libCore_ge_AnnouncerVOEvents_TripleKill, "", false);
+    libCore_gf_DataAnnouncerVOMapDataField(libCore_ge_AnnouncerVOEvents_QuadraKill, "", false);
+    libCore_gf_DataAnnouncerVOMapDataField(libCore_ge_AnnouncerVOEvents_MegaKill, "", false);
+    libCore_gf_DataAnnouncerVOMapDataField(libCore_ge_AnnouncerVOEvents_SixKill, "", false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_InitPVEBrawlMod_Init () {
+    libPVEB_gt_InitPVEBrawlMod = TriggerCreate("libPVEB_gt_InitPVEBrawlMod_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: PvE Pickup - Ping Overrides
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_PvEPickupPingOverrides_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itIterator;
+
+    // Automatic Variable Declarations
+    int auto95B89F5E_ae;
+    const int auto95B89F5E_ai = 1;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto95B89F5E_ae = libPVEB_gv_pvEPickupPickupsTotalPickupsInitialized;
+    lv_itIterator = 1;
+    for ( ; ( (auto95B89F5E_ai >= 0 && lv_itIterator <= auto95B89F5E_ae) || (auto95B89F5E_ai < 0 && lv_itIterator >= auto95B89F5E_ae) ) ; lv_itIterator += auto95B89F5E_ai ) {
+        libUIUI_gf_PingCreateNewPingTarget(libPVEB_gv_pvEPickupPickupsTotal[lv_itIterator], false, null, StringExternal("Param/Value/lib_PVEB_EA1C674D"), StringExternal("Param/Value/lib_PVEB_8003ADD8"), SoundLink("UI_Game_Ping_General", -1), SoundLink("UI_Game_Ping_General", -1));
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_PvEPickupPingOverrides_Init () {
+    libPVEB_gt_PvEPickupPingOverrides = TriggerCreate("libPVEB_gt_PvEPickupPingOverrides_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: PvE Pickup - Preplaced Pickup Visibility Check
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_PvEPickupPreplacedPickupVisibilityCheck_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unitgroup lv_preplacedPickupGroup;
+    int lv_itPickupIndex;
+    unit lv_itPickupUnit;
+
+    // Automatic Variable Declarations
+    unitgroup auto7E962351_g;
+    int auto7E962351_u;
+
+    // Variable Initialization
+    lv_preplacedPickupGroup = UnitGroupEmpty();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    while (true) {
+        if ((UnitGroupCount(libPVEB_gv_pvEPickupPreplacedPickups, c_unitCountAll) == 0)) {
+            return true;
+        }
+        else {
+            auto7E962351_g = libPVEB_gv_pvEPickupPreplacedPickups;
+            auto7E962351_u = UnitGroupCount(auto7E962351_g, c_unitCountAll);
+            for (;; auto7E962351_u -= 1) {
+                lv_itPickupUnit = UnitGroupUnitFromEnd(auto7E962351_g, auto7E962351_u);
+                if (lv_itPickupUnit == null) { break; }
+                if ((libNtve_gf_UnitIsVisibleToPlayer(lv_itPickupUnit, libCore_gv_cOMPUTER_TeamOrder) == true)) {
+                    UnitBehaviorAddPlayer(lv_itPickupUnit, "PickupRevealer", libStEx_gv_pLAYER_11_ORDER, 1);
+                    UnitGroupRemove(libPVEB_gv_pvEPickupPreplacedPickups, lv_itPickupUnit);
+                }
+
+            }
+        }
+        Wait(1.0, c_timeGame);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_PvEPickupPreplacedPickupVisibilityCheck_Init () {
+    libPVEB_gt_PvEPickupPreplacedPickupVisibilityCheck = TriggerCreate("libPVEB_gt_PvEPickupPreplacedPickupVisibilityCheck_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: PvE Pickup - Item Picked Up
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_PvEPickupItemPickedUp_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_caster;
+    int lv_casterPlayer;
+    unit lv_pickupUnit;
+    point lv_positionOfItem;
+    int lv_itIterator;
+
+    // Automatic Variable Declarations
+    int autoDF351D57_ae;
+    const int autoDF351D57_ai = 1;
+    int auto4F924006_ae;
+    const int auto4F924006_ai = 1;
+
+    // Variable Initialization
+    lv_caster = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_casterPlayer = UnitGetOwner(lv_caster);
+    lv_pickupUnit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_positionOfItem = UnitGetPosition(EventPlayerEffectUsedUnit(c_effectUnitTarget));
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitHasBehavior2(EventPlayerEffectUsedUnitImpact(), "PickupRevealer") == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if (((UnitIsAlive(lv_pickupUnit) == false) || (UnitGroupHasUnit(libPVEB_gv_pvEPickupItemsOnGround, lv_pickupUnit) == false))) {
+        return true;
+    }
+
+    autoDF351D57_ae = libPVEB_gv_pvEPickupPickupsTotalPickupsInitialized;
+    lv_itIterator = 1;
+    for ( ; ( (autoDF351D57_ai >= 0 && lv_itIterator <= autoDF351D57_ae) || (autoDF351D57_ai < 0 && lv_itIterator >= autoDF351D57_ae) ) ; lv_itIterator += autoDF351D57_ai ) {
+        if ((UnitHasBehavior2(lv_caster, libPVEB_gv_pvEPickupPickupsCarryBehavior[lv_itIterator]) == true)) {
+            libPVEB_gf_PvEPickupSwapPickup(lv_caster, lv_positionOfItem, libPVEB_gv_pvEPickupPickupsCarryBehavior[lv_itIterator]);
+            break;
+        }
+
+    }
+    auto4F924006_ae = libPVEB_gv_pvEPickupPickupsTotalPickupsInitialized;
+    lv_itIterator = 1;
+    for ( ; ( (auto4F924006_ai >= 0 && lv_itIterator <= auto4F924006_ae) || (auto4F924006_ai < 0 && lv_itIterator >= auto4F924006_ae) ) ; lv_itIterator += auto4F924006_ai ) {
+        if ((UnitGetType(EventPlayerEffectUsedUnit(c_effectUnitTarget)) == libPVEB_gv_pvEPickupPickupsTotal[lv_itIterator])) {
+            UnitBehaviorAddPlayer(lv_caster, libPVEB_gv_pvEPickupPickupsCarryBehavior[lv_itIterator], lv_casterPlayer, 1);
+            libNtve_gf_SetUpgradeLevelForPlayer(lv_casterPlayer, "DisplayLockedMapMechanicAbility", -1);
+            break;
+        }
+
+    }
+    libNtve_gf_CreateModelAtPoint("PVESpecialAbilityPickupGrabbedFX", lv_positionOfItem);
+    UnitGroupRemove(libPVEB_gv_pvEPickupItemsOnGround, lv_pickupUnit);
+    UnitKill(lv_pickupUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_PvEPickupItemPickedUp_Init () {
+    libPVEB_gt_PvEPickupItemPickedUp = TriggerCreate("libPVEB_gt_PvEPickupItemPickedUp_Func");
+    TriggerAddEventPlayerEffectUsed(libPVEB_gt_PvEPickupItemPickedUp, c_playerAny, "CaptureMacGuffinCastComplete");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: PB NPC Minion Dies
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_PBNPCMinionDies_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((libCore_gv_sYSXPOn == true))) {
+            return false;
+        }
+
+        if (!((UnitGroupHasUnit(libPVEB_gv_pBNPCMinions, EventUnit()) == true))) {
+            return false;
+        }
+
+        if (!((UnitTestState(EventUnit(), c_unitStateHallucination) == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libPVEB_gf_AwardXPForNPCKill(EventUnit(), UnitGetOwner(EventUnit()), libGame_ge_XPSources_Minion, libNtve_gf_KillingPlayer(), EventUnitDamageKillXP());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_PBNPCMinionDies_Init () {
+    libPVEB_gt_PBNPCMinionDies = TriggerCreate("libPVEB_gt_PBNPCMinionDies_Func");
+    TriggerAddEventUnitDied(libPVEB_gt_PBNPCMinionDies, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: PvE Resurrect - Create Spirit
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_PvEResurrectCreateSpirit_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_deadHero;
+    int lv_deadPlayer;
+    int lv_iPlayer;
+    point lv_lastKnownPosition;
+    int lv_resurrectTimerDuration;
+
+    // Automatic Variable Declarations
+    string autoCFCA973F_val;
+
+    // Variable Initialization
+    lv_deadHero = EventUnit();
+    lv_deadPlayer = UnitGetOwner(lv_deadHero);
+    lv_iPlayer = 1;
+    lv_lastKnownPosition = UnitGetPosition(EventUnit());
+
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gf_TeamNumberOfPlayer(lv_deadPlayer) == libGame_gv_teamOrderIndex_C))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_resurrectTimerDuration = libPVEB_gv_pvERezzableDurationEasy_C;
+    autoCFCA973F_val = UnitGetType(lv_deadHero);
+    if (autoCFCA973F_val == "HeroFaerieDragon") {
+        CatalogFieldValueSet(c_gameCatalogUnit, "DeadHeroResurrectSpirit", "Name", lv_deadPlayer, CatalogFieldValueGet(c_gameCatalogUnit, UnitGetType(libGame_gv_players[lv_deadPlayer].lv_heroUnit), "Name", lv_deadPlayer));
+        UnitCreate(1, "DeadHeroResurrectSpirit", 0, UnitGetOwner(lv_deadHero), lv_lastKnownPosition, 270.0, lv_deadHero);
+        libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer] = UnitLastCreated();
+        UnitSetHeight(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], 1.0, 0.0);
+        UnitBehaviorAdd(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], "PVEResurrectRezzable", libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], 1);
+        UnitBehaviorSetDuration(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], "PVEResurrectRezzable", lv_resurrectTimerDuration);
+    }
+    else if (autoCFCA973F_val == "HeroDiablo") {
+        CatalogFieldValueSet(c_gameCatalogUnit, "DeadHeroResurrectSpirit", "Name", lv_deadPlayer, CatalogFieldValueGet(c_gameCatalogUnit, UnitGetType(libGame_gv_players[lv_deadPlayer].lv_heroUnit), "Name", lv_deadPlayer));
+        Wait(0.125, c_timeGame);
+        if ((UnitHasBehavior2(lv_deadHero, "DeadMechanics") == true)) {
+            UnitCreate(1, "DeadHeroResurrectSpirit", 0, UnitGetOwner(lv_deadHero), lv_lastKnownPosition, 270.0, lv_deadHero);
+            libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer] = UnitLastCreated();
+            UnitSetPosition(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], lv_lastKnownPosition, false);
+            UnitBehaviorAdd(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], "PVEResurrectRezzable", libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], 1);
+            UnitBehaviorSetDuration(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], "PVEResurrectRezzable", lv_resurrectTimerDuration);
+        }
+
+    }
+    else if (autoCFCA973F_val == "HeroL90ETC") {
+        if ((UnitHasBehavior2(lv_deadHero, "L90ETCDeathMetalCarryBehavior") == false)) {
+            CatalogFieldValueSet(c_gameCatalogUnit, "DeadHeroResurrectSpirit", "Name", lv_deadPlayer, CatalogFieldValueGet(c_gameCatalogUnit, UnitGetType(libGame_gv_players[lv_deadPlayer].lv_heroUnit), "Name", lv_deadPlayer));
+            UnitCreate(1, "DeadHeroResurrectSpirit", 0, UnitGetOwner(lv_deadHero), lv_lastKnownPosition, 270.0, lv_deadHero);
+            libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer] = UnitLastCreated();
+            UnitSetPosition(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], lv_lastKnownPosition, false);
+            UnitBehaviorAdd(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], "PVEResurrectRezzable", libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], 1);
+            UnitBehaviorSetDuration(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], "PVEResurrectRezzable", lv_resurrectTimerDuration);
+        }
+        else {
+            Wait(StringToFixed(CatalogFieldValueGet(c_gameCatalogBehavior, "L90ETCDeathMetalTimedLife", "Duration", UnitGetOwner(lv_deadHero))), c_timeGame);
+            CatalogFieldValueSet(c_gameCatalogUnit, "DeadHeroResurrectSpirit", "Name", lv_deadPlayer, CatalogFieldValueGet(c_gameCatalogUnit, UnitGetType(libGame_gv_players[lv_deadPlayer].lv_heroUnit), "Name", lv_deadPlayer));
+            UnitCreate(1, "DeadHeroResurrectSpirit", 0, UnitGetOwner(lv_deadHero), lv_lastKnownPosition, 270.0, lv_deadHero);
+            libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer] = UnitLastCreated();
+            UnitSetPosition(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], lv_lastKnownPosition, false);
+            UnitBehaviorAdd(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], "PVEResurrectRezzable", libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], 1);
+            UnitBehaviorSetDuration(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], "PVEResurrectRezzable", lv_resurrectTimerDuration);
+        }
+    }
+    else if (autoCFCA973F_val == "HeroFalstad") {
+        CatalogFieldValueSet(c_gameCatalogUnit, "DeadHeroResurrectSpirit", "Name", lv_deadPlayer, CatalogFieldValueGet(c_gameCatalogUnit, UnitGetType(libGame_gv_players[lv_deadPlayer].lv_heroUnit), "Name", lv_deadPlayer));
+        UnitCreate(1, "DeadHeroResurrectSpirit", 0, UnitGetOwner(lv_deadHero), lv_lastKnownPosition, 270.0, lv_deadHero);
+        libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer] = UnitLastCreated();
+        UnitSetHeight(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], 2.0, 0.0);
+        UnitBehaviorAdd(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], "PVEResurrectRezzable", libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], 1);
+        UnitBehaviorSetDuration(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], "PVEResurrectRezzable", lv_resurrectTimerDuration);
+    }
+    else if (autoCFCA973F_val == "HeroTyrael") {
+        while ((UnitHasBehavior2(lv_deadHero, "TyraelArchangelsWrathDeathActiveBuff") == true)) {
+            lv_lastKnownPosition = UnitGetPosition(lv_deadHero);
+            Wait(0.0625, c_timeGame);
+        }
+        CatalogFieldValueSet(c_gameCatalogUnit, "DeadHeroResurrectSpirit", "Name", lv_deadPlayer, CatalogFieldValueGet(c_gameCatalogUnit, UnitGetType(libGame_gv_players[lv_deadPlayer].lv_heroUnit), "Name", lv_deadPlayer));
+        UnitCreate(1, "DeadHeroResurrectSpirit", 0, UnitGetOwner(lv_deadHero), lv_lastKnownPosition, 270.0, lv_deadHero);
+        libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer] = UnitLastCreated();
+        UnitSetPosition(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], lv_lastKnownPosition, false);
+        UnitBehaviorAdd(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], "PVEResurrectRezzable", libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], 1);
+        UnitBehaviorSetDuration(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], "PVEResurrectRezzable", lv_resurrectTimerDuration);
+    }
+    else if (autoCFCA973F_val == "HeroUther") {
+        if (((PlayerHasTalent(lv_deadPlayer, "UtherMasteryRedemption") == true) && (UnitHasBehavior2(lv_deadHero, "RedemptionCooldown") == false))) {
+        }
+        else {
+            while (((UnitHasBehavior2(lv_deadHero, "SpiritOfRedemptionSpiritFormBuff") == true) || (UnitHasBehavior2(lv_deadHero, "UtherEternalDevotionRezDelay") == true))) {
+                Wait(0.0625, c_timeGame);
+                lv_lastKnownPosition = UnitGetPosition(lv_deadHero);
+            }
+            CatalogFieldValueSet(c_gameCatalogUnit, "DeadHeroResurrectSpirit", "Name", lv_deadPlayer, CatalogFieldValueGet(c_gameCatalogUnit, UnitGetType(libGame_gv_players[lv_deadPlayer].lv_heroUnit), "Name", lv_deadPlayer));
+            UnitCreate(1, "DeadHeroResurrectSpirit", 0, UnitGetOwner(lv_deadHero), lv_lastKnownPosition, 270.0, lv_deadHero);
+            libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer] = UnitLastCreated();
+            UnitSetPosition(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], lv_lastKnownPosition, false);
+            UnitBehaviorAdd(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], "PVEResurrectRezzable", libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], 1);
+            UnitBehaviorSetDuration(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], "PVEResurrectRezzable", lv_resurrectTimerDuration);
+        }
+    }
+    else if (autoCFCA973F_val == "HeroVarian") {
+        CatalogFieldValueSet(c_gameCatalogUnit, "DeadHeroResurrectSpirit", "Name", lv_deadPlayer, CatalogFieldValueGet(c_gameCatalogUnit, UnitGetType(libGame_gv_players[lv_deadPlayer].lv_heroUnit), "Name", lv_deadPlayer));
+        UnitCreate(1, "DeadHeroResurrectSpirit", 0, UnitGetOwner(lv_deadHero), lv_lastKnownPosition, 270.0, lv_deadHero);
+        libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer] = UnitLastCreated();
+        UnitBehaviorAdd(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], "PVEResurrectRezzable", libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], 1);
+        UnitBehaviorSetDuration(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], "PVEResurrectRezzable", lv_resurrectTimerDuration);
+        if ((UnitHasBehavior2(lv_deadHero, "Ultimate1Unlocked") == true)) {
+            ActorSendAsText(libNtve_gf_MainActorofUnit(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer]), StringExternal("Param/Value/lib_PVEB_76CB6071"));
+            ActorSendAsText(libNtve_gf_MainActorofUnit(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer]), StringExternal("Param/Value/lib_PVEB_E2228DC2"));
+        }
+
+        if ((UnitHasBehavior2(lv_deadHero, "Ultimate2Unlocked") == true)) {
+            ActorSendAsText(libNtve_gf_MainActorofUnit(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer]), StringExternal("Param/Value/lib_PVEB_A498886E"));
+            ActorSendAsText(libNtve_gf_MainActorofUnit(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer]), StringExternal("Param/Value/lib_PVEB_123F11AF"));
+            ActorSendAsText(libNtve_gf_MainActorofUnit(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer]), StringExternal("Param/Value/lib_PVEB_6F9B2C30"));
+        }
+
+        if ((UnitHasBehavior2(lv_deadHero, "Ultimate3Unlocked") == true)) {
+            ActorSendAsText(libNtve_gf_MainActorofUnit(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer]), StringExternal("Param/Value/lib_PVEB_46843B9C"));
+            ActorSendAsText(libNtve_gf_MainActorofUnit(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer]), StringExternal("Param/Value/lib_PVEB_353620B6"));
+        }
+
+        if ((UnitHasBehavior2(lv_deadHero, "Ultimate1Unlocked") == false) && (UnitHasBehavior2(lv_deadHero, "Ultimate2Unlocked") == false) && (UnitHasBehavior2(lv_deadHero, "Ultimate3Unlocked") == false)) {
+            ActorSendAsText(libNtve_gf_MainActorofUnit(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer]), StringExternal("Param/Value/lib_PVEB_D27824FF"));
+            ActorSendAsText(libNtve_gf_MainActorofUnit(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer]), StringExternal("Param/Value/lib_PVEB_A555EADE"));
+        }
+
+    }
+    else {
+        CatalogFieldValueSet(c_gameCatalogUnit, "DeadHeroResurrectSpirit", "Name", lv_deadPlayer, CatalogFieldValueGet(c_gameCatalogUnit, UnitGetType(libGame_gv_players[lv_deadPlayer].lv_heroUnit), "Name", lv_deadPlayer));
+        UnitCreate(1, "DeadHeroResurrectSpirit", 0, UnitGetOwner(lv_deadHero), lv_lastKnownPosition, 270.0, lv_deadHero);
+        libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer] = UnitLastCreated();
+        UnitBehaviorAdd(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], "PVEResurrectRezzable", libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], 1);
+        UnitBehaviorSetDuration(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], "PVEResurrectRezzable", lv_resurrectTimerDuration);
+    }
+    ActorSend(libNtve_gf_MainActorofUnit(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer]), libNtve_gf_ModelSwap(libCore_gf_GetModelLinkForUnitType(UnitGetType(lv_deadHero)), 0));
+    ActorSend(libNtve_gf_MainActorofUnit(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer]), libNtve_gf_Signal("Stunned"));
+    libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer] = UnitLastCreated();
+    UnitBehaviorAddPlayer(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], "IsMacguffinTwo", lv_deadPlayer, 1);
+    UnitBehaviorAddPlayer(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer], "MacguffinActivated", lv_deadPlayer, 1);
+    libPVEB_gf_PvEResurrectAddRemoveDeadHeroArrow(true, lv_deadPlayer);
+    TextTagCreate(StringExternal("Param/Value/lib_PVEB_C7976D22"), 22, UnitGetPosition(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer]), 3.2, true, false, PlayerGroupAll());
+    TextTagSetBackgroundImage(TextTagLastCreated(), "Assets\\Textures\\storm_ui_ingame_bossbar_border.dds", true);
+    TextTagShow(TextTagLastCreated(), PlayerGroupSingle(lv_deadPlayer), false);
+    libPVEB_gv_pvEResurrectSpiritTextTag[lv_deadPlayer] = TextTagLastCreated();
+    TextTagCreate(StringExternal("Param/Value/lib_PVEB_9CD9FA69"), 22, UnitGetPosition(libPVEB_gv_pvEResurrectSpirit[lv_deadPlayer]), 3.2, true, false, PlayerGroupSingle(lv_deadPlayer));
+    TextTagSetBackgroundImage(TextTagLastCreated(), "Assets\\Textures\\storm_ui_ingame_bossbar_border.dds", true);
+    libPVEB_gv_pvEResurrectSpiritTextTagSelf[lv_deadPlayer] = TextTagLastCreated();
+    libPVEB_gf_PvEResurrectCheckActiveSpirits(true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_PvEResurrectCreateSpirit_Init () {
+    libPVEB_gt_PvEResurrectCreateSpirit = TriggerCreate("libPVEB_gt_PvEResurrectCreateSpirit_Func");
+    TriggerAddEventUnitBehaviorChange(libPVEB_gt_PvEResurrectCreateSpirit, null, "DeadMechanics", c_unitBehaviorChangeIncrease);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: PvE Resurrect - Player Respawns Normally
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_PvEResurrectPlayerRespawnsNormally_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Automatic Variable Declarations
+    const int autoCD9024F9_ae = 5;
+    const int autoCD9024F9_ai = 1;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_player = 1;
+    for ( ; ( (autoCD9024F9_ai >= 0 && lv_player <= autoCD9024F9_ae) || (autoCD9024F9_ai < 0 && lv_player >= autoCD9024F9_ae) ) ; lv_player += autoCD9024F9_ai ) {
+        if ((EventTimer() == libGame_gv_players[lv_player].lv_respawnTimer)) {
+            if ((libPVEB_gv_pvEResurrectSpirit[lv_player] != null)) {
+                UnitRemove(libPVEB_gv_pvEResurrectSpirit[lv_player]);
+                TextTagDestroy(libPVEB_gv_pvEResurrectSpiritTextTag[lv_player]);
+                TextTagDestroy(libPVEB_gv_pvEResurrectSpiritTextTagSelf[lv_player]);
+            }
+
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_PvEResurrectPlayerRespawnsNormally_Init () {
+    libPVEB_gt_PvEResurrectPlayerRespawnsNormally = TriggerCreate("libPVEB_gt_PvEResurrectPlayerRespawnsNormally_Func");
+    TriggerAddEventTimer(libPVEB_gt_PvEResurrectPlayerRespawnsNormally, libGame_gv_players[1].lv_respawnTimer);
+    TriggerAddEventTimer(libPVEB_gt_PvEResurrectPlayerRespawnsNormally, libGame_gv_players[2].lv_respawnTimer);
+    TriggerAddEventTimer(libPVEB_gt_PvEResurrectPlayerRespawnsNormally, libGame_gv_players[3].lv_respawnTimer);
+    TriggerAddEventTimer(libPVEB_gt_PvEResurrectPlayerRespawnsNormally, libGame_gv_players[4].lv_respawnTimer);
+    TriggerAddEventTimer(libPVEB_gt_PvEResurrectPlayerRespawnsNormally, libGame_gv_players[5].lv_respawnTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: PvE Resurrect - Revive Player
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_PvEResurrectRevivePlayer_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_caster;
+    unit lv_target;
+    int lv_casterPlayer;
+    int lv_targetPlayer;
+    unit lv_targetHero;
+    point lv_targetPosition;
+    playergroup lv_vOGroup;
+    int lv_tempVar;
+    const int lv_respawnHealthPercentage = 50;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_caster = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_target = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_casterPlayer = UnitGetOwner(lv_caster);
+    lv_targetPlayer = UnitGetOwner(lv_target);
+    lv_targetPosition = UnitGetPosition(lv_target);
+    lv_vOGroup = PlayerGroupEmpty();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitIsValid(EventPlayerEffectUsedUnit(c_effectUnitTarget)) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_targetHero = libGame_gv_players[lv_targetPlayer].lv_heroUnit;
+    UnitBehaviorRemove(libGame_gv_players[lv_targetPlayer].lv_heroUnit, "PVEResurrectIcon", 1);
+    UnitGroupClear(libPVEB_gv_pvEResurrectResurrectionCastersUnitGroup[lv_targetPlayer]);
+    libPVEB_gf_PvEResurrectAddRemoveDeadHeroArrow(false, lv_targetPlayer);
+    if ((libGame_gv_players[lv_targetPlayer].lv_heroRequiresCustomRespawn == true)) {
+        libGame_gf_SendEventRequestCustomRespawn(lv_targetPlayer, false, lv_targetPosition, lv_respawnHealthPercentage);
+    }
+    else {
+        libGame_gf_HeroDeathRespawnHeroforPlayer(false, lv_targetPlayer, lv_targetPosition, lv_respawnHealthPercentage);
+    }
+    libPVEB_gf_PvEResurrectRevivePlayerCleanup(lv_targetPlayer);
+    libGame_gf_HeroDeathEnableDisableDeadSoundStateForPlayer(false, lv_targetPlayer);
+    PlayerGroupAdd(lv_vOGroup, lv_casterPlayer);
+    PlayerGroupAdd(lv_vOGroup, lv_targetPlayer);
+    libSond_gf_HeroVOPlayResurrected(lv_targetPlayer, lv_vOGroup);
+    if ((libNtve_gf_PlayerInCinematicMode(lv_targetPlayer) == false)) {
+        TextExpressionSetToken("Param/Expression/lib_PVEB_82544EEF", "A", PlayerName(lv_targetPlayer));
+        TextExpressionSetToken("Param/Expression/lib_PVEB_82544EEF", "B", UnitGetName(lv_targetHero));
+        TextExpressionSetToken("Param/Expression/lib_PVEB_82544EEF", "C", PlayerName(lv_casterPlayer));
+        TextExpressionSetToken("Param/Expression/lib_PVEB_82544EEF", "D", UnitGetName(lv_caster));
+        UIDisplayMessage(PlayerGroupAll(), c_messageAreaChat, TextExpressionAssemble("Param/Expression/lib_PVEB_82544EEF"));
+    }
+
+    libPVEB_gf_PvEResurrectCheckActiveSpirits(false);
+    libPVEB_gv_pvEResurrectTimes[lv_casterPlayer] += 1;
+    libGame_gf_ScoreValuesReportIntegerValueAndLog(lv_casterPlayer, "Resurrect", libPVEB_gv_pvEResurrectTimes[lv_casterPlayer]);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_PvEResurrectRevivePlayer_Init () {
+    libPVEB_gt_PvEResurrectRevivePlayer = TriggerCreate("libPVEB_gt_PvEResurrectRevivePlayer_Func");
+    TriggerEnable(libPVEB_gt_PvEResurrectRevivePlayer, false);
+    TriggerAddEventPlayerEffectUsed(libPVEB_gt_PvEResurrectRevivePlayer, c_playerAny, "CaptureMacGuffinTwoCastComplete");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: PvE Resurrect - Notify Target Player Revive Start
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveStart_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_resurrecter;
+    int lv_resurrectPlayer;
+    unit lv_target;
+    int lv_targetPlayer;
+    point lv_targetPoint;
+    int lv_iPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_target = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_iPlayer = 1;
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitIsValid(EventPlayerEffectUsedUnit(c_effectUnitTarget)) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_resurrecter = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_target = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_resurrectPlayer = UnitGetOwner(lv_resurrecter);
+    lv_targetPlayer = UnitGetOwner(lv_target);
+    lv_targetPoint = UnitGetPosition(lv_target);
+    UnitGroupAdd(libPVEB_gv_pvEResurrectResurrectionCastersUnitGroup[lv_targetPlayer], lv_resurrecter);
+    if ((UnitGroupCount(libPVEB_gv_pvEResurrectResurrectionCastersUnitGroup[lv_targetPlayer], c_unitCountAlive) > 1)) {
+        return true;
+    }
+
+    TriggerEnable(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterrupted, true);
+    CameraPan(lv_targetPlayer, lv_targetPoint, 1.0, -1, 10.0, false);
+    DialogDestroy(libPVEB_gv_pvEResurrectRevivingDialog[lv_targetPlayer].lv_panel);
+    DialogCreate(1920, 150, c_anchorCenter, 0, 0, true);
+    libPVEB_gv_pvEResurrectRevivingDialog[lv_targetPlayer].lv_panel = DialogLastCreated();
+    DialogSetImageVisible(libPVEB_gv_pvEResurrectRevivingDialog[lv_targetPlayer].lv_panel, false);
+    DialogSetVisible(libPVEB_gv_pvEResurrectRevivingDialog[lv_targetPlayer].lv_panel, PlayerGroupSingle(lv_targetPlayer), true);
+    DialogControlCreateFromTemplate(libPVEB_gv_pvEResurrectRevivingDialog[lv_targetPlayer].lv_panel, c_triggerControlTypeLabel, "Auriel/AurielResurrectionNotificationTemplate");
+    libPVEB_gv_pvEResurrectRevivingDialog[lv_targetPlayer].lv_label = DialogLastCreated();
+    TextExpressionSetToken("Param/Expression/lib_PVEB_1DA07CDF", "A", PlayerName(lv_resurrectPlayer));
+    TextExpressionSetToken("Param/Expression/lib_PVEB_1DA07CDF", "B", UnitGetName(lv_resurrecter));
+    libNtve_gf_SetDialogItemText(DialogControlLastCreated(), TextExpressionAssemble("Param/Expression/lib_PVEB_1DA07CDF"), PlayerGroupSingle(lv_targetPlayer));
+    libNtve_gf_SetDialogItemStyle(DialogControlLastCreated(), "ReviveNotificationBlue", PlayerGroupSingle(lv_targetPlayer));
+    UnitBehaviorAddPlayer(libPVEB_gv_pvEResurrectSpirit[lv_targetPlayer], "PVEResurrectMarker", lv_targetPlayer, 1);
+    UnitBehaviorAddPlayer(libGame_gv_players[lv_targetPlayer].lv_heroUnit, "PVEResurrectIcon", lv_targetPlayer, 1);
+    ActorSend(libNtve_gf_MainActorofUnit(libPVEB_gv_pvEResurrectSpirit[lv_targetPlayer]), libNtve_gf_Signal("Cheer"));
+    TimerPause(libPVEB_gv_pvEResurrectNotifyTargetPlayerReviveInterruptedTimer[lv_targetPlayer], true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveStart_Init () {
+    libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveStart = TriggerCreate("libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveStart_Func");
+    TriggerEnable(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveStart, false);
+    TriggerAddEventPlayerEffectUsed(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveStart, c_playerAny, "CaptureMacGuffinTwoInitialSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: PvE Resurrect - Notify Target Player Revive Interrupted
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterrupted_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_caster;
+    unit lv_target;
+    int lv_targetPlayer;
+    point lv_targetPoint;
+    unit lv_itUnit;
+    fixed lv_newBehaviorTime;
+    text lv_newPlayerName;
+    text lv_newHeroName;
+
+    // Automatic Variable Declarations
+    unitgroup auto1B96E967_g;
+    int auto1B96E967_u;
+
+    // Variable Initialization
+    lv_newBehaviorTime = 50.0;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_caster = EventUnit();
+    lv_target = EventUnitTargetUnit();
+    lv_targetPlayer = UnitGetOwner(lv_target);
+    lv_targetPoint = UnitGetPosition(lv_target);
+    if (((lv_targetPlayer <= 0) || (lv_targetPlayer > libCore_gv_bALMaxPlayers))) {
+        return true;
+    }
+
+    if ((UnitGroupHasUnit(libPVEB_gv_pvEResurrectResurrectionCastersUnitGroup[lv_targetPlayer], lv_caster) == true)) {
+        UnitGroupRemove(libPVEB_gv_pvEResurrectResurrectionCastersUnitGroup[lv_targetPlayer], lv_caster);
+    }
+
+    if ((UnitGroupCount(libPVEB_gv_pvEResurrectResurrectionCastersUnitGroup[lv_targetPlayer], c_unitCountAlive) > 0)) {
+        auto1B96E967_g = libPVEB_gv_pvEResurrectResurrectionCastersUnitGroup[lv_targetPlayer];
+        auto1B96E967_u = UnitGroupCount(auto1B96E967_g, c_unitCountAll);
+        for (;; auto1B96E967_u -= 1) {
+            lv_itUnit = UnitGroupUnitFromEnd(auto1B96E967_g, auto1B96E967_u);
+            if (lv_itUnit == null) { break; }
+            lv_newBehaviorTime = MinF(lv_newBehaviorTime, UnitBehaviorDuration(lv_itUnit, "PVEResurrectCastTracking"));
+            lv_newPlayerName = PlayerName(UnitGetOwner(lv_itUnit));
+            lv_newHeroName = UnitGetName(lv_itUnit);
+        }
+        TextExpressionSetToken("Param/Expression/lib_PVEB_96731AFB", "A", lv_newPlayerName);
+        TextExpressionSetToken("Param/Expression/lib_PVEB_96731AFB", "B", lv_newHeroName);
+        libNtve_gf_SetDialogItemText(DialogControlLastCreated(), TextExpressionAssemble("Param/Expression/lib_PVEB_96731AFB"), PlayerGroupSingle(lv_targetPlayer));
+        UnitBehaviorSetDurationRemaining(libGame_gv_players[lv_targetPlayer].lv_heroUnit, "PVEResurrectIcon", lv_newBehaviorTime);
+        return true;
+    }
+
+    CameraPan(lv_targetPlayer, lv_targetPoint, 1.0, -1, 10.0, false);
+    DialogDestroy(libPVEB_gv_pvEResurrectRevivingDialog[lv_targetPlayer].lv_panel);
+    DialogCreate(1920, 150, c_anchorCenter, 0, 0, true);
+    libPVEB_gv_pvEResurrectRevivingDialog[lv_targetPlayer].lv_panel = DialogLastCreated();
+    DialogSetImageVisible(libPVEB_gv_pvEResurrectRevivingDialog[lv_targetPlayer].lv_panel, false);
+    DialogSetVisible(libPVEB_gv_pvEResurrectRevivingDialog[lv_targetPlayer].lv_panel, PlayerGroupSingle(lv_targetPlayer), true);
+    DialogControlCreateFromTemplate(libPVEB_gv_pvEResurrectRevivingDialog[lv_targetPlayer].lv_panel, c_triggerControlTypeLabel, "Auriel/AurielResurrectionNotificationTemplate");
+    libPVEB_gv_pvEResurrectRevivingDialog[lv_targetPlayer].lv_label = DialogLastCreated();
+    libNtve_gf_SetDialogItemText(DialogControlLastCreated(), StringExternal("Param/Value/lib_PVEB_F249E5B9"), PlayerGroupSingle(lv_targetPlayer));
+    libNtve_gf_SetDialogItemStyle(DialogControlLastCreated(), "ReviveNotificationRed", PlayerGroupSingle(lv_targetPlayer));
+    TimerStart(libPVEB_gv_pvEResurrectNotifyTargetPlayerReviveInterruptedTimer[lv_targetPlayer], 2.0, false, c_timeGame);
+    ActorSend(libNtve_gf_MainActorofUnit(libPVEB_gv_pvEResurrectSpirit[lv_targetPlayer]), libNtve_gf_Signal("StopCheer"));
+    UnitBehaviorRemove(libPVEB_gv_pvEResurrectSpirit[lv_targetPlayer], "PVEResurrectMarker", 1);
+    UnitBehaviorRemove(libGame_gv_players[lv_targetPlayer].lv_heroUnit, "PVEResurrectIcon", 1);
+    TriggerEnable(TriggerGetCurrent(), false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterrupted_Init () {
+    libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterrupted = TriggerCreate("libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterrupted_Func");
+    TriggerEnable(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterrupted, false);
+    TriggerAddEventUnitAbility(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterrupted, null, AbilityCommand("CaptureMacGuffinTwo", 0), c_unitAbilStageCancel, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: PvE Resurrect - Notify Target Player Revive Interrupted Timer Expired
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterruptedTimerExpired_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    const int auto996055B5_ae = libCore_gv_bALMaxPlayers;
+    const int auto996055B5_ai = 1;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_itPlayer = 1;
+    for ( ; ( (auto996055B5_ai >= 0 && lv_itPlayer <= auto996055B5_ae) || (auto996055B5_ai < 0 && lv_itPlayer >= auto996055B5_ae) ) ; lv_itPlayer += auto996055B5_ai ) {
+        if ((libPVEB_gv_pvEResurrectNotifyTargetPlayerReviveInterruptedTimer[lv_itPlayer] == EventTimer())) {
+            DialogDestroy(libPVEB_gv_pvEResurrectRevivingDialog[lv_itPlayer].lv_panel);
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterruptedTimerExpired_Init () {
+    libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterruptedTimerExpired = TriggerCreate("libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterruptedTimerExpired_Func");
+    TriggerEnable(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterruptedTimerExpired, false);
+    TriggerAddEventTimer(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterruptedTimerExpired, libPVEB_gv_pvEResurrectNotifyTargetPlayerReviveInterruptedTimer[1]);
+    TriggerAddEventTimer(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterruptedTimerExpired, libPVEB_gv_pvEResurrectNotifyTargetPlayerReviveInterruptedTimer[2]);
+    TriggerAddEventTimer(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterruptedTimerExpired, libPVEB_gv_pvEResurrectNotifyTargetPlayerReviveInterruptedTimer[3]);
+    TriggerAddEventTimer(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterruptedTimerExpired, libPVEB_gv_pvEResurrectNotifyTargetPlayerReviveInterruptedTimer[4]);
+    TriggerAddEventTimer(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterruptedTimerExpired, libPVEB_gv_pvEResurrectNotifyTargetPlayerReviveInterruptedTimer[5]);
+    TriggerAddEventTimer(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterruptedTimerExpired, libPVEB_gv_pvEResurrectNotifyTargetPlayerReviveInterruptedTimer[6]);
+    TriggerAddEventTimer(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterruptedTimerExpired, libPVEB_gv_pvEResurrectNotifyTargetPlayerReviveInterruptedTimer[7]);
+    TriggerAddEventTimer(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterruptedTimerExpired, libPVEB_gv_pvEResurrectNotifyTargetPlayerReviveInterruptedTimer[8]);
+    TriggerAddEventTimer(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterruptedTimerExpired, libPVEB_gv_pvEResurrectNotifyTargetPlayerReviveInterruptedTimer[9]);
+    TriggerAddEventTimer(libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterruptedTimerExpired, libPVEB_gv_pvEResurrectNotifyTargetPlayerReviveInterruptedTimer[10]);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: PVE Directive Panel Initialize
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_PVEDirectivePanelInitialize_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_parent;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_parent = c_invalidDialogControlId;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    DialogControlHookupStandard(c_triggerControlTypePanel, "UIContainer");
+    lv_parent = DialogControlLastCreated();
+    DialogControlCreateInPanelFromTemplate(lv_parent, c_triggerControlTypePanel, "PvEBrawl/PVENotificationUITemplate");
+    DialogControlSetVisible(DialogControlLastCreated(), PlayerGroupAll(), false);
+    libPVEB_gv_tutorialVeteranPanel.lv_mainPanel = DialogControlLastCreated();
+    DialogControlHookup(libPVEB_gv_tutorialVeteranPanel.lv_mainPanel, c_triggerControlTypePanel, "TitleFrame");
+    DialogControlSetVisible(DialogControlLastCreated(), PlayerGroupAll(), false);
+    libPVEB_gv_tutorialVeteranPanel.lv_directiveTextFrame = DialogControlLastCreated();
+    DialogControlHookup(libPVEB_gv_tutorialVeteranPanel.lv_directiveTextFrame, c_triggerControlTypeLabel, "TitleLabel");
+    DialogControlSetVisible(DialogControlLastCreated(), PlayerGroupAll(), false);
+    libPVEB_gv_tutorialVeteranPanel.lv_directiveTitleLabel = DialogControlLastCreated();
+    DialogControlHookup(libPVEB_gv_tutorialVeteranPanel.lv_directiveTextFrame, c_triggerControlTypeLabel, "DescriptionLabel");
+    DialogControlSetVisible(DialogControlLastCreated(), PlayerGroupAll(), false);
+    libPVEB_gv_tutorialVeteranPanel.lv_directiveDescriptionLabel = DialogControlLastCreated();
+    DialogControlCreateInPanelFromTemplate(lv_parent, c_triggerControlTypePanel, "PvEBrawl/PVENotificationUISmallTemplate");
+    DialogControlSetVisible(DialogControlLastCreated(), PlayerGroupAll(), false);
+    libPVEB_gv_tutorialVeteranPanel.lv_mainPanelSmall = DialogControlLastCreated();
+    DialogControlHookup(libPVEB_gv_tutorialVeteranPanel.lv_mainPanelSmall, c_triggerControlTypePanel, "TitleFrame");
+    DialogControlSetVisible(DialogControlLastCreated(), PlayerGroupAll(), false);
+    libPVEB_gv_tutorialVeteranPanel.lv_directiveTextFrameSmall = DialogControlLastCreated();
+    DialogControlHookup(libPVEB_gv_tutorialVeteranPanel.lv_directiveTextFrameSmall, c_triggerControlTypeLabel, "TitleLabel");
+    DialogControlSetVisible(DialogControlLastCreated(), PlayerGroupAll(), false);
+    libPVEB_gv_tutorialVeteranPanel.lv_directiveTitleLabelSmall = DialogControlLastCreated();
+    DialogControlHookup(libPVEB_gv_tutorialVeteranPanel.lv_directiveTextFrameSmall, c_triggerControlTypeLabel, "DescriptionLabel");
+    DialogControlSetVisible(DialogControlLastCreated(), PlayerGroupAll(), false);
+    libPVEB_gv_tutorialVeteranPanel.lv_directiveDescriptionLabelSmall = DialogControlLastCreated();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_PVEDirectivePanelInitialize_Init () {
+    libPVEB_gt_PVEDirectivePanelInitialize = TriggerCreate("libPVEB_gt_PVEDirectivePanelInitialize_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: PVE Display Directive Panel Message
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_PVEDisplayDirectivePanelMessage_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_mainPanel, PlayerGroupAll(), true);
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_directiveTextFrame, PlayerGroupAll(), true);
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_directiveTitleLabel, PlayerGroupAll(), true);
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_directiveDescriptionLabel, PlayerGroupAll(), true);
+    Wait(3.0, c_timeReal);
+    DialogControlFadeTransparency(libPVEB_gv_tutorialVeteranPanel.lv_mainPanel, PlayerGroupAll(), 0.5, 100.0);
+    Wait(0.5, c_timeGame);
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_directiveTextFrame, PlayerGroupAll(), false);
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_directiveTitleLabel, PlayerGroupAll(), false);
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_directiveDescriptionLabel, PlayerGroupAll(), false);
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_mainPanel, PlayerGroupAll(), false);
+    DialogControlFadeTransparency(libPVEB_gv_tutorialVeteranPanel.lv_mainPanel, PlayerGroupAll(), 1.0, 0.0);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_PVEDisplayDirectivePanelMessage_Init () {
+    libPVEB_gt_PVEDisplayDirectivePanelMessage = TriggerCreate("libPVEB_gt_PVEDisplayDirectivePanelMessage_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: PVE Display Directive Panel Message Small
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_PVEDisplayDirectivePanelMessageSmall_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_mainPanelSmall, PlayerGroupAll(), true);
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_directiveTextFrameSmall, PlayerGroupAll(), true);
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_directiveTitleLabelSmall, PlayerGroupAll(), true);
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_directiveDescriptionLabelSmall, PlayerGroupAll(), true);
+    Wait(3.0, c_timeReal);
+    DialogControlFadeTransparency(libPVEB_gv_tutorialVeteranPanel.lv_mainPanelSmall, PlayerGroupAll(), 0.5, 100.0);
+    Wait(0.5, c_timeGame);
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_directiveTextFrameSmall, PlayerGroupAll(), false);
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_directiveTitleLabelSmall, PlayerGroupAll(), false);
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_directiveDescriptionLabelSmall, PlayerGroupAll(), false);
+    DialogControlSetVisible(libPVEB_gv_tutorialVeteranPanel.lv_mainPanelSmall, PlayerGroupAll(), false);
+    DialogControlFadeTransparency(libPVEB_gv_tutorialVeteranPanel.lv_mainPanelSmall, PlayerGroupAll(), 1.0, 0.0);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_PVEDisplayDirectivePanelMessageSmall_Init () {
+    libPVEB_gt_PVEDisplayDirectivePanelMessageSmall = TriggerCreate("libPVEB_gt_PVEDisplayDirectivePanelMessageSmall_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Debug Behavior Duration Check
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_DebugBehaviorDurationCheck_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_enemyPlayerIndex;
+
+    // Automatic Variable Declarations
+    playergroup autoAA075A73_g;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    autoAA075A73_g = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamChaosIndex_C, false);
+    lv_enemyPlayerIndex = -1;
+    while (true) {
+        	lv_enemyPlayerIndex = PlayerGroupNextPlayer(autoAA075A73_g, lv_enemyPlayerIndex);
+        	if (lv_enemyPlayerIndex<0) { break; }
+        	TextExpressionSetToken("Param/Expression/lib_PVEB_B5935853", "A", IntToText(lv_enemyPlayerIndex));
+        TextExpressionSetToken("Param/Expression/lib_PVEB_B5935853", "B", IntToText(CatalogFieldValueGetAsInt(c_gameCatalogBehavior, "TychusOdin", "Duration", lv_enemyPlayerIndex)));
+        TextExpressionSetToken("Param/Expression/lib_PVEB_B5935853", "C", IntToText(CatalogFieldValueGetAsInt(c_gameCatalogBehavior, "MurkySafetyBubble", "Duration", lv_enemyPlayerIndex)));
+        TextExpressionSetToken("Param/Expression/lib_PVEB_B5935853", "D", IntToText(CatalogFieldValueGetAsInt(c_gameCatalogAbil, "MurkyOctoGrab", "Cost.Cooldown.TimeUse", lv_enemyPlayerIndex)));
+        TextExpressionSetToken("Param/Expression/lib_PVEB_B5935853", "E", IntToText(CatalogFieldValueGetAsInt(c_gameCatalogAbil, "MurkySafetyBubble", "Cost.Cooldown.TimeUse", lv_enemyPlayerIndex)));
+        TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_PVEB_B5935853"), true);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_DebugBehaviorDurationCheck_Init () {
+    libPVEB_gt_DebugBehaviorDurationCheck = TriggerCreate("libPVEB_gt_DebugBehaviorDurationCheck_Func");
+    TriggerAddEventChatMessage(libPVEB_gt_DebugBehaviorDurationCheck, c_playerAny, "Behaviors", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Debug Victory
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_DebugVictory_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libPVEB_gf_PBVictoryDefeat(true, RegionEntireMap(), RegionGetCenter(RegionPlayableMap()));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_DebugVictory_Init () {
+    libPVEB_gt_DebugVictory = TriggerCreate("libPVEB_gt_DebugVictory_Func");
+    TriggerAddEventChatMessage(libPVEB_gt_DebugVictory, c_playerAny, "DebugWin", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Debug Defeat
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_DebugDefeat_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libPVEB_gf_PBVictoryDefeat(false, RegionEntireMap(), RegionGetCenter(RegionPlayableMap()));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_DebugDefeat_Init () {
+    libPVEB_gt_DebugDefeat = TriggerCreate("libPVEB_gt_DebugDefeat_Func");
+    TriggerAddEventChatMessage(libPVEB_gt_DebugDefeat, c_playerAny, "DebugFail", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Debug Difficulty
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_DebugDifficulty_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    int autoC30C753F_val;
+
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    autoC30C753F_val = libPVEB_gf_PBGameDifficulty();
+    if (autoC30C753F_val == libPVEB_ge_PVEGameDifficulty_Hard) {
+        TriggerDebugOutput(1, StringExternal("Param/Value/lib_PVEB_F9675F31"), true);
+    }
+    else if (autoC30C753F_val == libPVEB_ge_PVEGameDifficulty_Normal) {
+        TriggerDebugOutput(1, StringExternal("Param/Value/lib_PVEB_CB928CB0"), true);
+    }
+    else {
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_DebugDifficulty_Init () {
+    libPVEB_gt_DebugDifficulty = TriggerCreate("libPVEB_gt_DebugDifficulty_Func");
+    TriggerAddEventChatMessage(libPVEB_gt_DebugDifficulty, c_playerAny, "-difficulty", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Debug - Initialize Arrows
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_DebugInitializeArrows_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    const int autoD21AAABB_ae = libCore_gv_bALMaxPlayers;
+    const int autoD21AAABB_ai = 1;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerDebugOutput(1, StringExternal("Param/Value/lib_PVEB_D8221CD2"), true);
+    lv_itPlayer = 1;
+    for ( ; ( (autoD21AAABB_ai >= 0 && lv_itPlayer <= autoD21AAABB_ae) || (autoD21AAABB_ai < 0 && lv_itPlayer >= autoD21AAABB_ae) ) ; lv_itPlayer += autoD21AAABB_ai ) {
+        if ((libGame_gv_players[lv_itPlayer].lv_heroUnit != null)) {
+            libUIUI_gv_uIHeroTrackerArrows.lv_unitCount += 1;
+            libUIUI_gv_uIHeroTrackerArrows.lv_unit[libUIUI_gv_uIHeroTrackerArrows.lv_unitCount] = libGame_gv_players[lv_itPlayer].lv_heroUnit;
+            libNtve_gf_SetDialogItemUnit(libUIUI_gv_uIHeroTrackerArrows.lv_arrow[libUIUI_gv_uIHeroTrackerArrows.lv_unitCount], libGame_gv_players[lv_itPlayer].lv_heroUnit, PlayerGroupAll());
+            libNtve_gf_SetDialogItemImage(libUIUI_gv_uIHeroTrackerArrows.lv_portraitImage[libUIUI_gv_uIHeroTrackerArrows.lv_unitCount], (CatalogFieldValueGet(c_gameCatalogActor, UnitGetType(libGame_gv_players[lv_itPlayer].lv_heroUnit), "HeroIcon", lv_itPlayer)), PlayerGroupAll());
+            libUIUI_gf_UIHeroTrackerArrowShowHideForPlayer(true, lv_itPlayer);
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_DebugInitializeArrows_Init () {
+    libPVEB_gt_DebugInitializeArrows = TriggerCreate("libPVEB_gt_DebugInitializeArrows_Func");
+    TriggerAddEventChatMessage(libPVEB_gt_DebugInitializeArrows, c_playerAny, "InitArrows", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Debug - Show Arrows
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_DebugShowArrows_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itIndex;
+
+    // Automatic Variable Declarations
+    int autoA741388F_ae;
+    const int autoA741388F_ai = 1;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerDebugOutput(1, StringExternal("Param/Value/lib_PVEB_654A6C71"), true);
+    autoA741388F_ae = libUIUI_gv_uIHeroTrackerArrows.lv_unitCount;
+    lv_itIndex = 1;
+    for ( ; ( (autoA741388F_ai >= 0 && lv_itIndex <= autoA741388F_ae) || (autoA741388F_ai < 0 && lv_itIndex >= autoA741388F_ae) ) ; lv_itIndex += autoA741388F_ai ) {
+        DialogControlSetVisible(libUIUI_gv_uIHeroTrackerArrows.lv_arrow[lv_itIndex], PlayerGroupAll(), true);
+        DialogControlSetVisible(libUIUI_gv_uIHeroTrackerArrows.lv_portraitImage[lv_itIndex], PlayerGroupAll(), true);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_DebugShowArrows_Init () {
+    libPVEB_gt_DebugShowArrows = TriggerCreate("libPVEB_gt_DebugShowArrows_Func");
+    TriggerAddEventChatMessage(libPVEB_gt_DebugShowArrows, c_playerAny, "ShowArrows", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Debug - Hide Arrows
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_DebugHideArrows_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itIndex;
+
+    // Automatic Variable Declarations
+    int auto1121A070_ae;
+    const int auto1121A070_ai = 1;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerDebugOutput(1, StringExternal("Param/Value/lib_PVEB_455AF0BA"), true);
+    auto1121A070_ae = libUIUI_gv_uIHeroTrackerArrows.lv_unitCount;
+    lv_itIndex = 1;
+    for ( ; ( (auto1121A070_ai >= 0 && lv_itIndex <= auto1121A070_ae) || (auto1121A070_ai < 0 && lv_itIndex >= auto1121A070_ae) ) ; lv_itIndex += auto1121A070_ai ) {
+        DialogControlSetVisible(libUIUI_gv_uIHeroTrackerArrows.lv_arrow[lv_itIndex], PlayerGroupAll(), false);
+        DialogControlSetVisible(libUIUI_gv_uIHeroTrackerArrows.lv_portraitImage[lv_itIndex], PlayerGroupAll(), false);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_DebugHideArrows_Init () {
+    libPVEB_gt_DebugHideArrows = TriggerCreate("libPVEB_gt_DebugHideArrows_Func");
+    TriggerAddEventChatMessage(libPVEB_gt_DebugHideArrows, c_playerAny, "HideArrows", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Debug - Turn On Player Selction
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_DebugTurnOnPlayerSelction_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itIndex;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libSprt_gv_dEBUGSelectionEnabled == false)) {
+        libSprt_gf_DEBUGToggleSelection();
+    }
+
+    TriggerEnable(libPVEB_gt_DebugPlayerSelection, true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_DebugTurnOnPlayerSelction_Init () {
+    libPVEB_gt_DebugTurnOnPlayerSelction = TriggerCreate("libPVEB_gt_DebugTurnOnPlayerSelction_Func");
+    TriggerAddEventChatMessage(libPVEB_gt_DebugTurnOnPlayerSelction, c_playerAny, "-ps", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Debug - Player Selection
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_DebugPlayerSelection_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_key;
+    int lv_playerToSelect;
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    int auto9D6A95EF_val;
+    const int auto695CC8BF_ae = 5;
+    const int auto695CC8BF_ai = 1;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+
+        if (!(((EventKeyPressed() == 40) || (EventKeyPressed() == c_key1) || (EventKeyPressed() == c_key2) || (EventKeyPressed() == c_key3) || (EventKeyPressed() == c_key4) || (EventKeyPressed() == c_key5)))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_key = EventKeyPressed();
+    auto9D6A95EF_val = lv_key;
+    if (auto9D6A95EF_val == c_key1) {
+        lv_playerToSelect = 1;
+    }
+    else if (auto9D6A95EF_val == c_key2) {
+        lv_playerToSelect = 2;
+    }
+    else if (auto9D6A95EF_val == c_key3) {
+        lv_playerToSelect = 3;
+    }
+    else if (auto9D6A95EF_val == c_key4) {
+        lv_playerToSelect = 4;
+    }
+    else if (auto9D6A95EF_val == c_key5) {
+        lv_playerToSelect = 5;
+    }
+    else if (auto9D6A95EF_val == 40) {
+        lv_playerToSelect = 0;
+    }
+    else {
+        return true;
+    }
+    if ((lv_playerToSelect == 0)) {
+        lv_itPlayer = 1;
+        for ( ; ( (auto695CC8BF_ai >= 0 && lv_itPlayer <= auto695CC8BF_ae) || (auto695CC8BF_ai < 0 && lv_itPlayer >= auto695CC8BF_ae) ) ; lv_itPlayer += auto695CC8BF_ai ) {
+            libPVEB_gf_DebugSelectPlayerHero(EventPlayer(), lv_itPlayer, false);
+        }
+    }
+    else {
+        libPVEB_gf_DebugSelectPlayerHero(EventPlayer(), lv_playerToSelect, true);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_DebugPlayerSelection_Init () {
+    libPVEB_gt_DebugPlayerSelection = TriggerCreate("libPVEB_gt_DebugPlayerSelection_Func");
+    TriggerEnable(libPVEB_gt_DebugPlayerSelection, false);
+    TriggerAddEventKeyPressed(libPVEB_gt_DebugPlayerSelection, c_playerAny, c_keyNone, false, c_keyModifierStateExclude, c_keyModifierStateExclude, c_keyModifierStateExclude);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Debug - Directive Text
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_DebugDirectiveText_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libPVEB_gf_PVECreateDirectiveMessage(StringExternal("Param/Value/lib_PVEB_893FC758"), StringExternal("Param/Value/lib_PVEB_3B1FCB13"), libPVEB_ge_PVEDirectiveStyle_ObjectiveDiscovered);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_DebugDirectiveText_Init () {
+    libPVEB_gt_DebugDirectiveText = TriggerCreate("libPVEB_gt_DebugDirectiveText_Func");
+    TriggerAddEventChatMessage(libPVEB_gt_DebugDirectiveText, c_playerAny, "-dt", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Debug - Spawn Pickup All
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_DebugSpawnPickupAll_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_casterPlayer;
+    unit lv_casterHero;
+    const fixed lv_offset = 5.0;
+    fixed lv_polarOffset;
+    int lv_itIterator;
+
+    // Automatic Variable Declarations
+    int autoDE776F5F_ae;
+    const int autoDE776F5F_ai = 1;
+
+    // Variable Initialization
+    lv_casterPlayer = EventPlayer();
+    lv_casterHero = libGame_gv_players[lv_casterPlayer].lv_heroUnit;
+
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_polarOffset = (360.0 / libPVEB_gv_pvEPickupPickupsTotalPickupsInitialized);
+    autoDE776F5F_ae = libPVEB_gv_pvEPickupPickupsTotalPickupsInitialized;
+    lv_itIterator = 1;
+    for ( ; ( (autoDE776F5F_ai >= 0 && lv_itIterator <= autoDE776F5F_ae) || (autoDE776F5F_ai < 0 && lv_itIterator >= autoDE776F5F_ae) ) ; lv_itIterator += autoDE776F5F_ai ) {
+        libPVEB_gf_PvEPickupSpawnPickup(libPVEB_gv_pvEPickupPickupsTotal[lv_itIterator], PointWithOffsetPolar(UnitGetPosition(lv_casterHero), lv_offset, (lv_itIterator * lv_polarOffset)), false);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_DebugSpawnPickupAll_Init () {
+    libPVEB_gt_DebugSpawnPickupAll = TriggerCreate("libPVEB_gt_DebugSpawnPickupAll_Func");
+    TriggerAddEventChatMessage(libPVEB_gt_DebugSpawnPickupAll, c_playerAny, "-spawnpickupall", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Debug - Spawn Pickup Random
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_DebugSpawnPickupRandom_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_casterPlayer;
+    unit lv_casterHero;
+    const fixed lv_offset = 5.0;
+    fixed lv_polarOffset;
+    int lv_itIterator;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_casterPlayer = EventPlayer();
+    lv_casterHero = libGame_gv_players[lv_casterPlayer].lv_heroUnit;
+
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libPVEB_gf_PvEPickupSpawnRandom(UnitGetPosition(lv_casterHero));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_DebugSpawnPickupRandom_Init () {
+    libPVEB_gt_DebugSpawnPickupRandom = TriggerCreate("libPVEB_gt_DebugSpawnPickupRandom_Func");
+    TriggerAddEventChatMessage(libPVEB_gt_DebugSpawnPickupRandom, c_playerAny, "-spawnpickuprandom", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Debug - Spawn Pickup Rotation
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_DebugSpawnPickupRotation_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_casterPlayer;
+    unit lv_casterHero;
+    const fixed lv_offset = 7.0;
+    fixed lv_polarOffset;
+    int lv_itIterator;
+    int lv_currentIteration;
+    int lv_rollover;
+    string lv_specialItem;
+    int lv_tempRollover;
+    int lv_currentRollover;
+    int lv_itemsToSpawn;
+
+    // Automatic Variable Declarations
+    int autoA010545B_ae;
+    const int autoA010545B_ai = 1;
+
+    // Variable Initialization
+    lv_casterPlayer = EventPlayer();
+    lv_casterHero = libGame_gv_players[lv_casterPlayer].lv_heroUnit;
+    lv_polarOffset = 14.4;
+    lv_currentIteration = 1;
+    lv_rollover = 5;
+
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_specialItem = (StringWord(EventChatMessage(false), 2));
+    lv_itemsToSpawn = StringToInt(StringWord(EventChatMessage(false), 3));
+    lv_tempRollover = StringToInt(StringWord(EventChatMessage(false), 4));
+    lv_polarOffset = (360.0 / (lv_itemsToSpawn + 1.0));
+    lv_currentRollover = libPVEB_gv_pvEPickupRolloverRotationStep;
+    libPVEB_gv_pvEPickupRolloverRotationStep = lv_tempRollover;
+    libPVEB_gv_pvEPickupCurrentRotationStep = 1;
+    TriggerDebugOutput(1, (StringExternal("Param/Value/lib_PVEB_2C5BEF29") + IntToText(lv_itemsToSpawn) + StringExternal("Param/Value/lib_PVEB_ADEFB573") + IntToText(libPVEB_gv_pvEPickupRolloverRotationStep) + StringExternal("Param/Value/lib_PVEB_646E201F") + StringExternal((lv_specialItem))), true);
+    autoA010545B_ae = lv_itemsToSpawn;
+    lv_itIterator = 1;
+    for ( ; ( (autoA010545B_ai >= 0 && lv_itIterator <= autoA010545B_ae) || (autoA010545B_ai < 0 && lv_itIterator >= autoA010545B_ae) ) ; lv_itIterator += autoA010545B_ai ) {
+        libPVEB_gf_PvEPickupSpawnRandomInRotation(lv_specialItem, PointWithOffsetPolar(UnitGetPosition(lv_casterHero), lv_offset, (lv_itIterator * lv_polarOffset)));
+    }
+    libPVEB_gv_pvEPickupRolloverRotationStep = lv_currentRollover;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_DebugSpawnPickupRotation_Init () {
+    libPVEB_gt_DebugSpawnPickupRotation = TriggerCreate("libPVEB_gt_DebugSpawnPickupRotation_Func");
+    TriggerAddEventChatMessage(libPVEB_gt_DebugSpawnPickupRotation, c_playerAny, "-spawnpickuprotation", false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: PvE Wave Routine
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_gt_PvEWaveRoutine_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itWaveIndex;
+
+    // Automatic Variable Declarations
+    int autoA9B23E01_ae;
+    const int autoA9B23E01_ai = 1;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    while (true) {
+        if ((libGame_gv_gameOver == true)) {
+            return true;
+        }
+
+        while (!((libPVEB_gv_pvEWavePaused == false))) {
+            Wait(0.5, c_timeGame);
+        }
+        autoA9B23E01_ae = libPVEB_gv_pvEWaveCount;
+        lv_itWaveIndex = 1;
+        for ( ; ( (autoA9B23E01_ai >= 0 && lv_itWaveIndex <= autoA9B23E01_ae) || (autoA9B23E01_ai < 0 && lv_itWaveIndex >= autoA9B23E01_ae) ) ; lv_itWaveIndex += autoA9B23E01_ai ) {
+            libPVEB_gf_PvEWaveRoutineSingleWave(lv_itWaveIndex);
+        }
+        Wait(0.5, c_timeGame);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPVEB_gt_PvEWaveRoutine_Init () {
+    libPVEB_gt_PvEWaveRoutine = TriggerCreate("libPVEB_gt_PvEWaveRoutine_Func");
+}
+
+void libPVEB_InitTriggers () {
+    libPVEB_gt_IncludeMMPvEBrawlMod_Init();
+    libPVEB_gt_PBHeroSpawned_Init();
+    libPVEB_gt_InitializeArrows_Init();
+    libPVEB_gt_InitializePossibleAIPlayers_Init();
+    libPVEB_gt_InitPVEBrawlMod_Init();
+    libPVEB_gt_PvEPickupPingOverrides_Init();
+    libPVEB_gt_PvEPickupPreplacedPickupVisibilityCheck_Init();
+    libPVEB_gt_PvEPickupItemPickedUp_Init();
+    libPVEB_gt_PBNPCMinionDies_Init();
+    libPVEB_gt_PvEResurrectCreateSpirit_Init();
+    libPVEB_gt_PvEResurrectPlayerRespawnsNormally_Init();
+    libPVEB_gt_PvEResurrectRevivePlayer_Init();
+    libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveStart_Init();
+    libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterrupted_Init();
+    libPVEB_gt_PvEResurrectNotifyTargetPlayerReviveInterruptedTimerExpired_Init();
+    libPVEB_gt_PVEDirectivePanelInitialize_Init();
+    libPVEB_gt_PVEDisplayDirectivePanelMessage_Init();
+    libPVEB_gt_PVEDisplayDirectivePanelMessageSmall_Init();
+    libPVEB_gt_DebugBehaviorDurationCheck_Init();
+    libPVEB_gt_DebugVictory_Init();
+    libPVEB_gt_DebugDefeat_Init();
+    libPVEB_gt_DebugDifficulty_Init();
+    libPVEB_gt_DebugInitializeArrows_Init();
+    libPVEB_gt_DebugShowArrows_Init();
+    libPVEB_gt_DebugHideArrows_Init();
+    libPVEB_gt_DebugTurnOnPlayerSelction_Init();
+    libPVEB_gt_DebugPlayerSelection_Init();
+    libPVEB_gt_DebugDirectiveText_Init();
+    libPVEB_gt_DebugSpawnPickupAll_Init();
+    libPVEB_gt_DebugSpawnPickupRandom_Init();
+    libPVEB_gt_DebugSpawnPickupRotation_Init();
+    libPVEB_gt_PvEWaveRoutine_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libPVEB_InitLib_completed = false;
+
+void libPVEB_InitLib () {
+    if (libPVEB_InitLib_completed) {
+        return;
+    }
+
+    libPVEB_InitLib_completed = true;
+
+    libPVEB_InitLibraries();
+    libPVEB_InitVariables();
+    libPVEB_InitTriggers();
+}
+

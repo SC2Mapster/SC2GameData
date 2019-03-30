@@ -1,0 +1,293 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/SupportLib"
+
+include "LibHVAR_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Varian
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libHVAR_InitLibraries () {
+    libNtve_InitVariables();
+    libGame_InitVariables();
+    libSprt_InitVariables();
+}
+
+// Variable Initialization
+bool libHVAR_InitVariables_completed = false;
+
+void libHVAR_InitVariables () {
+    if (libHVAR_InitVariables_completed) {
+        return;
+    }
+
+    libHVAR_InitVariables_completed = true;
+
+}
+
+// Functions
+void libHVAR_gf_HeroVarianIncrementHeroCount () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHVAR_gv_heroVarianTriggerRegistrationCount += 1;
+    if ((libHVAR_gv_heroVarianTriggerRegistrationCount == 1)) {
+        TriggerEnable(libHVAR_gt_VarianHighKingsQuestHeroTakedown, true);
+        TriggerEnable(libHVAR_gt_VarianParryBehaviorMonitor, true);
+        TriggerEnable(libHVAR_gt_VarianVictoryRushMinionTakedownReset, true);
+        TriggerEnable(libHVAR_gt_VarianVictoryRushMonsterTakedownReset, true);
+        TriggerEnable(libHVAR_gt_VarianUIFloatingCombatTextParried, true);
+    }
+
+}
+
+void libHVAR_gf_HeroVarianDecrementHeroCount () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHVAR_gv_heroVarianTriggerRegistrationCount -= 1;
+    if ((libHVAR_gv_heroVarianTriggerRegistrationCount < 0)) {
+        libHVAR_gv_heroVarianTriggerRegistrationCount = 0;
+    }
+
+    if ((libHVAR_gv_heroVarianTriggerRegistrationCount == 0)) {
+        TriggerEnable(libHVAR_gt_VarianHighKingsQuestHeroTakedown, false);
+        TriggerEnable(libHVAR_gt_VarianParryBehaviorMonitor, false);
+        TriggerEnable(libHVAR_gt_VarianVictoryRushMinionTakedownReset, false);
+        TriggerEnable(libHVAR_gt_VarianVictoryRushMonsterTakedownReset, false);
+        TriggerEnable(libHVAR_gt_VarianUIFloatingCombatTextParried, false);
+    }
+
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: Varian - High King's Quest - Hero Takedown
+//--------------------------------------------------------------------------------------------------
+bool libHVAR_gt_VarianHighKingsQuestHeroTakedown_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_killingPlayer;
+    unit lv_varianUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_killingPlayer = libGame_gf_HeroParticipatedInTakedownKillingPlayer();
+    lv_varianUnit = libGame_gv_players[lv_killingPlayer].lv_heroUnit;
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerHasTalent(lv_killingPlayer, "VarianHighKingsQuestQuest") == true))) {
+            return false;
+        }
+
+        if (!((UnitBehaviorCount(lv_varianUnit, "VarianHighKingsQuestHeroTakedownQuestToken") < CatalogFieldValueGetAsInt(c_gameCatalogBehavior, "VarianHighKingsQuestHeroTakedownQuestToken", "Max", 0)))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(lv_varianUnit, "VarianHighKingsQuestModifyHeroTakedownQuestToken", lv_varianUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHVAR_gt_VarianHighKingsQuestHeroTakedown_Init () {
+    libHVAR_gt_VarianHighKingsQuestHeroTakedown = TriggerCreate("libHVAR_gt_VarianHighKingsQuestHeroTakedown_Func");
+    TriggerEnable(libHVAR_gt_VarianHighKingsQuestHeroTakedown, false);
+    libGame_gf_HeroParticipatedInTakedown(libHVAR_gt_VarianHighKingsQuestHeroTakedown);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Varian - UI - Floating Combat Text - Parried
+//--------------------------------------------------------------------------------------------------
+bool libHVAR_gt_VarianUIFloatingCombatTextParried_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    playergroup lv_players;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_players = PlayerGroupEmpty();
+
+    // Conditions
+    if (testConds) {
+        if (!((libSprt_gv_dEBUGCombatTextEnabled == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    PlayerGroupAdd(lv_players, EventPlayerEffectUsedUnitOwner(c_effectPlayerTarget));
+    PlayerGroupAdd(lv_players, EventPlayerEffectUsedUnitOwner(c_effectPlayerCaster));
+    PlayerGroupAdd(lv_players, EventPlayerEffectUsedUnitOwner(c_effectPlayerSource));
+    FloatingCombatElementCreateTextAtUnit(lv_players, "FloatingCombatElements/FloatingCombatElementTemplate", "", EventPlayerEffectUsedUnit(c_effectUnitSource), StringExternal("Param/Value/lib_HVAR_1FAF1667"), libNtve_gv_FloatingCombatTextAutoRandomSeed);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHVAR_gt_VarianUIFloatingCombatTextParried_Init () {
+    libHVAR_gt_VarianUIFloatingCombatTextParried = TriggerCreate("libHVAR_gt_VarianUIFloatingCombatTextParried_Func");
+    TriggerEnable(libHVAR_gt_VarianUIFloatingCombatTextParried, false);
+    TriggerAddEventPlayerEffectUsed(libHVAR_gt_VarianUIFloatingCombatTextParried, c_playerAny, "VarianParryDummyDamage");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Varian - Parry Behavior Monitor
+//--------------------------------------------------------------------------------------------------
+bool libHVAR_gt_VarianParryBehaviorMonitor_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_triggeringUnitOwner;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_triggeringUnitOwner = UnitGetOwner(EventUnit());
+
+    // Conditions
+    if (testConds) {
+        if (!((EventUnitBehaviorCumulativeDamageModification() > 0.0))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    FloatingCombatElementCreateNumberTextAtUnit(PlayerGroupSingle(lv_triggeringUnitOwner), "FloatingCombatElements/FloatingCombatAmountReadable", "", EventUnit(), FixedToInt(EventUnitBehaviorCumulativeDamageModification()), StringExternal("Param/Value/lib_HVAR_D90A4267"), libNtve_gv_FloatingCombatTextAutoRandomSeed);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHVAR_gt_VarianParryBehaviorMonitor_Init () {
+    libHVAR_gt_VarianParryBehaviorMonitor = TriggerCreate("libHVAR_gt_VarianParryBehaviorMonitor_Func");
+    TriggerEnable(libHVAR_gt_VarianParryBehaviorMonitor, false);
+    TriggerAddEventUnitBehaviorChange(libHVAR_gt_VarianParryBehaviorMonitor, null, "VarianParryIncomingDamageReduction", c_unitBehaviorChangeRefresh);
+    TriggerAddEventUnitBehaviorChange(libHVAR_gt_VarianParryBehaviorMonitor, null, "VarianParryIncomingDamageReduction", c_unitBehaviorChangeDecrease);
+    TriggerAddEventUnitBehaviorChange(libHVAR_gt_VarianParryBehaviorMonitor, null, "VarianParryShieldWall", c_unitBehaviorChangeRefresh);
+    TriggerAddEventUnitBehaviorChange(libHVAR_gt_VarianParryBehaviorMonitor, null, "VarianParryShieldWall", c_unitBehaviorChangeDecrease);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Varian - Victory Rush - Minion Takedown Reset
+//--------------------------------------------------------------------------------------------------
+bool libHVAR_gt_VarianVictoryRushMinionTakedownReset_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_varianPlayer;
+    unit lv_varianUnit;
+    unit lv_nPCUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_varianPlayer = libGame_gf_HeroParticipatedInNPCTakedownKillingPlayer();
+    lv_varianUnit = libGame_gv_players[lv_varianPlayer].lv_heroUnit;
+    lv_nPCUnit = libGame_gf_HeroParticipatedInNPCTakedownMinion();
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerHero(libGame_gf_HeroParticipatedInNPCTakedownKillingPlayer()) == "Varian"))) {
+            return false;
+        }
+
+        if (!((PlayerHasTalent(lv_varianPlayer, "VarianVictoryRush") == true))) {
+            return false;
+        }
+
+        if (!(((UnitTypeTestAttribute(UnitGetType(lv_nPCUnit), c_unitAttributeMinion) == true) && (UnitFilterMatch(lv_nPCUnit, lv_varianPlayer, UnitFilter(0, 0, (1 << c_targetFilterCreep) | (1 << c_targetFilterMerc), 0)) == true)))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(lv_varianUnit, "VarianVictoryRushCasterReset", lv_varianUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHVAR_gt_VarianVictoryRushMinionTakedownReset_Init () {
+    libHVAR_gt_VarianVictoryRushMinionTakedownReset = TriggerCreate("libHVAR_gt_VarianVictoryRushMinionTakedownReset_Func");
+    TriggerEnable(libHVAR_gt_VarianVictoryRushMinionTakedownReset, false);
+    libGame_gf_HeroParticipatedInNPCTakedown(libHVAR_gt_VarianVictoryRushMinionTakedownReset);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Varian - Victory Rush - Monster Takedown Reset
+//--------------------------------------------------------------------------------------------------
+bool libHVAR_gt_VarianVictoryRushMonsterTakedownReset_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_varianPlayer;
+    unit lv_varianUnit;
+    unit lv_nPCUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_varianPlayer = libGame_gf_HeroParticipatedInCreepTakedownKillingPlayer();
+    lv_varianUnit = libGame_gv_players[lv_varianPlayer].lv_heroUnit;
+    lv_nPCUnit = libGame_gf_HeroParticipatedInCreepTakedownCreep();
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerHero(libGame_gf_HeroParticipatedInCreepTakedownKillingPlayer()) == "Varian"))) {
+            return false;
+        }
+
+        if (!((PlayerHasTalent(lv_varianPlayer, "VarianVictoryRush") == true))) {
+            return false;
+        }
+
+        if (!((UnitTypeTestAttribute(UnitGetType(lv_nPCUnit), c_unitAttributeMapCreature) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(lv_varianUnit, "VarianVictoryRushCasterReset", lv_varianUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHVAR_gt_VarianVictoryRushMonsterTakedownReset_Init () {
+    libHVAR_gt_VarianVictoryRushMonsterTakedownReset = TriggerCreate("libHVAR_gt_VarianVictoryRushMonsterTakedownReset_Func");
+    TriggerEnable(libHVAR_gt_VarianVictoryRushMonsterTakedownReset, false);
+    libGame_gf_HeroParticipatedInCreepTakedown(libHVAR_gt_VarianVictoryRushMonsterTakedownReset);
+}
+
+void libHVAR_InitTriggers () {
+    libHVAR_gt_VarianHighKingsQuestHeroTakedown_Init();
+    libHVAR_gt_VarianUIFloatingCombatTextParried_Init();
+    libHVAR_gt_VarianParryBehaviorMonitor_Init();
+    libHVAR_gt_VarianVictoryRushMinionTakedownReset_Init();
+    libHVAR_gt_VarianVictoryRushMonsterTakedownReset_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libHVAR_InitLib_completed = false;
+
+void libHVAR_InitLib () {
+    if (libHVAR_InitLib_completed) {
+        return;
+    }
+
+    libHVAR_InitLib_completed = true;
+
+    libHVAR_InitLibraries();
+    libHVAR_InitVariables();
+    libHVAR_InitTriggers();
+}
+

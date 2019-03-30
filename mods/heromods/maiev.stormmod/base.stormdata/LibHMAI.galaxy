@@ -1,0 +1,458 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/AILib"
+include "TriggerLibs/UILib"
+
+include "LibHMAI_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Maiev
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libHMAI_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+    libAIAI_InitVariables();
+    libUIUI_InitVariables();
+}
+
+// Variable Initialization
+bool libHMAI_InitVariables_completed = false;
+
+void libHMAI_InitVariables () {
+    int init_i;
+
+    if (libHMAI_InitVariables_completed) {
+        return;
+    }
+
+    libHMAI_InitVariables_completed = true;
+
+    for (init_i = 0; init_i <= libCore_gv_bALMaxPlayers; init_i += 1) {
+        libHMAI_gv_heroMaievContainmentDiscBackupVisionGroups[init_i] = UnitGroupEmpty();
+    }
+}
+
+// Functions
+void libHMAI_gf_HeroMaievIncrementHeroCountFunction () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHMAI_gv_heroMaievTriggerRegistrationVariable += 1;
+    if ((libHMAI_gv_heroMaievTriggerRegistrationVariable == 1)) {
+        TriggerEnable(libHMAI_gt_HeroMaievApplyContainmentDiscAllyVisionSuppression, true);
+        TriggerEnable(libHMAI_gt_HeroMaievRemoveContainmentDiscAllyVisionSuppression, true);
+        TriggerEnable(libHMAI_gt_HeroMaievContainmentDiscOverlayOn, true);
+        TriggerEnable(libHMAI_gt_HeroMaievContainmentDiscOverlayOff, true);
+        TriggerEnable(libHMAI_gt_HeroMaievChargedTalentsRespec, true);
+    }
+
+}
+
+void libHMAI_gf_HeroMaievDecrementHeroCountFunction () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHMAI_gv_heroMaievTriggerRegistrationVariable -= 1;
+    if ((libHMAI_gv_heroMaievTriggerRegistrationVariable < 0)) {
+        libHMAI_gv_heroMaievTriggerRegistrationVariable = 0;
+    }
+
+    if ((libHMAI_gv_heroMaievTriggerRegistrationVariable == 0)) {
+        TriggerEnable(libHMAI_gt_HeroMaievApplyContainmentDiscAllyVisionSuppression, false);
+        TriggerEnable(libHMAI_gt_HeroMaievRemoveContainmentDiscAllyVisionSuppression, false);
+        TriggerEnable(libHMAI_gt_HeroMaievContainmentDiscOverlayOn, false);
+        TriggerEnable(libHMAI_gt_HeroMaievContainmentDiscOverlayOff, false);
+        TriggerEnable(libHMAI_gt_HeroMaievChargedTalentsRespec, false);
+    }
+
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Maiev Charged Talents Respec
+//--------------------------------------------------------------------------------------------------
+bool libHMAI_gt_HeroMaievChargedTalentsRespec_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_respecPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_respecPlayer = libGame_gf_HeroRespecsTalentsPlayer();
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerHero(lv_respecPlayer) == "Maiev"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    PlayerAddChargeUsed(lv_respecPlayer, CatalogFieldValueGet(c_gameCatalogAbil, "MaievFanOfKnivesNaishasMemento", "Cost.Charge.Link", c_playerAny), (-1.0 * CatalogFieldValueGetAsFixed(c_gameCatalogAbil, "MaievFanOfKnivesNaishasMemento", "Cost.Charge.CountMax", c_playerAny)));
+    PlayerAddChargeUsed(lv_respecPlayer, CatalogFieldValueGet(c_gameCatalogAbil, "MaievShadowOrbHuntress", "Cost.Charge.Link", c_playerAny), (-1.0 * CatalogFieldValueGetAsFixed(c_gameCatalogAbil, "MaievShadowOrbHuntress", "Cost.Charge.CountMax", c_playerAny)));
+    PlayerAddChargeUsed(lv_respecPlayer, CatalogFieldValueGet(c_gameCatalogAbil, "MaievShadowOrbShadowStrike", "Cost.Charge.Link", c_playerAny), (-1.0 * CatalogFieldValueGetAsFixed(c_gameCatalogAbil, "MaievShadowOrbShadowStrike", "Cost.Charge.CountMax", c_playerAny)));
+    PlayerAddChargeUsed(lv_respecPlayer, CatalogFieldValueGet(c_gameCatalogAbil, "MaievSpiritOfVengeanceShadowOrbVengeance", "Cost.Charge.Link", c_playerAny), (-1.0 * CatalogFieldValueGetAsFixed(c_gameCatalogAbil, "MaievSpiritOfVengeanceShadowOrbVengeance", "Cost.Charge.CountMax", c_playerAny)));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMAI_gt_HeroMaievChargedTalentsRespec_Init () {
+    libHMAI_gt_HeroMaievChargedTalentsRespec = TriggerCreate("libHMAI_gt_HeroMaievChargedTalentsRespec_Func");
+    TriggerEnable(libHMAI_gt_HeroMaievChargedTalentsRespec, false);
+    libGame_gf_HeroRespecsTalents(libHMAI_gt_HeroMaievChargedTalentsRespec);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Maiev Containment Disc Overlay On
+//--------------------------------------------------------------------------------------------------
+bool libHMAI_gt_HeroMaievContainmentDiscOverlayOn_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_unit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_unit = EventUnit();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitIsAlive(lv_unit) == true))) {
+            return false;
+        }
+
+        if (!((UnitTestState(lv_unit, c_unitStateHallucination) == false))) {
+            return false;
+        }
+
+        if (!((UnitHasBehavior2(lv_unit, "HeroGenericIgnoreFullscreenOverlay") == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libUIUI_gf_FullscreenOverlayAddItemForPlayer(UnitGetOwner(lv_unit), libUIUI_ge_FullscreenOverlayPriorities_Stasis, "Cutscenes\\GameUI_StasisOverlay.StormCutscene", EventUnitBehavior());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMAI_gt_HeroMaievContainmentDiscOverlayOn_Init () {
+    libHMAI_gt_HeroMaievContainmentDiscOverlayOn = TriggerCreate("libHMAI_gt_HeroMaievContainmentDiscOverlayOn_Func");
+    TriggerEnable(libHMAI_gt_HeroMaievContainmentDiscOverlayOn, false);
+    TriggerAddEventUnitBehaviorChange(libHMAI_gt_HeroMaievContainmentDiscOverlayOn, null, "MaievContainmentDiscTimeStop", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Maiev Containment Disc Overlay Off
+//--------------------------------------------------------------------------------------------------
+bool libHMAI_gt_HeroMaievContainmentDiscOverlayOff_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_unit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_unit = EventUnit();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitHasBehavior2(lv_unit, "HeroGenericIgnoreFullscreenOverlay") == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libUIUI_gf_FullscreenOverlayRemoveItemFromQueueForPlayer(UnitGetOwner(lv_unit), "Cutscenes\\GameUI_StasisOverlay.StormCutscene", EventUnitBehavior());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMAI_gt_HeroMaievContainmentDiscOverlayOff_Init () {
+    libHMAI_gt_HeroMaievContainmentDiscOverlayOff = TriggerCreate("libHMAI_gt_HeroMaievContainmentDiscOverlayOff_Func");
+    TriggerEnable(libHMAI_gt_HeroMaievContainmentDiscOverlayOff, false);
+    TriggerAddEventUnitBehaviorChange(libHMAI_gt_HeroMaievContainmentDiscOverlayOff, null, "MaievContainmentDiscTimeStop", c_unitBehaviorChangeDestroy);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Maiev Multi-Hero Containment Disc Controller
+//--------------------------------------------------------------------------------------------------
+bool libHMAI_gt_HeroMaievMultiHeroContainmentDiscController_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_maievPlayer;
+    int lv_confinedPlayer;
+    unitgroup lv_confinedPlayerVisionGroup;
+    unit lv_targetUnit;
+    int lv_targetplayer;
+    playergroup lv_AllyPlayerGroup;
+    int lv_pickedPlayer;
+
+    // Automatic Variable Declarations
+    playergroup autoFAC0A58B_g;
+
+    // Variable Initialization
+    lv_confinedPlayer = UnitGetOwner(EventUnit());
+    lv_confinedPlayerVisionGroup = UnitGroupEmpty();
+    lv_targetUnit = EventUnit();
+    lv_targetplayer = UnitGetOwner(EventUnit());
+    lv_AllyPlayerGroup = PlayerGroupEmpty();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitHasBehavior2(lv_targetUnit, "MaievContainmentDiscVisionSource") == true))) {
+            return false;
+        }
+
+        if (!((lv_confinedPlayer > 0))) {
+            return false;
+        }
+
+        if (!((lv_confinedPlayer < libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_maievPlayer = UnitBehaviorEffectPlayer(lv_targetUnit, "MaievContainmentDiscVisionSource", c_effectPlayerCaster, 0);
+    UnitGroupRemove(libHMAI_gv_heroMaievContainmentDiscBackupVisionGroups[lv_targetplayer], lv_targetUnit);
+    if ((UnitGroupCount(libHMAI_gv_heroMaievContainmentDiscBackupVisionGroups[lv_targetplayer], c_unitCountAlive) == 0)) {
+        libGame_gf_ShareUnshareVisionOfAlliesForPlayer(false, lv_targetplayer);
+        lv_AllyPlayerGroup = libGame_gf_AlliedPlayerGroupOfPlayer(lv_targetplayer);
+        autoFAC0A58B_g = lv_AllyPlayerGroup;
+        lv_pickedPlayer = -1;
+        while (true) {
+            	lv_pickedPlayer = PlayerGroupNextPlayer(autoFAC0A58B_g, lv_pickedPlayer);
+            	if (lv_pickedPlayer<0) { break; }
+            	PlayerSetAlliance(lv_pickedPlayer, c_allianceIdSeekHelp, lv_targetplayer, false);
+            PlayerSetAlliance(lv_pickedPlayer, c_allianceIdGiveHelp, lv_targetplayer, false);
+        }
+        VisRevealerEnable(libGame_gv_baseRevealers[lv_targetplayer], false);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMAI_gt_HeroMaievMultiHeroContainmentDiscController_Init () {
+    libHMAI_gt_HeroMaievMultiHeroContainmentDiscController = TriggerCreate("libHMAI_gt_HeroMaievMultiHeroContainmentDiscController_Func");
+    TriggerEnable(libHMAI_gt_HeroMaievMultiHeroContainmentDiscController, false);
+    TriggerAddEventUnitDied(libHMAI_gt_HeroMaievMultiHeroContainmentDiscController, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Maiev Apply Containment Disc Ally Vision Suppression
+//--------------------------------------------------------------------------------------------------
+bool libHMAI_gt_HeroMaievApplyContainmentDiscAllyVisionSuppression_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_targetUnit;
+    string lv_typeOfTargetUnit;
+    int lv_targetplayer;
+    int lv_maievPlayer;
+    unitgroup lv_targetPlayerVisionGroup;
+    playergroup lv_AllyPlayerGroup;
+    int lv_pickedPlayer;
+
+    // Automatic Variable Declarations
+    unitgroup auto83DA7049_g;
+    int auto83DA7049_u;
+    unit auto83DA7049_var;
+    playergroup auto7F50E12A_g;
+
+    // Variable Initialization
+    lv_targetUnit = EventUnit();
+    lv_typeOfTargetUnit = UnitGetType(lv_targetUnit);
+    lv_targetplayer = UnitGetOwner(lv_targetUnit);
+    lv_maievPlayer = UnitBehaviorEffectPlayer(lv_targetUnit, "MaievContainmentDiscTimeStop", c_effectPlayerCaster, 0);
+    lv_targetPlayerVisionGroup = UnitGroupEmpty();
+    lv_AllyPlayerGroup = PlayerGroupEmpty();
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_targetplayer > 0))) {
+            return false;
+        }
+
+        if (!((lv_targetplayer <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+
+        if (!((lv_maievPlayer > 0))) {
+            return false;
+        }
+
+        if (!((lv_maievPlayer <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+
+        if (!((UnitTypeTestAttribute(lv_typeOfTargetUnit, c_unitAttributeHeroic) == true))) {
+            return false;
+        }
+
+        if (!(((lv_targetUnit == libGame_gv_players[lv_targetplayer].lv_heroUnit) || (lv_targetUnit == libAIAI_gv_aIHeroes[lv_targetplayer].lv_currentHeroUnit) || (lv_typeOfTargetUnit == "HeroBaleog") || (lv_typeOfTargetUnit == "HeroErik") || (lv_typeOfTargetUnit == "HeroOlaf") || (lv_typeOfTargetUnit == "HeroChenEarth") || (lv_typeOfTargetUnit == "HeroChenFire") || (lv_typeOfTargetUnit == "HeroChenStorm")))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libHMAI_gv_heroMaievContainmentDiscBackupVisionGroups[lv_targetplayer] = UnitGroupEmpty();
+    libHMAI_gv_heroMaievActiveContainmentDiscTargets += 1;
+    auto83DA7049_g = UnitGroup(null, lv_targetplayer, RegionEntireMap(), UnitFilter((1 << c_targetFilterHeroic), 0, (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterEnemy) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterInvulnerable - 32))), 0);
+    auto83DA7049_u = UnitGroupCount(auto83DA7049_g, c_unitCountAll);
+    for (;; auto83DA7049_u -= 1) {
+        auto83DA7049_var = UnitGroupUnitFromEnd(auto83DA7049_g, auto83DA7049_u);
+        if (auto83DA7049_var == null) { break; }
+        if ((UnitHasBehavior2(auto83DA7049_var, "MaievContainmentDiscTimeStop") == false) && (UnitGetType(auto83DA7049_var) != "NovaHoloCloneCloaked") && (UnitGetType(auto83DA7049_var) != "NovaHoloClone") && (UnitGetType(auto83DA7049_var) != "RexxarMisha")) {
+            UnitGroupAdd(libHMAI_gv_heroMaievContainmentDiscBackupVisionGroups[lv_targetplayer], auto83DA7049_var);
+            UnitBehaviorAdd(auto83DA7049_var, "MaievContainmentDiscVisionSource", libGame_gv_players[lv_maievPlayer].lv_heroUnit, 1);
+        }
+
+    }
+    if ((UnitGroupCount(libHMAI_gv_heroMaievContainmentDiscBackupVisionGroups[lv_targetplayer], c_unitCountAlive) == 0)) {
+        libGame_gf_ShareUnshareVisionOfAlliesForPlayer(false, lv_targetplayer);
+        lv_AllyPlayerGroup = libGame_gf_AlliedPlayerGroupOfPlayer(lv_targetplayer);
+        auto7F50E12A_g = lv_AllyPlayerGroup;
+        lv_pickedPlayer = -1;
+        while (true) {
+            	lv_pickedPlayer = PlayerGroupNextPlayer(auto7F50E12A_g, lv_pickedPlayer);
+            	if (lv_pickedPlayer<0) { break; }
+            	PlayerSetAlliance(lv_pickedPlayer, c_allianceIdSeekHelp, lv_targetplayer, false);
+            PlayerSetAlliance(lv_pickedPlayer, c_allianceIdGiveHelp, lv_targetplayer, false);
+        }
+        VisRevealerEnable(libGame_gv_baseRevealers[lv_targetplayer], false);
+    }
+
+    if ((libHMAI_gv_heroMaievActiveContainmentDiscTargets > 0) && (UnitGroupCount(libHMAI_gv_heroMaievContainmentDiscBackupVisionGroups[lv_targetplayer], c_unitCountAlive) > 0)) {
+        TriggerEnable(libHMAI_gt_HeroMaievMultiHeroContainmentDiscController, true);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMAI_gt_HeroMaievApplyContainmentDiscAllyVisionSuppression_Init () {
+    libHMAI_gt_HeroMaievApplyContainmentDiscAllyVisionSuppression = TriggerCreate("libHMAI_gt_HeroMaievApplyContainmentDiscAllyVisionSuppression_Func");
+    TriggerEnable(libHMAI_gt_HeroMaievApplyContainmentDiscAllyVisionSuppression, false);
+    TriggerAddEventUnitBehaviorChange(libHMAI_gt_HeroMaievApplyContainmentDiscAllyVisionSuppression, null, "MaievContainmentDiscTimeStop", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Maiev Remove Containment Disc Ally Vision Suppression
+//--------------------------------------------------------------------------------------------------
+bool libHMAI_gt_HeroMaievRemoveContainmentDiscAllyVisionSuppression_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_targetUnit;
+    int lv_targetPlayer;
+    int lv_maievPlayer;
+    playergroup lv_allyPlayerGroup;
+    int lv_pickedPlayer;
+
+    // Automatic Variable Declarations
+    unitgroup autoB722C4E5_g;
+    int autoB722C4E5_u;
+    unit autoB722C4E5_var;
+    playergroup autoBF4B1106_g;
+
+    // Variable Initialization
+    lv_targetUnit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_targetPlayer = UnitGetOwner(lv_targetUnit);
+    lv_maievPlayer = EventPlayerEffectUsedUnitOwner(c_effectPlayerCaster);
+    lv_allyPlayerGroup = PlayerGroupEmpty();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitTypeTestAttribute(UnitGetType(lv_targetUnit), c_unitAttributeHeroic) == true))) {
+            return false;
+        }
+
+        if (!((lv_targetPlayer > 0))) {
+            return false;
+        }
+
+        if (!((lv_targetPlayer <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    autoB722C4E5_g = libHMAI_gv_heroMaievContainmentDiscBackupVisionGroups[lv_targetPlayer];
+    autoB722C4E5_u = UnitGroupCount(autoB722C4E5_g, c_unitCountAll);
+    for (;; autoB722C4E5_u -= 1) {
+        autoB722C4E5_var = UnitGroupUnitFromEnd(autoB722C4E5_g, autoB722C4E5_u);
+        if (autoB722C4E5_var == null) { break; }
+        UnitBehaviorRemove(autoB722C4E5_var, "MaievContainmentDiscVisionSource", 1);
+    }
+    if ((UnitHasBehaviorWithCategoryFlag(lv_targetUnit, c_behaviorCategoryVisionRemoval) == false)) {
+        libGame_gf_ShareUnshareVisionOfAlliesForPlayer(true, lv_targetPlayer);
+        lv_allyPlayerGroup = libGame_gf_AlliedPlayerGroupOfPlayer(lv_targetPlayer);
+        autoBF4B1106_g = lv_allyPlayerGroup;
+        lv_pickedPlayer = -1;
+        while (true) {
+            	lv_pickedPlayer = PlayerGroupNextPlayer(autoBF4B1106_g, lv_pickedPlayer);
+            	if (lv_pickedPlayer<0) { break; }
+            	PlayerSetAlliance(lv_pickedPlayer, c_allianceIdSeekHelp, lv_targetPlayer, true);
+            PlayerSetAlliance(lv_pickedPlayer, c_allianceIdGiveHelp, lv_targetPlayer, true);
+        }
+        VisRevealerEnable(libGame_gv_baseRevealers[lv_targetPlayer], true);
+        libHMAI_gv_heroMaievActiveContainmentDiscTargets -= 1;
+    }
+
+    if ((libHMAI_gv_heroMaievActiveContainmentDiscTargets == 0)) {
+        TriggerEnable(libHMAI_gt_HeroMaievMultiHeroContainmentDiscController, false);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHMAI_gt_HeroMaievRemoveContainmentDiscAllyVisionSuppression_Init () {
+    libHMAI_gt_HeroMaievRemoveContainmentDiscAllyVisionSuppression = TriggerCreate("libHMAI_gt_HeroMaievRemoveContainmentDiscAllyVisionSuppression_Func");
+    TriggerEnable(libHMAI_gt_HeroMaievRemoveContainmentDiscAllyVisionSuppression, false);
+    TriggerAddEventPlayerEffectUsed(libHMAI_gt_HeroMaievRemoveContainmentDiscAllyVisionSuppression, c_playerAny, "MaievContainmentDiscVisionDummy");
+}
+
+void libHMAI_InitTriggers () {
+    libHMAI_gt_HeroMaievChargedTalentsRespec_Init();
+    libHMAI_gt_HeroMaievContainmentDiscOverlayOn_Init();
+    libHMAI_gt_HeroMaievContainmentDiscOverlayOff_Init();
+    libHMAI_gt_HeroMaievMultiHeroContainmentDiscController_Init();
+    libHMAI_gt_HeroMaievApplyContainmentDiscAllyVisionSuppression_Init();
+    libHMAI_gt_HeroMaievRemoveContainmentDiscAllyVisionSuppression_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libHMAI_InitLib_completed = false;
+
+void libHMAI_InitLib () {
+    if (libHMAI_InitLib_completed) {
+        return;
+    }
+
+    libHMAI_InitLib_completed = true;
+
+    libHMAI_InitLibraries();
+    libHMAI_InitVariables();
+    libHMAI_InitTriggers();
+}
+

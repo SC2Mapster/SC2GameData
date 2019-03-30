@@ -1,0 +1,2414 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/HeroesLib"
+include "TriggerLibs/GameLib"
+include "TriggerLibs/MapMechanicsLib"
+include "TriggerLibs/UILib"
+include "TriggerLibs/SoundLib"
+
+include "LibBBAY_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Blackheart's Bay (Mod)
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libBBAY_InitLibraries () {
+    libNtve_InitVariables();
+    libCore_InitVariables();
+    libGame_InitVariables();
+    libMapM_InitVariables();
+    libUIUI_InitVariables();
+    libSond_InitVariables();
+}
+
+// Variable Initialization
+bool libBBAY_InitVariables_completed = false;
+
+void libBBAY_InitVariables () {
+    int init_i;
+
+    if (libBBAY_InitVariables_completed) {
+        return;
+    }
+
+    libBBAY_InitVariables_completed = true;
+
+    libBBAY_gv_mMBBCannonballsGhostShipSpawnTimer = 70.0;
+    for (init_i = 0; init_i <= 2; init_i += 1) {
+        libBBAY_gv_mMBBCannonballsBallsSubmitMaxCurrent[init_i] = libBBAY_gv_mMBBCannonballsBallsSubmitMax_C;
+    }
+    libBBAY_gv_mMBBCannonballsGhostShipMissileTargetPing = c_invalidPingId;
+    libBBAY_gv_mMBBCannonballsTreasureChestTimer = TimerCreate();
+    libBBAY_gv_mMBBCannonballsTreasureChestPingTimer = TimerCreate();
+    libBBAY_gv_mMBBCannonballsTreasureChestIsFirstChest = true;
+    libBBAY_gv_mMBBMapMechanicsBlackheartsBayChestsSpawnedFrameTimer = TimerCreate();
+    libBBAY_gv_mMBBMapMechanicsBlackheartsBayCurrentMode = libBBAY_ge_MMBBMapMechanicsBlackheartsBayModes_Doubloons;
+}
+
+// Presets
+// Functions
+void libBBAY_gf_MMBBCannonballsInitGhostshipInfo (point lp_shipLoc, point lp_beaconLoc) {
+    // Automatic Variable Declarations
+    // Implementation
+    libBBAY_gv_mMBBCannonballsGhostShipLoc = lp_shipLoc;
+    libBBAY_gv_mMBBCannonballsGhostShipBeaconLoc = lp_beaconLoc;
+}
+
+void libBBAY_gf_MMBBCannonballsInitTreasureChestInfo (point lp_chestLocation1, point lp_chestLocation2) {
+    // Automatic Variable Declarations
+    // Implementation
+    libBBAY_gv_mMBBCannonballsGhostChestLocations[1] = lp_chestLocation1;
+    libBBAY_gv_mMBBCannonballsGhostChestLocations[2] = lp_chestLocation2;
+}
+
+int libBBAY_gf_MMBBCannonballsHeroCannonballsCount (int lp_player, unit lp_heroUnit) {
+    // Variable Declarations
+    fixed lv_cannonballCount;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_cannonballCount = UnitBehaviorCount(lp_heroUnit, "MapMechanicStack");
+    return FixedToInt(lv_cannonballCount);
+}
+
+int libBBAY_gf_MMBBCannonballsPirateShipCost (int lp_team) {
+    // Automatic Variable Declarations
+    // Implementation
+    return libBBAY_gv_mMBBCannonballsBallsSubmitMaxCurrent[lp_team];
+}
+
+void libBBAY_gf_MMBBCannonballsAddGhostShipTargetOrder (int lp_team, int lp_townIndex) {
+    // Automatic Variable Declarations
+    // Implementation
+    libBBAY_gv_mMBBCannonballsGhostShipTargetTownOrdersCount[lp_team] += 1;
+    libBBAY_gv_mMBBCannonballsGhostShipTargetTownOrders[lp_team][libBBAY_gv_mMBBCannonballsGhostShipTargetTownOrdersCount[lp_team]] = lp_townIndex;
+}
+
+int libBBAY_gf_MMBBCannonballsTeamCannonballsCount (int lp_team) {
+    // Automatic Variable Declarations
+    // Implementation
+    return libBBAY_gv_mMBBCannonballsBallsSubmitted[lp_team];
+}
+
+int libBBAY_gf_MMBBCannonballsCurrentlyCarriedforTeam (int lp_team) {
+    // Variable Declarations
+    int lv_total;
+    int lv_player;
+    unit lv_unit;
+
+    // Automatic Variable Declarations
+    playergroup auto5EC23CDE_g;
+    unitgroup autoC71F869F_g;
+    int autoC71F869F_u;
+
+    // Variable Initialization
+
+    // Implementation
+    auto5EC23CDE_g = libGame_gf_PlayersOnTeamHeroes(lp_team, false);
+    lv_player = -1;
+    while (true) {
+        	lv_player = PlayerGroupNextPlayer(auto5EC23CDE_g, lv_player);
+        	if (lv_player<0) { break; }
+        	autoC71F869F_g = libGame_gv_players[lv_player].lv_heroUnitGroup;
+        autoC71F869F_u = UnitGroupCount(autoC71F869F_g, c_unitCountAll);
+        for (;; autoC71F869F_u -= 1) {
+            lv_unit = UnitGroupUnitFromEnd(autoC71F869F_g, autoC71F869F_u);
+            if (lv_unit == null) { break; }
+            if ((UnitFilterMatch(lv_unit, lv_player, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterHallucination - 32)))) == true)) {
+                lv_total += UnitBehaviorCount(lv_unit, "MapMechanicStack");
+            }
+
+        }
+    }
+    return lv_total;
+}
+
+void libBBAY_gf_MMBBCannonballsSubmitReqIncrease (int lp_team) {
+    // Automatic Variable Declarations
+    // Implementation
+    libBBAY_gv_mMBBCannonballsBallsSubmitMaxCurrent[lp_team] += libBBAY_gv_mMBBCannonballsBallsSubmitMaxInc_C;
+}
+
+void libBBAY_gf_MMBBCannonballsSetHeroCannonballsCount (int lp_player, unit lp_heroUnit, int lp_count) {
+    // Variable Declarations
+    int lv_numCannonballs;
+    int lv_itPlayer;
+    unit lv_unitGroupUnit;
+    int lv_tempCount;
+
+    // Automatic Variable Declarations
+    unitgroup autoBB909C5C_g;
+    int autoBB909C5C_u;
+
+    // Variable Initialization
+    lv_numCannonballs = libBBAY_gf_MMBBCannonballsHeroCannonballsCount(lp_player, lp_heroUnit);
+
+    // Implementation
+    UnitBehaviorRemove(lp_heroUnit, "MapMechanicStack", lv_numCannonballs);
+    if ((lp_count > 0)) {
+        UnitBehaviorAdd(lp_heroUnit, "MapMechanicStack", lp_heroUnit, lp_count);
+    }
+
+    autoBB909C5C_g = libGame_gv_players[lp_player].lv_heroUnitGroup;
+    autoBB909C5C_u = UnitGroupCount(autoBB909C5C_g, c_unitCountAll);
+    for (;; autoBB909C5C_u -= 1) {
+        lv_unitGroupUnit = UnitGroupUnitFromEnd(autoBB909C5C_g, autoBB909C5C_u);
+        if (lv_unitGroupUnit == null) { break; }
+        if ((UnitFilterMatch(lv_unitGroupUnit, lp_player, UnitFilter(0, 0, 0, (1 << (c_targetFilterHallucination - 32)))) == true)) {
+            lv_tempCount += UnitBehaviorCount(lv_unitGroupUnit, "MapMechanicStack");
+        }
+
+    }
+    libGame_gf_ScoreValuesReportIntegerValueAndLog(lp_player, "CarriedMechanic", lv_tempCount);
+    if ((lv_tempCount > 0)) {
+        UnitSetStateForPlayer(libBBAY_gv_mMBBCannonballsGhostShipCaptain, c_unitStateTargetable, lp_player, true);
+        UnitSetStateForPlayer(libBBAY_gv_mMBBCannonballsGhostShipBeacon, c_unitStateTargetable, lp_player, true);
+    }
+    else {
+        UnitSetStateForPlayer(libBBAY_gv_mMBBCannonballsGhostShipCaptain, c_unitStateTargetable, lp_player, false);
+        UnitSetStateForPlayer(libBBAY_gv_mMBBCannonballsGhostShipBeacon, c_unitStateTargetable, lp_player, false);
+    }
+}
+
+void libBBAY_gf_MMBBCannonballsGhostShipWakeUp (int lp_team, bool lp_new) {
+    // Variable Declarations
+    int lv_computerPlayer;
+    int lv_shipTeam;
+    int lv_enemyTeam;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_shipTeam = lp_team;
+    lv_enemyTeam = libGame_gf_EnemyTeam(lv_shipTeam);
+    lv_computerPlayer = libGame_gf_ComputerPlayerInTeam(lv_shipTeam);
+    libBBAY_gv_mMBBCannonballsGhostShipActivationCount += 1;
+    libBBAY_gf_MMBBCannonballsDisableBeacon();
+    UnitSetOwner(libBBAY_gv_mMBBCannonballsGhostShip, lv_computerPlayer, true);
+    UnitSetOwner(libBBAY_gv_mMBBCannonballsGhostShipBeacon, lv_computerPlayer, true);
+    libBBAY_gv_mMBBCannonballsTrasmissionPlaying = false;
+    if ((lp_new == false)) {
+        libBBAY_gf_MMBBCannonballsTransmissionSummonedQ(lv_shipTeam);
+    }
+
+    if ((lv_enemyTeam == 1)) {
+        libCore_gf_CreateMinimapPingStorm(libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], "StormWarning", UnitGetPosition(libBBAY_gv_mMBBCannonballsGhostShip), ColorWithAlpha(100.00, 0.00, 0.00, 0.00), 4.0);
+    }
+    else {
+        libCore_gf_CreateMinimapPingStorm(libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], "StormWarning", UnitGetPosition(libBBAY_gv_mMBBCannonballsGhostShip), ColorWithAlpha(0.00, 0.00, 100.00, 0.00), 4.0);
+    }
+    libCore_gf_CreateMinimapPingStorm(libGame_gf_PlayersOnTeamHeroes(lv_shipTeam, false), "StormWarning", UnitGetPosition(libBBAY_gv_mMBBCannonballsGhostShip), ColorWithAlpha(0.00, 100.00, 0.00, 0.00), 4.0);
+    libCore_gf_CreateMinimapPingStorm(libGame_gf_PlayersOnTeamHeroes(lv_enemyTeam, false), "StormWarning", UnitGetPosition(libBBAY_gv_mMBBCannonballsGhostShip), ColorWithAlpha(100.00, 0.00, 0.00, 0.00), 4.0);
+    StatEventCreate("GhostShipCaptured");
+    StatEventAddDataFixed(StatEventLastCreated(), "TeamID", lv_shipTeam);
+    StatEventAddDataInt(StatEventLastCreated(), "TeamScore", libBBAY_gv_mMBBCannonballsBallsSubmitted[lv_shipTeam]);
+    StatEventAddDataInt(StatEventLastCreated(), "OpponentScore", libBBAY_gv_mMBBCannonballsBallsSubmitted[libGame_gf_EnemyTeam(lv_shipTeam)]);
+    StatEventAddDataFixed(StatEventLastCreated(), "GameTime", libUIUI_gf_HeroesGameTime());
+    StatEventSend(StatEventLastCreated());
+    libBBAY_gv_mMBBCannonballsTransmissionFiringIndex = 0;
+    libBBAY_gv_mMBBCannonballsTransmissionFiringRandomness = RandomInt(4, 9);
+    TriggerExecute(libBBAY_gt_MMBBCannonballsShootingStart, true, false);
+    libBBAY_gf_MMBBCannonballsBattleshipBehavior();
+    TimerPause(libBBAY_gv_mMBBCannonballsTreasureChestTimer, true);
+    Wait(5.0, c_timeGame);
+    libBBAY_gv_mMBBCannonballsBallsSubmitted[lv_shipTeam] = (libBBAY_gv_mMBBCannonballsBallsSubmitted[lv_shipTeam] - libBBAY_gf_MMBBCannonballsPirateShipCost(lv_shipTeam));
+    libBBAY_gv_mMBBCannonballsGhostShipLastTeam = lv_shipTeam;
+}
+
+void libBBAY_gf_MMBBCannonballsDisableBeacon () {
+    // Automatic Variable Declarations
+    // Implementation
+    libBBAY_gf_MMBBEnableDisableBlackheartInteractGoals(false, libBBAY_gv_mMBBCannonballsGhostShipCaptain);
+    UnitBehaviorRemove(libBBAY_gv_mMBBCannonballsGhostShipBeacon, "MacguffinActivated", 1);
+    UnitBehaviorRemove(libBBAY_gv_mMBBCannonballsGhostShipCaptain, "MacguffinActivated", 1);
+    libNtve_gf_SendActorMessageToGameRegion(libBBAY_gv_mMBBCannonballsGhostShipPlayerDetectorRegion, "Signal ReturnToShip");
+    Wait(3.25, c_timeGame);
+    libNtve_gf_SendActorMessageToUnit(libBBAY_gv_mMBBCannonballsGhostShip, "AnimBracketStart Cover Stand,Cover,Start Stand,Cover Stand,Cover,End 0 1.000000 AsTimeScale");
+    libNtve_gf_ShowHideUnit(libBBAY_gv_mMBBCannonballsGhostShipBeacon, false);
+    libNtve_gf_ShowHideUnit(libBBAY_gv_mMBBCannonballsGhostShipCaptain, false);
+    libNtve_gf_SendActorMessageToGameRegion(libBBAY_gv_mMBBCannonballsGhostShipPlayerDetectorRegion, "Signal CloseChest");
+}
+
+trigger auto_libBBAY_gf_MMBBCannonballsBattleshipBehavior_Trigger = null;
+
+void libBBAY_gf_MMBBCannonballsBattleshipBehavior () {
+    if (auto_libBBAY_gf_MMBBCannonballsBattleshipBehavior_Trigger == null) {
+        auto_libBBAY_gf_MMBBCannonballsBattleshipBehavior_Trigger = TriggerCreate("auto_libBBAY_gf_MMBBCannonballsBattleshipBehavior_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libBBAY_gf_MMBBCannonballsBattleshipBehavior_Trigger, false, false);
+}
+
+bool auto_libBBAY_gf_MMBBCannonballsBattleshipBehavior_TriggerFunc (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_shipTeam;
+    int lv_enemyTeam;
+    int lv_currentCharges;
+    int lv_targetCharges;
+    int lv_itPlayer;
+    unit lv_target;
+    int lv_shotsLeftInBarrage;
+    bool lv_needNewTarget;
+    int lv_nextTeam;
+    fixed lv_expectedFacingAngle;
+    fixed lv_expectedFacingAngle1;
+    fixed lv_expectedFacingAngle2;
+    fixed lv_angleDiff1;
+    fixed lv_angleDiff2;
+    const fixed lv_preferedFacingMax = 45.0;
+    const fixed lv_preferedFacingMin = -45.0;
+    fixed lv_preferedFacing;
+    fixed lv_angleDiff;
+    int lv_itCannonTarget;
+    int lv_shotsFiredThisSequence;
+    point lv_positionOfTarget;
+
+    // Automatic Variable Declarations
+    const int auto0EDFABE2_ae = 12;
+    const int auto0EDFABE2_ai = 1;
+    const int autoCE524D93_n = 2;
+    int autoCE524D93_i;
+
+    // Variable Initialization
+    lv_shotsLeftInBarrage = 3;
+    lv_preferedFacing = ((lv_preferedFacingMax + lv_preferedFacingMin) / 2.0);
+
+    // Implementation
+    lv_shipTeam = libGame_gf_TeamNumberOfPlayer(UnitGetOwner(libBBAY_gv_mMBBCannonballsGhostShip));
+    lv_enemyTeam = libGame_gf_EnemyTeam(lv_shipTeam);
+    lv_currentCharges = FixedToInt(UnitAbilityChargeInfo(libBBAY_gv_mMBBCannonballsGhostShip, AbilityCommand("GhostShipBombardChargedPort", 0), c_unitAbilChargeCountLeft));
+    lv_targetCharges = (libBBAY_gv_mMBBCannonballsStartInBattleship_C + libBBAY_gv_mMBBCannonballsStockedInBattleship_C);
+    UnitAbilityAddChargeUsed(libBBAY_gv_mMBBCannonballsGhostShip, "GhostShipBombardChargedPort", "Abil/BattleshipBombardCharged", (lv_currentCharges - lv_targetCharges));
+    UnitAbilityAddChargeUsed(libBBAY_gv_mMBBCannonballsGhostShip, "GhostShipBombardChargedStarboard", "Abil/BattleshipBombardCharged", (lv_currentCharges - lv_targetCharges));
+    libBBAY_gv_mMBBCannonballsGhostShipTotalAmmo = lv_targetCharges;
+    lv_itCannonTarget = 1;
+    for ( ; ( (auto0EDFABE2_ai >= 0 && lv_itCannonTarget <= auto0EDFABE2_ae) || (auto0EDFABE2_ai < 0 && lv_itCannonTarget >= auto0EDFABE2_ae) ) ; lv_itCannonTarget += auto0EDFABE2_ai ) {
+        libBBAY_gv_mMBB_CannonTarget[lv_itCannonTarget] = null;
+        libBBAY_gv_mMBB_CannonTargetPoint[lv_itCannonTarget] = null;
+    }
+    libBBAY_gv_mMBB_CannonsFired = 0;
+    Wait(3.0, c_timeGame);
+    while (true) {
+        if (((libGame_gv_gameOver == true) || (UnitIsAlive(libBBAY_gv_mMBBCannonballsGhostShip) == false) || (libBBAY_gv_mMBBCannonballsGhostShipTotalAmmo <= 0))) {
+            return true;
+        }
+
+        while ((lv_shotsLeftInBarrage > 0)) {
+            lv_target = libBBAY_gf_MMBBCannonballsBattleshipNextTarget();
+            lv_positionOfTarget = UnitGetPosition(lv_target);
+            lv_needNewTarget = false;
+            if (((UnitTypeTestFlag(UnitGetType(lv_target), c_unitFlagTownStructureTownHall) == true) || (UnitGetType(lv_target) == "RagnarosBigRag")) && (UnitBehaviorCount(lv_target, "BattleshipBombardTarget") >= 1)) {
+                lv_shotsLeftInBarrage = 0;
+            }
+
+            if ((lv_shotsLeftInBarrage > 0)) {
+                if ((libBBAY_gv_mMBBCannonballsGhostShipShooting == false)) {
+                    lv_expectedFacingAngle1 = libCore_gf_StandalizedAngle((AngleBetweenPoints(UnitGetPosition(libBBAY_gv_mMBBCannonballsGhostShip), UnitGetPosition(lv_target)) - 90.0));
+                    if ((lv_expectedFacingAngle1 <= lv_preferedFacingMax) && (lv_expectedFacingAngle1 >= lv_preferedFacingMin)) {
+                        lv_expectedFacingAngle = lv_expectedFacingAngle1;
+                    }
+                    else {
+                        lv_expectedFacingAngle2 = libCore_gf_StandalizedAngle((AngleBetweenPoints(UnitGetPosition(libBBAY_gv_mMBBCannonballsGhostShip), UnitGetPosition(lv_target)) + 90.0));
+                        if ((lv_expectedFacingAngle2 <= lv_preferedFacingMax) && (lv_expectedFacingAngle2 >= lv_preferedFacingMin)) {
+                            lv_expectedFacingAngle = lv_expectedFacingAngle2;
+                        }
+                        else {
+                            lv_angleDiff1 = libCore_gf_StandalizedAngleDifference(lv_expectedFacingAngle1, lv_preferedFacing);
+                            lv_angleDiff2 = libCore_gf_StandalizedAngleDifference(lv_expectedFacingAngle2, lv_preferedFacing);
+                            if ((lv_angleDiff1 < lv_angleDiff2)) {
+                                lv_expectedFacingAngle = lv_expectedFacingAngle1;
+                            }
+                            else {
+                                lv_expectedFacingAngle = lv_expectedFacingAngle2;
+                            }
+                            if ((lv_expectedFacingAngle > lv_preferedFacingMax)) {
+                                lv_expectedFacingAngle = lv_preferedFacingMax;
+                            }
+                            else {
+                                lv_expectedFacingAngle = lv_preferedFacingMin;
+                            }
+                        }
+                    }
+                    lv_angleDiff = libCore_gf_StandalizedAngleDifference(lv_expectedFacingAngle, UnitGetFacing(libBBAY_gv_mMBBCannonballsGhostShip));
+                    if ((lv_angleDiff >= 15.0)) {
+                        UnitIssueOrder(libBBAY_gv_mMBBCannonballsGhostShip, OrderTargetingPoint(AbilityCommand("move", 4), PointWithOffsetPolar(UnitGetPosition(libBBAY_gv_mMBBCannonballsGhostShip), 5.0, lv_expectedFacingAngle)), c_orderQueueReplace);
+                        while (true) {
+                            if ((UnitTestState(libBBAY_gv_mMBBCannonballsGhostShip, c_unitStateIdle) == true)) {
+                                break;
+                            }
+
+                            Wait(0.125, c_timeGame);
+                        }
+                    }
+
+                }
+
+            }
+
+            while ((lv_needNewTarget == false) && (lv_shotsLeftInBarrage > 0)) {
+                lv_shotsFiredThisSequence += 1;
+                libBBAY_gv_mMBB_CannonTarget[lv_shotsFiredThisSequence] = lv_target;
+                libBBAY_gv_mMBB_CannonTargetPoint[lv_shotsFiredThisSequence] = lv_positionOfTarget;
+                libBBAY_gf_MMBBCannonballsBattleshipShooting(lv_target);
+                lv_shotsLeftInBarrage -= 1;
+                libBBAY_gv_mMBBCannonballsGhostShipTotalAmmo -= 1;
+                if ((UnitGetPropertyFixed(lv_target, c_unitPropLife, c_unitPropCurrent) <= (StringToFixed(CatalogFieldValueGet(c_gameCatalogEffect, "BattleshipBombardDamage", "Amount", 0)) * IntToFixed((libBBAY_gv_mMBBShotsPerBarrage_C - lv_shotsLeftInBarrage))))) {
+                    lv_needNewTarget = true;
+                }
+
+                Wait(0.75, c_timeGame);
+            }
+        }
+        while (!((libBBAY_gv_mMBBCannonballsGhostShipShooting == false))) {
+            Wait(0.125, c_timeGame);
+        }
+        if ((libBBAY_gv_mMBBCannonballsGhostShipTotalAmmo >= 3)) {
+            lv_shotsLeftInBarrage = 3;
+        }
+        else {
+            lv_shotsLeftInBarrage = libBBAY_gv_mMBBCannonballsGhostShipTotalAmmo;
+        }
+        if ((libBBAY_gv_mMBBCannonballsGhostShipTotalAmmo <= 0)) {
+            lv_nextTeam = lv_shipTeam;
+            for (autoCE524D93_i = 1; autoCE524D93_i <= autoCE524D93_n; autoCE524D93_i += 1) {
+                if ((libBBAY_gf_MMBBCannonballsTeamCannonballsCount(lv_nextTeam) >= libBBAY_gf_MMBBCannonballsPirateShipCost(lv_nextTeam))) {
+                    Wait(5.0, c_timeGame);
+                    libBBAY_gf_MMBBCannonballsGhostShipWakeUp(lv_nextTeam, true);
+                    return true;
+                }
+
+                lv_nextTeam = lv_enemyTeam;
+            }
+            Wait(2.0, c_timeGame);
+            libBBAY_gf_MMBBCannonballsTransmissionLeavingQ(PlayerGroupAll());
+            Wait(2.0, c_timeGame);
+            TriggerEnable(libBBAY_gt_MMBBCannonballsBattleshipShootingMissileCreated, false);
+            libNtve_gf_SendActorMessageToUnit(libBBAY_gv_mMBBCannonballsGhostShip, "AnimClear Attack");
+            libNtve_gf_SendActorMessageToUnit(libBBAY_gv_mMBBCannonballsGhostShip, "AnimBracketStop Cover 0 1.000000 AsTimeScale");
+            Wait(4.0, c_timeGame);
+            UnitSetOwner(libBBAY_gv_mMBBCannonballsGhostShip, libCore_gv_cOMPUTER_Neutral, true);
+            UnitIssueOrder(libBBAY_gv_mMBBCannonballsGhostShip, OrderTargetingPoint(AbilityCommand("move", 4), PointWithOffsetPolar(UnitGetPosition(libBBAY_gv_mMBBCannonballsGhostShip), 5.0, lv_preferedFacing)), c_orderQueueReplace);
+            UnitSetOwner(libBBAY_gv_mMBBCannonballsGhostShipBeacon, libCore_gv_cOMPUTER_Neutral, true);
+            UnitBehaviorAdd(libBBAY_gv_mMBBCannonballsGhostShipCaptain, "MacguffinActivated", libBBAY_gv_mMBBCannonballsGhostShipCaptain, 1);
+            UnitBehaviorAdd(libBBAY_gv_mMBBCannonballsGhostShipBeacon, "MacguffinActivated", libBBAY_gv_mMBBCannonballsGhostShipBeacon, 1);
+            libNtve_gf_ShowHideUnit(libBBAY_gv_mMBBCannonballsGhostShipBeacon, true);
+            libNtve_gf_ShowHideUnit(libBBAY_gv_mMBBCannonballsGhostShipCaptain, true);
+            libNtve_gf_SendActorMessageToGameRegion(libBBAY_gv_mMBBCannonballsGhostShipPlayerDetectorRegion, "Signal LeaveShip");
+            libBBAY_gf_MMBBEnableDisableBlackheartInteractGoals(true, libBBAY_gv_mMBBCannonballsGhostShipCaptain);
+            libBBAY_gf_MMBBCannonballsSubmitReqIncrease(lv_shipTeam);
+            TriggerExecute(libBBAY_gt_MMBBCannonballsOpenChestUponRespawn, true, false);
+            MinimapPing(PlayerGroupAll(), UnitGetPosition(libBBAY_gv_mMBBCannonballsGhostShipBeacon), 4.0, Color(100.00, 100.00, 0.00));
+            ActorCreate(ActorScopeFromUnit(libBBAY_gv_mMBBCannonballsGhostShipBeacon), "UI_Game_Ping_GhostShip_Ready", null, null, null);
+            TriggerExecute(libBBAY_gt_MMBBCannonballsShootingEnd, true, false);
+            TimerPause(libBBAY_gv_mMBBCannonballsTreasureChestTimer, false);
+            return true;
+        }
+
+        Wait(6.0, c_timeGame);
+    }
+    return true;
+}
+
+int libBBAY_gf_MMBBCannonballsBattleshipAmmoLeft () {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((UnitIsAlive(libBBAY_gv_mMBBCannonballsGhostShip) == false)) {
+        return 0;
+    }
+
+    return FixedToInt(UnitAbilityChargeInfo(libBBAY_gv_mMBBCannonballsGhostShip, AbilityCommand("GhostShipBombardChargedPort", 0), c_unitAbilChargeCountLeft));
+}
+
+unit libBBAY_gf_MMBBCannonballsBattleshipNextTarget () {
+    // Variable Declarations
+    int lv_nextTownIndex;
+    int lv_enemyPlayer;
+    int lv_enemyTeam;
+    unitgroup lv_townOuterLoop;
+    unitgroup lv_townInnerLoop;
+    unit lv_townHall;
+    unit lv_enemyCore;
+    int lv_town;
+    unitgroup lv_buildings;
+    unit lv_itBuilding;
+    unit lv_target;
+
+    // Automatic Variable Declarations
+    unitgroup auto8F992C5C_g;
+    int auto8F992C5C_u;
+
+    // Variable Initialization
+    lv_townOuterLoop = UnitGroupEmpty();
+    lv_townInnerLoop = UnitGroupEmpty();
+    lv_buildings = UnitGroupEmpty();
+
+    // Implementation
+    if ((UnitGetOwner(libBBAY_gv_mMBBCannonballsGhostShip) == libCore_gv_cOMPUTER_TeamChaos)) {
+        lv_enemyPlayer = libCore_gv_cOMPUTER_TeamOrder;
+        lv_enemyCore = libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core;
+    }
+    else {
+        lv_enemyPlayer = libCore_gv_cOMPUTER_TeamChaos;
+        lv_enemyCore = libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core;
+    }
+    lv_enemyTeam = libGame_gf_TeamNumberOfPlayer(lv_enemyPlayer);
+    if ((libBBAY_gv_mMBBCannonballsGhostShipTargetTownIndex[lv_enemyTeam] > 0)) {
+        lv_town = libBBAY_gv_mMBBCannonballsGhostShipTargetTownOrders[lv_enemyTeam][libBBAY_gv_mMBBCannonballsGhostShipTargetTownIndex[lv_enemyTeam]];
+        if ((libBBAY_gf_MMBBCannonballsTownAlive(lv_town, lv_enemyPlayer) == true)) {
+            lv_nextTownIndex = libBBAY_gv_mMBBCannonballsGhostShipTargetTownIndex[lv_enemyTeam];
+        }
+
+    }
+
+    if ((lv_nextTownIndex <= 0)) {
+        while (true) {
+            if ((libBBAY_gv_mMBBCannonballsGhostShipTargetTownIndex[lv_enemyTeam] >= libBBAY_gv_mMBBCannonballsGhostShipTargetTownOrdersCount[lv_enemyTeam])) {
+                break;
+            }
+
+            libBBAY_gv_mMBBCannonballsGhostShipTargetTownIndex[lv_enemyTeam] += 1;
+            lv_town = libBBAY_gv_mMBBCannonballsGhostShipTargetTownOrders[lv_enemyTeam][libBBAY_gv_mMBBCannonballsGhostShipTargetTownIndex[lv_enemyTeam]];
+            if ((libBBAY_gf_MMBBCannonballsTownAlive(lv_town, lv_enemyPlayer) == true)) {
+                lv_nextTownIndex = libBBAY_gv_mMBBCannonballsGhostShipTargetTownIndex[lv_enemyTeam];
+                break;
+            }
+
+        }
+    }
+
+    if ((lv_nextTownIndex <= 0)) {
+        if ((UnitIsAlive(lv_enemyCore) == true)) {
+            return lv_enemyCore;
+        }
+        else {
+            return null;
+        }
+    }
+
+    lv_town = libBBAY_gv_mMBBCannonballsGhostShipTargetTownOrders[lv_enemyTeam][lv_nextTownIndex];
+    lv_buildings = UnitGroup(null, lv_enemyPlayer, libGame_gv_townTownData[lv_town].lv_townRegion, UnitFilter(0, (1 << (c_targetFilterAITargetableStructure - 32)), (1 << c_targetFilterNoMinionAggro) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterInvulnerable - 32))), 0);
+    lv_townHall = libGame_gv_townTownData[lv_town].lv_structureUnits[libGame_gv_townTownData[lv_town].lv_townHallIndex];
+    if ((UnitIsAlive(lv_townHall) == false)) {
+        UnitGroupRemove(lv_buildings, UnitGroupUnit(libNtve_gf_UnitsInRegionWithAllianceToPlayerMatchingCondition(UnitTypeFromString("RagnarosBigRag"), "", "", c_playerAny, c_unitAllianceAny, libGame_gv_townTownData[lv_town].lv_townRegion, UnitFilter(0, (1 << (c_targetFilterAITargetableStructure - 32)), (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), 1));
+        return UnitGroupRandomUnit(lv_buildings, c_unitCountAlive);
+    }
+
+    auto8F992C5C_g = lv_buildings;
+    auto8F992C5C_u = UnitGroupCount(auto8F992C5C_g, c_unitCountAll);
+    for (;; auto8F992C5C_u -= 1) {
+        lv_itBuilding = UnitGroupUnitFromEnd(auto8F992C5C_g, auto8F992C5C_u);
+        if (lv_itBuilding == null) { break; }
+        if ((DistanceBetweenPoints(UnitGetPosition(lv_itBuilding), UnitGetPosition(lv_townHall)) > 10.0) && (UnitBehaviorCount(lv_itBuilding, "BattleshipBombardTarget") <= 0)) {
+            UnitGroupAdd(lv_townOuterLoop, lv_itBuilding);
+        }
+        else {
+            if ((lv_itBuilding != lv_townHall) && (UnitBehaviorCount(lv_itBuilding, "BattleshipBombardTarget") <= 0)) {
+                UnitGroupAdd(lv_townInnerLoop, lv_itBuilding);
+            }
+
+        }
+    }
+    if ((libNtve_gf_UnitGroupIsDead(lv_townOuterLoop) == false)) {
+        return UnitGroupRandomUnit(lv_townOuterLoop, c_unitCountAlive);
+    }
+
+    if ((libNtve_gf_UnitGroupIsDead(lv_townInnerLoop) == false)) {
+        return UnitGroupRandomUnit(lv_townInnerLoop, c_unitCountAlive);
+    }
+
+    if ((libCore_gf_UnitStoredForUnit(lv_townHall, 99) != null)) {
+        return libCore_gf_UnitStoredForUnit(lv_townHall, 99);
+    }
+    else {
+        return lv_townHall;
+    }
+}
+
+trigger auto_libBBAY_gf_MMBBCannonballsBattleshipShooting_Trigger = null;
+unit auto_libBBAY_gf_MMBBCannonballsBattleshipShooting_lp_target;
+
+void libBBAY_gf_MMBBCannonballsBattleshipShooting (unit lp_target) {
+    auto_libBBAY_gf_MMBBCannonballsBattleshipShooting_lp_target = lp_target;
+
+    if (auto_libBBAY_gf_MMBBCannonballsBattleshipShooting_Trigger == null) {
+        auto_libBBAY_gf_MMBBCannonballsBattleshipShooting_Trigger = TriggerCreate("auto_libBBAY_gf_MMBBCannonballsBattleshipShooting_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libBBAY_gf_MMBBCannonballsBattleshipShooting_Trigger, false, false);
+}
+
+bool auto_libBBAY_gf_MMBBCannonballsBattleshipShooting_TriggerFunc (bool testConds, bool runActions) {
+    unit lp_target = auto_libBBAY_gf_MMBBCannonballsBattleshipShooting_lp_target;
+
+    // Variable Declarations
+    unit lv_missile;
+    int lv_pingTarget;
+    int lv_pingBall;
+    int lv_pingTrail;
+    int lv_localOrderWaitingIndex;
+    int lv_localMissionWaitingIndex;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_pingTarget = c_invalidPingId;
+    lv_pingBall = c_invalidPingId;
+    lv_pingTrail = c_invalidPingId;
+
+    // Implementation
+    if (((UnitIsAlive(libBBAY_gv_mMBBCannonballsGhostShip) == false))) {
+        return true;
+    }
+
+    libBBAY_gf_MMBBCannonballsTransmissionFiringQ(PlayerGroupAll());
+    libBBAY_gv_mMBBCannonballsGhostShipMissile = null;
+    TriggerEnable(libBBAY_gt_MMBBCannonballsBattleshipShootingMissileCreated, true);
+    if ((libBBAY_gv_mMBBCannonballsGhostShipMissileTargetPing == c_invalidPingId)) {
+        libCore_gf_CreateMinimapPingStorm(PlayerGroupAll(), "StormGhostShipImpact", UnitGetPosition(lp_target), ColorWithAlpha(100.00, 0.00, 0.00, 0.00), 3.0);
+        libBBAY_gv_mMBBCannonballsGhostShipMissileTargetPing = PingLastCreated();
+    }
+
+    while (!((libBBAY_gv_mMBBCannonballsGhostShipShooting == false))) {
+        Wait(0.125, c_timeGame);
+    }
+    libBBAY_gv_mMBBCannonballsGhostShipShooting = true;
+    if ((PointGetY(UnitGetPosition(libBBAY_gv_mMBBCannonballsGhostShip)) <= PointGetY(UnitGetPosition(lp_target)))) {
+        UnitIssueOrder(libBBAY_gv_mMBBCannonballsGhostShip, OrderTargetingUnit(AbilityCommand("GhostShipBombardChargedPort", 0), lp_target), c_orderQueueReplace);
+    }
+    else {
+        UnitIssueOrder(libBBAY_gv_mMBBCannonballsGhostShip, OrderTargetingUnit(AbilityCommand("GhostShipBombardChargedStarboard", 0), lp_target), c_orderQueueReplace);
+    }
+    Wait(0.75, c_timeGame);
+    libBBAY_gv_mMBBCannonballsGhostShipShooting = false;
+    Wait(1.25, c_timeGame);
+    SoundPlayForPlayer(SoundLink("Event_GhostShip_Cannon_Fire_Distant", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    Wait(2.0, c_timeGame);
+    libBBAY_gv_mMBBCannonballsGhostShipMissileTargetPing = c_invalidPingId;
+    return true;
+}
+
+bool libBBAY_gf_MMBBCannonballsTownAlive (int lp_town, int lp_player) {
+    // Variable Declarations
+    unitgroup lv_buildings;
+    unit lv_townhall;
+
+    // Automatic Variable Declarations
+    playergroup auto89D5C4EB_g;
+    int auto89D5C4EB_var;
+
+    // Variable Initialization
+    lv_buildings = UnitGroupEmpty();
+
+    // Implementation
+    lv_buildings = UnitGroup(null, lp_player, libGame_gv_townTownData[lp_town].lv_townRegion, UnitFilter(0, (1 << (c_targetFilterAITargetableStructure - 32)), (1 << c_targetFilterNoMinionAggro) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    if ((UnitIsAlive(libGame_gf_TownTownHall(lp_town)) == true) && (UnitGroupHasUnit(lv_buildings, libGame_gf_TownTownHall(lp_town)) == false)) {
+        auto89D5C4EB_g = libGame_gf_PlayersOnTeamHeroes(libGame_gf_TeamNumberOfPlayer(lp_player), false);
+        auto89D5C4EB_var = -1;
+        while (true) {
+            	auto89D5C4EB_var = PlayerGroupNextPlayer(auto89D5C4EB_g, auto89D5C4EB_var);
+            	if (auto89D5C4EB_var<0) { break; }
+            	UnitGroupAddUnitGroup(lv_buildings, UnitGroup(null, auto89D5C4EB_var, libGame_gv_townTownData[lp_town].lv_townRegion, UnitFilter(0, (1 << (c_targetFilterAITargetableStructure - 32)), (1 << c_targetFilterNoMinionAggro) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+        }
+    }
+
+    return !(libNtve_gf_UnitGroupIsDead(lv_buildings));
+}
+
+void libBBAY_gf_MMBBCannonballsBattleshipShootingShakingCamera (point lp_targetLocation) {
+    // Variable Declarations
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    const int auto64E567D2_ae = libCore_gv_bALMaxPlayers;
+    const int auto64E567D2_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    lv_itPlayer = 1;
+    for ( ; ( (auto64E567D2_ai >= 0 && lv_itPlayer <= auto64E567D2_ae) || (auto64E567D2_ai < 0 && lv_itPlayer >= auto64E567D2_ae) ) ; lv_itPlayer += auto64E567D2_ai ) {
+        if ((PlayerStatus(lv_itPlayer) != c_playerStatusActive)) {
+            continue;
+        }
+
+        if ((DistanceBetweenPoints(CameraGetTarget(lv_itPlayer), lp_targetLocation) <= 15.0)) {
+            CameraShake(lv_itPlayer, "Medium", "Earthquake", 0.0, 0.5, 0.75);
+        }
+        else if ((DistanceBetweenPoints(CameraGetTarget(lv_itPlayer), lp_targetLocation) <= 30.0)) {
+            CameraShake(lv_itPlayer, "Creep", "Earthquake", 0.0, 0.5, 0.5);
+        }
+    }
+}
+
+void libBBAY_gf_MMBBEnableDisableBlackheartInteractGoals (bool lp_toggle, unit lp_blackheartUnit) {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((lp_toggle == true)) {
+        AddUnitOfInterest(lp_blackheartUnit, 0.0, 0.0, "TurnInDoubloons1", libNtve_ge_GoalTeam_Both, 0);
+        AddUnitOfInterest(lp_blackheartUnit, 0.0, 0.0, "TurnInDoubloons2", libNtve_ge_GoalTeam_Both, 0);
+        AddUnitOfInterest(lp_blackheartUnit, 0.0, 0.0, "TurnInDoubloons3", libNtve_ge_GoalTeam_Both, 0);
+    }
+    else {
+        RemoveUnitOfInterest(lp_blackheartUnit, "TurnInDoubloons1", libNtve_ge_GoalTeam_Both);
+        RemoveUnitOfInterest(lp_blackheartUnit, "TurnInDoubloons2", libNtve_ge_GoalTeam_Both);
+        RemoveUnitOfInterest(lp_blackheartUnit, "TurnInDoubloons3", libNtve_ge_GoalTeam_Both);
+    }
+}
+
+text libBBAY_gf_MMBBCannonballsTreasureSetTextTagHelp () {
+    // Automatic Variable Declarations
+    // Implementation
+    return TextExpressionAssemble("Param/Expression/lib_BBAY_26B5304C");
+}
+
+text libBBAY_gf_MMBBCannonballsTreasureSetTextTagDoubloonCount (int lp_coins) {
+    // Automatic Variable Declarations
+    // Implementation
+    TextExpressionSetToken("Param/Expression/lib_BBAY_79AE46CA", "A", IntToText(lp_coins));
+    return TextExpressionAssemble("Param/Expression/lib_BBAY_79AE46CA");
+}
+
+void libBBAY_gf_MMBBCannonballsTreasureTheFirstTimer () {
+    // Automatic Variable Declarations
+    // Implementation
+    TimerStart(libBBAY_gv_mMBBCannonballsTreasureChestTimer, libBBAY_gv_mMBBCannonballsTreasureChestFirstTimerDur_C, false, c_timeGame);
+}
+
+void libBBAY_gf_MMBBCannonballsTreasureStartTimer () {
+    // Automatic Variable Declarations
+    // Implementation
+    TimerStart(libBBAY_gv_mMBBCannonballsTreasureChestTimer, libBBAY_gv_mMBBCannonballsTreasureChestTimerMid_C2, false, c_timeGame);
+}
+
+void libBBAY_gf_MMBBMapMechanicsBlackheartsBayShowHidePanel (bool lp_showHide) {
+    // Automatic Variable Declarations
+    // Implementation
+    DialogControlSetVisible(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayPanel, libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_teamPlayerGroupNoNPCPlayers, lp_showHide);
+    DialogControlSetVisible(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayPanel, libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_teamPlayerGroupNoNPCPlayers, lp_showHide);
+    DialogControlSetVisible(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayPanel, libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer], lp_showHide);
+}
+
+void libBBAY_gf_MMBBMapMechanicsBlackheartsBaySetMode (int lp_mode) {
+    // Automatic Variable Declarations
+    int autoE8CDE920_val;
+
+    // Implementation
+    autoE8CDE920_val = lp_mode;
+    if (autoE8CDE920_val == libBBAY_ge_MMBBMapMechanicsBlackheartsBayModes_Doubloons) {
+        DialogControlSetVisible(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayCannonModeFrame, PlayerGroupAll(), false);
+        DialogControlSetVisible(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayDoubloonModeFrame, PlayerGroupAll(), true);
+        libBBAY_gv_mMBBMapMechanicsBlackheartsBayCurrentMode = libBBAY_ge_MMBBMapMechanicsBlackheartsBayModes_Doubloons;
+    }
+    else if (autoE8CDE920_val == libBBAY_ge_MMBBMapMechanicsBlackheartsBayModes_Cannon) {
+        DialogControlSetVisible(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayChestSpawnFrame, PlayerGroupAll(), false);
+        TimerPause(libBBAY_gv_mMBBMapMechanicsBlackheartsBayChestsSpawnedFrameTimer, true);
+        DialogControlSetVisible(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayDoubloonModeFrame, PlayerGroupAll(), false);
+        DialogControlSetVisible(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayCannonModeFrame, PlayerGroupAll(), true);
+        libBBAY_gv_mMBBMapMechanicsBlackheartsBayCurrentMode = libBBAY_ge_MMBBMapMechanicsBlackheartsBayModes_Cannon;
+    }
+    else {
+    }
+}
+
+void libBBAY_gf_MMBBMapMechanicsBlackheartsBayShowChestsSpawnedFrame () {
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libBBAY_gv_mMBBMapMechanicsBlackheartsBayCurrentMode != libBBAY_ge_MMBBMapMechanicsBlackheartsBayModes_Cannon)) {
+        DialogControlSetVisible(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayChestSpawnFrame, PlayerGroupAll(), true);
+        TimerStart(libBBAY_gv_mMBBMapMechanicsBlackheartsBayChestsSpawnedFrameTimer, libBBAY_gv_mMBBMapMechanicsBlackheartsBayChestsSpawnedFrameTimerDuration_C, false, c_timeGame);
+    }
+
+    while (!((TimerGetRemaining(libBBAY_gv_mMBBMapMechanicsBlackheartsBayChestsSpawnedFrameTimer) <= 0.0))) {
+        Wait(1.0, c_timeGame);
+    }
+    DialogControlSetVisible(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayChestSpawnFrame, PlayerGroupAll(), false);
+}
+
+void libBBAY_gf_MMBBMapMechanicsBlackheartsBayShowCannonballForTeam (int lp_team) {
+    // Variable Declarations
+    int lv_itCannonball;
+    int lv_enemyTeam;
+
+    // Automatic Variable Declarations
+    const int auto0AE8CCED_ae = libBBAY_gv_mMBBMapMechanicsBlackheartsBayCannonballCount_C;
+    const int auto0AE8CCED_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    if (((lp_team <= 0) || (lp_team > libCore_gv_bALMaxTeams))) {
+        return ;
+    }
+
+    lv_enemyTeam = (3 - lp_team);
+    DialogControlSetVisible(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayCannonShotCounterLabel[lv_enemyTeam], PlayerGroupAll(), false);
+    DialogControlSetVisible(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayCannonShotCounterLabel[lp_team], PlayerGroupAll(), true);
+    libNtve_gf_SetDialogItemStyle(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayCannonRemainingCannonballsLabel, "Storm_MapMechanic_MechanicCounterSmallRight_Blue", libGame_gv_teams[lp_team].lv_teamPlayerGroupNoNPCPlayers);
+    libNtve_gf_SetDialogItemStyle(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayCannonRemainingCannonballsLabel, "Storm_MapMechanic_MechanicCounterSmallRight_Red", libGame_gv_teams[lv_enemyTeam].lv_teamPlayerGroupNoNPCPlayers);
+    lv_itCannonball = 1;
+    for ( ; ( (auto0AE8CCED_ai >= 0 && lv_itCannonball <= auto0AE8CCED_ae) || (auto0AE8CCED_ai < 0 && lv_itCannonball >= auto0AE8CCED_ae) ) ; lv_itCannonball += auto0AE8CCED_ai ) {
+        libNtve_gf_SetDialogItemImage(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayCannonCannonballImages[lv_itCannonball], "@UI/HUD_MapMechanic_BlackheartsBay_CannonBallBlue", libGame_gv_teams[lp_team].lv_teamPlayerGroupNoNPCPlayers);
+        libNtve_gf_SetDialogItemImage(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayCannonCannonballImages[lv_itCannonball], "@UI/HUD_MapMechanic_BlackheartsBay_CannonBallRed", libGame_gv_teams[lv_enemyTeam].lv_teamPlayerGroupNoNPCPlayers);
+        if ((lp_team == libGame_gv_teamOrderIndex_C)) {
+            libNtve_gf_SetDialogItemImage(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayCannonCannonballImages[lv_itCannonball], "@UI/HUD_MapMechanic_BlackheartsBay_CannonBallBlue", libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer]);
+        }
+        else {
+            libNtve_gf_SetDialogItemImage(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayCannonCannonballImages[lv_itCannonball], "@UI/HUD_MapMechanic_BlackheartsBay_CannonBallRed", libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer]);
+        }
+    }
+}
+
+void libBBAY_gf_MMBBMapMechanicsBlackheartsBaySetDoubloonCountForTeam (int lp_count, int lp_maxCount, int lp_team) {
+    // Automatic Variable Declarations
+    // Implementation
+    TextExpressionSetToken("Param/Expression/lib_BBAY_E9C495A1", "A", IntToText(lp_count));
+    TextExpressionSetToken("Param/Expression/lib_BBAY_E9C495A1", "B", IntToText(lp_maxCount));
+    libNtve_gf_SetDialogItemText(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayDoubloonCounterLabel[lp_team], TextExpressionAssemble("Param/Expression/lib_BBAY_E9C495A1"), PlayerGroupAll());
+}
+
+void libBBAY_gf_MMBBMapMechanicsBlackheartsBaySetShotCountForTeam (int lp_count, int lp_team) {
+    // Variable Declarations
+    int lv_itCannonball;
+
+    // Automatic Variable Declarations
+    const int auto2276BCF0_ae = libBBAY_gv_mMBBMapMechanicsBlackheartsBayCannonballCount_C;
+    const int auto2276BCF0_ai = 1;
+
+    // Variable Initialization
+
+    // Implementation
+    TextExpressionSetToken("Param/Expression/lib_BBAY_A183B477", "A", IntToText(lp_count));
+    TextExpressionSetToken("Param/Expression/lib_BBAY_A183B477", "B", IntToText(libBBAY_gv_mMBBMapMechanicsBlackheartsBayCannonballCount_C));
+    libNtve_gf_SetDialogItemText(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayCannonShotCounterLabel[lp_team], TextExpressionAssemble("Param/Expression/lib_BBAY_A183B477"), PlayerGroupAll());
+    lv_itCannonball = 1;
+    for ( ; ( (auto2276BCF0_ai >= 0 && lv_itCannonball <= auto2276BCF0_ae) || (auto2276BCF0_ai < 0 && lv_itCannonball >= auto2276BCF0_ae) ) ; lv_itCannonball += auto2276BCF0_ai ) {
+        if ((lp_count >= lv_itCannonball)) {
+            DialogControlSetVisible(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayCannonCannonballImages[lv_itCannonball], PlayerGroupAll(), true);
+        }
+        else {
+            DialogControlSetVisible(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayCannonCannonballImages[lv_itCannonball], PlayerGroupAll(), false);
+        }
+    }
+}
+
+void libBBAY_gf_MMBBUpdateHeldDoubloonDisplay () {
+    // Variable Declarations
+    int lv_orderCount;
+    int lv_chaosCount;
+    int lv_orderRequiredCount;
+    int lv_chaosRequiredCount;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_orderCount = libBBAY_gf_MMBBCannonballsCurrentlyCarriedforTeam(libGame_gv_teamOrderIndex_C);
+    lv_chaosCount = libBBAY_gf_MMBBCannonballsCurrentlyCarriedforTeam(libGame_gv_teamChaosIndex_C);
+
+    // Implementation
+    if ((lv_orderCount > 0)) {
+        libNtve_gf_SetDialogItemText(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayHeldDoubloonCounterLabel[libGame_gv_teamOrderIndex_C], IntToText(lv_orderCount), PlayerGroupAll());
+        DialogControlSetVisible(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayHeldDoubloonCounterLabel[libGame_gv_teamOrderIndex_C], PlayerGroupAll(), true);
+    }
+    else {
+        DialogControlSetVisible(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayHeldDoubloonCounterLabel[libGame_gv_teamOrderIndex_C], PlayerGroupAll(), false);
+    }
+    if ((lv_chaosCount > 0)) {
+        libNtve_gf_SetDialogItemText(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayHeldDoubloonCounterLabel[libGame_gv_teamChaosIndex_C], IntToText(lv_chaosCount), PlayerGroupAll());
+        DialogControlSetVisible(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayHeldDoubloonCounterLabel[libGame_gv_teamChaosIndex_C], PlayerGroupAll(), true);
+    }
+    else {
+        DialogControlSetVisible(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayHeldDoubloonCounterLabel[libGame_gv_teamChaosIndex_C], PlayerGroupAll(), false);
+    }
+    lv_orderRequiredCount = (libBBAY_gv_mMBBCannonballsBallsSubmitMaxCurrent[libGame_gv_teamOrderIndex_C]-libBBAY_gv_mMBBCannonballsBallsSubmitted[libGame_gv_teamOrderIndex_C]);
+    if ((lv_orderRequiredCount <= lv_orderCount)) {
+        DialogControlSetAnimationState(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayDoubloonTurninReadyGlow[libGame_gv_teamOrderIndex_C], PlayerGroupAll(), "TurninReady", "IsReady");
+        DialogControlSendAnimationEvent(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayDoubloonTurninReadyGlow[libGame_gv_teamOrderIndex_C], PlayerGroupAll(), "TurninReadyAnim");
+        UnitSetTokenCount(libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core, "AIMapTokenMapEventCarriedPotentialisSufficient", 1.0, libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core);
+    }
+    else {
+        UnitSetTokenCount(libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core, "AIMapTokenMapEventCarriedPotentialisSufficient", 0.0, libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core);
+        DialogControlSetAnimationState(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayDoubloonTurninReadyGlow[libGame_gv_teamOrderIndex_C], PlayerGroupAll(), "TurninReady", "NotReady");
+    }
+    UnitSetTokenCount(libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core, "AIMapTokenMapEventCarriedPotential", lv_orderCount, libGame_gv_teams[libGame_gv_teamOrderIndex_C].lv_core);
+    lv_chaosRequiredCount = (libBBAY_gv_mMBBCannonballsBallsSubmitMaxCurrent[libGame_gv_teamChaosIndex_C]-libBBAY_gv_mMBBCannonballsBallsSubmitted[libGame_gv_teamChaosIndex_C]);
+    if ((lv_chaosRequiredCount <= lv_chaosCount)) {
+        DialogControlSetAnimationState(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayDoubloonTurninReadyGlow[libGame_gv_teamChaosIndex_C], PlayerGroupAll(), "TurninReady", "IsReady");
+        DialogControlSendAnimationEvent(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayDoubloonTurninReadyGlow[libGame_gv_teamChaosIndex_C], PlayerGroupAll(), "TurninReadyAnim");
+        UnitSetTokenCount(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core, "AIMapTokenMapEventCarriedPotentialisSufficient", 1.0, libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core);
+    }
+    else {
+        DialogControlSetAnimationState(libUIUI_gv_mapMechanicsPanel.lv_blackheartsBayDoubloonTurninReadyGlow[libGame_gv_teamChaosIndex_C], PlayerGroupAll(), "TurninReady", "NotReady");
+        UnitSetTokenCount(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core, "AIMapTokenMapEventCarriedPotentialisSufficient", 0.0, libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core);
+    }
+    UnitSetTokenCount(libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core, "AIMapTokenMapEventCarriedPotential", lv_chaosCount, libGame_gv_teams[libGame_gv_teamChaosIndex_C].lv_core);
+}
+
+void libBBAY_gf_MMBBCannonballsObjectiveUIUpdateText () {
+    // Automatic Variable Declarations
+    // Implementation
+    libBBAY_gf_MMBBMapMechanicsBlackheartsBaySetDoubloonCountForTeam(libBBAY_gf_MMBBCannonballsTeamCannonballsCount(libGame_gv_teamOrderIndex_C), libBBAY_gf_MMBBCannonballsPirateShipCost(libGame_gv_teamOrderIndex_C), libGame_gv_teamOrderIndex_C);
+    libBBAY_gf_MMBBMapMechanicsBlackheartsBaySetDoubloonCountForTeam(libBBAY_gf_MMBBCannonballsTeamCannonballsCount(libGame_gv_teamChaosIndex_C), libBBAY_gf_MMBBCannonballsPirateShipCost(libGame_gv_teamChaosIndex_C), libGame_gv_teamChaosIndex_C);
+}
+
+trigger auto_libBBAY_gf_MMBBCannonballsTransmissionSpawningQ_Trigger = null;
+playergroup auto_libBBAY_gf_MMBBCannonballsTransmissionSpawningQ_lp_players;
+
+void libBBAY_gf_MMBBCannonballsTransmissionSpawningQ (playergroup lp_players) {
+    auto_libBBAY_gf_MMBBCannonballsTransmissionSpawningQ_lp_players = lp_players;
+
+    if (auto_libBBAY_gf_MMBBCannonballsTransmissionSpawningQ_Trigger == null) {
+        auto_libBBAY_gf_MMBBCannonballsTransmissionSpawningQ_Trigger = TriggerCreate("auto_libBBAY_gf_MMBBCannonballsTransmissionSpawningQ_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libBBAY_gf_MMBBCannonballsTransmissionSpawningQ_Trigger, false, false);
+}
+
+bool auto_libBBAY_gf_MMBBCannonballsTransmissionSpawningQ_TriggerFunc (bool testConds, bool runActions) {
+    playergroup lp_players = auto_libBBAY_gf_MMBBCannonballsTransmissionSpawningQ_lp_players;
+
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libGame_gv_gameOver == true)) {
+        return true;
+    }
+
+    TriggerQueueEnter();
+    UserDataResetType("MapVOEvent");
+    UserDataSetInt("MapVOEvent", "Blackheart - Ship Spawns", "Value", 1, 1);
+    ConversationDataRun("BlackheartsBay", PlayerGroupAll(), c_conversationSkipNone, false);
+    libCore_gf_WaitForConversationToFinish();
+    TriggerQueueExit();
+    return true;
+}
+
+trigger auto_libBBAY_gf_MMBBCannonballsTransmissionSummonedQ_Trigger = null;
+int auto_libBBAY_gf_MMBBCannonballsTransmissionSummonedQ_lp_shipTeam;
+
+void libBBAY_gf_MMBBCannonballsTransmissionSummonedQ (int lp_shipTeam) {
+    auto_libBBAY_gf_MMBBCannonballsTransmissionSummonedQ_lp_shipTeam = lp_shipTeam;
+
+    if (auto_libBBAY_gf_MMBBCannonballsTransmissionSummonedQ_Trigger == null) {
+        auto_libBBAY_gf_MMBBCannonballsTransmissionSummonedQ_Trigger = TriggerCreate("auto_libBBAY_gf_MMBBCannonballsTransmissionSummonedQ_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libBBAY_gf_MMBBCannonballsTransmissionSummonedQ_Trigger, false, false);
+}
+
+bool auto_libBBAY_gf_MMBBCannonballsTransmissionSummonedQ_TriggerFunc (bool testConds, bool runActions) {
+    int lp_shipTeam = auto_libBBAY_gf_MMBBCannonballsTransmissionSummonedQ_lp_shipTeam;
+
+    // Variable Declarations
+    playergroup lv_orderPlayerGroup;
+    playergroup lv_chaosPlayerGroup;
+    playergroup lv_observerPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_orderPlayerGroup = PlayerGroupEmpty();
+    lv_chaosPlayerGroup = PlayerGroupEmpty();
+    lv_observerPlayer = PlayerGroupEmpty();
+
+    // Implementation
+    if ((libGame_gv_gameOver == true)) {
+        return true;
+    }
+
+    libBBAY_gv_mMBBCannonballsTrasmissionPlaying = true;
+    TriggerQueueEnter();
+    UserDataResetType("MapVOEvent");
+    ConversationDataLineResetPlayers("BlackheartsBay", ("Left"));
+    ConversationDataLineResetPlayers("BlackheartsBay", ("Right"));
+    ConversationDataLineResetPlayers("BlackheartsBay", ("Observer"));
+    if ((lp_shipTeam == libGame_gv_teamOrderIndex_C)) {
+        UserDataSetInt("MapVOEvent", "Blackheart - Ship Attack Left", "Value", 1, 1);
+    }
+    else {
+        UserDataSetInt("MapVOEvent", "Blackheart - Ship Attack Right", "Value", 1, 1);
+    }
+    lv_orderPlayerGroup = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamOrderIndex_C, false);
+    lv_chaosPlayerGroup = libGame_gf_PlayersOnTeamHeroes(libGame_gv_teamChaosIndex_C, false);
+    lv_observerPlayer = libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer];
+    ConversationDataLineSetPlayers("BlackheartsBay", ("Left"), lv_orderPlayerGroup);
+    ConversationDataLineSetPlayers("BlackheartsBay", ("Right"), lv_chaosPlayerGroup);
+    ConversationDataLineSetPlayers("BlackheartsBay", ("Observer"), lv_observerPlayer);
+    ConversationDataRun("BlackheartsBay", PlayerGroupAll(), c_conversationSkipNone, false);
+    libCore_gf_WaitForConversationToFinish();
+    libBBAY_gv_mMBBCannonballsTrasmissionPlaying = false;
+    TriggerQueueExit();
+    return true;
+}
+
+trigger auto_libBBAY_gf_MMBBCannonballsTransmissionFiringQ_Trigger = null;
+playergroup auto_libBBAY_gf_MMBBCannonballsTransmissionFiringQ_lp_players;
+
+void libBBAY_gf_MMBBCannonballsTransmissionFiringQ (playergroup lp_players) {
+    auto_libBBAY_gf_MMBBCannonballsTransmissionFiringQ_lp_players = lp_players;
+
+    if (auto_libBBAY_gf_MMBBCannonballsTransmissionFiringQ_Trigger == null) {
+        auto_libBBAY_gf_MMBBCannonballsTransmissionFiringQ_Trigger = TriggerCreate("auto_libBBAY_gf_MMBBCannonballsTransmissionFiringQ_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libBBAY_gf_MMBBCannonballsTransmissionFiringQ_Trigger, false, false);
+}
+
+bool auto_libBBAY_gf_MMBBCannonballsTransmissionFiringQ_TriggerFunc (bool testConds, bool runActions) {
+    playergroup lp_players = auto_libBBAY_gf_MMBBCannonballsTransmissionFiringQ_lp_players;
+
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libGame_gv_gameOver == true)) {
+        return true;
+    }
+
+    libBBAY_gv_mMBBCannonballsTransmissionFiringIndex += 1;
+    if ((libBBAY_gv_mMBBCannonballsTransmissionFiringIndex != libBBAY_gv_mMBBCannonballsTransmissionFiringRandomness)) {
+        return true;
+    }
+
+    if ((libBBAY_gv_mMBBCannonballsTrasmissionPlaying == true)) {
+        return true;
+    }
+
+    libBBAY_gv_mMBBCannonballsTrasmissionPlaying = true;
+    TriggerQueueEnter();
+    UserDataResetType("MapVOEvent");
+    UserDataSetInt("MapVOEvent", "Blackheart - Ship Attack", "Value", 1, 1);
+    ConversationDataRun("BlackheartsBay", PlayerGroupAll(), c_conversationSkipNone, false);
+    libCore_gf_WaitForConversationToFinish();
+    libBBAY_gv_mMBBCannonballsTrasmissionPlaying = false;
+    TriggerQueueExit();
+    return true;
+}
+
+trigger auto_libBBAY_gf_MMBBCannonballsTransmissionLeavingQ_Trigger = null;
+playergroup auto_libBBAY_gf_MMBBCannonballsTransmissionLeavingQ_lp_players;
+
+void libBBAY_gf_MMBBCannonballsTransmissionLeavingQ (playergroup lp_players) {
+    auto_libBBAY_gf_MMBBCannonballsTransmissionLeavingQ_lp_players = lp_players;
+
+    if (auto_libBBAY_gf_MMBBCannonballsTransmissionLeavingQ_Trigger == null) {
+        auto_libBBAY_gf_MMBBCannonballsTransmissionLeavingQ_Trigger = TriggerCreate("auto_libBBAY_gf_MMBBCannonballsTransmissionLeavingQ_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libBBAY_gf_MMBBCannonballsTransmissionLeavingQ_Trigger, false, false);
+}
+
+bool auto_libBBAY_gf_MMBBCannonballsTransmissionLeavingQ_TriggerFunc (bool testConds, bool runActions) {
+    playergroup lp_players = auto_libBBAY_gf_MMBBCannonballsTransmissionLeavingQ_lp_players;
+
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libGame_gv_gameOver == true)) {
+        return true;
+    }
+
+    TriggerQueueEnter();
+    UserDataResetType("MapVOEvent");
+    UserDataSetInt("MapVOEvent", "Blackheart - Ship Attack Ends", "Value", 1, 1);
+    ConversationDataRun("BlackheartsBay", PlayerGroupAll(), c_conversationSkipNone, false);
+    libCore_gf_WaitForConversationToFinish();
+    TriggerQueueExit();
+    return true;
+}
+
+trigger auto_libBBAY_gf_MMBBCannonballsTransmissionChestSpawningFirstQ_Trigger = null;
+playergroup auto_libBBAY_gf_MMBBCannonballsTransmissionChestSpawningFirstQ_lp_players;
+
+void libBBAY_gf_MMBBCannonballsTransmissionChestSpawningFirstQ (playergroup lp_players) {
+    auto_libBBAY_gf_MMBBCannonballsTransmissionChestSpawningFirstQ_lp_players = lp_players;
+
+    if (auto_libBBAY_gf_MMBBCannonballsTransmissionChestSpawningFirstQ_Trigger == null) {
+        auto_libBBAY_gf_MMBBCannonballsTransmissionChestSpawningFirstQ_Trigger = TriggerCreate("auto_libBBAY_gf_MMBBCannonballsTransmissionChestSpawningFirstQ_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libBBAY_gf_MMBBCannonballsTransmissionChestSpawningFirstQ_Trigger, false, false);
+}
+
+bool auto_libBBAY_gf_MMBBCannonballsTransmissionChestSpawningFirstQ_TriggerFunc (bool testConds, bool runActions) {
+    playergroup lp_players = auto_libBBAY_gf_MMBBCannonballsTransmissionChestSpawningFirstQ_lp_players;
+
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libGame_gv_gameOver == true)) {
+        return true;
+    }
+
+    TriggerQueueEnter();
+    UserDataResetType("MapVOEvent");
+    UserDataSetInt("MapVOEvent", "Blackheart - Treasure First", "Value", 1, 1);
+    ConversationDataRun("BlackheartsBay", PlayerGroupAll(), c_conversationSkipNone, false);
+    libCore_gf_WaitForConversationToFinish();
+    TriggerQueueExit();
+    return true;
+}
+
+trigger auto_libBBAY_gf_MMBBCannonballsTransmissionChestSpawningRepeatQ_Trigger = null;
+playergroup auto_libBBAY_gf_MMBBCannonballsTransmissionChestSpawningRepeatQ_lp_players;
+
+void libBBAY_gf_MMBBCannonballsTransmissionChestSpawningRepeatQ (playergroup lp_players) {
+    auto_libBBAY_gf_MMBBCannonballsTransmissionChestSpawningRepeatQ_lp_players = lp_players;
+
+    if (auto_libBBAY_gf_MMBBCannonballsTransmissionChestSpawningRepeatQ_Trigger == null) {
+        auto_libBBAY_gf_MMBBCannonballsTransmissionChestSpawningRepeatQ_Trigger = TriggerCreate("auto_libBBAY_gf_MMBBCannonballsTransmissionChestSpawningRepeatQ_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libBBAY_gf_MMBBCannonballsTransmissionChestSpawningRepeatQ_Trigger, false, false);
+}
+
+bool auto_libBBAY_gf_MMBBCannonballsTransmissionChestSpawningRepeatQ_TriggerFunc (bool testConds, bool runActions) {
+    playergroup lp_players = auto_libBBAY_gf_MMBBCannonballsTransmissionChestSpawningRepeatQ_lp_players;
+
+    // Variable Declarations
+    int lv_randomProc;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    if ((libGame_gv_gameOver == true)) {
+        return true;
+    }
+
+    TriggerQueueEnter();
+    UserDataResetType("MapVOEvent");
+    lv_randomProc = RandomInt(1, 100);
+    if ((lv_randomProc > 5)) {
+        UserDataSetInt("MapVOEvent", "Blackheart - Treasure Spawn", "Value", 1, 1);
+    }
+    else {
+        UserDataSetInt("MapVOEvent", "Blackheart - Rare Treasure Spawn", "Value", 1, 1);
+    }
+    ConversationDataRun("BlackheartsBay", PlayerGroupAll(), c_conversationSkipNone, false);
+    libCore_gf_WaitForConversationToFinish();
+    TriggerQueueExit();
+    return true;
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Init
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsInit_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gf_MapMechanicInitializationMechanicType() == libBBAY_gv_mMBBCannonballsMechanicName_C))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libMapM_gv_mapMechanicsObserverCountLabelText = StringToText("");
+    TriggerEnable(libBBAY_gt_MMBBCannonballsHeroDies, true);
+    TriggerEnable(libBBAY_gt_MMBBCannonballsHeroSpawned, true);
+    TriggerEnable(libBBAY_gt_MMBBCannonballsHeroRespawns, true);
+    TriggerEnable(libBBAY_gt_MMBBCannonballsGatesAreOpenComplete, true);
+    TriggerEnable(libBBAY_gt_MMBBCannonballsBattleshipKilledATown, true);
+    TriggerEnable(libBBAY_gt_MMBBCannonballsHeroPickup, true);
+    TriggerEnable(libBBAY_gt_MMBBCannonballsBallsHandedIn, true);
+    TriggerEnable(libBBAY_gt_MMBBCannonballsShootingStart, true);
+    TriggerEnable(libBBAY_gt_MMBBCannonballsShootingEnd, true);
+    TriggerEnable(libBBAY_gt_MMBBCannonballsTreasureSpawnChests, true);
+    TriggerEnable(libBBAY_gt_MMBBCannonballsTreasureChestAttacked, true);
+    TriggerEnable(libBBAY_gt_MMBBCannonballsDoubloonDropped, true);
+    libGame_gf_SendMapSpecificAwardInitializeEventwithUserData(null, "Generic Instance");
+    if ((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true)) {
+        TriggerEnable(libBBAY_gt_MMBB_DebugTriggerBombard, true);
+        TriggerEnable(libBBAY_gt_MMBB_DebugCannonballsEventStart, true);
+    }
+
+    ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal MM1Off");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsInit_Init () {
+    libBBAY_gt_MMBBCannonballsInit = TriggerCreate("libBBAY_gt_MMBBCannonballsInit_Func");
+    libGame_gf_MapMechanicInitialization(libBBAY_gt_MMBBCannonballsInit);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Ping Data Init
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBPingDataInit_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libUIUI_gf_PingCreateNewPingTarget("SkeletalPirate", false, StringExternal("Param/Value/lib_BBAY_F5794C73"), StringExternal("Param/Value/lib_BBAY_98CA5C7B"), StringExternal("Param/Value/lib_BBAY_7869C103"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
+    libUIUI_gf_PingSetHumanAISourceHeroVOForPingTarget(libUIUI_gf_PingLastCreatedPingTarget(), libCore_ge_HeroVOEvents_PingAttackMercCamp, libCore_ge_HeroVOEvents_AIMercCapture);
+    libUIUI_gf_PingCreateNewPingTarget("DocksPirateCaptain", false, null, StringExternal("Param/Value/lib_BBAY_D5F96755"), StringExternal("Param/Value/lib_BBAY_39CE66C0"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
+    libUIUI_gf_PingCreateNewPingTarget("GhostShipBeacon", false, StringExternal("Param/Value/lib_BBAY_E96AAF2C"), StringExternal("Param/Value/lib_BBAY_C4389169"), StringExternal("Param/Value/lib_BBAY_28E15DC2"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
+    libUIUI_gf_PingCreateNewPingTarget("DocksTreasureChest", false, StringExternal("Param/Value/lib_BBAY_50ADFB20"), StringExternal("Param/Value/lib_BBAY_79D4F467"), StringExternal("Param/Value/lib_BBAY_94CF5DC1"), SoundLink("UI_Game_Ping_Attack", -1), SoundLink("UI_Game_Ping_Attack", -1));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBPingDataInit_Init () {
+    libBBAY_gt_MMBBPingDataInit = TriggerCreate("libBBAY_gt_MMBBPingDataInit_Func");
+    libCore_gf_IncludeModInitialization(libBBAY_gt_MMBBPingDataInit);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Hero Spawned
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsHeroSpawned_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gf_UnitIsHero(EventUnitCreatedUnit()) == true))) {
+            return false;
+        }
+
+        if (!((UnitFilterMatch(EventUnitCreatedUnit(), UnitGetOwner(EventUnitCreatedUnit()), UnitFilter(0, 0, 0, (1 << (c_targetFilterHallucination - 32)))) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerExecute(libBBAY_gt_MMBBCannonballsHeroMapMechanicStatusSetup, true, false);
+    libBBAY_gf_MMBBCannonballsSetHeroCannonballsCount(UnitGetOwner(EventUnitCreatedUnit()), EventUnitCreatedUnit(), 0);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsHeroSpawned_Init () {
+    libBBAY_gt_MMBBCannonballsHeroSpawned = TriggerCreate("libBBAY_gt_MMBBCannonballsHeroSpawned_Func");
+    TriggerEnable(libBBAY_gt_MMBBCannonballsHeroSpawned, false);
+    TriggerAddEventUnitCreated(libBBAY_gt_MMBBCannonballsHeroSpawned, null, null, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Hero Map Mechanic Status Setup
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsHeroMapMechanicStatusSetup_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    text lv_tooltip;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    lv_tooltip = StringExternal("Param/Value/lib_BBAY_C73DD94D");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsHeroMapMechanicStatusSetup_Init () {
+    libBBAY_gt_MMBBCannonballsHeroMapMechanicStatusSetup = TriggerCreate("libBBAY_gt_MMBBCannonballsHeroMapMechanicStatusSetup_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Hero Dies
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsHeroDies_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+    unit lv_deadHero;
+    int lv_count;
+    point lv_spawnLocation;
+    unit lv_itItem;
+
+    // Automatic Variable Declarations
+    int autoF1EB5C79_n;
+    int autoF1EB5C79_i;
+
+    // Variable Initialization
+    lv_player = libGame_gf_HeroKilledPlayer();
+    lv_deadHero = libGame_gf_HeroKilledUnit();
+    lv_count = libBBAY_gf_MMBBCannonballsHeroCannonballsCount(lv_player, lv_deadHero);
+
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gv_gameOver == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libBBAY_gv_mMBBDoubloonsCollected[lv_player] -= lv_count;
+    libBBAY_gf_MMBBUpdateHeldDoubloonDisplay();
+    libBBAY_gv_mMBBDoubloonsDropped[lv_player] += lv_count;
+    libBBAY_gf_MMBBCannonballsSetHeroCannonballsCount(lv_player, lv_deadHero, 0);
+    if ((lv_count <= 0)) {
+        return true;
+    }
+
+    lv_spawnLocation = libGame_gf_HeroKilledLocation();
+    Wait(0.25, c_timeGame);
+    autoF1EB5C79_n = lv_count;
+    for (autoF1EB5C79_i = 1; autoF1EB5C79_i <= autoF1EB5C79_n; autoF1EB5C79_i += 1) {
+        PlayerCreateEffectPoint(libCore_gv_cOMPUTER_Neutral, "DropCannonballsPersistent", lv_spawnLocation);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsHeroDies_Init () {
+    libBBAY_gt_MMBBCannonballsHeroDies = TriggerCreate("libBBAY_gt_MMBBCannonballsHeroDies_Func");
+    TriggerEnable(libBBAY_gt_MMBBCannonballsHeroDies, false);
+    libGame_gf_HeroKilled(libBBAY_gt_MMBBCannonballsHeroDies);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Hero Respawns
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsHeroRespawns_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gv_gameOver == false))) {
+            return false;
+        }
+
+        if (!((libGame_gf_UnitIsHero(EventUnit()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_player = UnitGetOwner(EventUnit());
+    libBBAY_gf_MMBBCannonballsSetHeroCannonballsCount(lv_player, EventUnit(), 0);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsHeroRespawns_Init () {
+    libBBAY_gt_MMBBCannonballsHeroRespawns = TriggerCreate("libBBAY_gt_MMBBCannonballsHeroRespawns_Func");
+    TriggerEnable(libBBAY_gt_MMBBCannonballsHeroRespawns, false);
+    TriggerAddEventUnitRevive(libBBAY_gt_MMBBCannonballsHeroRespawns, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonball Created
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballCreated_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(EventUnit()) == "ItemCannonball"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    AIAddCollectable(EventUnit(), "CollectDoubloon", 1.0);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballCreated_Init () {
+    libBBAY_gt_MMBBCannonballCreated = TriggerCreate("libBBAY_gt_MMBBCannonballCreated_Func");
+    TriggerAddEventUnitRegion(libBBAY_gt_MMBBCannonballCreated, null, RegionPlayableMap(), true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Gates Are Open Complete
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsGatesAreOpenComplete_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((libMapM_gv_mMMapMechanicDisabled == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libBBAY_gf_MMBBCannonballsTreasureTheFirstTimer();
+    TriggerExecute(libBBAY_gt_MMBBCannonballsEventStart, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsGatesAreOpenComplete_Init () {
+    libBBAY_gt_MMBBCannonballsGatesAreOpenComplete = TriggerCreate("libBBAY_gt_MMBBCannonballsGatesAreOpenComplete_Func");
+    TriggerEnable(libBBAY_gt_MMBBCannonballsGatesAreOpenComplete, false);
+    TriggerAddEventTimer(libBBAY_gt_MMBBCannonballsGatesAreOpenComplete, libGame_gv_openTheGatesTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Event Start
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsEventStart_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    playergroup auto4072345A_g;
+    const int auto49362910_ae = libCore_gv_bALMaxPlayers;
+    const int auto49362910_ai = 1;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libBBAY_gf_MMBBMapMechanicsBlackheartsBayShowHidePanel(true);
+    Wait((libBBAY_gv_mMBBCannonballsGhostShipSpawnTimer - 4.0), c_timeGame);
+    if ((libMapM_gv_mMMapMechanicDisabled == true)) {
+        return true;
+    }
+
+    SoundPlayForPlayer(SoundLink("Doodad_GhostShip_Horn", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    Wait(4.0, c_timeGame);
+    TriggerEnable(TriggerGetCurrent(), false);
+    libBBAY_gf_MMBBCannonballsTransmissionSpawningQ(PlayerGroupAll());
+    libNtve_gf_CreateUnitsAtPoint2(1, "JungleBattleship", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Neutral, libBBAY_gv_mMBBCannonballsGhostShipLoc, null);
+    libBBAY_gv_mMBBCannonballsGhostShip = UnitLastCreated();
+    UnitSetState(libBBAY_gv_mMBBCannonballsGhostShip, c_unitStateHighlightable, false);
+    Wait(4.0, c_timeGame);
+    UnitCreate(1, "DocksPirateCaptain", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Neutral, PointWithOffset(libBBAY_gv_mMBBCannonballsGhostShipBeaconLoc, -0.85, 1.0), PointGetFacing(libBBAY_gv_mMBBCannonballsGhostShipBeaconLoc), null);
+    libBBAY_gv_mMBBCannonballsGhostShipCaptain = UnitLastCreated();
+    libBBAY_gf_MMBBEnableDisableBlackheartInteractGoals(true, UnitLastCreated());
+    Wait(1.0, c_timeGame);
+    UnitCreate(1, "GhostShipBeacon", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Neutral, PointWithOffset(libBBAY_gv_mMBBCannonballsGhostShipBeaconLoc, 0.75, -0.25), PointGetFacing(libBBAY_gv_mMBBCannonballsGhostShipBeaconLoc), null);
+    libBBAY_gv_mMBBCannonballsGhostShipBeacon = UnitLastCreated();
+    UnitBehaviorAdd(libBBAY_gv_mMBBCannonballsGhostShipCaptain, "MacguffinActivated", libBBAY_gv_mMBBCannonballsGhostShipCaptain, 1);
+    UnitBehaviorAdd(libBBAY_gv_mMBBCannonballsGhostShipBeacon, "MacguffinActivated", libBBAY_gv_mMBBCannonballsGhostShipBeacon, 1);
+    libCore_gf_CreateMinimapPingStorm(PlayerGroupAll(), "StormAlert", UnitGetPosition(libBBAY_gv_mMBBCannonballsGhostShip), ColorWithAlpha(100.00, 100.00, 0.00, 0.00), 3.0);
+    ActorCreate(ActorScopeFromUnit(libBBAY_gv_mMBBCannonballsGhostShip), "UI_Game_Ping_GhostShip_Ready", null, null, null);
+    libBBAY_gv_mMBBCannonballsGhostShipPlayerDetectorRegion = RegionCircle(UnitGetPosition(libBBAY_gv_mMBBCannonballsGhostShipBeacon), 10.0);
+    TriggerExecute(libBBAY_gt_MMBBCannonballsObjectiveUIHandler, true, false);
+    Wait(2.0, c_timeGame);
+    libUIUI_gf_AttachHelpButtonToUnit(libBBAY_gv_mMBBCannonballsGhostShipBeacon, libMapM_gt_MMHelpbuttonClicked, StringExternal("Param/Value/lib_BBAY_77B41D1D"), 70, 275);
+    auto4072345A_g = libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer];
+    lv_itPlayer = -1;
+    while (true) {
+        	lv_itPlayer = PlayerGroupNextPlayer(auto4072345A_g, lv_itPlayer);
+        	if (lv_itPlayer<0) { break; }
+        	libUIUI_gf_ShowHideHelpButtonOnUnitForPlayer(lv_itPlayer, false, libBBAY_gv_mMBBCannonballsGhostShipBeacon);
+    }
+    libNtve_gf_SendActorMessageToGameRegion(libBBAY_gv_mMBBCannonballsGhostShipPlayerDetectorRegion, "Signal OpenChest");
+    UnitSetState(libBBAY_gv_mMBBCannonballsGhostShip, c_unitStateHighlightable, true);
+    lv_itPlayer = 1;
+    for ( ; ( (auto49362910_ai >= 0 && lv_itPlayer <= auto49362910_ae) || (auto49362910_ai < 0 && lv_itPlayer >= auto49362910_ae) ) ; lv_itPlayer += auto49362910_ai ) {
+        if ((TechTreeBehaviorCount(lv_itPlayer, "MapMechanicStack", c_techCountCompleteOnly) > 0)) {
+            UnitSetStateForPlayer(libBBAY_gv_mMBBCannonballsGhostShipCaptain, c_unitStateTargetable, lv_itPlayer, true);
+            UnitSetStateForPlayer(libBBAY_gv_mMBBCannonballsGhostShipBeacon, c_unitStateTargetable, lv_itPlayer, true);
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsEventStart_Init () {
+    libBBAY_gt_MMBBCannonballsEventStart = TriggerCreate("libBBAY_gt_MMBBCannonballsEventStart_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Hero Pickup
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsHeroPickup_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_collectingUnit;
+    int lv_collectingPlayer;
+    int lv_collectingTeam;
+    int lv_newDoubloonCount;
+    int lv_player;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_collectingUnit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_collectingPlayer = EventPlayerEffectUsedUnitOwner(c_effectPlayerTarget);
+    lv_collectingTeam = libGame_gf_TeamNumberOfPlayer(lv_collectingPlayer);
+    lv_newDoubloonCount = MinI((UnitBehaviorCount(lv_collectingUnit, "MapMechanicStack") + 1), 100);
+
+    // Conditions
+    if (testConds) {
+        if (!((libGame_gv_gameOver == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitTestState(lv_collectingUnit, c_unitStateHallucination) == true) && (UnitHasBehavior2(lv_collectingUnit, "UltimateEvolutionBuff") == false)) {
+        if ((libGame_gv_players[lv_collectingPlayer].lv_activeVehicle != null)) {
+            lv_collectingUnit = libGame_gv_players[lv_collectingPlayer].lv_activeVehicle;
+        }
+        else {
+            lv_collectingUnit = libGame_gv_players[lv_collectingPlayer].lv_heroUnit;
+        }
+    }
+
+    libBBAY_gf_MMBBCannonballsSetHeroCannonballsCount(lv_collectingPlayer, lv_collectingUnit, lv_newDoubloonCount);
+    libBBAY_gv_mMBBDoubloonsCollected[lv_collectingPlayer] = lv_newDoubloonCount;
+    libBBAY_gf_MMBBUpdateHeldDoubloonDisplay();
+    libUIUI_gf_CreateMapMechanicPickupTextTag(lv_collectingUnit, TextExpressionAssemble("Param/Expression/lib_BBAY_366504B6"));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsHeroPickup_Init () {
+    libBBAY_gt_MMBBCannonballsHeroPickup = TriggerCreate("libBBAY_gt_MMBBCannonballsHeroPickup_Func");
+    TriggerEnable(libBBAY_gt_MMBBCannonballsHeroPickup, false);
+    TriggerAddEventPlayerEffectUsed(libBBAY_gt_MMBBCannonballsHeroPickup, c_playerAny, "DoubloonPickupSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Balls Handed In
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsBallsHandedIn_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_handInPlayer;
+    unit lv_handInHeroUnit;
+    int lv_handInTeam;
+    int lv_handInTeamEnemy;
+    int lv_handInTeamPlayer;
+    playergroup lv_soundPlayerGroup;
+    int lv_cannonballsHandedIn;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_handInPlayer = EventPlayerEffectUsedUnitOwner(c_effectPlayerCaster);
+    lv_handInHeroUnit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_handInTeam = libGame_gf_TeamNumberOfPlayer(lv_handInPlayer);
+    lv_handInTeamEnemy = libGame_gf_EnemyTeam(lv_handInTeam);
+    lv_handInTeamPlayer = libGame_gf_ComputerPlayerInTeam(lv_handInTeam);
+    lv_soundPlayerGroup = PlayerGroupEmpty();
+
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if (((libBBAY_gv_mMBBCannonballsBallsSubmitted[1] >= libBBAY_gf_MMBBCannonballsPirateShipCost(1)) || (libBBAY_gv_mMBBCannonballsBallsSubmitted[2] >= libBBAY_gf_MMBBCannonballsPirateShipCost(2)))) {
+        return true;
+    }
+
+    lv_cannonballsHandedIn = MinI(libBBAY_gf_MMBBCannonballsHeroCannonballsCount(lv_handInPlayer, lv_handInHeroUnit), (libBBAY_gf_MMBBCannonballsPirateShipCost(lv_handInTeam) - libBBAY_gv_mMBBCannonballsBallsSubmitted[lv_handInTeam]));
+    libGame_gf_SendMapSpecificAwardEvent(lv_handInPlayer, lv_cannonballsHandedIn, true);
+    libBBAY_gv_mMBBDoubloonsTurnedIn[lv_handInPlayer] += lv_cannonballsHandedIn;
+    if ((libGame_gv_players[lv_handInPlayer].lv_activeVehicle == lv_handInHeroUnit)) {
+        UnitBehaviorRemove(libGame_gv_players[lv_handInPlayer].lv_heroUnit, "MapMechanicStack", lv_cannonballsHandedIn);
+    }
+
+    TextExpressionSetToken("Param/Expression/lib_BBAY_A417EAB6", "A", IntToText(lv_cannonballsHandedIn));
+    TextTagCreate(TextExpressionAssemble("Param/Expression/lib_BBAY_A417EAB6"), 24, UnitGetPosition(libBBAY_gv_mMBBCannonballsGhostShipBeacon), 3.0, true, true, libGame_gf_PlayersOnTeamHeroes(lv_handInTeam, false));
+    TextTagSetVelocity(TextTagLastCreated(), 1.5, 90.0);
+    TextTagSetFogVisibility(TextTagLastCreated(), c_visTypeFog);
+    TextTagSetTime(TextTagLastCreated(), c_textTagTimeDuration, 4.0);
+    TextExpressionSetToken("Param/Expression/lib_BBAY_F99FF9E4", "A", IntToText(lv_cannonballsHandedIn));
+    TextTagCreate(TextExpressionAssemble("Param/Expression/lib_BBAY_F99FF9E4"), 24, UnitGetPosition(libBBAY_gv_mMBBCannonballsGhostShipBeacon), 3.0, true, true, libGame_gf_PlayersOnTeamHeroes(lv_handInTeamEnemy, false));
+    TextTagSetVelocity(TextTagLastCreated(), 1.5, 90.0);
+    TextTagSetFogVisibility(TextTagLastCreated(), c_visTypeFog);
+    TextTagSetTime(TextTagLastCreated(), c_textTagTimeDuration, 4.0);
+    TextExpressionSetToken("Param/Expression/lib_BBAY_81AA11FE", "A", IntToText(lv_cannonballsHandedIn));
+    TextTagCreate(TextExpressionAssemble("Param/Expression/lib_BBAY_81AA11FE"), 24, UnitGetPosition(libBBAY_gv_mMBBCannonballsGhostShipBeacon), 3.0, true, true, libCore_gv_playerGroupFromPlayer[libCore_gv_oBSERVER_ObserverUIPlayer]);
+    TextTagSetVelocity(TextTagLastCreated(), 1.5, 90.0);
+    TextTagSetFogVisibility(TextTagLastCreated(), c_visTypeFog);
+    TextTagSetTime(TextTagLastCreated(), c_textTagTimeDuration, 4.0);
+    lv_soundPlayerGroup = PlayerGroupCopy(PlayerGroupAll());
+    PlayerGroupRemove(lv_soundPlayerGroup, lv_handInPlayer);
+    SoundPlayAtPointForPlayer(SoundLink("UI_Doubloon_Pickup", -1), c_maxPlayers, lv_soundPlayerGroup, UnitGetPosition(libBBAY_gv_mMBBCannonballsGhostShipBeacon), 2.0, 100.0, 0.0);
+    SoundPlayForPlayer(SoundLink("UI_Doubloon_Pickup", -1), c_maxPlayers, PlayerGroupSingle(lv_handInPlayer), 100.0, 0.0);
+    if ((libBBAY_gv_mMBBTurnInUsed[lv_handInPlayer] == false)) {
+        libBBAY_gv_mMBBTurnInUsed[lv_handInPlayer] = true;
+        libUIUI_gf_ShowHideHelpButtonOnUnitForPlayer(lv_handInPlayer, false, libBBAY_gv_mMBBCannonballsGhostShipBeacon);
+    }
+
+    libBBAY_gv_mMBBDoubloonsCollected[lv_handInPlayer] -= lv_cannonballsHandedIn;
+    libBBAY_gv_mMBBCannonballsBallsSubmitted[lv_handInTeam] += lv_cannonballsHandedIn;
+    libBBAY_gf_MMBBCannonballsSetHeroCannonballsCount(lv_handInPlayer, lv_handInHeroUnit, (libBBAY_gf_MMBBCannonballsHeroCannonballsCount(lv_handInPlayer, lv_handInHeroUnit) - lv_cannonballsHandedIn));
+    if ((libBBAY_gf_MMBBCannonballsTeamCannonballsCount(lv_handInTeam) >= libBBAY_gf_MMBBCannonballsPirateShipCost(lv_handInTeam))) {
+        libBBAY_gv_mMBBEventsStarted[lv_handInTeam] += 1;
+        libGame_gf_DropLootBannerinSconce(libBBAY_gv_mMBBBlackheartsLootBannerSconce, libGame_gv_players[lv_handInPlayer].lv_lootContent.lv_loot_Banner.lv_bannerID, lv_handInPlayer, true);
+        libBBAY_gf_MMBBCannonballsGhostShipWakeUp(lv_handInTeam, false);
+        libGame_gf_SendEventMapObjectiveCapturedByUnit(lv_handInHeroUnit);
+    }
+
+    Wait(0.0625, c_timeGame);
+    libBBAY_gf_MMBBUpdateHeldDoubloonDisplay();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsBallsHandedIn_Init () {
+    libBBAY_gt_MMBBCannonballsBallsHandedIn = TriggerCreate("libBBAY_gt_MMBBCannonballsBallsHandedIn_Func");
+    TriggerEnable(libBBAY_gt_MMBBCannonballsBallsHandedIn, false);
+    TriggerAddEventPlayerEffectUsed(libBBAY_gt_MMBBCannonballsBallsHandedIn, c_playerAny, "CaptureMacGuffinCastComplete");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Creep Rewards
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsCreepRewards_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_campIndex;
+    int lv_cannonballCount;
+
+    // Automatic Variable Declarations
+    int auto8CA83E7C_n;
+    int auto8CA83E7C_i;
+
+    // Variable Initialization
+    lv_campIndex = libGame_gf_MercCampCapturedIndex();
+    lv_cannonballCount = 2;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libMapM_gv_jungleCreepCamps[lv_campIndex].lv_mapDataCampType == libMapM_ge_JungleCampTypes_MercCamp)) {
+        if (((libMapM_gv_jungleCreepCamps[lv_campIndex].lv_mapDataCampDefenderType == libMapM_ge_JungleCampDefenderTypes_Knights) || (libMapM_gv_jungleCreepCamps[lv_campIndex].lv_mapDataCampDefenderType == libMapM_ge_JungleCampDefenderTypes_GraveGolem))) {
+            lv_cannonballCount = 2;
+        }
+        else {
+            lv_cannonballCount = 2;
+        }
+    }
+    else if ((libMapM_gv_jungleCreepCamps[lv_campIndex].lv_mapDataCampType != libMapM_ge_JungleCampTypes_DoubloonCamp) && (libMapM_gv_jungleCreepCamps[lv_campIndex].lv_mapDataCampType != libMapM_ge_JungleCampTypes_DoubloonSmallCamp)) {
+        lv_cannonballCount = 2;
+    }
+    else if (true) {
+        return true;
+    }
+    auto8CA83E7C_n = lv_cannonballCount;
+    for (auto8CA83E7C_i = 1; auto8CA83E7C_i <= auto8CA83E7C_n; auto8CA83E7C_i += 1) {
+        PlayerCreateEffectPoint(libCore_gv_cOMPUTER_Hostile, "DropCannonballsPersistentJungleCamps", libMapM_gv_jungleCreepCamps[lv_campIndex].lv_mapDataCampCaptainSpawnPoint);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsCreepRewards_Init () {
+    libBBAY_gt_MMBBCannonballsCreepRewards = TriggerCreate("libBBAY_gt_MMBBCannonballsCreepRewards_Func");
+    libGame_gf_MercCampCaptured(libBBAY_gt_MMBBCannonballsCreepRewards);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Open Chest Upon Respawn
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsOpenChestUponRespawn_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    Wait(3.0, c_timeGame);
+    libNtve_gf_SendActorMessageToGameRegion(libBBAY_gv_mMBBCannonballsGhostShipPlayerDetectorRegion, "Signal OpenChest");
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsOpenChestUponRespawn_Init () {
+    libBBAY_gt_MMBBCannonballsOpenChestUponRespawn = TriggerCreate("libBBAY_gt_MMBBCannonballsOpenChestUponRespawn_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Battleship Shooting Missile Created
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsBattleshipShootingMissileCreated_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_missile;
+    int lv_pingBall;
+    int lv_pingTrail;
+    point lv_missilePosition;
+    sound lv_ballLoopingSound;
+    unit lv_targetUnit;
+    bool lv_targetWasRag;
+    unit lv_fortAssociatedWithRag;
+    point lv_positionOfTarget;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_pingBall = c_invalidPingId;
+    lv_pingTrail = c_invalidPingId;
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(EventUnitCreatedUnit()) == "BattleshipBombardMissile"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libBBAY_gv_mMBB_CannonsFired += 1;
+    lv_targetUnit = libBBAY_gv_mMBB_CannonTarget[libBBAY_gv_mMBB_CannonsFired];
+    lv_positionOfTarget = libBBAY_gv_mMBB_CannonTargetPoint[libBBAY_gv_mMBB_CannonsFired];
+    if ((UnitGetType(lv_targetUnit) == "RagnarosBigRag")) {
+        lv_targetWasRag = true;
+        lv_fortAssociatedWithRag = libCore_gf_UnitStoredForUnit(lv_targetUnit, 99);
+    }
+
+    libBBAY_gv_mMBBCannonballsGhostShipMissile = EventUnitCreatedUnit();
+    lv_missile = libBBAY_gv_mMBBCannonballsGhostShipMissile;
+    libNtve_gf_CreatePingFacingAngleWithType(PlayerGroupAll(), "BattleshipBombardMissile", UnitGetPosition(lv_missile), ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0, UnitGetFacing(lv_missile), -1, -1);
+    lv_pingBall = PingLastCreated();
+    PingSetScale(PingLastCreated(), 0.08);
+    PingSetUnit(PingLastCreated(), lv_missile);
+    Wait(0.125, c_timeGame);
+    SoundPlayOnUnitForPlayer(SoundLink("Event_GhostShip_CannonBall_Loop", -1), c_maxPlayers, PlayerGroupAll(), lv_missile, 0.0, 100.0, 0.0);
+    lv_ballLoopingSound = SoundLastPlayed();
+    while (true) {
+        if ((UnitIsAlive(lv_missile) == false)) {
+            SoundStop(lv_ballLoopingSound, true);
+            if ((UnitGetType(libCore_gf_UnitStoredForUnit(lv_targetUnit, 99)) == "RagnarosBigRag") && (UnitIsAlive(libCore_gf_UnitStoredForUnit(lv_targetUnit, 99)) == true)) {
+                UnitCreateEffectUnit(libBBAY_gv_mMBBCannonballsGhostShip, "BattleshipBombardImpactSet", libCore_gf_UnitStoredForUnit(lv_targetUnit, 99));
+            }
+            else if ((lv_targetWasRag == true) && (UnitIsAlive(lv_targetUnit) == true)) {
+                UnitCreateEffectUnit(libBBAY_gv_mMBBCannonballsGhostShip, "BattleshipBombardImpactSet", lv_targetUnit);
+            }
+            else if ((lv_targetWasRag == true) && (UnitIsAlive(lv_targetUnit) == false) && (UnitIsAlive(lv_fortAssociatedWithRag) == true)) {
+                UnitCreateEffectUnit(libBBAY_gv_mMBBCannonballsGhostShip, "BattleshipBombardImpactSet", lv_fortAssociatedWithRag);
+            }
+            else if ((lv_targetWasRag == false) && (UnitIsAlive(lv_targetUnit) == true)) {
+                UnitCreateEffectUnit(libBBAY_gv_mMBBCannonballsGhostShip, "BattleshipBombardImpactSet", lv_targetUnit);
+            }
+            else if ((lv_targetWasRag == false) && (UnitIsAlive(lv_targetUnit) == false)) {
+                UnitCreateEffectPoint(libBBAY_gv_mMBBCannonballsGhostShip, "BattleshipBombardImpactSet", lv_positionOfTarget);
+            }
+            else if ((true == true)) {
+                UnitCreateEffectPoint(libBBAY_gv_mMBBCannonballsGhostShip, "BattleshipBombardImpactSet", lv_positionOfTarget);
+            }
+            PingDestroy(lv_pingBall);
+            libNtve_gf_CreatePingFacingAngleWithType(PlayerGroupAll(), "BattleshipBombardImpact", lv_missilePosition, ColorWithAlpha(0.00, 0.00, 0.00, 0.00), 0.0625, 270.0, -1, -1);
+            SoundPlayForPlayer(SoundLink("Event_GhostShip_Cannon_Explo_Distant", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+            PingSetScale(PingLastCreated(), 0.1);
+            libBBAY_gf_MMBBCannonballsBattleshipShootingShakingCamera(lv_missilePosition);
+            return true;
+        }
+
+        lv_missilePosition = UnitGetPosition(lv_missile);
+        Wait(0.0625, c_timeGame);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsBattleshipShootingMissileCreated_Init () {
+    libBBAY_gt_MMBBCannonballsBattleshipShootingMissileCreated = TriggerCreate("libBBAY_gt_MMBBCannonballsBattleshipShootingMissileCreated_Func");
+    TriggerEnable(libBBAY_gt_MMBBCannonballsBattleshipShootingMissileCreated, false);
+    TriggerAddEventUnitCreated(libBBAY_gt_MMBBCannonballsBattleshipShootingMissileCreated, null, null, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Battleship Killed A Town
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsBattleshipKilledATown_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!(((UnitGetType(EventUnit()) == "TownTownHallL1") || (UnitGetType(EventUnit()) == "TownTownHallL2") || (UnitGetType(EventUnit()) == "TownTownHallL3")))) {
+            return false;
+        }
+
+        if (!((libNtve_gf_KillingUnit() == libBBAY_gv_mMBBCannonballsGhostShip))) {
+            return false;
+        }
+
+        if (!((libGame_gv_gameOver == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    SoundPlayForPlayer(SoundLink("GhostShipCrew_TownKill", -1), c_maxPlayers, PlayerGroupAll(), 100.0, 0.0);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsBattleshipKilledATown_Init () {
+    libBBAY_gt_MMBBCannonballsBattleshipKilledATown = TriggerCreate("libBBAY_gt_MMBBCannonballsBattleshipKilledATown_Func");
+    TriggerEnable(libBBAY_gt_MMBBCannonballsBattleshipKilledATown, false);
+    TriggerAddEventUnitDied(libBBAY_gt_MMBBCannonballsBattleshipKilledATown, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB - Keep Or Fort Gets Taken Over
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBKeepOrFortGetsTakenOver_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_fortBuilding;
+    unit lv_bigRag;
+    unit lv_noUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_fortBuilding = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    while (!(((UnitIsAlive(lv_fortBuilding) == false) || (UnitHasBehavior2(lv_fortBuilding, "RagnarosMoltenCoreStructureStasis") == true)))) {
+        Wait(0.0625, c_timeGame);
+    }
+    if ((UnitIsAlive(lv_fortBuilding) == false)) {
+        return true;
+    }
+
+    lv_bigRag = UnitGroupUnit(libGame_gv_players[EventPlayerEffectUsedUnitOwner(c_effectPlayerCaster)].lv_cameraPlayerUnitGroupToFocusOn, 1);
+    libCore_gf_StoreUnitForUnit(lv_fortBuilding, 99, lv_bigRag);
+    libCore_gf_StoreUnitForUnit(lv_bigRag, 99, lv_fortBuilding);
+    while (!((UnitHasBehavior2(lv_fortBuilding, "RagnarosMoltenCoreStructureStasis") == false))) {
+        Wait(0.0625, c_timeGame);
+    }
+    libCore_gf_StoreUnitForUnit(lv_fortBuilding, 99, lv_noUnit);
+    libCore_gf_StoreUnitForUnit(lv_bigRag, 99, lv_noUnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBKeepOrFortGetsTakenOver_Init () {
+    libBBAY_gt_MMBBKeepOrFortGetsTakenOver = TriggerCreate("libBBAY_gt_MMBBKeepOrFortGetsTakenOver_Func");
+    TriggerAddEventPlayerEffectUsed(libBBAY_gt_MMBBKeepOrFortGetsTakenOver, c_playerAny, "RagnarosMoltenCoreSmokeScreenApplyBehavior");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Treasure Spawn Chests
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsTreasureSpawnChests_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_p;
+    int lv_iter;
+
+    // Automatic Variable Declarations
+    int auto82DD6336_ae;
+    playergroup auto89875EA4_g;
+    playergroup auto99E59F7A_g;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto82DD6336_ae = libBBAY_gv_mMBBCannonballsTreasureChestMaxCount_C;
+    lv_iter = 1;
+    for ( ; lv_iter <= auto82DD6336_ae ; lv_iter += 1 ) {
+        libNtve_gf_CreateUnitsAtPoint2(1, "DocksTreasureChest", c_unitCreateIgnorePlacement, libCore_gv_cOMPUTER_Hostile, libBBAY_gv_mMBBCannonballsGhostChestLocations[lv_iter], null);
+        libBBAY_gv_mMBBCannonballsTreasureChestChests[lv_iter] = UnitLastCreated();
+        AddUnitOfInterest(UnitLastCreated(), 0.0, 0.0, "KillTreasureChest", libNtve_ge_GoalTeam_Both, 0);
+        ActorCreate(ActorScopeFromUnit(libBBAY_gv_mMBBCannonballsTreasureChestChests[lv_iter]), "UI_Game_Ping_TreasureSpawn", null, null, null);
+        auto89875EA4_g = libCore_gv_allHeroPlayersPlusObserver;
+        lv_p = -1;
+        while (true) {
+            	lv_p = PlayerGroupNextPlayer(auto89875EA4_g, lv_p);
+            	if (lv_p<0) { break; }
+            	VisRevealArea(lv_p, RegionCircle(UnitGetPosition(UnitLastCreated()), 1.0), 1.0, false);
+        }
+        TextTagCreate(libBBAY_gf_MMBBCannonballsTreasureSetTextTagHelp(), 16, UnitGetPosition(libBBAY_gv_mMBBCannonballsTreasureChestChests[lv_iter]), 1.0, false, false, PlayerGroupAll());
+        libCore_gf_StoreTextTagForUnit(libBBAY_gv_mMBBCannonballsTreasureChestChests[lv_iter], 1, TextTagLastCreated());
+        TextTagAttachToUnit(TextTagLastCreated(), libBBAY_gv_mMBBCannonballsTreasureChestChests[lv_iter], 5.0);
+        auto99E59F7A_g = libCore_gv_activeHumanPlayers;
+        lv_p = -1;
+        while (true) {
+            	lv_p = PlayerGroupNextPlayer(auto99E59F7A_g, lv_p);
+            	if (lv_p<0) { break; }
+            	if ((libBBAY_gv_mMBBChestsAttacked[lv_p] == false)) {
+                TextTagShow(libCore_gf_TextTagStoredForUnit(libBBAY_gv_mMBBCannonballsTreasureChestChests[lv_iter], 1), PlayerGroupAll(), true);
+            }
+
+        }
+        TextTagCreate(libBBAY_gf_MMBBCannonballsTreasureSetTextTagDoubloonCount(libBBAY_gv_mMBBCannonballsGhostChestCoinsDrop_C), 30, UnitGetPosition(libBBAY_gv_mMBBCannonballsTreasureChestChests[lv_iter]), 1.0, false, false, PlayerGroupAll());
+        libCore_gf_StoreTextTagForUnit(libBBAY_gv_mMBBCannonballsTreasureChestChests[lv_iter], 2, TextTagLastCreated());
+        TextTagAttachToUnit(TextTagLastCreated(), libBBAY_gv_mMBBCannonballsTreasureChestChests[lv_iter], 4.0);
+        TextTagShow(libCore_gf_TextTagStoredForUnit(libBBAY_gv_mMBBCannonballsTreasureChestChests[lv_iter], 2), PlayerGroupAll(), true);
+    }
+    TriggerEnable(libBBAY_gt_MMBBCannonballsTreasureChestsAreDead, true);
+    TriggerEnable(libBBAY_gt_MMBBCannonballsTreasureAChestDies, true);
+    TriggerEnable(libBBAY_gt_MMBBCannonballsTreasureChestSpawnsDoubloon, true);
+    TriggerEnable(libBBAY_gt_MMBBCannonballsTreasureChestPingTimerExpires, true);
+    TimerStart(libBBAY_gv_mMBBCannonballsTreasureChestPingTimer, 0.25, false, c_timeGame);
+    if ((libBBAY_gv_mMBBCannonballsTreasureChestIsFirstChest == true)) {
+        libBBAY_gv_mMBBCannonballsTreasureChestIsFirstChest = false;
+        libBBAY_gf_MMBBCannonballsTransmissionChestSpawningFirstQ(PlayerGroupAll());
+    }
+    else {
+        libBBAY_gf_MMBBCannonballsTransmissionChestSpawningRepeatQ(PlayerGroupAll());
+    }
+    libBBAY_gf_MMBBMapMechanicsBlackheartsBayShowChestsSpawnedFrame();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsTreasureSpawnChests_Init () {
+    libBBAY_gt_MMBBCannonballsTreasureSpawnChests = TriggerCreate("libBBAY_gt_MMBBCannonballsTreasureSpawnChests_Func");
+    TriggerEnable(libBBAY_gt_MMBBCannonballsTreasureSpawnChests, false);
+    TriggerAddEventTimer(libBBAY_gt_MMBBCannonballsTreasureSpawnChests, libBBAY_gv_mMBBCannonballsTreasureChestTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Treasure Chest Spawns Doubloon
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsTreasureChestSpawnsDoubloon_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_chest;
+    int lv_coinsLeft;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_chest = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((UnitGetPropertyFixed(lv_chest, c_unitPropLifePercent, c_unitPropCurrent) > 34.0)) {
+        lv_coinsLeft = (libBBAY_gv_mMBBCannonballsGhostChestCoinsDrop_C - 1);
+    }
+    else {
+        lv_coinsLeft = (libBBAY_gv_mMBBCannonballsGhostChestCoinsDrop_C - 2);
+    }
+    TextTagSetText(libCore_gf_TextTagStoredForUnit(lv_chest, 2), libBBAY_gf_MMBBCannonballsTreasureSetTextTagDoubloonCount(lv_coinsLeft));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsTreasureChestSpawnsDoubloon_Init () {
+    libBBAY_gt_MMBBCannonballsTreasureChestSpawnsDoubloon = TriggerCreate("libBBAY_gt_MMBBCannonballsTreasureChestSpawnsDoubloon_Func");
+    TriggerEnable(libBBAY_gt_MMBBCannonballsTreasureChestSpawnsDoubloon, false);
+    TriggerAddEventPlayerEffectUsed(libBBAY_gt_MMBBCannonballsTreasureChestSpawnsDoubloon, c_playerAny, "TreasureChestDrop1DoubloonPersistent");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Treasure Chest Ping Timer Expires
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsTreasureChestPingTimerExpires_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_iter;
+
+    // Automatic Variable Declarations
+    int autoC7436380_ae;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    autoC7436380_ae = libBBAY_gv_mMBBCannonballsTreasureChestMaxCount_C;
+    lv_iter = 1;
+    for ( ; lv_iter <= autoC7436380_ae ; lv_iter += 1 ) {
+        if ((UnitIsAlive(libBBAY_gv_mMBBCannonballsTreasureChestChests[lv_iter]) == true)) {
+            libCore_gf_CreateMinimapPingStorm(PlayerGroupAll(), "StormAlert", UnitGetPosition(libBBAY_gv_mMBBCannonballsTreasureChestChests[lv_iter]), ColorWithAlpha(100.00, 100.00, 0.00, 0.00), 5.0);
+            libCore_gf_StorePingForUnit(libBBAY_gv_mMBBCannonballsTreasureChestChests[lv_iter], 1, PingLastCreated());
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsTreasureChestPingTimerExpires_Init () {
+    libBBAY_gt_MMBBCannonballsTreasureChestPingTimerExpires = TriggerCreate("libBBAY_gt_MMBBCannonballsTreasureChestPingTimerExpires_Func");
+    TriggerEnable(libBBAY_gt_MMBBCannonballsTreasureChestPingTimerExpires, false);
+    TriggerAddEventTimer(libBBAY_gt_MMBBCannonballsTreasureChestPingTimerExpires, libBBAY_gv_mMBBCannonballsTreasureChestPingTimer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Treasure A Chest Dies
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsTreasureAChestDies_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TextTagDestroy(libCore_gf_TextTagStoredForUnit(EventUnit(), 1));
+    TextTagDestroy(libCore_gf_TextTagStoredForUnit(EventUnit(), 2));
+    PingDestroy(libCore_gf_PingStoredForUnit(EventUnit(), 1));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsTreasureAChestDies_Init () {
+    libBBAY_gt_MMBBCannonballsTreasureAChestDies = TriggerCreate("libBBAY_gt_MMBBCannonballsTreasureAChestDies_Func");
+    TriggerEnable(libBBAY_gt_MMBBCannonballsTreasureAChestDies, false);
+    TriggerAddEventUnitDied(libBBAY_gt_MMBBCannonballsTreasureAChestDies, UnitRefFromVariable("libBBAY_gv_mMBBCannonballsTreasureChestChests[1]"));
+    TriggerAddEventUnitDied(libBBAY_gt_MMBBCannonballsTreasureAChestDies, UnitRefFromVariable("libBBAY_gv_mMBBCannonballsTreasureChestChests[2]"));
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Treasure Chests Are Dead
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsTreasureChestsAreDead_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!(((UnitIsAlive(libBBAY_gv_mMBBCannonballsTreasureChestChests[1]) == false) && (UnitIsAlive(libBBAY_gv_mMBBCannonballsTreasureChestChests[2]) == false) && (TriggerIsEnabled(TriggerGetCurrent()) == true)))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    TriggerEnable(libBBAY_gt_MMBBCannonballsTreasureAChestDies, false);
+    TriggerEnable(libBBAY_gt_MMBBCannonballsTreasureChestSpawnsDoubloon, false);
+    TriggerEnable(libBBAY_gt_MMBBCannonballsTreasureChestPingTimerExpires, false);
+    libBBAY_gf_MMBBCannonballsTreasureStartTimer();
+    TextTagDestroy(libCore_gf_TextTagStoredForUnit(EventUnit(), 1));
+    TextTagDestroy(libCore_gf_TextTagStoredForUnit(EventUnit(), 2));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsTreasureChestsAreDead_Init () {
+    libBBAY_gt_MMBBCannonballsTreasureChestsAreDead = TriggerCreate("libBBAY_gt_MMBBCannonballsTreasureChestsAreDead_Func");
+    TriggerEnable(libBBAY_gt_MMBBCannonballsTreasureChestsAreDead, false);
+    TriggerAddEventUnitDied(libBBAY_gt_MMBBCannonballsTreasureChestsAreDead, UnitRefFromVariable("libBBAY_gv_mMBBCannonballsTreasureChestChests[1]"));
+    TriggerAddEventUnitDied(libBBAY_gt_MMBBCannonballsTreasureChestsAreDead, UnitRefFromVariable("libBBAY_gv_mMBBCannonballsTreasureChestChests[2]"));
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Treasure Chest Attacked
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsTreasureChestAttacked_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_attackingPlayer;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_attackingPlayer = UnitGetOwner(EventUnitTarget());
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_attackingPlayer > 0))) {
+            return false;
+        }
+
+        if (!((lv_attackingPlayer <= libCore_gv_bALMaxPlayers))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libBBAY_gv_mMBBChestsAttacked[lv_attackingPlayer] == false)) {
+        libBBAY_gv_mMBBChestsAttacked[lv_attackingPlayer] = true;
+        TextTagShow(libCore_gf_TextTagStoredForUnit(libBBAY_gv_mMBBCannonballsTreasureChestChests[1], 1), libCore_gv_playerGroupFromPlayer[lv_attackingPlayer], false);
+        TextTagShow(libCore_gf_TextTagStoredForUnit(libBBAY_gv_mMBBCannonballsTreasureChestChests[2], 1), libCore_gv_playerGroupFromPlayer[lv_attackingPlayer], false);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsTreasureChestAttacked_Init () {
+    libBBAY_gt_MMBBCannonballsTreasureChestAttacked = TriggerCreate("libBBAY_gt_MMBBCannonballsTreasureChestAttacked_Func");
+    TriggerEnable(libBBAY_gt_MMBBCannonballsTreasureChestAttacked, false);
+    TriggerAddEventUnitAttacked2(libBBAY_gt_MMBBCannonballsTreasureChestAttacked, UnitRefFromVariable("libBBAY_gv_mMBBCannonballsTreasureChestChests[1]"), null);
+    TriggerAddEventUnitAttacked2(libBBAY_gt_MMBBCannonballsTreasureChestAttacked, UnitRefFromVariable("libBBAY_gv_mMBBCannonballsTreasureChestChests[2]"), null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs ObjectiveUI Handler
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsObjectiveUIHandler_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    text lv_tip;
+    int lv_indexTeam;
+    int lv_indexTeamEnemy;
+    int lv_state;
+    int lv_lastState;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_state = libBBAY_ge_MMBBCannonballsState_Starting;
+    lv_lastState = libBBAY_ge_MMBBCannonballsState_Starting;
+
+    // Conditions
+    if (testConds) {
+        if (!((TriggerIsEnabled(TriggerGetCurrent()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    lv_tip = StringExternal("Param/Value/lib_BBAY_A57C2379");
+    libBBAY_gf_MMBBMapMechanicsBlackheartsBayShowHidePanel(true);
+    while (true) {
+        if ((UnitGetOwner(libBBAY_gv_mMBBCannonballsGhostShip) != libCore_gv_cOMPUTER_Neutral)) {
+            lv_state = libBBAY_ge_MMBBCannonballsState_Shooting;
+            lv_indexTeam = libGame_gf_TeamNumberOfPlayer(UnitGetOwner(libBBAY_gv_mMBBCannonballsGhostShip));
+            lv_indexTeamEnemy = libGame_gf_EnemyTeam(lv_indexTeam);
+            if ((lv_state != lv_lastState)) {
+                libBBAY_gf_MMBBMapMechanicsBlackheartsBaySetMode(libBBAY_ge_MMBBMapMechanicsBlackheartsBayModes_Cannon);
+                libBBAY_gf_MMBBMapMechanicsBlackheartsBayShowCannonballForTeam(lv_indexTeam);
+            }
+
+            libBBAY_gf_MMBBMapMechanicsBlackheartsBaySetShotCountForTeam(libBBAY_gf_MMBBCannonballsBattleshipAmmoLeft(), lv_indexTeam);
+            lv_lastState = lv_state;
+        }
+        else if ((UnitIsAlive(libBBAY_gv_mMBBCannonballsGhostShip) == true)) {
+            lv_state = libBBAY_ge_MMBBCannonballsState_Paying;
+            if ((lv_state != lv_lastState)) {
+                libBBAY_gf_MMBBMapMechanicsBlackheartsBaySetMode(libBBAY_ge_MMBBMapMechanicsBlackheartsBayModes_Doubloons);
+            }
+
+            lv_lastState = lv_state;
+        }
+        libBBAY_gf_MMBBCannonballsObjectiveUIUpdateText();
+        Wait(0.5, c_timeGame);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsObjectiveUIHandler_Init () {
+    libBBAY_gt_MMBBCannonballsObjectiveUIHandler = TriggerCreate("libBBAY_gt_MMBBCannonballsObjectiveUIHandler_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Doubloon Dropped
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsDoubloonDropped_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itTeam;
+    bool[3] lv_visionShared;
+
+    // Automatic Variable Declarations
+    const int auto9A0AD5DA_ae = 2;
+    const int auto9A0AD5DA_ai = 1;
+
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(EventUnitCreatedUnit()) == "ItemCannonball"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    while (true) {
+        if ((UnitIsAlive(EventUnitCreatedUnit()) == false)) {
+            return true;
+        }
+
+        lv_itTeam = 1;
+        for ( ; ( (auto9A0AD5DA_ai >= 0 && lv_itTeam <= auto9A0AD5DA_ae) || (auto9A0AD5DA_ai < 0 && lv_itTeam >= auto9A0AD5DA_ae) ) ; lv_itTeam += auto9A0AD5DA_ai ) {
+            if ((lv_visionShared[lv_itTeam] == false) && (libNtve_gf_UnitIsVisibleToPlayer(EventUnitCreatedUnit(), libGame_gf_ComputerPlayerInTeam(lv_itTeam)) == true)) {
+                libNtve_gf_ShareVisionofUnit(EventUnitCreatedUnit(), true, libGame_gf_ComputerPlayerInTeam(lv_itTeam));
+                lv_visionShared[lv_itTeam] = true;
+                if ((lv_visionShared[1] == true) && (lv_visionShared[2] == true)) {
+                    return true;
+                }
+
+            }
+
+        }
+        Wait(0.0625, c_timeGame);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsDoubloonDropped_Init () {
+    libBBAY_gt_MMBBCannonballsDoubloonDropped = TriggerCreate("libBBAY_gt_MMBBCannonballsDoubloonDropped_Func");
+    TriggerEnable(libBBAY_gt_MMBBCannonballsDoubloonDropped, false);
+    TriggerAddEventUnitCreated(libBBAY_gt_MMBBCannonballsDoubloonDropped, null, null, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Shooting Start
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsShootingStart_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGame_gf_SpecialLightingEventStart("StormKingsCrestDocksNight", PlayerGroupAll(), 10.0);
+    ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal MM1On");
+    SoundtrackStop(PlayerGroupAll(), c_soundtrackCategoryMusic, true);
+    libSond_gf_SoundtrackApplyNewDefaultSoundtrackForPlayerGroup("Storm_Music_GhostShip_Start", PlayerGroupAll());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsShootingStart_Init () {
+    libBBAY_gt_MMBBCannonballsShootingStart = TriggerCreate("libBBAY_gt_MMBBCannonballsShootingStart_Func");
+    TriggerEnable(libBBAY_gt_MMBBCannonballsShootingStart, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Shooting End
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsShootingEnd_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGame_gf_SpecialLightingEventEnd("StormKingsCrestDocksNight", PlayerGroupAll(), 7.5);
+    ActorSend(libMapM_gv_mapMechanicControllerActor, "Signal MM1Off");
+    SoundtrackStop(PlayerGroupAll(), c_soundtrackCategoryMusic, true);
+    libSond_gf_SoundtrackPlayMapSoundtrackAsDefaultSoundtrackForAllPlayers();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsShootingEnd_Init () {
+    libBBAY_gt_MMBBCannonballsShootingEnd = TriggerCreate("libBBAY_gt_MMBBCannonballsShootingEnd_Func");
+    TriggerEnable(libBBAY_gt_MMBBCannonballsShootingEnd, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB Cannonballs Game Over
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBBCannonballsGameOver_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    const int auto7DC2942D_ae = libCore_gv_bALMaxPlayers;
+    const int auto7DC2942D_ai = 1;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_itPlayer = 1;
+    for ( ; ( (auto7DC2942D_ai >= 0 && lv_itPlayer <= auto7DC2942D_ae) || (auto7DC2942D_ai < 0 && lv_itPlayer >= auto7DC2942D_ae) ) ; lv_itPlayer += auto7DC2942D_ai ) {
+        libGame_gf_ScoreValuesReportIntegerValueAndLog(lv_itPlayer, "MapMechanics", libBBAY_gv_mMBBDoubloonsTurnedIn[lv_itPlayer]);
+        libGame_gf_ScoreValuesReportIntegerValueAndLog(lv_itPlayer, "BlackheartDoubloonsTurnedIn", libBBAY_gv_mMBBDoubloonsTurnedIn[lv_itPlayer]);
+        libGame_gf_ScoreValuesReportIntegerValueAndLog(lv_itPlayer, "BlackheartDoubloonsCollected", libBBAY_gv_mMBBDoubloonsCollected[lv_itPlayer]);
+        libGame_gf_ScoreValuesReportIntegerValueAndLog(lv_itPlayer, "BlackheartDoubloonsDropped", libBBAY_gv_mMBBDoubloonsDropped[lv_itPlayer]);
+        libGame_gf_ScoreValuesReportIntegerValueAndLog(lv_itPlayer, "BlackheartTeamNumberOfTimesFiredTheCannon", libBBAY_gv_mMBBEventsStarted[libGame_gf_TeamNumberOfPlayer(lv_itPlayer)]);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBBCannonballsGameOver_Init () {
+    libBBAY_gt_MMBBCannonballsGameOver = TriggerCreate("libBBAY_gt_MMBBCannonballsGameOver_Func");
+    libGame_gf_GameOverEvent(libBBAY_gt_MMBBCannonballsGameOver);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB_Debug Cannonballs Event Start
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBB_DebugCannonballsEventStart_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+
+        if (!((libMapM_gv_mMMapMechanicDisabled == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerExecute(libBBAY_gt_MMBBCannonballsEventStart, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBB_DebugCannonballsEventStart_Init () {
+    libBBAY_gt_MMBB_DebugCannonballsEventStart = TriggerCreate("libBBAY_gt_MMBB_DebugCannonballsEventStart_Func");
+    TriggerEnable(libBBAY_gt_MMBB_DebugCannonballsEventStart, false);
+    TriggerAddEventChatMessage(libBBAY_gt_MMBB_DebugCannonballsEventStart, c_playerAny, "EVENTSTART", true);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MMBB_Debug Trigger Bombard
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_gt_MMBB_DebugTriggerBombard_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    string auto1E77F7EA_val;
+
+    // Conditions
+    if (testConds) {
+        if (!((GameCheatsEnabled(c_gameCheatCategoryDevelopment) == true))) {
+            return false;
+        }
+
+        if (!((libMapM_gv_mMMapMechanicDisabled == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto1E77F7EA_val = EventChatMessage(false);
+    if (auto1E77F7EA_val == "-bombard order") {
+        libBBAY_gf_MMBBCannonballsGhostShipWakeUp(libGame_gv_teamChaosIndex_C, false);
+    }
+    else if (auto1E77F7EA_val == "-bombard chaos") {
+        libBBAY_gf_MMBBCannonballsGhostShipWakeUp(libGame_gv_teamOrderIndex_C, false);
+    }
+    else if (auto1E77F7EA_val == "-bombard") {
+        libBBAY_gf_MMBBCannonballsGhostShipWakeUp(libGame_gf_TeamNumberOfPlayer(EventPlayer()), false);
+    }
+    else {
+    }
+    libGame_gf_SendEventMapObjectiveCapturedByUnit(libGame_gv_players[EventPlayer()].lv_heroUnit);
+    libBBAY_gv_mMBBCannonballsBallsSubmitted[libGame_gf_TeamNumberOfPlayer(EventPlayer())] = 0;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libBBAY_gt_MMBB_DebugTriggerBombard_Init () {
+    libBBAY_gt_MMBB_DebugTriggerBombard = TriggerCreate("libBBAY_gt_MMBB_DebugTriggerBombard_Func");
+    TriggerEnable(libBBAY_gt_MMBB_DebugTriggerBombard, false);
+    TriggerAddEventChatMessage(libBBAY_gt_MMBB_DebugTriggerBombard, c_playerAny, "-bombard chaos", true);
+    TriggerAddEventChatMessage(libBBAY_gt_MMBB_DebugTriggerBombard, c_playerAny, "-bombard order", true);
+    TriggerAddEventChatMessage(libBBAY_gt_MMBB_DebugTriggerBombard, c_playerAny, "-bombard", true);
+}
+
+void libBBAY_InitTriggers () {
+    libBBAY_gt_MMBBCannonballsInit_Init();
+    libBBAY_gt_MMBBPingDataInit_Init();
+    libBBAY_gt_MMBBCannonballsHeroSpawned_Init();
+    libBBAY_gt_MMBBCannonballsHeroMapMechanicStatusSetup_Init();
+    libBBAY_gt_MMBBCannonballsHeroDies_Init();
+    libBBAY_gt_MMBBCannonballsHeroRespawns_Init();
+    libBBAY_gt_MMBBCannonballCreated_Init();
+    libBBAY_gt_MMBBCannonballsGatesAreOpenComplete_Init();
+    libBBAY_gt_MMBBCannonballsEventStart_Init();
+    libBBAY_gt_MMBBCannonballsHeroPickup_Init();
+    libBBAY_gt_MMBBCannonballsBallsHandedIn_Init();
+    libBBAY_gt_MMBBCannonballsCreepRewards_Init();
+    libBBAY_gt_MMBBCannonballsOpenChestUponRespawn_Init();
+    libBBAY_gt_MMBBCannonballsBattleshipShootingMissileCreated_Init();
+    libBBAY_gt_MMBBCannonballsBattleshipKilledATown_Init();
+    libBBAY_gt_MMBBKeepOrFortGetsTakenOver_Init();
+    libBBAY_gt_MMBBCannonballsTreasureSpawnChests_Init();
+    libBBAY_gt_MMBBCannonballsTreasureChestSpawnsDoubloon_Init();
+    libBBAY_gt_MMBBCannonballsTreasureChestPingTimerExpires_Init();
+    libBBAY_gt_MMBBCannonballsTreasureAChestDies_Init();
+    libBBAY_gt_MMBBCannonballsTreasureChestsAreDead_Init();
+    libBBAY_gt_MMBBCannonballsTreasureChestAttacked_Init();
+    libBBAY_gt_MMBBCannonballsObjectiveUIHandler_Init();
+    libBBAY_gt_MMBBCannonballsDoubloonDropped_Init();
+    libBBAY_gt_MMBBCannonballsShootingStart_Init();
+    libBBAY_gt_MMBBCannonballsShootingEnd_Init();
+    libBBAY_gt_MMBBCannonballsGameOver_Init();
+    libBBAY_gt_MMBB_DebugCannonballsEventStart_Init();
+    libBBAY_gt_MMBB_DebugTriggerBombard_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libBBAY_InitLib_completed = false;
+
+void libBBAY_InitLib () {
+    if (libBBAY_InitLib_completed) {
+        return;
+    }
+
+    libBBAY_InitLib_completed = true;
+
+    libBBAY_InitLibraries();
+    libBBAY_InitVariables();
+    libBBAY_InitTriggers();
+}
+
