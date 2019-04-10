@@ -5750,12 +5750,6 @@ void libCOMI_gf_CM_Zeratul_SetProphecyCooldown () {
 
 }
 
-unitgroup libCOMI_gf_CM_GetPointUnits (point lp_point, unitfilter lp_filter) {
-    // Automatic Variable Declarations
-    // Implementation
-    return UnitGroup(null, c_playerAny, RegionCircle(lp_point, 0.2), lp_filter, 0);
-}
-
 void libCOMI_gf_CM_Zeratul_SpawnResourcePickups (int lp_count, point lp_location) {
     // Variable Declarations
     fixed lv_randomValue;
@@ -5833,6 +5827,28 @@ void libCOMI_gf_CM_Zeratul_PlaceArtifact (int lp_p) {
         libCOMI_gv_cM_ZeratulProphecyCamera = UnitLastCreated();
         libNtve_gf_ShowHideUnit(libCOMI_gv_cM_ZeratulProphecyCamera, false);
         CameraSetChannel(libCOMI_gv_cM_ZeratulPlayer, libCOMI_gv_cM_ZeratulProphecyCamera, "Camera_Basic", 1, 1.0);
+    }
+}
+
+void libCOMI_gf_CM_ZeratulProphecyArtifactBadRegion_Set () {
+    // Automatic Variable Declarations
+    unitgroup auto4FDAC2D8_g;
+    int auto4FDAC2D8_u;
+    unit auto4FDAC2D8_var;
+
+    // Implementation
+    libCOMI_gv_cM_ZeratulProphecyArtifactBadRegion = null;
+    auto4FDAC2D8_g = UnitGroup(null, c_playerAny, RegionEntireMap(), UnitFilter((1 << c_targetFilterStructure), (1 << (c_targetFilterInvulnerable - 32)), 0, (1 << (c_targetFilterDead - 32))), 0);
+    auto4FDAC2D8_u = UnitGroupCount(auto4FDAC2D8_g, c_unitCountAll);
+    for (;; auto4FDAC2D8_u -= 1) {
+        auto4FDAC2D8_var = UnitGroupUnitFromEnd(auto4FDAC2D8_g, auto4FDAC2D8_u);
+        if (auto4FDAC2D8_var == null) { break; }
+        if ((libCOMI_gv_cM_ZeratulProphecyArtifactBadRegion == null)) {
+            libCOMI_gv_cM_ZeratulProphecyArtifactBadRegion = RegionCircle(UnitGetPosition(auto4FDAC2D8_var), libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogUnit, UnitGetType(auto4FDAC2D8_var), "Radius", UnitGetOwner(auto4FDAC2D8_var)));
+        }
+        else {
+            RegionAddRegion(libCOMI_gv_cM_ZeratulProphecyArtifactBadRegion, RegionCircle(UnitGetPosition(auto4FDAC2D8_var), libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogUnit, UnitGetType(auto4FDAC2D8_var), "Radius", UnitGetOwner(auto4FDAC2D8_var))));
+        }
     }
 }
 
@@ -5951,7 +5967,6 @@ point libCOMI_gf_CM_Zeratul_FindArtifactPlacementPointNew (int lp_artifactNumber
     int lv_validPointsCount;
     point lv_pickedPoint;
     unit lv_dEBUG_lastPicked;
-    int lv_pointStructureInvurableCount;
 
     // Automatic Variable Declarations
     fixed autoFC6C9A4D_ae;
@@ -5976,6 +5991,7 @@ point libCOMI_gf_CM_Zeratul_FindArtifactPlacementPointNew (int lp_artifactNumber
     lv_distanceBetweenPoints = UserDataGetFixed("CoopTechZeratulArtifactPlacement", lv_artifactPlacementData, "distanceBetweenPoints", 1);
 
     // Implementation
+    libCOMI_gf_CM_ZeratulProphecyArtifactBadRegion_Set();
     autoFC6C9A4D_ae = lv_minSearchRadius;
     autoFC6C9A4D_ai = (0.0 - lv_distanceBetweenPoints);
     lv_radiusIter = lv_maxSearchRadius;
@@ -5985,8 +6001,7 @@ point libCOMI_gf_CM_Zeratul_FindArtifactPlacementPointNew (int lp_artifactNumber
         lv_angleIter = RandomFixed(0.0, lv_angleDelta);
         for ( ; ( (autoF54F88EB_ai >= 0 && lv_angleIter <= autoF54F88EB_ae) || (autoF54F88EB_ai < 0 && lv_angleIter >= autoF54F88EB_ae) ) ; lv_angleIter += autoF54F88EB_ai ) {
             lv_pointIter = PointWithOffsetPolar(lv_artifactOrigin, lv_radiusIter, lv_angleIter);
-            lv_pointStructureInvurableCount = UnitGroupCount(libCOMI_gf_CM_GetPointUnits(lv_pointIter, UnitFilter((1 << c_targetFilterStructure), (1 << (c_targetFilterInvulnerable - 32)), (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)))), c_unitCountAlive);
-            lv_pointIsPassableAndNotNearZeratul = ((PointPathingPassable(lv_pointIter) == true) && (!(UnitIsAlive(libCOMI_gv_cM_HeroUnit[libCOMI_gv_cM_ZeratulPlayer])) || (DistanceBetweenPoints(UnitGetPosition(libCOMI_gv_cM_HeroUnit[libCOMI_gv_cM_ZeratulPlayer]), lv_pointIter) > lv_zeratulSearchRadius)) && (lv_pointStructureInvurableCount == 0));
+            lv_pointIsPassableAndNotNearZeratul = ((PointPathingPassable(lv_pointIter) == true) && (!(UnitIsAlive(libCOMI_gv_cM_HeroUnit[libCOMI_gv_cM_ZeratulPlayer])) || (DistanceBetweenPoints(UnitGetPosition(libCOMI_gv_cM_HeroUnit[libCOMI_gv_cM_ZeratulPlayer]), lv_pointIter) > lv_zeratulSearchRadius)) && (RegionContainsPoint(libCOMI_gv_cM_ZeratulProphecyArtifactBadRegion, lv_pointIter) == false));
             if ((lv_pointIsPassableAndNotNearZeratul == true) && ((lv_checkPathing == false) || (PointPathingIsConnected(lv_pathingCheckPoint, lv_pointIter) == true)) && ((lv_maxWalkingDistance == 0.0) || (PointPathingCost(lv_pathingCheckPoint, lv_pointIter) <= FixedToInt(lv_maxWalkingDistance)))) {
                 if ((lv_nearbyUnitHealthLimit > 0.0)) {
                     lv_nearbyUnitHealth = 0;
@@ -6046,7 +6061,6 @@ point libCOMI_gf_CM_Zeratul_FindArtifactPlacementPointDebug (int lp_artifactNumb
     unit lv_dEBUG_lastPicked;
     string lv_tintactormessage;
     string lv_pickedtintactormessage;
-    int lv_pointStructureInvurableCount;
 
     // Automatic Variable Declarations
     fixed autoFE9D12AD_ae;
@@ -6073,6 +6087,7 @@ point libCOMI_gf_CM_Zeratul_FindArtifactPlacementPointDebug (int lp_artifactNumb
     lv_pickedtintactormessage = (("SetTintColor " + libNtve_gf_ConvertColorToString(lp_pickedColor)));
 
     // Implementation
+    libCOMI_gf_CM_ZeratulProphecyArtifactBadRegion_Set();
     autoFE9D12AD_ae = lv_minSearchRadius;
     autoFE9D12AD_ai = (0.0 - lv_distanceBetweenPoints);
     lv_radiusIter = lv_maxSearchRadius;
@@ -6082,8 +6097,7 @@ point libCOMI_gf_CM_Zeratul_FindArtifactPlacementPointDebug (int lp_artifactNumb
         lv_angleIter = RandomFixed(0.0, lv_angleDelta);
         for ( ; ( (autoDC2ACA37_ai >= 0 && lv_angleIter <= autoDC2ACA37_ae) || (autoDC2ACA37_ai < 0 && lv_angleIter >= autoDC2ACA37_ae) ) ; lv_angleIter += autoDC2ACA37_ai ) {
             lv_pointIter = PointWithOffsetPolar(lv_artifactOrigin, lv_radiusIter, lv_angleIter);
-            lv_pointStructureInvurableCount = UnitGroupCount(libCOMI_gf_CM_GetPointUnits(lv_pointIter, UnitFilter((1 << c_targetFilterStructure), (1 << (c_targetFilterInvulnerable - 32)), (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)))), c_unitCountAlive);
-            lv_pointIsPassableAndNotNearZeratul = ((PointPathingPassable(lv_pointIter) == true) && (!(UnitIsAlive(libCOMI_gv_cM_HeroUnit[libCOMI_gv_cM_ZeratulPlayer])) || (DistanceBetweenPoints(UnitGetPosition(libCOMI_gv_cM_HeroUnit[libCOMI_gv_cM_ZeratulPlayer]), lv_pointIter) > lv_zeratulSearchRadius)) && (lv_pointStructureInvurableCount == 0));
+            lv_pointIsPassableAndNotNearZeratul = ((PointPathingPassable(lv_pointIter) == true) && (!(UnitIsAlive(libCOMI_gv_cM_HeroUnit[libCOMI_gv_cM_ZeratulPlayer])) || (DistanceBetweenPoints(UnitGetPosition(libCOMI_gv_cM_HeroUnit[libCOMI_gv_cM_ZeratulPlayer]), lv_pointIter) > lv_zeratulSearchRadius)) && (RegionContainsPoint(libCOMI_gv_cM_ZeratulProphecyArtifactBadRegion, lv_pointIter) == false));
             if ((lv_pointIsPassableAndNotNearZeratul == true) && ((lv_checkPathing == false) || (PointPathingIsConnected(lv_pathingCheckPoint, lv_pointIter) == true)) && ((lv_maxWalkingDistance == 0.0) || (PointPathingCost(lv_pathingCheckPoint, lv_pointIter) <= FixedToInt(lv_maxWalkingDistance)))) {
                 if ((lv_nearbyUnitHealthLimit > 0.0)) {
                     lv_nearbyUnitHealth = 0;
