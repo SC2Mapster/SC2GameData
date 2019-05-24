@@ -1,0 +1,164 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/GameLib"
+
+include "LibHAND_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Anduin
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libHAND_InitLibraries () {
+    libNtve_InitVariables();
+    libGame_InitVariables();
+}
+
+// Variable Initialization
+bool libHAND_InitVariables_completed = false;
+
+void libHAND_InitVariables () {
+    if (libHAND_InitVariables_completed) {
+        return;
+    }
+
+    libHAND_InitVariables_completed = true;
+
+    libHAND_gv_heroAnduinBlessedRecoveryConstant = CatalogFieldValueGetAsFixed(c_gameCatalogEffect, "AnduinBlessedRecoveryThreshold", "Amount", 0);
+}
+
+// Functions
+void libHAND_gf_HeroAnduinIncrementHeroCountFunction () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHAND_gv_heroAnduinTriggerRegistrationVariable += 1;
+    if ((libHAND_gv_heroAnduinTriggerRegistrationVariable == 1)) {
+        TriggerEnable(libHAND_gt_HeroAnduinLeapofFaithCameraLock, true);
+        TriggerEnable(libHAND_gt_HeroAnduinBlessedRecoveryDamageCheck, true);
+    }
+
+}
+
+void libHAND_gf_HeroAnduinDecrementHeroCountFunction () {
+    // Automatic Variable Declarations
+    // Implementation
+    libHAND_gv_heroAnduinTriggerRegistrationVariable -= 1;
+    if ((libHAND_gv_heroAnduinTriggerRegistrationVariable < 0)) {
+        libHAND_gv_heroAnduinTriggerRegistrationVariable = 0;
+    }
+
+    if ((libHAND_gv_heroAnduinTriggerRegistrationVariable == 0)) {
+        TriggerEnable(libHAND_gt_HeroAnduinLeapofFaithCameraLock, false);
+        TriggerEnable(libHAND_gt_HeroAnduinBlessedRecoveryDamageCheck, false);
+    }
+
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Anduin - Leap of Faith Camera Lock
+//--------------------------------------------------------------------------------------------------
+bool libHAND_gt_HeroAnduinLeapofFaithCameraLock_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_player = UnitGetOwner(EventUnit());
+
+    // Conditions
+    if (testConds) {
+        if (!(((UnitGetOwner(EventUnit()) >= 1) && (UnitGetOwner(EventUnit()) <= 10) && (EventUnit() == libGame_gv_players[lv_player].lv_heroUnit) && (UnitIsAlive(EventUnit()) == true)))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGame_gf_PlayerHeroDisplacementCameraLock(EventUnit(), EventUnitBehavior());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHAND_gt_HeroAnduinLeapofFaithCameraLock_Init () {
+    libHAND_gt_HeroAnduinLeapofFaithCameraLock = TriggerCreate("libHAND_gt_HeroAnduinLeapofFaithCameraLock_Func");
+    TriggerEnable(libHAND_gt_HeroAnduinLeapofFaithCameraLock, false);
+    TriggerAddEventUnitBehaviorChange(libHAND_gt_HeroAnduinLeapofFaithCameraLock, null, "AnduinLeapOfFaithTargetUnstoppable", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Anduin - Blessed Recovery Damage Check
+//--------------------------------------------------------------------------------------------------
+bool libHAND_gt_HeroAnduinBlessedRecoveryDamageCheck_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_unit;
+    int lv_player;
+    fixed lv_damageTaken;
+    fixed lv_totalHealth;
+    fixed lv_percentDamageTaken;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_unit = EventUnit();
+    lv_player = UnitGetOwner(lv_unit);
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(lv_unit) == "HeroAnduin"))) {
+            return false;
+        }
+
+        if (!((PlayerHasTalent(lv_player, "AnduinBlessedRecovery") == true))) {
+            return false;
+        }
+
+        if (!((PlayerGetCooldown(lv_player, "Abil/AnduinBlessedRecovery") == 0.0))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_damageTaken = EventUnitDamageAmount();
+    lv_totalHealth = UnitGetPropertyFixed(lv_unit, c_unitPropLifeMax, c_unitPropCurrent);
+    lv_percentDamageTaken = (lv_damageTaken/lv_totalHealth);
+    if ((lv_percentDamageTaken > libHAND_gv_heroAnduinBlessedRecoveryConstant)) {
+        UnitBehaviorAdd(lv_unit, "AnduinBlessedRecoveryHoT", lv_unit, 1);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHAND_gt_HeroAnduinBlessedRecoveryDamageCheck_Init () {
+    libHAND_gt_HeroAnduinBlessedRecoveryDamageCheck = TriggerCreate("libHAND_gt_HeroAnduinBlessedRecoveryDamageCheck_Func");
+    TriggerEnable(libHAND_gt_HeroAnduinBlessedRecoveryDamageCheck, false);
+    TriggerAddEventUnitDamaged(libHAND_gt_HeroAnduinBlessedRecoveryDamageCheck, null, c_unitDamageTypeAny, c_unitDamageEither, null);
+}
+
+void libHAND_InitTriggers () {
+    libHAND_gt_HeroAnduinLeapofFaithCameraLock_Init();
+    libHAND_gt_HeroAnduinBlessedRecoveryDamageCheck_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libHAND_InitLib_completed = false;
+
+void libHAND_InitLib () {
+    if (libHAND_InitLib_completed) {
+        return;
+    }
+
+    libHAND_InitLib_completed = true;
+
+    libHAND_InitLibraries();
+    libHAND_InitVariables();
+    libHAND_InitTriggers();
+}
+
