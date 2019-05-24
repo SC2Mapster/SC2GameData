@@ -1235,6 +1235,9 @@ string libCOOC_gf_CC_CommanderConversationLink (string lp_characterInstance) {
     else if (autoBAA82F24_val == "ProtossZeratul") {
         return "char_ZeratulAC";
     }
+    else if (autoBAA82F24_val == "ZergStetmann") {
+        return "char_BelshirScientist";
+    }
     else {
     }
     return "char_TerranAdjutant";
@@ -1282,10 +1285,10 @@ text libCOOC_gf_CC_CommanderDescription (string lp_commander) {
     return UserDataGetText("PlayerCommanders", lp_commander, "Description", 1);
 }
 
-string libCOOC_gf_CC_CommanderVoiceOver (string lp_commander) {
+string libCOOC_gf_CC_CommanderDefaultVoicePack (string lp_commander) {
     // Automatic Variable Declarations
     // Implementation
-    return UserDataGetGameLink("PlayerCommanders", lp_commander, "VoiceOver", 1);
+    return UserDataGetGameLink("PlayerCommanders", lp_commander, "DefaultVoicePack", 1);
 }
 
 text libCOOC_gf_CC_CommanderInfoDetails (string lp_commander, int lp_detailIndex) {
@@ -1348,6 +1351,9 @@ string libCOOC_gf_CC_CommanderConvoTag (string lp_commander) {
     }
     else if (auto7BF4C060_val == "ProtossZeratul") {
         return "Zeratul";
+    }
+    else if (auto7BF4C060_val == "ZergStetmann") {
+        return "Stetmann";
     }
     else {
     }
@@ -1965,7 +1971,13 @@ void libCOOC_gf_CC_ApplyRaceTechTerran (int lp_player) {
 }
 
 void libCOOC_gf_CC_ApplyRaceTechZerg (int lp_player) {
+    // Variable Declarations
+    int lv_spawnCreepRadius;
+
     // Automatic Variable Declarations
+    // Variable Initialization
+    lv_spawnCreepRadius = UserDataGetInt("PlayerCommanders", libCOOC_gf_ActiveCommanderForPlayer(lp_player), "SpawnCreep", 1);
+
     // Implementation
     if ((libNtve_gf_PlayerInCinematicMode(lp_player) == true)) {
         libCOUI_gf_CU_GPShowHide(true, lp_player, c_transitionDurationImmediate);
@@ -1976,8 +1988,8 @@ void libCOOC_gf_CC_ApplyRaceTechZerg (int lp_player) {
     }
     libCOOC_gf_CC_KerriganApplyModelUpgrades(lp_player);
     libCOOC_gf_CC_ZergHeroApplyStatBonuses(lp_player, libCOOC_gf_CC_CommanderLevel(lp_player, libCOOC_gf_ActiveCommanderForPlayer(lp_player)));
-    if ((PlayerCommander(lp_player) != "Dehaka")) {
-        CreepModify(PlayerStartLocation(lp_player), 11.0, true, false);
+    if ((lv_spawnCreepRadius > 0)) {
+        CreepModify(PlayerStartLocation(lp_player), IntToFixed(lv_spawnCreepRadius), true, false);
     }
 
     UISetFrameVisible(PlayerGroupSingle(lp_player), c_syncFrameTypePylonButton, false);
@@ -3960,7 +3972,8 @@ void libCOOC_gf_EnableArcadeContestMode () {
 bool libCOOC_gf_GameIsContestLocalTest () {
     // Automatic Variable Declarations
     // Implementation
-    if ((libCOOC_gv_cC_InContestMap == true) && (GameIsOnline() == false) && (GameIsTestMap(false) == true) && (GameCheatsEnabled(c_gameCheatCategoryDevelopment) == false) && (GameMapIsBlizzard() == false)) {
+    if ((GameIsOnline() == false) && (GameIsTestMap(false) == true) && (GameCheatsEnabled(c_gameCheatCategoryDevelopment) == false) && (GameMapIsBlizzard() == false)) {
+        libCOOC_gv_cC_InContestMap = true;
         return true;
     }
     else {
@@ -4635,6 +4648,10 @@ void libCOOC_gf_CC_ScoreInit () {
         else if (auto03D684D9_val == "ProtossZeratul") {
             TriggerEnable(libCOOC_gt_CC_ScoreZeratulDmg, true);
             TriggerEnable(libCOOC_gt_CC_ScoreZeratulShieldRestore, true);
+        }
+        else if (auto03D684D9_val == "ZergStetmann") {
+            TriggerEnable(libCOOC_gt_CC_ScoreStetmannGaryDmg, true);
+            TriggerEnable(libCOOC_gt_CC_ScoreStetmannOverload, true);
         }
         else {
         }
@@ -7854,6 +7871,82 @@ void libCOOC_gt_CC_ScoreZeratulShieldRestore_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
+// Trigger: CC_ScoreStetmannGaryDmg
+//--------------------------------------------------------------------------------------------------
+bool libCOOC_gt_CC_ScoreStetmannGaryDmg_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((EventUnitDamageSourceUnit() != null))) {
+            return false;
+        }
+
+        if (!((PlayerGroupHasPlayer(libCOOC_gf_HumanPlayers(), EventUnitDamageSourcePlayer()) == true))) {
+            return false;
+        }
+
+        if (!(((UnitGetType(EventUnitDamageSourceUnit()) == "GaryStetmann") || (UnitGetType(EventUnitDamageSourceUnit()) == "SuperGaryStetmann")))) {
+            return false;
+        }
+
+        if (!((libNtve_gf_PlayerIsEnemy(EventUnitDamageSourcePlayer(), EventPlayer(), libNtve_ge_PlayerRelation_Enemy) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOOC_gv_cC_ScoreStetmannGaryDmg[EventUnitDamageSourcePlayer()] += EventUnitDamageAmount();
+    PlayerScoreValueSetFromInt(EventUnitDamageSourcePlayer(), "StetmannGaryDamage", FixedToInt(libCOOC_gv_cC_ScoreStetmannGaryDmg[EventUnitDamageSourcePlayer()]));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOOC_gt_CC_ScoreStetmannGaryDmg_Init () {
+    libCOOC_gt_CC_ScoreStetmannGaryDmg = TriggerCreate("libCOOC_gt_CC_ScoreStetmannGaryDmg_Func");
+    TriggerEnable(libCOOC_gt_CC_ScoreStetmannGaryDmg, false);
+    TriggerAddEventUnitDamaged(libCOOC_gt_CC_ScoreStetmannGaryDmg, null, c_unitDamageTypeAny, c_unitDamageEither, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CC_ScoreStetmannOverload
+//--------------------------------------------------------------------------------------------------
+bool libCOOC_gt_CC_ScoreStetmannOverload_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((EventPlayer() != c_playerAny))) {
+            return false;
+        }
+
+        if (!((PlayerGroupHasPlayer(libCOOC_gf_HumanPlayers(), EventPlayer()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOOC_gv_cC_ScoreStetmannOverload[EventPlayer()] += 1;
+    PlayerScoreValueSetFromInt(EventPlayer(), "StetmannUnitsOverloaded", libCOOC_gv_cC_ScoreStetmannOverload[EventPlayer()]);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOOC_gt_CC_ScoreStetmannOverload_Init () {
+    libCOOC_gt_CC_ScoreStetmannOverload = TriggerCreate("libCOOC_gt_CC_ScoreStetmannOverload_Func");
+    TriggerEnable(libCOOC_gt_CC_ScoreStetmannOverload, false);
+    TriggerAddEventPlayerEffectUsed(libCOOC_gt_CC_ScoreStetmannOverload, c_playerAny, "FASTOverloadStetmannAB");
+    TriggerAddEventPlayerEffectUsed(libCOOC_gt_CC_ScoreStetmannOverload, c_playerAny, "HUGSOverloadStetmannAB");
+    TriggerAddEventPlayerEffectUsed(libCOOC_gt_CC_ScoreStetmannOverload, c_playerAny, "JUICEOverloadStetmannAB");
+}
+
+//--------------------------------------------------------------------------------------------------
 // Trigger: CC_ScoreDebugDisplay
 //--------------------------------------------------------------------------------------------------
 bool libCOOC_gt_CC_ScoreDebugDisplay_Func (bool testConds, bool runActions) {
@@ -8043,6 +8136,8 @@ void libCOOC_InitTriggers () {
     libCOOC_gt_CC_ScoreTychusOdinDmg_Init();
     libCOOC_gt_CC_ScoreZeratulDmg_Init();
     libCOOC_gt_CC_ScoreZeratulShieldRestore_Init();
+    libCOOC_gt_CC_ScoreStetmannGaryDmg_Init();
+    libCOOC_gt_CC_ScoreStetmannOverload_Init();
     libCOOC_gt_CC_ScoreDebugDisplay_Init();
     libCOOC_gt_CC_ScoreEnemiesKilled_Init();
     libCOOC_gt_CC_ScoreDynDmgTaken_Init();
