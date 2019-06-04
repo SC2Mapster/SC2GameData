@@ -937,6 +937,12 @@ bool libCOMI_gf_CM_CoopAI_AttackWaveContainsPingworthyUnits (unitgroup lp_attack
     return false;
 }
 
+bool libCOMI_gf_CM_CoopAI_RandomMapInitAllowed (string lp_aIPersonality, string lp_aIRace) {
+    // Automatic Variable Declarations
+    // Implementation
+    return ((UserDataGetGameLink("CoopAICommanders", lp_aIPersonality, "Race", 1) == lp_aIRace) && (UserDataGetInt("CoopAICommanders", lp_aIPersonality, "RandomMapInitAllowed", 1) != 0));
+}
+
 void libCOMI_gf_StartCoopAI (int lp_player, int lp_aIPlayerEnemy) {
     // Variable Declarations
     string lv_aIPlayerRace;
@@ -1012,14 +1018,15 @@ void libCOMI_gf_StartCoopAI (int lp_player, int lp_aIPlayerEnemy) {
     }
     AIAddAirDangerCampaignUnits(lp_player);
     if ((libCOMI_gv_cM_CoopAIPlayer_CommanderShared == "None")) {
+        lv_aIPlayerRaceCompositionsCount = 0;
         auto887DFF49_ai = 1;
         auto887DFF49_ae = UserDataInstanceCount("CoopAICommanders")+1;
         while (auto887DFF49_ai < auto887DFF49_ae) {
             lv_aIPersonality = UserDataInstance("CoopAICommanders", auto887DFF49_ai);
             auto887DFF49_ai = auto887DFF49_ai+1;
-            if ((UserDataGetGameLink("CoopAICommanders", lv_aIPersonality, "Race", 1) == lv_aIPlayerRace)) {
+            if ((libCOMI_gf_CM_CoopAI_RandomMapInitAllowed(lv_aIPersonality, lv_aIPlayerRace) == true)) {
                 lv_aIPlayerRaceCompositionsCount += 1;
-                if ((RandomInt(1, lv_aIPlayerRaceCompositionsCount) <= lv_aIPlayerRaceCompositionsCount)) {
+                if ((RandomInt(1, lv_aIPlayerRaceCompositionsCount) == lv_aIPlayerRaceCompositionsCount)) {
                     libCOMI_gv_cM_CoopAIPlayer_Commander[lp_player] = lv_aIPersonality;
                 }
 
@@ -3368,7 +3375,10 @@ bool auto_libCOMI_gf_EnableDisableCoopAIWavePing_TriggerFunc (bool testConds, bo
     while (!((lp_attackWave == null))) {
         Wait(1.0, c_timeGame);
     }
-    libCOMI_gv_cM_CoopAI_DontPingWaves[lv_attackWavePlayerIterPrimary][lv_attackWavePingIterPrimary] = false;
+    if ((lv_attackWavePlayerIterPrimary >= 0) && (lv_attackWavePingIterPrimary >= 0)) {
+        libCOMI_gv_cM_CoopAI_DontPingWaves[lv_attackWavePlayerIterPrimary][lv_attackWavePingIterPrimary] = false;
+    }
+
     return true;
 }
 
@@ -6822,14 +6832,21 @@ bool libCOMI_gf_GameIsOver () {
 }
 
 void libCOMI_gf_RunMissionVictorySequence (trigger lp_victoryCinematic) {
+    // Variable Declarations
+    timer lv_maxWaitTimer;
+
     // Automatic Variable Declarations
+    // Variable Initialization
+    lv_maxWaitTimer = TimerCreate();
+
     // Implementation
+    TimerStart(lv_maxWaitTimer, 60.0, false, c_timeReal);
     libCOMI_gf_GameOver(libCOMI_ge_CampaignMissionGameResultType_Victory);
     TriggerQueueClear(c_triggerQueueRetain);
     TriggerQueuePause(false);
     libCOMI_gv_cM_MissionVictoryActionQueyeEmpty = false;
     TriggerExecute(libCOMI_gt_CM_MissionVictoryCallbackBlockActionQueueOneMinute, true, false);
-    while (!((libCOMI_gv_cM_MissionVictoryActionQueyeEmpty == true))) {
+    while (!(((libCOMI_gv_cM_MissionVictoryActionQueyeEmpty == true) || (TimerGetRemaining(lv_maxWaitTimer) <= 0.0)))) {
         Wait(1.0, c_timeGame);
     }
     TriggerQueueClear(c_triggerQueueKill);
@@ -9648,7 +9665,7 @@ bool auto_libCOMI_gf_CM_AbilityTransmission_StetelliteReminder_TriggerFunc (bool
     lv_abilchargename = "Abil/DeployPowerTowerStetmann";
     lv_pollinginterval = 1.0;
     lv_reminderdelay = 10.0;
-    lv_remindercooldown = 60.0;
+    lv_remindercooldown = 180.0;
     lv_remindercooldowntimer = TimerCreate();
 
     // Implementation
@@ -9697,7 +9714,7 @@ bool auto_libCOMI_gf_CM_AbilityTransmission_StetzoneReminder_TriggerFunc (bool t
 
     // Automatic Variable Declarations
     // Variable Initialization
-    lv_reminderdelay = (60 * 5);
+    lv_reminderdelay = (60 * 8);
 
     // Implementation
     Wait(lv_reminderdelay, c_timeGame);
@@ -17462,7 +17479,7 @@ bool libCOMI_gt_CM_Fenix_HeroKilled_Func (bool testConds, bool runActions) {
     libCOMI_gv_cM_Fenix_KillCount[UnitGetOwner(EventUnit())] = libNtve_gf_UnitGetPropertyKills(EventUnit(), c_unitPropCurrent);
     UnitCreateEffectUnit(libCOMI_gv_cM_SoACasterUnit[EventPlayer()], "SOASummonFenixHeroSummonCasterBehaviorCleanup", libCOMI_gv_cM_SoACasterUnit[EventPlayer()]);
     libCOUI_gv_cU_HeroExists[UnitGetOwner(EventUnit())][libCOMI_gv_cMC_Fenix_HeroIndex] = false;
-    if ((libNtve_gf_KillingUnit() == EventUnit()) && (libCOMI_gv_cM_Fenix_KilledSelf[lv_player] == false)) {
+    if ((libNtve_gf_KillingUnit() == EventUnit()) && (libCOMI_gv_cM_Fenix_KilledSelf[lv_player] == false) && (EventUnitDamageEffect() == "FenixSuicide")) {
         libCOMI_gv_cM_Fenix_KilledSelf[lv_player] = true;
         libCOMI_gv_cM_Fenix_KillCount[lv_player] += 1;
         TechTreeBehaviorAllow(lv_player, "FenixExplode", false);
@@ -30298,6 +30315,10 @@ bool libCOMI_gt_CM_GaryUpgradeReminder_Func (bool testConds, bool runActions) {
         }
 
         if (!((libCOMI_gf_EventStetmannPowerTowerTechLevel("StetmannPowerTowerTechLevelNew") == 2))) {
+            return false;
+        }
+
+        if (!((libCOOC_gf_CC_CommanderLevel(libCOMI_gf_EventStetmannPowerTowerPlayer(), "ZergStetmann") >= 15))) {
             return false;
         }
     }
