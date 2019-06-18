@@ -1061,7 +1061,7 @@ void libCOMI_gf_CM_StartCoopMissionMechanic (int lp_player, string lp_aICommande
 
     // Implementation
     libCOMI_gv_cM_CoopAIPlayer_Commander[lp_player] = lp_aICommander;
-    lv_aIPlayerRace = (CatalogFieldValueGet(c_gameCatalogUnit, UserDataGetUnit("CoopAICommanderTiers", UserDataGetUserInstance("CoopAICommanders", libCOMI_gv_cM_CoopAIPlayer_Commander[lp_player], "UnitTiers", 1), "PhaseUnits", 1), "Race", lp_player));
+    lv_aIPlayerRace = libCOOC_gf_CC_AIPersonalityRace(lp_aICommander);
     PlayerSetRace(lp_player, lv_aIPlayerRace);
     PlayerSetDifficulty(lp_player, libCOMI_gf_GetMissionDifficulty());
     PlayerGroupAdd(libCOMI_gv_cM_CoopAI_Players, lp_player);
@@ -2043,7 +2043,7 @@ void libCOMI_gf_CreateCoopAttackForceatLocationandWaitforthemtospawn2 (int lp_pl
     for ( ; ( (auto2AA98C2E_ai >= 0 && lv_unitTypeIter <= auto2AA98C2E_ae) || (auto2AA98C2E_ai < 0 && lv_unitTypeIter >= auto2AA98C2E_ae) ) ; lv_unitTypeIter += auto2AA98C2E_ai ) {
         lv_unitTypeToCreate = libCOMI_gf_CM_CoopAI_AttackForce_GetUnitType(lv_unitTypeIter);
         lv_unitCount = libCOMI_gf_CM_CoopAI_AttackForce_GetUnitTypeCount(lv_unitTypeIter);
-        while ((lv_unitCount > 0)) {
+        while ((lv_unitTypeToCreate != null) && (lv_unitCount > 0)) {
             autoE237A2DD_ae = PlayerGroupCount(lv_attackingPlayers);
             lv_playerIter = 1;
             for ( ; ( (autoE237A2DD_ai >= 0 && lv_playerIter <= autoE237A2DD_ae) || (autoE237A2DD_ai < 0 && lv_playerIter >= autoE237A2DD_ae) ) ; lv_playerIter += autoE237A2DD_ai ) {
@@ -2459,6 +2459,7 @@ void libCOMI_gf_CM_CoopAI_SetupCoopAttackForceDataTable (playergroup lp_attackFo
     string lv_randomUnitType;
     int lv_randomUnitTryCount;
     int lv_randomUnitIter;
+    bool lv_randomUnitFailsafeBreakout;
     bool lv_unitAvailableOnDifficulty;
     int lv_counterUnitTypeIndex;
     string[19] lv_counterTypes;
@@ -2621,46 +2622,43 @@ void libCOMI_gf_CM_CoopAI_SetupCoopAttackForceDataTable (playergroup lp_attackFo
 
         }
     }
-    while (true) {
-        if ((lv_waveResourceUsed < lv_waveResourceTotal)) {
-            if ((lv_randomUnitTryCount <= 100)) {
-                lv_unitPercentRandomPick = RandomFixed(0.01, lv_unitTypePercentRandom[lv_indexUnitType]);
-                auto91C8F413_ae = lv_indexUnitType;
-                lv_randomUnitIter = 1;
-                for ( ; ( (auto91C8F413_ai >= 0 && lv_randomUnitIter <= auto91C8F413_ae) || (auto91C8F413_ai < 0 && lv_randomUnitIter >= auto91C8F413_ae) ) ; lv_randomUnitIter += auto91C8F413_ai ) {
-                    if ((lv_unitTypePercentRandom[lv_randomUnitIter] > lv_unitPercentRandomPick) && (lv_unitTypePerWaveLimit[lv_randomUnitIter] > 0)) {
-                        lv_randomUnitType = lv_unitTypesForWave[lv_randomUnitIter];
-                        break;
-                    }
-
+    while ((lv_waveResourceUsed < lv_waveResourceTotal)) {
+        if ((lv_randomUnitTryCount <= 100)) {
+            lv_unitPercentRandomPick = RandomFixed(0.01, lv_unitTypePercentRandom[lv_indexUnitType]);
+            auto91C8F413_ae = lv_indexUnitType;
+            lv_randomUnitIter = 1;
+            for ( ; ( (auto91C8F413_ai >= 0 && lv_randomUnitIter <= auto91C8F413_ae) || (auto91C8F413_ai < 0 && lv_randomUnitIter >= auto91C8F413_ae) ) ; lv_randomUnitIter += auto91C8F413_ai ) {
+                if ((lv_unitTypePercentRandom[lv_randomUnitIter] > lv_unitPercentRandomPick) && (lv_unitTypePerWaveLimit[lv_randomUnitIter] > 0)) {
+                    lv_randomUnitType = lv_unitTypesForWave[lv_randomUnitIter];
+                    break;
                 }
-            }
-            else {
-                auto39559AED_ae = lv_indexUnitType;
-                lv_randomUnitIter = 1;
-                for ( ; ( (auto39559AED_ai >= 0 && lv_randomUnitIter <= auto39559AED_ae) || (auto39559AED_ai < 0 && lv_randomUnitIter >= auto39559AED_ae) ) ; lv_randomUnitIter += auto39559AED_ai ) {
-                    if ((lv_unitTypePercentRandom[lv_randomUnitIter] != 0.0) && (lv_unitTypePerWaveLimit[lv_randomUnitIter] > 0)) {
-                        lv_randomUnitType = lv_unitTypesForWave[lv_randomUnitIter];
-                        break;
-                    }
 
-                }
             }
-            if ((lv_randomUnitType == null)) {
-                lv_randomUnitTryCount += 1;
-                continue;
-            }
-
-            if ((lv_randomUnitType != null)) {
-                lv_waveResourceUsed += UnitTypeGetCost(lv_randomUnitType, c_unitCostSumMineralsVespene);
-                lv_unitTypePerWaveLimit[lv_randomUnitIter] -= 1;
-                libCOMI_gf_CM_CoopAI_AttackForce_AddUnitType(lv_randomUnitType, 1);
-            }
-
         }
         else {
-            TriggerDebugOutput(3, StringExternal("Param/Value/lib_COMI_29DD5D09"), libCOMI_gv_showAIDebugging);
+            lv_randomUnitFailsafeBreakout = true;
+            auto39559AED_ae = lv_indexUnitType;
+            lv_randomUnitIter = 1;
+            for ( ; ( (auto39559AED_ai >= 0 && lv_randomUnitIter <= auto39559AED_ae) || (auto39559AED_ai < 0 && lv_randomUnitIter >= auto39559AED_ae) ) ; lv_randomUnitIter += auto39559AED_ai ) {
+                if ((lv_unitTypePercentRandom[lv_randomUnitIter] != 0.0) && (lv_unitTypePerWaveLimit[lv_randomUnitIter] > 0)) {
+                    lv_randomUnitType = lv_unitTypesForWave[lv_randomUnitIter];
+                    break;
+                }
+
+            }
+        }
+        if ((lv_randomUnitFailsafeBreakout == true) && ((lv_randomUnitType == null) || (UnitTypeGetCost(lv_randomUnitType, c_unitCostSumMineralsVespene) <= 0))) {
+            TriggerDebugOutput(3, StringExternal("Param/Value/lib_COMI_6B70C116"), libCOMI_gv_showAIDebugging);
             break;
+        }
+        else if (((lv_randomUnitType == null) || (UnitTypeGetCost(lv_randomUnitType, c_unitCostSumMineralsVespene) <= 0))) {
+            lv_randomUnitTryCount += 1;
+            continue;
+        }
+        else if (true) {
+            lv_waveResourceUsed += UnitTypeGetCost(lv_randomUnitType, c_unitCostSumMineralsVespene);
+            lv_unitTypePerWaveLimit[lv_randomUnitIter] -= 1;
+            libCOMI_gf_CM_CoopAI_AttackForce_AddUnitType(lv_randomUnitType, 1);
         }
     }
 }
