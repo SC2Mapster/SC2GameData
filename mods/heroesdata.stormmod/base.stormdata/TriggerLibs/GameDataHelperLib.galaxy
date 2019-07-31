@@ -63,6 +63,9 @@ void libGDHL_InitVariables () {
     for (init_i = 0; init_i <= libCore_gv_bALMaxPlayers; init_i += 1) {
         libGDHL_gv_heroChenStormEarthFireUnits[init_i].lv_stormEarthFireUnits = UnitGroupEmpty();
     }
+    for (init_i = 0; init_i <= libCore_gv_bALMaxPlayers; init_i += 1) {
+        libGDHL_gv_heroChenStaggerDamageModification[init_i] = 0.75;
+    }
     libGDHL_gv_cruasder_ShieldGlarePathOfTheCrusade_DurationIncrease = 4.0;
     for (init_i = 0; init_i <= libCore_gv_bALMaxPlayers; init_i += 1) {
         libGDHL_gv_heroDemonHunterManticoreIncrementer[init_i] = 1;
@@ -854,6 +857,7 @@ void libGDHL_gf_HeroChenIncrementHeroCountFunction () {
     libGDHL_gv_heroChenTriggerRegistrationVariable += 1;
     if ((libGDHL_gv_heroChenTriggerRegistrationVariable == 1)) {
         TriggerEnable(libGDHL_gt_HeroChenWanderingKegActivate, true);
+        TriggerEnable(libGDHL_gt_HeroChenStormEarthFireTimedLifeIncrease, true);
         TriggerEnable(libGDHL_gt_HeroChenWanderingKegDeactivate, true);
         TriggerEnable(libGDHL_gt_HeroChenStormEarthAndFireStasis, true);
         TriggerEnable(libGDHL_gt_HeroChenStormEarthAndFireStasisCleanup, true);
@@ -865,6 +869,8 @@ void libGDHL_gf_HeroChenIncrementHeroCountFunction () {
         TriggerEnable(libGDHL_gt_HeroChenSwiftReflexesTalentMissed, true);
         TriggerEnable(libGDHL_gt_HeroChenFreshestIngredientsTalentProc, true);
         TriggerEnable(libGDHL_gt_HeroChenPurifyingBrewTalentProc, true);
+        TriggerEnable(libGDHL_gt_HeroChenStaggerDamageResponse, true);
+        TriggerEnable(libGDHL_gt_HeroChenStaggerDisplayUpdate, true);
     }
 
 }
@@ -879,6 +885,7 @@ void libGDHL_gf_HeroChenDecrementHeroCountFunction () {
 
     if ((libGDHL_gv_heroChenTriggerRegistrationVariable == 0)) {
         TriggerEnable(libGDHL_gt_HeroChenWanderingKegActivate, false);
+        TriggerEnable(libGDHL_gt_HeroChenStormEarthFireTimedLifeIncrease, false);
         TriggerEnable(libGDHL_gt_HeroChenWanderingKegDeactivate, false);
         TriggerEnable(libGDHL_gt_HeroChenStormEarthAndFireStasis, false);
         TriggerEnable(libGDHL_gt_HeroChenStormEarthAndFireStasisCleanup, false);
@@ -890,6 +897,8 @@ void libGDHL_gf_HeroChenDecrementHeroCountFunction () {
         TriggerEnable(libGDHL_gt_HeroChenSwiftReflexesTalentMissed, false);
         TriggerEnable(libGDHL_gt_HeroChenFreshestIngredientsTalentProc, false);
         TriggerEnable(libGDHL_gt_HeroChenPurifyingBrewTalentProc, false);
+        TriggerEnable(libGDHL_gt_HeroChenStaggerDamageResponse, false);
+        TriggerEnable(libGDHL_gt_HeroChenStaggerDisplayUpdate, false);
     }
 
 }
@@ -8129,6 +8138,45 @@ void libGDHL_gt_HeroChenWanderingKegDeactivate_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Chen - Storm Earth Fire Timed Life Increase
+//--------------------------------------------------------------------------------------------------
+bool libGDHL_gt_HeroChenStormEarthFireTimedLifeIncrease_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_chen;
+    int lv_chenOwner;
+
+    // Automatic Variable Declarations
+    unitgroup autoCC30ED76_g;
+    int autoCC30ED76_u;
+    unit autoCC30ED76_var;
+
+    // Variable Initialization
+    lv_chen = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_chenOwner = UnitGetOwner(lv_chen);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(lv_chen, "ChenStormStormEarthFireEmpoweredCastModifyTimedLifeChenUnit", lv_chen);
+    autoCC30ED76_g = libGDHL_gv_heroChenStormEarthFireUnits[lv_chenOwner].lv_stormEarthFireUnits;
+    autoCC30ED76_u = UnitGroupCount(autoCC30ED76_g, c_unitCountAll);
+    for (;; autoCC30ED76_u -= 1) {
+        autoCC30ED76_var = UnitGroupUnitFromEnd(autoCC30ED76_g, autoCC30ED76_u);
+        if (autoCC30ED76_var == null) { break; }
+        UnitCreateEffectUnit(lv_chen, "ChenStormStormEarthFireEmpoweredCastModifyTimedLife", autoCC30ED76_var);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGDHL_gt_HeroChenStormEarthFireTimedLifeIncrease_Init () {
+    libGDHL_gt_HeroChenStormEarthFireTimedLifeIncrease = TriggerCreate("libGDHL_gt_HeroChenStormEarthFireTimedLifeIncrease_Func");
+    TriggerAddEventPlayerEffectUsed(libGDHL_gt_HeroChenStormEarthFireTimedLifeIncrease, c_playerAny, "ChenStormStormEarthFireEmpoweredCastModifyTimedLifeDummy");
+}
+
+//--------------------------------------------------------------------------------------------------
 // Trigger: Hero - Chen - Storm Earth And Fire Stasis
 //--------------------------------------------------------------------------------------------------
 bool libGDHL_gt_HeroChenStormEarthAndFireStasis_Func (bool testConds, bool runActions) {
@@ -8244,6 +8292,7 @@ bool libGDHL_gt_HeroChenStormEarthFireActivatedNew_Func (bool testConds, bool ru
     libGDHL_gv_heroChenStormEarthFireFatalDamageResponseCounter[lv_chenPlayer] = 0;
     UnitCreate(1, "HeroChenStorm", 0, lv_chenPlayer, PointWithOffsetPolar(UnitGetPosition(lv_chen), 1.5, 0.0), 0.0, lv_chen);
     UnitBehaviorAdd(UnitLastCreated(), "StormEarthFireTimedLife", lv_chen, 1);
+    UnitBehaviorAdd(lv_chen, "ChenStormEarthFireStormAbilityDisable", UnitLastCreated(), 1);
     UnitGroupAdd(libGDHL_gv_heroChenStormEarthFireUnits[lv_chenPlayer].lv_stormEarthFireUnits, UnitLastCreated());
     UnitGroupAdd(libGame_gv_players[lv_chenPlayer].lv_heroUnitGroup, UnitLastCreated());
     UnitGroupAdd(libGame_gv_players[lv_chenPlayer].lv_altClickPartyFrameAnnouncementUnitGroup, UnitLastCreated());
@@ -8251,12 +8300,14 @@ bool libGDHL_gt_HeroChenStormEarthFireActivatedNew_Func (bool testConds, bool ru
     libGDHL_gv_heroChenStormEarthFireUnits[lv_chenPlayer].lv_controlStoreUnit = UnitLastCreated();
     UnitCreate(1, "HeroChenEarth", 0, lv_chenPlayer, PointWithOffsetPolar(UnitGetPosition(lv_chen), 1.5, 120.0), 120.0, lv_chen);
     UnitBehaviorAdd(UnitLastCreated(), "StormEarthFireTimedLife", lv_chen, 1);
+    UnitBehaviorAdd(lv_chen, "ChenStormEarthFireEarthAbilityDisable", UnitLastCreated(), 1);
     UnitGroupAdd(libGDHL_gv_heroChenStormEarthFireUnits[lv_chenPlayer].lv_stormEarthFireUnits, UnitLastCreated());
     UnitGroupAdd(libGame_gv_players[lv_chenPlayer].lv_heroUnitGroup, UnitLastCreated());
     UnitGroupAdd(libGame_gv_players[lv_chenPlayer].lv_altClickPartyFrameAnnouncementUnitGroup, UnitLastCreated());
     AIAddPlayerUnit(UnitLastCreated());
     UnitCreate(1, "HeroChenFire", 0, lv_chenPlayer, PointWithOffsetPolar(UnitGetPosition(lv_chen), 1.5, 240.0), 240.0, lv_chen);
     UnitBehaviorAdd(UnitLastCreated(), "StormEarthFireTimedLife", lv_chen, 1);
+    UnitBehaviorAdd(lv_chen, "ChenStormEarthFireFireAbilityDisable", UnitLastCreated(), 1);
     UnitGroupAdd(libGDHL_gv_heroChenStormEarthFireUnits[lv_chenPlayer].lv_stormEarthFireUnits, UnitLastCreated());
     UnitGroupAdd(libGame_gv_players[lv_chenPlayer].lv_heroUnitGroup, UnitLastCreated());
     UnitGroupAdd(libGame_gv_players[lv_chenPlayer].lv_altClickPartyFrameAnnouncementUnitGroup, UnitLastCreated());
@@ -8503,6 +8554,7 @@ void libGDHL_gt_HeroChenExpirationCleanup_Init () {
 bool libGDHL_gt_HeroChenStormEarthFireEarthAbility_Func (bool testConds, bool runActions) {
     // Variable Declarations
     int lv_chenPlayer;
+    unit lv_Chen;
     fixed lv_maxJumpRange;
     point lv_playerTargetPoint;
     fixed lv_distanceFromSpiritToPlayerTargetPoint;
@@ -8517,14 +8569,15 @@ bool libGDHL_gt_HeroChenStormEarthFireEarthAbility_Func (bool testConds, bool ru
     unit autoC170BB9F_var;
 
     // Variable Initialization
-    lv_maxJumpRange = 7.0;
+    lv_chenPlayer = EventPlayerEffectUsedUnitOwner(c_effectPlayerCaster);
+    lv_Chen = libGame_gv_players[lv_chenPlayer].lv_heroUnit;
+    lv_maxJumpRange = 9.5;
 
     // Actions
     if (!runActions) {
         return true;
     }
 
-    lv_chenPlayer = EventPlayerEffectUsedUnitOwner(c_effectPlayerCaster);
     lv_playerTargetPoint = EventPlayerEffectUsedPoint(c_effectLocationTargetPoint);
     lv_closestElementPoint = UnitGetPosition(UnitGroupClosestToPoint(libGDHL_gv_heroChenStormEarthFireUnits[lv_chenPlayer].lv_stormEarthFireUnits, lv_playerTargetPoint));
     lv_distanceFromSpiritToPlayerTargetPoint = DistanceBetweenPoints(lv_closestElementPoint, lv_playerTargetPoint);
@@ -8542,6 +8595,10 @@ bool libGDHL_gt_HeroChenStormEarthFireEarthAbility_Func (bool testConds, bool ru
         autoC170BB9F_var = UnitGroupUnitFromEnd(autoC170BB9F_g, autoC170BB9F_u);
         if (autoC170BB9F_var == null) { break; }
         if ((UnitGetType(autoC170BB9F_var) != "HeroChenStorm")) {
+            if (((UnitBehaviorCount(lv_Chen, "ChenStormEarthFireStackingBehaviorEmpoweredFinalAbilityCast") == 2) || (PlayerHasTalent(lv_chenPlayer, "ChenElementalConduit") == true))) {
+                UnitCreateEffectUnit(autoC170BB9F_var, "ChenEarthStormEarthFireDummyLeapEmpoweredBonusesApplyBehavior", autoC170BB9F_var);
+            }
+
             while ((PointPathingPassable(lv_actualTargetPoint) == false)) {
                 lv_modifiedDistance -= 0.125;
                 lv_actualTargetPoint = libNtve_gf_PointOffsetTowardsPoint(lv_closestElementPoint, lv_modifiedDistance, lv_playerTargetPoint);
@@ -8555,6 +8612,7 @@ bool libGDHL_gt_HeroChenStormEarthFireEarthAbility_Func (bool testConds, bool ru
         }
 
     }
+    UnitCreateEffectUnit(lv_Chen, "EmpoweredStormEarthFireStackingBehaviorEmpoweredFinalAbilityCastApplyBehavior", lv_Chen);
     return true;
 }
 
@@ -8752,6 +8810,143 @@ void libGDHL_gt_HeroChenPurifyingBrewTalentProc_Init () {
     TriggerAddEventUnitBehaviorChangeFromCategory(libGDHL_gt_HeroChenPurifyingBrewTalentProc, null, c_behaviorCategoryStun, c_unitBehaviorChangeRefresh);
     TriggerAddEventUnitBehaviorChangeFromCategory(libGDHL_gt_HeroChenPurifyingBrewTalentProc, null, c_behaviorCategoryDebuffSilence, c_unitBehaviorChangeCreate);
     TriggerAddEventUnitBehaviorChangeFromCategory(libGDHL_gt_HeroChenPurifyingBrewTalentProc, null, c_behaviorCategoryDebuffSilence, c_unitBehaviorChangeRefresh);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Chen Stagger Gift Of The Ox Talent Damage Modification
+//--------------------------------------------------------------------------------------------------
+bool libGDHL_gt_HeroChenStaggerGiftOfTheOxTalentDamageModification_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_player = libGame_gf_HeroGainTalentPlayer();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(libGame_gv_players[lv_player].lv_heroUnit) == "HeroChen"))) {
+            return false;
+        }
+
+        if (!((PlayerHasTalent(lv_player, "ChenGiftOfTheOxStagger") == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGDHL_gv_heroChenStaggerDamageModification[lv_player] = 0.6;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGDHL_gt_HeroChenStaggerGiftOfTheOxTalentDamageModification_Init () {
+    libGDHL_gt_HeroChenStaggerGiftOfTheOxTalentDamageModification = TriggerCreate("libGDHL_gt_HeroChenStaggerGiftOfTheOxTalentDamageModification_Func");
+    libGame_gf_HeroGainTalent(libGDHL_gt_HeroChenStaggerGiftOfTheOxTalentDamageModification);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Chen Stagger Gift Of The Ox Talent Damage Modification Reset
+//--------------------------------------------------------------------------------------------------
+bool libGDHL_gt_HeroChenStaggerGiftOfTheOxTalentDamageModificationReset_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_player = libGame_gf_HeroRespecsTalentsPlayer();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(libGame_gv_players[lv_player].lv_heroUnit) == "HeroChen"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGDHL_gv_heroChenStaggerDamageModification[lv_player] = 0.75;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGDHL_gt_HeroChenStaggerGiftOfTheOxTalentDamageModificationReset_Init () {
+    libGDHL_gt_HeroChenStaggerGiftOfTheOxTalentDamageModificationReset = TriggerCreate("libGDHL_gt_HeroChenStaggerGiftOfTheOxTalentDamageModificationReset_Func");
+    libGame_gf_HeroRespecsTalents(libGDHL_gt_HeroChenStaggerGiftOfTheOxTalentDamageModificationReset);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Chen - Stagger Damage Response
+//--------------------------------------------------------------------------------------------------
+bool libGDHL_gt_HeroChenStaggerDamageResponse_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_chen;
+    int lv_chenOwner;
+    fixed lv_damageTaken;
+    int lv_damageTakenInteger;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_chen = EventUnit();
+    lv_chenOwner = UnitGetOwner(lv_chen);
+    lv_damageTaken = (EventUnitDamageAbsorbed() * libGDHL_gv_heroChenStaggerDamageModification[lv_chenOwner]);
+    lv_damageTakenInteger = FixedToInt(lv_damageTaken);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGame_gf_ModifyTokenCount(lv_damageTakenInteger, "ChenStaggerTokenCounter", lv_chen);
+    libGame_gf_ModifyTokenCount(lv_damageTakenInteger, "ChenStaggerDisplayTokenCounter", lv_chen);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGDHL_gt_HeroChenStaggerDamageResponse_Init () {
+    libGDHL_gt_HeroChenStaggerDamageResponse = TriggerCreate("libGDHL_gt_HeroChenStaggerDamageResponse_Func");
+    TriggerEnable(libGDHL_gt_HeroChenStaggerDamageResponse, false);
+    TriggerAddEventUnitDamageAbsorbed(libGDHL_gt_HeroChenStaggerDamageResponse, null, "ChenStaggerProtectedBuff");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Chen - Stagger Display Update
+//--------------------------------------------------------------------------------------------------
+bool libGDHL_gt_HeroChenStaggerDisplayUpdate_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_chen;
+    int lv_chenOwner;
+    fixed lv_damageTaken;
+    int lv_damageTakenInteger;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_chen = EventUnit();
+    lv_chenOwner = UnitGetOwner(lv_chen);
+    lv_damageTaken = EventUnitDamageAttempted();
+    lv_damageTakenInteger = FixedToInt((lv_damageTaken * -1.0));
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGame_gf_ModifyTokenCount(lv_damageTakenInteger, "ChenStaggerDisplayTokenCounter", lv_chen);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGDHL_gt_HeroChenStaggerDisplayUpdate_Init () {
+    libGDHL_gt_HeroChenStaggerDisplayUpdate = TriggerCreate("libGDHL_gt_HeroChenStaggerDisplayUpdate_Func");
+    TriggerEnable(libGDHL_gt_HeroChenStaggerDisplayUpdate, false);
+    TriggerAddEventUnitDamaged(libGDHL_gt_HeroChenStaggerDisplayUpdate, null, c_unitDamageTypeAny, c_unitDamageEither, "ChenStaggerDoTDamage");
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -26252,6 +26447,7 @@ void libGDHL_InitTriggers () {
     libGDHL_gt_HeroChenWanderingKegActivate_Init();
     libGDHL_gt_HeroChenWanderingKegMoveTracker_Init();
     libGDHL_gt_HeroChenWanderingKegDeactivate_Init();
+    libGDHL_gt_HeroChenStormEarthFireTimedLifeIncrease_Init();
     libGDHL_gt_HeroChenStormEarthAndFireStasis_Init();
     libGDHL_gt_HeroChenStormEarthAndFireStasisCleanup_Init();
     libGDHL_gt_HeroChenStormEarthFireActivatedNew_Init();
@@ -26262,6 +26458,10 @@ void libGDHL_InitTriggers () {
     libGDHL_gt_HeroChenSwiftReflexesTalentMissed_Init();
     libGDHL_gt_HeroChenFreshestIngredientsTalentProc_Init();
     libGDHL_gt_HeroChenPurifyingBrewTalentProc_Init();
+    libGDHL_gt_HeroChenStaggerGiftOfTheOxTalentDamageModification_Init();
+    libGDHL_gt_HeroChenStaggerGiftOfTheOxTalentDamageModificationReset_Init();
+    libGDHL_gt_HeroChenStaggerDamageResponse_Init();
+    libGDHL_gt_HeroChenStaggerDisplayUpdate_Init();
     libGDHL_gt_CrusaderFallingSwordTeleport_Init();
     libGDHL_gt_CrusaderFallingSwordFinalSet_Init();
     libGDHL_gt_CrusaderFallingSwordSuppressCollision_Init();
