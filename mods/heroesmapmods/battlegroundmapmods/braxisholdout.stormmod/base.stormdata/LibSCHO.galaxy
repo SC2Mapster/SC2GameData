@@ -50,10 +50,8 @@ void libSCHO_InitVariables () {
     for (init_i = 0; init_i <= 6; init_i += 1) {
         libSCHO_gv_mMHO_Factory_Timer[init_i].lv_animationTimer = TimerCreate();
     }
-    libSCHO_gv_mMHO_FreeZerglingCount_C = 10;
-    libSCHO_gv_mMHO_FreeHydraliskCount_C = 2;
+    libSCHO_gv_mMHO_FreeZerglingCount_C = 4;
     libSCHO_gv_mMHO_FreeUltraliskCount_C = 1;
-    libSCHO_gv_mMHO_FreeGuardianCount_C = 1;
     libSCHO_gv_mMHO_ChaosUltralisks = UnitGroupEmpty();
     libSCHO_gv_mMHO_OrderUltralisks = UnitGroupEmpty();
     for (init_i = 0; init_i <= 2; init_i += 1) {
@@ -72,6 +70,9 @@ void libSCHO_InitVariables () {
     libSCHO_gv_mMHO_Elevator.lv_elevatorRaiseTimer = TimerCreate();
     libSCHO_gv_mMHO_Elevator.lv_elevatorLowerTimer = TimerCreate();
     libSCHO_gv_mMHO_Elevator.lv_elevatorWasLowered = true;
+    for (init_i = 0; init_i <= libCore_gv_bALMaxTeams; init_i += 1) {
+        libSCHO_gv_zergDropPodCooldowns[init_i] = TimerCreate();
+    }
     for (init_i = 0; init_i <= libCore_gv_bALMaxTeams; init_i += 1) {
         libSCHO_gv_mMHO_ReminderTransmissions[init_i] = c_invalidTransmissionId;
     }
@@ -232,7 +233,7 @@ void libSCHO_gf_MMHOInitializeHiveControlCapturePoints () {
     libSCHO_gv_beaconUnitTop = UnitLastCreated();
     libNtve_gf_SendActorMessageToUnit(libSCHO_gv_beaconUnitTop, "MinimapIcon Assets\\Textures\\storm_ui_minimapicon_beacon_right.dds");
     libSCHO_gv_mMHO_HiveControlBeacons[lv_controlBeacons].lv_beaconUnit = UnitLastCreated();
-    libGame_gf_CapturePointCreate(UnitLastCreated(), libSCHO_gv_mMHO_CapturePointRadius_C, libSCHO_gv_mMHO_CapturePointCaptureTime_C, 0.0, libGame_ge_CapturePointDecay_Neutral, libGame_ge_CapturePointDecay_Owner, false);
+    libGame_gf_CapturePointCreate(UnitLastCreated(), libSCHO_gv_mMHO_CapturePointRadius_C, libSCHO_gv_mMHO_CapturePointCaptureTime_C, 0.0, libGame_ge_CapturePointDecay_DoNotDecay, libGame_ge_CapturePointDecay_Owner, true);
     libSCHO_gv_mMHO_HiveControlBeacons[lv_controlBeacons].lv_controlBeaconIndex = libGame_gf_LastCreatedCapturePoint();
     libGame_gf_CapturePointDisable(libGame_gf_LastCreatedCapturePoint());
     lv_controlBeacons += 1;
@@ -240,7 +241,7 @@ void libSCHO_gf_MMHOInitializeHiveControlCapturePoints () {
     libSCHO_gv_beaconUnitBottom = UnitLastCreated();
     libNtve_gf_SendActorMessageToUnit(libSCHO_gv_beaconUnitBottom, "MinimapIcon Assets\\Textures\\storm_ui_minimapicon_beacon_left.dds");
     libSCHO_gv_mMHO_HiveControlBeacons[lv_controlBeacons].lv_beaconUnit = UnitLastCreated();
-    libGame_gf_CapturePointCreate(UnitLastCreated(), libSCHO_gv_mMHO_CapturePointRadius_C, libSCHO_gv_mMHO_CapturePointCaptureTime_C, 0.0, libGame_ge_CapturePointDecay_Neutral, libGame_ge_CapturePointDecay_Owner, false);
+    libGame_gf_CapturePointCreate(UnitLastCreated(), libSCHO_gv_mMHO_CapturePointRadius_C, libSCHO_gv_mMHO_CapturePointCaptureTime_C, 0.0, libGame_ge_CapturePointDecay_DoNotDecay, libGame_ge_CapturePointDecay_Owner, true);
     libSCHO_gv_mMHO_HiveControlBeacons[lv_controlBeacons].lv_controlBeaconIndex = libGame_gf_LastCreatedCapturePoint();
     libGame_gf_CapturePointDisable(libGame_gf_LastCreatedCapturePoint());
 }
@@ -535,7 +536,6 @@ void libSCHO_gf_MMHOHiveCageFullyCharged () {
     libSCHO_gf_MMHOCleanUpRemainingUltralisks();
     libSCHO_gf_MMHOControlSlabAnimationProgressReached100();
     Wait(1.5, c_timeGame);
-    libSCHO_gf_MMHOCalculateZergTotalHP(true);
     DialogControlSendAnimationEvent(libSCHO_gv_mMHOPanel.lv_beaconProgressHPBarAnimFrame[1][1], PlayerGroupAll(), "BarsReset");
     DialogControlSendAnimationEvent(libSCHO_gv_mMHOPanel.lv_beaconProgressHPBarAnimFrame[1][2], PlayerGroupAll(), "BarsReset");
     DialogControlSendAnimationEvent(libSCHO_gv_mMHOPanel.lv_beaconProgressHPBarAnimFrame[2][1], PlayerGroupAll(), "BarsReset");
@@ -547,6 +547,7 @@ void libSCHO_gf_MMHOHiveCageFullyCharged () {
         libSCHO_gf_MMHOUpdateZergMinimapIcons(lv_index);
     }
     libSCHO_gf_MMHORemoveStasisBehaviorFromZerg();
+    libSCHO_gf_MMHOCalculateZergTotalHP(true);
     libSCHO_gf_MMHOInitializeZergPath();
     libSCHO_gf_MMHOTransmissionZergAttacking();
     libSCHO_gf_MMHOZergAttackFinishedMonitorWait();
@@ -1645,13 +1646,8 @@ void libSCHO_gf_MMHOGrantFreeZergUnits (int lp_team) {
     libNtve_gf_CreateUnitsAtPoint2(libSCHO_gv_mMHO_FreeHydraliskCount_C, "ZergHydralisk", c_unitCreateIgnorePlacement, lv_owner, RegionRandomPoint(lv_spawnRegion), libGame_gv_teams[lp_team].lv_core);
     UnitGroupAddUnitGroup(lv_freeZergUnitsGroup, UnitLastCreatedGroup());
 
-    if ((lp_team == libGame_gv_teamOrderIndex_C)) {
-        UnitGroupAdd(lv_freeZergUnitsGroup, UnitGroupUnit(libSCHO_gv_mMHO_OrderUltralisks, 1));
-    }
-    else {
-        UnitGroupAdd(lv_freeZergUnitsGroup, UnitGroupUnit(libSCHO_gv_mMHO_ChaosUltralisks, 1));
-    }
-    libSCHO_gf_MMHOActivateUltraliskForTeam(lv_moveTargetLocation, lp_team);
+    libNtve_gf_CreateUnitsAtPoint2(libSCHO_gv_mMHO_FreeUltraliskCount_C, "ZergUltralisk", c_unitCreateIgnorePlacement, lv_owner, RegionRandomPoint(lv_spawnRegion), libGame_gv_teams[lp_team].lv_core);
+    UnitGroupAddUnitGroup(lv_freeZergUnitsGroup, UnitLastCreatedGroup());
 
     libNtve_gf_CreateUnitsAtPoint2(libSCHO_gv_mMHO_FreeGuardianCount_C, "ZergGuardian", c_unitCreateIgnorePlacement, lv_owner, RegionRandomPoint(lv_spawnRegion), libGame_gv_teams[lp_team].lv_core);
     UnitGroupAdd(lv_freeZergUnitsGroup, UnitLastCreated());
@@ -1665,7 +1661,6 @@ void libSCHO_gf_MMHOGrantFreeZergUnits (int lp_team) {
         UnitBehaviorAdd(lv_itUnit, "ZergStasisBehavior", lv_itUnit, 1);
         libAIAI_gf_MinionAIUnhookUnitFromMinionAI(lv_itUnit);
         UnitIssueOrder(lv_itUnit, OrderTargetingPoint(AbilityCommand("move", 0), PointWithOffsetPolar(lv_moveTargetLocation, RandomInt(0, 3), RandomFixed(0.0, 360.0))), c_orderQueueReplace);
-        UnitXPAddXP(lv_itUnit, null, libSCHO_gv_mMHO_ScalingLevel);
     }
 }
 
@@ -1707,11 +1702,9 @@ void libSCHO_gf_MMHOModifySpawnProgressVariables (int lp_team) {
     if ((libSCHO_gv_mMHO_TeamProgress[lp_team] <= libSCHO_gv_mMHO_ZerglingBanelingConversionPoint_C)) {
         libSCHO_gv_mMHO_SpawnProgressTracker[lp_team].lv_zerglingCount += libSCHO_gv_mMHO_ControlBeaconProgressIncrement_C;
     }
-
-    if ((libSCHO_gv_mMHO_TeamProgress[lp_team] > libSCHO_gv_mMHO_ZerglingBanelingConversionPoint_C)) {
+    else {
         libSCHO_gv_mMHO_SpawnProgressTracker[lp_team].lv_banelingCount += libSCHO_gv_mMHO_ControlBeaconProgressIncrement_C;
     }
-
     libSCHO_gv_mMHO_SpawnProgressTracker[lp_team].lv_hydraliskCount += libSCHO_gv_mMHO_ControlBeaconProgressIncrement_C;
     libSCHO_gv_mMHO_SpawnProgressTracker[lp_team].lv_guardianCount += libSCHO_gv_mMHO_ControlBeaconProgressIncrement_C;
     libSCHO_gv_mMHO_SpawnProgressTracker[lp_team].lv_ultraliskCount += libSCHO_gv_mMHO_ControlBeaconProgressIncrement_C;
@@ -1841,7 +1834,6 @@ void libSCHO_gf_MMHODetermineSpawnCompositionBasedOnProgress (int lp_team, regio
         UnitBehaviorAdd(UnitLastCreated(), "ZergStasisBehavior", UnitLastCreated(), 1);
         libAIAI_gf_MinionAIUnhookUnitFromMinionAI(UnitLastCreated());
         UnitIssueOrder(UnitLastCreated(), OrderTargetingPoint(AbilityCommand("move", 0), lv_moveTargetLocation), c_orderQueueReplace);
-        UnitXPAddXP(UnitLastCreated(), null, libSCHO_gv_mMHO_ScalingLevel);
     }
     auto5E17FE95_ae = lv_banelingSpawnCount;
     auto5E17FE95_var = 1;
@@ -1851,7 +1843,6 @@ void libSCHO_gf_MMHODetermineSpawnCompositionBasedOnProgress (int lp_team, regio
         UnitBehaviorAdd(UnitLastCreated(), "ZergStasisBehavior", UnitLastCreated(), 1);
         libAIAI_gf_MinionAIUnhookUnitFromMinionAI(UnitLastCreated());
         UnitIssueOrder(UnitLastCreated(), OrderTargetingPoint(AbilityCommand("move", 0), lv_moveTargetLocation), c_orderQueueReplace);
-        UnitXPAddXP(UnitLastCreated(), null, libSCHO_gv_mMHO_ScalingLevel);
     }
     auto9A188936_ae = lv_hydraliskSpawnCount;
     auto9A188936_var = 1;
@@ -1861,7 +1852,6 @@ void libSCHO_gf_MMHODetermineSpawnCompositionBasedOnProgress (int lp_team, regio
         UnitBehaviorAdd(UnitLastCreated(), "ZergStasisBehavior", UnitLastCreated(), 1);
         libAIAI_gf_MinionAIUnhookUnitFromMinionAI(UnitLastCreated());
         UnitIssueOrder(UnitLastCreated(), OrderTargetingPoint(AbilityCommand("move", 0), lv_moveTargetLocation), c_orderQueueReplace);
-        UnitXPAddXP(UnitLastCreated(), null, libSCHO_gv_mMHO_ScalingLevel);
     }
     auto34093CCA_ae = lv_guardianSpawnCount;
     auto34093CCA_var = 1;
@@ -1871,7 +1861,6 @@ void libSCHO_gf_MMHODetermineSpawnCompositionBasedOnProgress (int lp_team, regio
         UnitBehaviorAdd(UnitLastCreated(), "ZergStasisBehavior", UnitLastCreated(), 1);
         libAIAI_gf_MinionAIUnhookUnitFromMinionAI(UnitLastCreated());
         UnitIssueOrder(UnitLastCreated(), OrderTargetingPoint(AbilityCommand("move", 0), lv_moveTargetLocation), c_orderQueueReplace);
-        UnitXPAddXP(UnitLastCreated(), null, libSCHO_gv_mMHO_ScalingLevel);
     }
     autoE6DF77C6_ae = lv_ultraliskSpawnCount;
     autoE6DF77C6_var = 1;
@@ -1962,7 +1951,6 @@ void libSCHO_gf_MMHOActivateUltraliskForTeam (point lp_targetLocation, int lp_te
     libNtve_gf_SendActorMessageToUnit(lv_ultraliskToActivate, "StatusSet Released 1");
     UnitGroupAdd(libSCHO_gv_mMHO_AttackGroups[lp_team][libSCHO_gv_mMHO_WaveTracker], lv_ultraliskToActivate);
     UnitIssueOrder(lv_ultraliskToActivate, OrderTargetingPoint(AbilityCommand("move", 0), lp_targetLocation), c_orderQueueReplace);
-    UnitXPAddXP(lv_ultraliskToActivate, null, libSCHO_gv_mMHO_ScalingLevel);
 }
 
 void libSCHO_gf_MMHOCleanUpRemainingUltralisks () {
@@ -2015,6 +2003,7 @@ void libSCHO_gf_MMHORemoveStasisBehaviorFromZerg () {
         lv_itUnit = UnitGroupUnitFromEnd(auto04A65BF4_g, auto04A65BF4_u);
         if (lv_itUnit == null) { break; }
         UnitBehaviorRemove(lv_itUnit, "ZergStasisBehavior", 1);
+        UnitXPAddXP(lv_itUnit, null, libSCHO_gv_mMHO_ScalingLevel);
     }
     auto62836594_g = libSCHO_gv_mMHO_AttackGroups[libGame_gv_teamChaosIndex_C][libSCHO_gv_mMHO_WaveTracker];
     auto62836594_u = UnitGroupCount(auto62836594_g, c_unitCountAll);
@@ -2022,6 +2011,7 @@ void libSCHO_gf_MMHORemoveStasisBehaviorFromZerg () {
         lv_itUnit = UnitGroupUnitFromEnd(auto62836594_g, auto62836594_u);
         if (lv_itUnit == null) { break; }
         UnitBehaviorRemove(lv_itUnit, "ZergStasisBehavior", 1);
+        UnitXPAddXP(lv_itUnit, null, libSCHO_gv_mMHO_ScalingLevel);
     }
 }
 
@@ -2072,7 +2062,6 @@ void libSCHO_gf_MMHOSpawnZerglingsBanelings (int lp_attackLane, int lp_team, reg
     for ( ; ( (auto83859561_ai >= 0 && lv_itZergling <= auto83859561_ae) || (auto83859561_ai < 0 && lv_itZergling >= auto83859561_ae) ) ; lv_itZergling += auto83859561_ai ) {
         libNtve_gf_CreateUnitsWithDefaultFacing(1, "ZergZergling", 0, libGame_gf_ComputerPlayerInTeam(lp_team), RegionRandomPoint(lp_spawnRegion), null);
         UnitGroupAdd(libSCHO_gv_mMHO_AttackGroups[lp_attackLane][libSCHO_gv_mMHO_WaveTracker], UnitLastCreated());
-        UnitXPAddXP(UnitLastCreated(), null, libSCHO_gv_mMHO_ScalingLevel);
         Wait(RandomFixed(0.0625, 0.125), c_timeGame);
         autoF4E4979F_val = libSCHO_gv_mMHO_WaveTracker;
         if (autoF4E4979F_val == 1) {
@@ -2092,7 +2081,6 @@ void libSCHO_gf_MMHOSpawnZerglingsBanelings (int lp_attackLane, int lp_team, reg
     for ( ; ( (auto5BCD9153_ai >= 0 && lv_itBaneling <= auto5BCD9153_ae) || (auto5BCD9153_ai < 0 && lv_itBaneling >= auto5BCD9153_ae) ) ; lv_itBaneling += auto5BCD9153_ai ) {
         libNtve_gf_CreateUnitsWithDefaultFacing(1, "ZergBaneling", 0, libGame_gf_ComputerPlayerInTeam(lp_team), RegionRandomPoint(lp_spawnRegion), null);
         UnitGroupAdd(libSCHO_gv_mMHO_AttackGroups[lp_attackLane][libSCHO_gv_mMHO_WaveTracker], UnitLastCreated());
-        UnitXPAddXP(UnitLastCreated(), null, libSCHO_gv_mMHO_ScalingLevel);
         Wait(RandomFixed(0.0625, 0.125), c_timeGame);
         auto4352345E_val = libSCHO_gv_mMHO_WaveTracker;
         if (auto4352345E_val == 1) {
@@ -2484,6 +2472,56 @@ bool auto_libSCHO_gf_MMHODelayElevatorLowering_TriggerFunc (bool testConds, bool
     }
     else {
         libSCHO_gv_mMHO_Elevator.lv_elevatorWasLowered = false;
+    }
+    return true;
+}
+
+trigger auto_libSCHO_gf_MMHOCreateDropPod_Trigger = null;
+point auto_libSCHO_gf_MMHOCreateDropPod_lp_dropPodPosition;
+int auto_libSCHO_gf_MMHOCreateDropPod_lp_dropPodOwner;
+
+void libSCHO_gf_MMHOCreateDropPod (point lp_dropPodPosition, int lp_dropPodOwner) {
+    auto_libSCHO_gf_MMHOCreateDropPod_lp_dropPodPosition = lp_dropPodPosition;
+    auto_libSCHO_gf_MMHOCreateDropPod_lp_dropPodOwner = lp_dropPodOwner;
+
+    if (auto_libSCHO_gf_MMHOCreateDropPod_Trigger == null) {
+        auto_libSCHO_gf_MMHOCreateDropPod_Trigger = TriggerCreate("auto_libSCHO_gf_MMHOCreateDropPod_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libSCHO_gf_MMHOCreateDropPod_Trigger, false, false);
+}
+
+bool auto_libSCHO_gf_MMHOCreateDropPod_TriggerFunc (bool testConds, bool runActions) {
+    point lp_dropPodPosition = auto_libSCHO_gf_MMHOCreateDropPod_lp_dropPodPosition;
+    int lp_dropPodOwner = auto_libSCHO_gf_MMHOCreateDropPod_lp_dropPodOwner;
+
+    // Variable Declarations
+    const int lv_zerglingsPerDropPod_C = 3;
+    const int lv_hydralisksPerDropPod_C = 1;
+    const fixed lv_pathablePointSearchRadius_C = 6.0;
+    point lv_pathablePoint;
+
+    // Automatic Variable Declarations
+    const int auto72A1A2A5_n = lv_zerglingsPerDropPod_C;
+    int auto72A1A2A5_i;
+    const int autoD8D71635_n = lv_hydralisksPerDropPod_C;
+    int autoD8D71635_i;
+
+    // Variable Initialization
+    lv_pathablePoint = UnitTypePlacementFromPoint("ZergUltralisk", lp_dropPodOwner, lp_dropPodPosition, lv_pathablePointSearchRadius_C);
+
+    // Implementation
+    PlayerCreateEffectPoint(lp_dropPodOwner, "BraxisDropPodCreatePersistent", lp_dropPodPosition);
+    Wait(1.4, c_timeGame);
+    for (auto72A1A2A5_i = 1; auto72A1A2A5_i <= auto72A1A2A5_n; auto72A1A2A5_i += 1) {
+        libNtve_gf_CreateUnitsWithDefaultFacing(1, "ZergZergling", 0, lp_dropPodOwner, lp_dropPodPosition, null);
+        UnitXPAddXP(UnitLastCreated(), null, libSCHO_gv_mMHO_ScalingLevel);
+        UnitCreateAIThinkTree(UnitLastCreated());
+    }
+    for (autoD8D71635_i = 1; autoD8D71635_i <= autoD8D71635_n; autoD8D71635_i += 1) {
+        libNtve_gf_CreateUnitsWithDefaultFacing(1, "ZergHydralisk", 0, lp_dropPodOwner, lp_dropPodPosition, null);
+        UnitXPAddXP(UnitLastCreated(), null, libSCHO_gv_mMHO_ScalingLevel);
+        UnitCreateAIThinkTree(UnitLastCreated());
     }
     return true;
 }
@@ -2896,10 +2934,12 @@ void libSCHO_gf_MMHOCalculateZergTotalHP (bool lp_calculateMaximum) {
         for (;; auto021841C3_u -= 1) {
             auto021841C3_var = UnitGroupUnitFromEnd(auto021841C3_g, auto021841C3_u);
             if (auto021841C3_var == null) { break; }
-            if ((UnitIsAlive(auto021841C3_var) == true)) {
-                libSCHO_gv_mMHO_TotalZergHP[lv_team] += UnitGetPropertyFixed(auto021841C3_var, c_unitPropLife, c_unitPropCurrent);
+            if ((UnitIsAlive(auto021841C3_var) == true) && (UnitGetType(auto021841C3_var) == "ZergUltralisk")) {
+                libSCHO_gv_mMHO_TotalZergHP[lv_team] += (UnitGetPropertyFixed(auto021841C3_var, c_unitPropLife, c_unitPropCurrent) * libSCHO_gv_mMHO_UltraliskHealthWeighting);
             }
-
+            else if ((UnitIsAlive(auto021841C3_var) == true) && (UnitGetType(auto021841C3_var) == "ZergGuardian")) {
+                libSCHO_gv_mMHO_TotalZergHP[lv_team] += (UnitGetPropertyFixed(auto021841C3_var, c_unitPropLife, c_unitPropCurrent) * libSCHO_gv_mMHO_GuardianHealthWeighting);
+            }
         }
     }
     if ((lp_calculateMaximum == true)) {
@@ -2909,10 +2949,10 @@ void libSCHO_gf_MMHOCalculateZergTotalHP (bool lp_calculateMaximum) {
 
     UnitSetPropertyFixed(libSCHO_gv_mMHO_OrderProgressUnit, c_unitPropLife, libSCHO_gv_mMHO_TotalZergHP[libGame_gv_teamOrderIndex_C]);
     UnitSetPropertyFixed(libSCHO_gv_mMHO_ChaosProgressUnit, c_unitPropLife, libSCHO_gv_mMHO_TotalZergHP[libGame_gv_teamChaosIndex_C]);
-    libNtve_gf_SetDialogItemText(libSCHO_gv_mMHOPanel.lv_beaconProgressHPBarLabel[1][1], FixedToText(libSCHO_gv_mMHO_TotalZergHP[libGame_gv_teamOrderIndex_C], 0), PlayerGroupAll());
-    libNtve_gf_SetDialogItemText(libSCHO_gv_mMHOPanel.lv_beaconProgressHPBarLabel[2][1], FixedToText(libSCHO_gv_mMHO_TotalZergHP[libGame_gv_teamOrderIndex_C], 0), PlayerGroupAll());
-    libNtve_gf_SetDialogItemText(libSCHO_gv_mMHOPanel.lv_beaconProgressHPBarLabel[1][2], FixedToText(libSCHO_gv_mMHO_TotalZergHP[libGame_gv_teamChaosIndex_C], 0), PlayerGroupAll());
-    libNtve_gf_SetDialogItemText(libSCHO_gv_mMHOPanel.lv_beaconProgressHPBarLabel[2][2], FixedToText(libSCHO_gv_mMHO_TotalZergHP[libGame_gv_teamChaosIndex_C], 0), PlayerGroupAll());
+    libNtve_gf_SetDialogItemText(libSCHO_gv_mMHOPanel.lv_beaconProgressHPBarLabel[1][1], (FixedToText(UnitGetPropertyFixed(libSCHO_gv_mMHO_OrderProgressUnit, c_unitPropLifePercent, c_unitPropCurrent), 0) + StringExternal("Param/Value/lib_SCHO_3D6BFA79")), PlayerGroupAll());
+    libNtve_gf_SetDialogItemText(libSCHO_gv_mMHOPanel.lv_beaconProgressHPBarLabel[2][1], (FixedToText(UnitGetPropertyFixed(libSCHO_gv_mMHO_OrderProgressUnit, c_unitPropLifePercent, c_unitPropCurrent), 0) + StringExternal("Param/Value/lib_SCHO_0329DCD0")), PlayerGroupAll());
+    libNtve_gf_SetDialogItemText(libSCHO_gv_mMHOPanel.lv_beaconProgressHPBarLabel[1][2], (FixedToText(UnitGetPropertyFixed(libSCHO_gv_mMHO_ChaosProgressUnit, c_unitPropLifePercent, c_unitPropCurrent), 0) + StringExternal("Param/Value/lib_SCHO_AC9B0BC2")), PlayerGroupAll());
+    libNtve_gf_SetDialogItemText(libSCHO_gv_mMHOPanel.lv_beaconProgressHPBarLabel[2][2], (FixedToText(UnitGetPropertyFixed(libSCHO_gv_mMHO_ChaosProgressUnit, c_unitPropLifePercent, c_unitPropCurrent), 0) + StringExternal("Param/Value/lib_SCHO_4284B277")), PlayerGroupAll());
 }
 
 void libSCHO_gf_MMHOChangeZergMinimapIconsBasedOnZergHealth (int lp_team, unit lp_unit) {
@@ -2963,10 +3003,15 @@ void libSCHO_gf_MMHOChangeZergMinimapIconsBasedOnZergHealth (int lp_team, unit l
 }
 
 void libSCHO_gf_MMHOUpdateZergMinimapIcons (int lp_team) {
+    // Variable Declarations
+    point lv_testPoint;
+
     // Automatic Variable Declarations
     unitgroup auto2DA5B050_g;
     int auto2DA5B050_u;
     unit auto2DA5B050_var;
+
+    // Variable Initialization
 
     // Implementation
     if ((UnitGroupCount(libSCHO_gv_mMHO_AttackGroups[lp_team][libSCHO_gv_mMHO_WaveTracker], c_unitCountAlive) > 0)) {
@@ -3669,6 +3714,8 @@ bool libSCHO_gt_MMHOStartWarningTimer_Func (bool testConds, bool runActions) {
     libSCHO_gv_mMHO_AttackLaneHPMiniMapController = libSCHO_gv_mMHO_AttackLane;
     libSCHO_gv_mMHO_AttackLane = (3 - libSCHO_gv_mMHO_AttackLane);
     libSCHO_gv_mMHO_NumberOfEventsFired += 1;
+    libSCHO_gv_zergDropPodDropsRemaining[1] = libSCHO_gv_zergDropPodMaximumDrops_C;
+    libSCHO_gv_zergDropPodDropsRemaining[2] = libSCHO_gv_zergDropPodMaximumDrops_C;
     libSCHO_gf_MMHOTransmissionBeaconsActivating();
     lv_index = 1;
     for ( ; ( (auto424BF917_ai >= 0 && lv_index <= auto424BF917_ae) || (auto424BF917_ai < 0 && lv_index >= auto424BF917_ae) ) ; lv_index += auto424BF917_ai ) {
@@ -4375,6 +4422,60 @@ void libSCHO_gt_MMHOElevatorRaiseTimerExpires_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
+// Trigger: MMHO Zerg Attacks Enemy
+//--------------------------------------------------------------------------------------------------
+bool libSCHO_gt_MMHOZergAttacksEnemy_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    const fixed lv_dropPodTouchdownDistanceBeyondTarget_C = 3.0;
+    const fixed lv_dropPodTouchdownAreaRadius_C = 3.0;
+    unit lv_attackingUnit;
+    unit lv_enemyUnit;
+    int lv_attackingTeam;
+    int lv_enemyComputer;
+    fixed lv_angleFromAttackerToEnemy;
+    point lv_dropPodTouchdownCenter;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_attackingUnit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_enemyUnit = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_attackingUnit != null))) {
+            return false;
+        }
+
+        if (!((libGame_gv_gameOver == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_attackingTeam = libGame_gf_TeamNumberOfPlayer(UnitGetOwner(lv_attackingUnit));
+    if (((libSCHO_gv_zergDropPodDropsRemaining[lv_attackingTeam] > 0.0) && (TimerGetRemaining(libSCHO_gv_zergDropPodCooldowns[lv_attackingTeam]) <= 0.0))) {
+        lv_enemyComputer = UnitGetOwner(lv_enemyUnit);
+        lv_angleFromAttackerToEnemy = AngleBetweenPoints(UnitGetPosition(lv_attackingUnit), UnitGetPosition(lv_enemyUnit));
+        lv_dropPodTouchdownCenter = PointWithOffsetPolar(UnitGetPosition(lv_enemyUnit), lv_dropPodTouchdownDistanceBeyondTarget_C, lv_angleFromAttackerToEnemy);
+        libSCHO_gf_MMHOCreateDropPod(RegionRandomPoint(RegionCircle(lv_dropPodTouchdownCenter, lv_dropPodTouchdownAreaRadius_C)), libGame_gf_ComputerPlayerInTeam(lv_attackingTeam));
+        TimerStart(libSCHO_gv_zergDropPodCooldowns[lv_attackingTeam], libSCHO_gv_zergDropPodCooldownTime_C, false, c_timeGame);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libSCHO_gt_MMHOZergAttacksEnemy_Init () {
+    libSCHO_gt_MMHOZergAttacksEnemy = TriggerCreate("libSCHO_gt_MMHOZergAttacksEnemy_Func");
+    TriggerAddEventPlayerEffectUsed(libSCHO_gt_MMHOZergAttacksEnemy, c_playerAny, "ZergUltraliskWeaponDamage");
+    TriggerAddEventPlayerEffectUsed(libSCHO_gt_MMHOZergAttacksEnemy, c_playerAny, "ZergGuardianWeaponDamage");
+}
+
+//--------------------------------------------------------------------------------------------------
 // Trigger: MMHO Scaling Timer Expires
 //--------------------------------------------------------------------------------------------------
 bool libSCHO_gt_MMHOScalingTimerExpires_Func (bool testConds, bool runActions) {
@@ -4409,7 +4510,7 @@ bool libSCHO_gt_MMHOZergUnitTakesDamage_Func (bool testConds, bool runActions) {
 
     // Conditions
     if (testConds) {
-        if (!(((UnitGroupHasUnit(libSCHO_gv_mMHO_AttackGroups[1][1], EventUnit()) == true) || (UnitGroupHasUnit(libSCHO_gv_mMHO_AttackGroups[1][2], EventUnit()) == true) || (UnitGroupHasUnit(libSCHO_gv_mMHO_AttackGroups[2][1], EventUnit()) == true) || (UnitGroupHasUnit(libSCHO_gv_mMHO_AttackGroups[2][2], EventUnit()) == true)))) {
+        if (!((((UnitGroupHasUnit(libSCHO_gv_mMHO_AttackGroups[1][1], EventUnit()) == true) || (UnitGroupHasUnit(libSCHO_gv_mMHO_AttackGroups[1][2], EventUnit()) == true) || (UnitGroupHasUnit(libSCHO_gv_mMHO_AttackGroups[2][1], EventUnit()) == true) || (UnitGroupHasUnit(libSCHO_gv_mMHO_AttackGroups[2][2], EventUnit()) == true)) && ((UnitGetType(EventUnit()) == "ZergUltralisk") || (UnitGetType(EventUnit()) == "ZergGuardian"))))) {
             return false;
         }
     }
@@ -4420,32 +4521,37 @@ bool libSCHO_gt_MMHOZergUnitTakesDamage_Func (bool testConds, bool runActions) {
     }
 
     lv_team = libGame_gf_TeamNumberOfPlayer(UnitGetOwner(EventUnit()));
-    lv_damageAmount = EventUnitDamageAmount();
+    if ((UnitGetType(EventUnit()) == "ZergUltralisk")) {
+        lv_damageAmount = (EventUnitDamageAmount() * libSCHO_gv_mMHO_UltraliskHealthWeighting);
+    }
+    else if ((UnitGetType(EventUnit()) == "ZergGuardian")) {
+        lv_damageAmount = (EventUnitDamageAmount() * libSCHO_gv_mMHO_GuardianHealthWeighting);
+    }
     libSCHO_gv_mMHO_TotalZergHP[lv_team] -= lv_damageAmount;
     libSCHO_gf_MMHOEndofMatchAwardZergCrusherModifyValuesandReport(EventUnitDamageSourcePlayer(), lv_damageAmount);
     if ((lv_team == libGame_gv_teamOrderIndex_C)) {
-        if ((EventUnitDamageAmount() >= UnitGetPropertyFixed(libSCHO_gv_mMHO_OrderProgressUnit, c_unitPropLife, c_unitPropCurrent))) {
+        if ((lv_damageAmount >= UnitGetPropertyFixed(libSCHO_gv_mMHO_OrderProgressUnit, c_unitPropLife, c_unitPropCurrent))) {
             UnitSetPropertyFixed(libSCHO_gv_mMHO_OrderProgressUnit, c_unitPropLife, 1.0);
         }
         else {
-            UnitSetPropertyFixed(libSCHO_gv_mMHO_OrderProgressUnit, c_unitPropLife, (libSCHO_gv_mMHO_TotalZergHP[libGame_gv_teamOrderIndex_C] - EventUnitDamageAmount()));
+            UnitSetPropertyFixed(libSCHO_gv_mMHO_OrderProgressUnit, c_unitPropLife, libSCHO_gv_mMHO_TotalZergHP[libGame_gv_teamOrderIndex_C]);
         }
-        libNtve_gf_SetDialogItemText(libSCHO_gv_mMHOPanel.lv_beaconProgressHPBarLabel[1][1], FixedToText(libSCHO_gv_mMHO_TotalZergHP[libGame_gv_teamOrderIndex_C], 0), PlayerGroupAll());
-        libNtve_gf_SetDialogItemText(libSCHO_gv_mMHOPanel.lv_beaconProgressHPBarLabel[2][1], FixedToText(libSCHO_gv_mMHO_TotalZergHP[libGame_gv_teamOrderIndex_C], 0), PlayerGroupAll());
+        libNtve_gf_SetDialogItemText(libSCHO_gv_mMHOPanel.lv_beaconProgressHPBarLabel[1][1], (FixedToText(UnitGetPropertyFixed(libSCHO_gv_mMHO_OrderProgressUnit, c_unitPropLifePercent, c_unitPropCurrent), 0) + StringExternal("Param/Value/lib_SCHO_F53920F9")), PlayerGroupAll());
+        libNtve_gf_SetDialogItemText(libSCHO_gv_mMHOPanel.lv_beaconProgressHPBarLabel[2][1], (FixedToText(UnitGetPropertyFixed(libSCHO_gv_mMHO_OrderProgressUnit, c_unitPropLifePercent, c_unitPropCurrent), 0) + StringExternal("Param/Value/lib_SCHO_D3691337")), PlayerGroupAll());
         if ((libSCHO_gv_mMHO_TotalZergHP[libGame_gv_teamOrderIndex_C] == 0.0)) {
             libSCHO_gf_MMHOUISetZergSwarmKilled(libGame_gv_teamOrderIndex_C);
         }
 
     }
     else {
-        if ((EventUnitDamageAmount() >= UnitGetPropertyFixed(libSCHO_gv_mMHO_ChaosProgressUnit, c_unitPropLife, c_unitPropCurrent))) {
+        if ((lv_damageAmount >= UnitGetPropertyFixed(libSCHO_gv_mMHO_ChaosProgressUnit, c_unitPropLife, c_unitPropCurrent))) {
             UnitSetPropertyFixed(libSCHO_gv_mMHO_ChaosProgressUnit, c_unitPropLife, 1.0);
         }
         else {
-            UnitSetPropertyFixed(libSCHO_gv_mMHO_ChaosProgressUnit, c_unitPropLife, (libSCHO_gv_mMHO_TotalZergHP[libGame_gv_teamChaosIndex_C] - EventUnitDamageAmount()));
+            UnitSetPropertyFixed(libSCHO_gv_mMHO_ChaosProgressUnit, c_unitPropLife, libSCHO_gv_mMHO_TotalZergHP[libGame_gv_teamChaosIndex_C]);
         }
-        libNtve_gf_SetDialogItemText(libSCHO_gv_mMHOPanel.lv_beaconProgressHPBarLabel[1][2], FixedToText(libSCHO_gv_mMHO_TotalZergHP[libGame_gv_teamChaosIndex_C], 0), PlayerGroupAll());
-        libNtve_gf_SetDialogItemText(libSCHO_gv_mMHOPanel.lv_beaconProgressHPBarLabel[2][2], FixedToText(libSCHO_gv_mMHO_TotalZergHP[libGame_gv_teamChaosIndex_C], 0), PlayerGroupAll());
+        libNtve_gf_SetDialogItemText(libSCHO_gv_mMHOPanel.lv_beaconProgressHPBarLabel[1][2], (FixedToText(UnitGetPropertyFixed(libSCHO_gv_mMHO_ChaosProgressUnit, c_unitPropLifePercent, c_unitPropCurrent), 0) + StringExternal("Param/Value/lib_SCHO_E2F22591")), PlayerGroupAll());
+        libNtve_gf_SetDialogItemText(libSCHO_gv_mMHOPanel.lv_beaconProgressHPBarLabel[2][2], (FixedToText(UnitGetPropertyFixed(libSCHO_gv_mMHO_ChaosProgressUnit, c_unitPropLifePercent, c_unitPropCurrent), 0) + StringExternal("Param/Value/lib_SCHO_E9021DB9")), PlayerGroupAll());
         if ((libSCHO_gv_mMHO_TotalZergHP[libGame_gv_teamChaosIndex_C] == 0.0)) {
             libSCHO_gf_MMHOUISetZergSwarmKilled(libGame_gv_teamChaosIndex_C);
         }
@@ -4764,6 +4870,7 @@ void libSCHO_InitTriggers () {
     libSCHO_gt_MMHOElevatorInitialTimerExpires_Init();
     libSCHO_gt_MMHOElevatorLowerTimerExpires_Init();
     libSCHO_gt_MMHOElevatorRaiseTimerExpires_Init();
+    libSCHO_gt_MMHOZergAttacksEnemy_Init();
     libSCHO_gt_MMHOScalingTimerExpires_Init();
     libSCHO_gt_MMHOZergUnitTakesDamage_Init();
     libSCHO_gt_MMHOZergIconUnitDies_Init();

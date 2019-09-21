@@ -26,6 +26,7 @@ void libHGUL_InitVariables () {
 
     libHGUL_InitVariables_completed = true;
 
+    libHGUL_gv_heroGuldanDarknessWithinDamageTrackerScoreforTooltip = "GenericHeroRealScoreValue1";
 }
 
 // Functions
@@ -41,6 +42,8 @@ void libHGUL_gf_HeroGuldanIncrementHeroCountFunction () {
         TriggerEnable(libHGUL_gt_HeroGuldanDemonicCircleRemovePreviousPortal, true);
         TriggerEnable(libHGUL_gt_HeroGuldanDemonicCircleTalentReset, true);
         TriggerEnable(libHGUL_gt_HeroGuldanRegisterDeathRecapSpecialDamageEffect, true);
+        TriggerEnable(libHGUL_gt_HeroGuldanDarknessWithinDamageTracking, true);
+        TriggerEnable(libHGUL_gt_HeroGuldanDarknessWithinTrackerReset, true);
         TriggerExecute(libHGUL_gt_HeroGuldanRegisterDeathRecapSpecialDamageEffect, false, false);
     }
 
@@ -62,6 +65,8 @@ void libHGUL_gf_HeroGuldanDecrementHeroCountFunction () {
         TriggerEnable(libHGUL_gt_HeroGuldanDemonicCircleRemovePreviousPortal, false);
         TriggerEnable(libHGUL_gt_HeroGuldanDemonicCircleTalentReset, false);
         TriggerEnable(libHGUL_gt_HeroGuldanRegisterDeathRecapSpecialDamageEffect, false);
+        TriggerEnable(libHGUL_gt_HeroGuldanDarknessWithinDamageTracking, false);
+        TriggerEnable(libHGUL_gt_HeroGuldanDarknessWithinTrackerReset, false);
     }
 
 }
@@ -176,6 +181,79 @@ void libHGUL_gt_HeroGuldanDrainLifeTurningControl_Init () {
     libHGUL_gt_HeroGuldanDrainLifeTurningControl = TriggerCreate("libHGUL_gt_HeroGuldanDrainLifeTurningControl_Func");
     TriggerEnable(libHGUL_gt_HeroGuldanDrainLifeTurningControl, false);
     TriggerAddEventUnitBehaviorChange(libHGUL_gt_HeroGuldanDrainLifeTurningControl, null, "GuldanDrainLifeChannel", c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Gul'dan - Darkness Within - Damage Tracking
+//--------------------------------------------------------------------------------------------------
+bool libHGUL_gt_HeroGuldanDarknessWithinDamageTracking_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    fixed lv_damageDealt;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_damageDealt = (EventUnitDamageAmount() + EventUnitDamageBehaviorShield());
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitTypeTestAttribute(UnitGetType(EventUnit()), c_unitAttributeHeroic) == true))) {
+            return false;
+        }
+
+        if (!((UnitGetType(EventUnitDamageSourceUnit()) == "HeroGuldan"))) {
+            return false;
+        }
+
+        if (!((PlayerHasTalent(EventUnitDamageSourcePlayer(), "GuldanLifeTapDarknessWithin") == true))) {
+            return false;
+        }
+
+        if (!((UnitHasBehavior2(EventUnitDamageSourceUnit(), "GuldanLifeTapDarknessWithinReady") != true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libHGUL_gv_heroGuldanDarknessWithinDamageTracker[EventUnitDamageSourcePlayer()] = (libHGUL_gv_heroGuldanDarknessWithinDamageTracker[EventUnitDamageSourcePlayer()] + lv_damageDealt);
+    PlayerScoreValueSetFromFixed(EventUnitDamageSourcePlayer(), "GenericHeroRealScoreValue1", MinF(libHGUL_gv_heroGuldanDarknessWithinDamageTracker[EventUnitDamageSourcePlayer()], CatalogFieldValueGetAsFixed(c_gameCatalogEffect, "GuldanLifeTapDarknessWithinDamageThreshold", "Amount", EventUnitDamageSourcePlayer())));
+    if ((libHGUL_gv_heroGuldanDarknessWithinDamageTracker[EventUnitDamageSourcePlayer()] >= CatalogFieldValueGetAsFixed(c_gameCatalogEffect, "GuldanLifeTapDarknessWithinDamageThreshold", "Amount", EventUnitDamageSourcePlayer()))) {
+        UnitBehaviorAdd(EventUnitDamageSourceUnit(), "GuldanLifeTapDarknessWithinReady", EventUnitDamageSourceUnit(), 1);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHGUL_gt_HeroGuldanDarknessWithinDamageTracking_Init () {
+    libHGUL_gt_HeroGuldanDarknessWithinDamageTracking = TriggerCreate("libHGUL_gt_HeroGuldanDarknessWithinDamageTracking_Func");
+    TriggerEnable(libHGUL_gt_HeroGuldanDarknessWithinDamageTracking, false);
+    TriggerAddEventUnitDealsDamage(libHGUL_gt_HeroGuldanDarknessWithinDamageTracking, null, c_unitDamageTypeAny, c_unitDamageEither, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hero - Gul'dan - Darkness Within - Tracker Reset
+//--------------------------------------------------------------------------------------------------
+bool libHGUL_gt_HeroGuldanDarknessWithinTrackerReset_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libHGUL_gv_heroGuldanDarknessWithinDamageTracker[EventPlayer()] = 0.0;
+    PlayerScoreValueSetFromFixed(EventPlayer(), "GenericHeroRealScoreValue1", 0.0);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libHGUL_gt_HeroGuldanDarknessWithinTrackerReset_Init () {
+    libHGUL_gt_HeroGuldanDarknessWithinTrackerReset = TriggerCreate("libHGUL_gt_HeroGuldanDarknessWithinTrackerReset_Func");
+    TriggerEnable(libHGUL_gt_HeroGuldanDarknessWithinTrackerReset, false);
+    TriggerAddEventUnitBehaviorChange(libHGUL_gt_HeroGuldanDarknessWithinTrackerReset, null, "GuldanLifeTapDarknessWithinReady", c_unitBehaviorChangeDecrease);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -383,6 +461,8 @@ void libHGUL_InitTriggers () {
     libHGUL_gt_HeroGuldanRegisterDeathRecapSpecialDamageEffect_Init();
     libHGUL_gt_HeroGuldanFearCameraLock_Init();
     libHGUL_gt_HeroGuldanDrainLifeTurningControl_Init();
+    libHGUL_gt_HeroGuldanDarknessWithinDamageTracking_Init();
+    libHGUL_gt_HeroGuldanDarknessWithinTrackerReset_Init();
     libHGUL_gt_HeroGuldanDemonicCircleRemovePreviousPortal_Init();
     libHGUL_gt_HeroGuldanDemonicCircleTalentReset_Init();
     libHGUL_gt_HeroGuldanDarkBargainDeathRegister_Init();

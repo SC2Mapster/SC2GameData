@@ -153,12 +153,6 @@
     <TokenId value="DiabloBlackSoulstoneTokenCounter" />
     <Scale value="0.01" />
   </CAccumulatorToken>
-  <CAccumulatorToken id="DiabloShadowChargeDevastatingCharge" parent="BaseTokenAccumulator">
-    <MaxAccumulation value="1.2" />
-    <ApplicationRule value="Add" />
-    <TokenId value="DiabloShadowChargeDevastatingChargeTalentTokenCounter" />
-    <Scale value="0.2" />
-  </CAccumulatorToken>
   <CAccumulatorToken id="DiabloFireStompHellfireSpellPower" parent="BaseAccumulator">
     <MaxAccumulation value="0.3" />
     <ApplicationRule value="Add" />
@@ -188,6 +182,30 @@
     <Scale value="0.004" />
     <ApplicationRule value="Add" />
   </CAccumulatorToken>
+  <CActorModel id="DiabloFireStompHellfireDamageModel" parent="StormModelAnimationStyleOneShotUnit">
+    <Inherits index="BaseModelScale" value="1" />
+    <Inherits index="Scale" value="1" />
+    <On Terms="ActorCreation" Send="Create TalentBurningRageImpactSound" />
+    <On Terms="Effect.DiabloFireStompHellfireDamage.Start; At Target" Send="Create" />
+    <HostSiteOps Ops="SOpAttachCenter" />
+    <Model value="DiabloFireStompHellfireDamage" />
+    <AutoScaleFactor value="1.300000" />
+  </CActorModel>
+  <CActorSound id="DiabloFireStompHellfireSound" parent="SoundOneShot">
+    <On Terms="Behavior.DiabloFireStompHellfireBuffBehavior.On" Send="Create" />
+    <Sound value="Diablo_Hellfire_Active" />
+  </CActorSound>
+  <CActorModel id="DiabloFireStompHellfireModel" parent="StormModelAddition">
+    <Macros value="RemovePolymorphMacroEffects" />
+    <Inherits index="BaseModelScale" value="0" />
+    <Inherits index="Scale" value="0" />
+    <Inherits index="Visibility" value="1" />
+    <On Terms="Behavior.DiabloFireStompHellfireBuffBehavior.On" Send="Create" />
+    <On Terms="Behavior.DiabloFireStompHellfireBuffBehavior.Off" Send="AnimBracketStop BSD" />
+    <HostSiteOps Ops="SOpAttachOriginSoft" HoldRotation="1" />
+    <Model value="DiabloFireStompHellfireBuff" />
+    <ModelFlags index="AllowHitTest" value="0" />
+  </CActorModel>
   <CActorSound id="BlackSoulstoneDeathSFXEnemy" parent="SoundOneShot">
     <Filter index="Ally" value="1" />
     <Inherits index="Visibility" value="0" />
@@ -981,6 +999,29 @@
   <CActorSound id="PulledSoundHeroDiablo" parent="SoundOneShot">
     <Sound value="Diablo_VOX_Pulled" />
   </CActorSound>
+  <CBehaviorBuff id="DiabloFireStompHellfireBuffBehavior">
+    <Face value="DiabloHellfire" />
+    <Alignment value="Positive" />
+    <BehaviorFlags index="Permanent" value="1" />
+    <BehaviorFlags index="EnabledWhileDead" value="1" />
+    <InfoIcon value="Assets\Textures\storm_ui_icon_diablo_firestomp.dds" />
+    <DisableValidatorArray value="NotMounted" />
+    <DisableValidatorArray value="CasterNotStasis" />
+    <DisableValidatorArray value="SourceNotDead" />
+    <DisableValidatorArray value="TargetNotSpecialDeathState" />
+    <DisableValidatorArray value="NotCloaked" />
+    <DisableValidatorArray value="DiabloFireStompHellfireHasMaximumSpellPowerBuffStacks" />
+    <Period value="1" />
+    <PeriodicEffect value="DiabloFireStompHellfireSearch" />
+  </CBehaviorBuff>
+  <CBehaviorBuff id="DiabloShadowChargeDevastatingChargeArmorDebuff" parent="StormArmor">
+    <BehaviorCategories index="DebuffVulnerable" value="1" />
+    <BuffFlags index="RefreshStack" value="1" />
+    <Duration value="4" />
+    <ArmorModification>
+      <AllArmorBonus value="-15" />
+    </ArmorModification>
+  </CBehaviorBuff>
   <CBehaviorAbility id="DiabloHellgateItem">
     <Buttons Face="DiabloHellgateTalent" Type="AbilCmd" AbilCmd="DiabloHellgate,Execute" />
   </CBehaviorAbility>
@@ -1138,9 +1179,8 @@
   </CBehaviorBuff>
   <CBehaviorTokenCounter id="DiabloShadowChargeDevastatingChargeTalentTokenCounter" parent="StormQuestToken">
     <Face value="DiabloDevastatingChargeToken" />
-    <IncreaseEvents index="0" EventId="QuestIncrease" Effect="DiabloShadowChargeDevastatingChargeTalentModifyPlayer" />
-    <AtMinEvents index="0" EventId="QuestReset" Effect="DiabloShadowChargeDevastatingChargeTalentResetPlayer" />
-    <Max value="6" />
+    <Max value="5" />
+    <AtMaxEvents index="0" EventId="QuestComplete" Effect="DiabloShadowChargeDevastatingChargeQuestCompletionModifyCatalog" ValidRange="0,5" />
   </CBehaviorTokenCounter>
   <CBehaviorTokenCounter id="DiabloBlackSoulstoneDevilsDueTalentTokenCounter" parent="StormGenericToken">
     <Face value="DiabloBlackSoulstoneToken" />
@@ -1537,6 +1577,46 @@
   <CCharacter id="DiabloPrime">
     <Variations Model="DiabloSkinPrimePortrait" Actor="DiabloSkinPrimePortrait" />
   </CCharacter>
+  <CEffectDamage id="DiabloFireStompHellfireDamage" parent="StormSpell">
+    <DamageModifierSource Value="Source" />
+    <LaunchLocation Value="CasterUnit" />
+    <Flags index="NoLeech" value="1" />
+    <Flags index="NoFractionDealtBonus" value="1" />
+    <Flags index="NoVitalLeechLife" value="1" />
+    <Flags index="NoVitalLeechShields" value="1" />
+    <Flags index="NoVitalLeechEnergy" value="1" />
+    <Amount value="15" />
+    <SourceButtonFace value="DiabloHellfire" />
+  </CEffectDamage>
+  <CEffectSet id="DiabloFireStompHellfireBurningDamageImpactSet">
+    <ValidatorArray value="NoJungleBenignTarget" />
+    <EffectArray value="ApplyAbilityImpactReveal" />
+    <EffectArray value="DiabloFireStompHellfireDamage" />
+  </CEffectSet>
+  <CEffectEnumArea id="DiabloFireStompHellfireSearch">
+    <ImpactLocation Value="SourceUnit" />
+    <SearchFilters value="-;Self,Player,Ally,ImmuneToAOE,Missile,Item,Stasis,Dead,Hidden,Invulnerable" />
+    <AreaArray Effect="DiabloFireStompHellfireBurningDamageImpactSet">
+      <Radius value="2.5" />
+    </AreaArray>
+    <SearchFlags index="ExtendByUnitRadius" value="1" />
+  </CEffectEnumArea>
+  <CEffectApplyBehavior id="DiabloShadowChargeDevastatingChargeArmorDebuffApplyBehavior">
+    <ValidatorArray value="TargetIsHero" />
+    <Chance value="0" />
+    <Behavior value="DiabloShadowChargeDevastatingChargeArmorDebuff" />
+  </CEffectApplyBehavior>
+  <CEffectModifyCatalogNumeric id="DiabloShadowChargeDevastatingChargeQuestCompletionModifyCatalog">
+    <CatalogModifications Operation="Set" Reference="Effect,DiabloShadowChargeDevastatingChargeArmorDebuffApplyBehavior,Chance">
+      <Value value="1" />
+    </CatalogModifications>
+  </CEffectModifyCatalogNumeric>
+  <CEffectCreateHealer id="DiabloFireStompEternalFlamesManaRestore" parent="StormManaRestore">
+    <ValidatorArray value="HasEternalFlamesTalent" />
+    <ValidatorArray value="TargetIsHero" />
+    <ImpactUnit Value="Caster" />
+    <RechargeVitalRate value="35" />
+  </CEffectCreateHealer>
   <CEffectApplyBehavior id="DiabloBlackSoulstoneSoulShieldApplyArmorBehavior">
     <WhichUnit Value="Caster" />
     <Behavior value="DiabloSoulShieldSpellArmor" />
@@ -1874,27 +1954,24 @@
   <CEffectSet id="DiabloShadowChargeTerrainImpactSet">
     <EffectArray value="DiabloShadowChargeTerrainImpactDamage" />
     <EffectArray value="DiabloDamageTalentSet" />
+    <EffectArray value="DiabloShadowChargeDevastatingChargeArmorDebuffApplyBehavior" />
     <EffectArray value="DiabloShadowChargeDevastatingChargeTalentIncreaseTokenCount" />
     <EffectArray value="DiabloShadowChargeSacrificialSoulApplyArmorSwitch" />
     <EffectArray value="DiabloShadowChargeSacrificialSoulAddTokenSet" />
     <EffectArray value="DiabloShadowChargeOverpowerCrueltyAttackSpeedApplyBehavior" />
     <EffectArray value="DiabloFireStompEternalFlamesFireStompCooldownReduction" />
     <EffectArray value="DiabloBlackSoulstoneFeastOnFearApplyHealerBehavior" />
+    <EffectArray value="DiabloFireStompEternalFlamesManaRestore" />
   </CEffectSet>
   <CEffectDamage id="DiabloShadowChargeTerrainImpactDamage" parent="StormSpell">
-    <MultiplicativeModifierArray index="DevastatingCharge">
-      <Validator value="DiabloHasDevastatingChargeTalent" />
-      <Accumulator value="DiabloShadowChargeDevastatingCharge" />
-      <Modifier value="0.8" />
-      <Crit value="1" />
-    </MultiplicativeModifierArray>
+    <MultiplicativeModifierArray index="DevastatingCharge" Validator="DiabloHasDevastatingChargeTalent" Modifier="0.5" Crit="1" />
     <Amount value="120" />
   </CEffectDamage>
   <CEffectModifyTokenCount id="DiabloShadowChargeDevastatingChargeTalentIncreaseTokenCount" parent="BaseEffectModifyTokenCount">
     <ValidatorArray value="TargetIsHero" />
     <ValidatorArray value="TargetNotInvulnerable" />
     <ValidatorArray value="DiabloHasDevastatingChargeTalent" />
-    <ValidatorArray value="DiabloDoesNotHave6DevastatingChargeTalentTokens" />
+    <ValidatorArray value="DiabloDoesNotHave5DevastatingChargeTalentTokens" />
     <EffectCategory index="Quest" value="1" />
     <TokenId value="DiabloShadowChargeDevastatingChargeTalentTokenCounter" />
   </CEffectModifyTokenCount>
@@ -1974,6 +2051,7 @@
     <EffectArray value="DiabloFireStompEternalFlamesFireStompCooldownReduction" />
     <EffectArray value="DiabloShadowChargeOverpowerCrueltyAttackSpeedApplyBehavior" />
     <EffectArray value="DiabloOverpowerDominationMasteryCooldownReduction" />
+    <EffectArray value="DiabloFireStompEternalFlamesManaRestore" />
   </CEffectSet>
   <CEffectSet id="DiabloOverpowerPathableBehindSet">
     <EffectArray value="DiabloOverpowerPathableBehindOffset" />
@@ -2718,9 +2796,9 @@
     <ValidatorArray value="DiabloHasDiabolicalMomentum" />
     <ValidatorArray value="CasterNotBlindedAndTargetNotEvading" />
     <ImpactUnit Value="Caster" />
-    <Cost Abil="DiabloShadowCharge,Execute" CooldownOperation="Add" CooldownTimeUse="-1" />
-    <Cost Abil="DiabloFireStomp,Execute" CooldownOperation="Add" CooldownTimeUse="-1" />
-    <Cost Abil="DiabloOverpower,Execute" ChargeTimeUse="-1" CooldownOperation="Add" />
+    <Cost Abil="DiabloShadowCharge,Execute" CooldownOperation="Add" CooldownTimeUse="-1.25" />
+    <Cost Abil="DiabloFireStomp,Execute" CooldownOperation="Add" CooldownTimeUse="-1.25" />
+    <Cost Abil="DiabloOverpower,Execute" ChargeTimeUse="-1.25" CooldownOperation="Add" />
   </CEffectModifyUnit>
   <CHero id="Diablo" parent="LegacyVOHero">
     <AIComplexityTier value="Low" />
@@ -2756,8 +2834,8 @@
     <TalentTreeArray Talent="DiabloHeroicAbilityApocalypse" Tier="4" Column="1" />
     <TalentTreeArray Talent="DiabloHeroicAbilityLightningBreath" Tier="4" Column="2" />
     <TalentTreeArray Talent="DiabloDevastatingCharge" Tier="5" Column="1" />
-    <TalentTreeArray Talent="DiabloShadowChargeOverpowerCruelty" Tier="5" Column="2" />
-    <TalentTreeArray Talent="DiabloHellfire" Tier="5" Column="3" />
+    <TalentTreeArray Talent="DiabloHellfire" Tier="5" Column="2" />
+    <TalentTreeArray Talent="DiabloShadowChargeOverpowerCruelty" Tier="5" Column="3" />
     <TalentTreeArray Talent="DiabloTalentDominationOverpower" Tier="6" Column="1" />
     <TalentTreeArray Talent="DiabloDebilitatingFlames" Tier="6" Column="2" />
     <TalentTreeArray Talent="DiabloOverpowerOverpoweringNightmare" Tier="6" Column="3" />
@@ -2859,6 +2937,14 @@
       <Modifications>
         <Catalog value="Effect" />
         <Entry value="DiabloMalevolenceDamage" />
+        <Field value="Amount" />
+        <Value value="0.040000" />
+        <AffectedByAbilityPower value="1" />
+        <AffectedByOverdrive value="1" />
+      </Modifications>
+      <Modifications>
+        <Catalog value="Effect" />
+        <Entry value="DiabloFireStompHellfireDamage" />
         <Field value="Amount" />
         <Value value="0.040000" />
         <AffectedByAbilityPower value="1" />
@@ -3006,6 +3092,14 @@
     <Rarity value="Rare" />
     <ReleaseDate Month="3" Day="13" />
   </CHero>
+  <CModel id="DiabloFireStompHellfireDamage" parent="ImpactFX">
+    <Model value="Assets\Effects\Storm_Effect_Talent_BurningRage_Impact\Storm_Effect_Talent_BurningRage_Impact.m3" />
+    <Lighting value="CrusaderHolyFuryDamage" />
+    <Radius value="0.750000" />
+  </CModel>
+  <CModel id="DiabloFireStompHellfireBuff" parent="OneShotSpellFX">
+    <Model value="Assets\Effects\Storm_Effect_Talent_BurningRage\Storm_Effect_Talent_BurningRage.m3" />
+  </CModel>
   <CModel id="DiabloMalevolenceImpactFX">
     <Model value="Assets\Effects\Storm_FX_Diablo_Base_FTH_Impact\Storm_FX_Diablo_Base_FTH_Impact.m3" />
   </CModel>
@@ -3337,6 +3431,11 @@
   <CShapeQuad id="DiabloLightningBreathQuad">
     <Quad value="-1.5,-8.5,1.5,2" />
   </CShapeQuad>
+  <CSound id="Diablo_Hellfire_Active" parent="_FX_Hero_Spell_Launch">
+    <AssetArray File="Assets\Sounds\Talents\Talent_BurningRage_Launch01.wav" />
+    <Volume value="-9.000000,-9.000000" />
+    <VolumeRolloffPoints index="1" Distance="25.000000" Volume="-96.000000" />
+  </CSound>
   <CTalent id="DiabloMalevolence">
     <Face value="DiabloMalevolence" />
     <AbilityModificationArray>
@@ -3442,7 +3541,15 @@
       <BehaviorArray value="DiabloShadowChargeDevastatingChargeTalentTokenCounter" />
       <BehaviorArray value="DiabloShadowChargeDevastatingChargeTalentCarry" />
     </RankArray>
-    <QuestData StackBehavior="DiabloShadowChargeDevastatingChargeTalentTokenCounter" TargetCount="5" />
+    <QuestData StackBehavior="DiabloShadowChargeDevastatingChargeTalentTokenCounter" TargetCount="4" />
+    <AbilityModificationArray>
+      <Modifications>
+        <Type value="FlatModification" />
+        <Catalog value="Effect" />
+        <Entry value="DiabloShadowChargeDevastatingChargeArmorDebuffApplyBehavior" />
+        <Field value="Chance" />
+      </Modifications>
+    </AbilityModificationArray>
   </CTalent>
   <CTalent id="DiabloSoulShield">
     <Face value="DiabloSoulShield" />
@@ -3466,6 +3573,7 @@
     <Abil value="DiabloFireStomp" />
     <RankArray>
       <BehaviorArray value="DiabloFireStompHellfireTalentTokenCounter" />
+      <BehaviorArray value="DiabloFireStompHellfireBuffBehavior" />
     </RankArray>
     <AbilityModificationArray>
       <Modifications>
@@ -3723,6 +3831,12 @@
     <HeroPlaystyleFlags index="Overconfident" value="1" />
     <HeroPlaystyleFlags index="RoleTank" value="1" />
   </CUnit>
+  <CValidatorUnitCompareBehaviorCount id="DiabloFireStompHellfireHasMaximumSpellPowerBuffStacks">
+    <WhichUnit Value="Caster" />
+    <Compare value="GE" />
+    <Value value="15" />
+    <Behavior value="DiabloFireStompHellfireSpellPower" />
+  </CValidatorUnitCompareBehaviorCount>
   <CValidatorUnitCompareBehaviorCount id="DiabloOverpowerTargetHasOverpowerNoEffectTree">
     <Value value="1" />
     <Behavior value="DiabloOverpowerTargetBehavior" />
@@ -3827,10 +3941,10 @@
     <WhichUnit Effect="DiabloShadowChargeInitialSet" />
     <Behavior value="DiabloShadowChargeStunLimiter" />
   </CValidatorUnitCompareBehaviorCount>
-  <CValidatorUnitCompareTokenCount id="DiabloDoesNotHave6DevastatingChargeTalentTokens">
+  <CValidatorUnitCompareTokenCount id="DiabloDoesNotHave5DevastatingChargeTalentTokens">
     <WhichUnit Value="Caster" />
     <Compare value="LT" />
-    <Value value="6" />
+    <Value value="5" />
     <TokenId value="DiabloShadowChargeDevastatingChargeTalentTokenCounter" />
   </CValidatorUnitCompareTokenCount>
   <CValidatorPlayerTalent id="DiabloHasDevastatingChargeTalent">
