@@ -3,6 +3,13 @@
     <CActorModel default="1" id="TerranBuildingBuild"/>
     <CActorModel default="1" id="TerranBuildingBuildRefinery"/>
     <CActorModel default="1" id="TerranBuildingBuildSmall"/>
+    <CActorModel default="1" id="InhibitorZoneRadiusBase">
+        <Aliases value="_Snapshot"/>
+        <On Terms="ActorCreation" Send="AnimBracketStart BSD Birth Stand Death Instant"/>
+        <On Terms="ActorCreation" Send="Create ForceField_Inhibitor_Loop_AS"/>
+        <On Terms="ActorOrphan" Send="Destroy"/>
+        <On Terms="AnimBracketState.*.AfterClosing; !AnimBracketExitReason ModelSwap; AnimName BSD" Send="Destroy"/>
+    </CActorModel>
     <CActorAction id="AdeptAttack">
         <ImpactModel value="AdeptAttackImpactModel"/>
     </CActorAction>
@@ -21,6 +28,29 @@
         <On Terms="ActorCreation; ValidatePlayer GhostEnhancedShockewavesUpgraded" Send="SetScale 1.330000"/>
         <On Terms="ActorCreation; ValidatePlayer GhostEnhancedShockewavesUpgraded" Send="SetTintColor {128,128,255 1.400000}"/>
     </CActorModel>
+    <CActorModelMaterial id="BattlecruiserTacticalJumpPowerup" parent="GlazeParent">
+        <Remove Terms="Behavior.ParasiticBomb.On" Send="Create"/>
+        <Remove Terms="Behavior.ParasiticBomb.Off" Send="AnimBracketStop BSD"/>
+        <On Terms="ActorCreation" Send="ModelMaterialApplyTo ::Main"/>
+        <On Terms="AnimDone; AnimName Death" Send="ModelMaterialRemoveFrom ::Main"/>
+        <On Terms="AnimDone; AnimName Death" Send="Destroy"/>
+        <On Terms="Abil.Hyperjump.SourcePrepStart" Send="Create"/>
+        <On Terms="Abil.Hyperjump.SourcePrepStop" Send="AnimBracketStop BSD"/>
+        <ModelFlags index="AutomateGlobalLoops" value="1"/>
+    </CActorModelMaterial>
+    <CActorSound id="Battlecruiser_TacticalJumpPowerup_Sound" parent="SoundOneShot">
+        <!--On Terms="Behavior.HyperjumpTeleportOut.On" Send="Create"/-->
+        <Sound value="Battlecruiser_DefensiveMatrixBirth"/>
+        <!-- should stay in the original Battlecruiser position and not hyperjump with it -->
+        <Host Subject="_Unit"/>
+        <HostSiteOps Ops="SOpAttachOriginStationary"/>
+        <On Terms="Abil.Hyperjump.SourcePrepStart" Send="Create"/>
+        <On Terms="Abil.Hyperjump.SourcePrepStop" Send="Destroy"/>
+    </CActorSound>
+    <CActorAction id="ZealotSunderingImpactAttackImpactEffect" parent="GenericAttack" effectAttack="ChargingDamage">
+        <ImpactMap index="None" Model="PurificationNovaImpact" Sound="" ModelReaction=""/>
+        <ImpactMap index="Shield" Sound="" ModelReaction=""/>
+    </CActorAction>
     <CActorModel id="GuardianShield">
         <HostSiteOps Ops="SOpAttachCenter GuardianShieldVisualOffset"/>
     </CActorModel>
@@ -147,6 +177,11 @@
     <CActorSound id="Purifier_WarpPad_Halo_Loop">
         <Layers Sound="Purifier_WarpPad_Halo_Active"/>
     </CActorSound>
+    <CActorBeamSimple id="SentryAttackBeam">
+        <Remove Terms="Effect.DisruptionBeam.Stop; At Effect" Send="AnimBracketStop BSD"/>
+        <On Terms="Effect.DisruptionBeam.Stop; At Effect" Send="TimerSet 0.500000 Delay"/>
+        <On Terms="TimerExpired; TimerName Delay" Send="AnimBracketStop BSD"/>
+    </CActorBeamSimple>
     <CActorSound id="ShieldBatteryRechargeSoundStart" parent="SoundOneShot">
         <EditorCategories value=""/>
         <Sound value="ShieldBattery_RechargeStart"/>
@@ -594,9 +629,11 @@
         <DeathCustoms ModelLink="UltraliskCEDeath" Name="Variation0"/>
         <DeathCustoms ModelLink="UltraliskCEDeathFire" Name="Variation1"/>
         <DeathCustoms ModelLink="UltraliskCEDeathAcid" Name="Variation2"/-->
-        <On Terms="ActorCreation; ValidatePlayer HasAnabolicSynthesisUpgrade" Send="Create UltraliskAnabolicSynthesisUpgrade"/>
-        <On Terms="Upgrade.AnabolicSynthesis.Add" Send="Create UltraliskAnabolicSynthesisUpgrade"/>
-        <On Terms="Upgrade.AnabolicSynthesis.Remove" Target="UltraliskAnabolicSynthesisUpgrade" Send="Destroy"/>
+        <On Terms="ActorCreation; ValidatePlayer HasAnabolicSynthesisUpgrade; !ValidateUnit IsUltraliskBurrowed" Send="Create UltraliskAnabolicSynthesisUpgrade"/>
+        <On Terms="Upgrade.AnabolicSynthesis.Add; !ValidateUnit IsUltraliskBurrowed" Send="Create UltraliskAnabolicSynthesisUpgrade"/>
+        <On Terms="Upgrade.AnabolicSynthesis.Remove; !ValidateUnit IsUltraliskBurrowed" Target="UltraliskAnabolicSynthesisUpgrade" Send="Destroy"/>
+        <On Terms="AbilMorph.BurrowUltraliskUp.Finish; ValidatePlayer HasAnabolicSynthesisUpgrade" Send="Create UltraliskAnabolicSynthesisUpgrade"/>
+        <On Terms="AbilMorph.BurrowUltraliskDown.Start" Target="UltraliskAnabolicSynthesisUpgrade" Send="Destroy"/>
     </CActorUnit>
     <CActorModel id="UltraliskAnabolicSynthesisUpgrade" parent="ModelAnimationStyleContinuous">
         <Inherits index="BaseModelScale" value="1"/>
@@ -754,7 +791,7 @@
     <!-- Remove Stand and death from TemporalFieldGrowingBubbleModel so when the first dies and the second is created there are no blending issues -->
     <CActorModel id="TemporalFieldGrowingBubbleModel">
         <On Terms="Effect.TemporalFieldGrowingBubbleCreatePersistent.Start" Send="Create"/>
-        <On Terms="ActorCreation" Send="AnimBracketStart BSD Birth"/>
+        <On Terms="ActorCreation" Send="AnimBracketStart BSD Birth {} {} 0 2.500000 AsDuration"/>
         <On Terms="Effect.TemporalFieldGrowingBubbleCreatePersistent.Stop" Send="Destroy"/>
         <On Terms="ActorOrphan" Send="Destroy"/>
         <On Terms="AnimBracketState.*.AfterClosing; !AnimBracketExitReason ModelSwap; AnimName BSD" Send="Destroy"/>
@@ -2056,40 +2093,12 @@
         <On Terms="Behavior.InhibitorZoneTemporalField.Off" Send="Destroy"/>
         <Layers Sound="ForceField_Inhibitor_Impacts_Loop"/>
     </CActorSound>
-        <CActorModel default="1" id="InhibitorZoneRadiusBase">
-        <Aliases value="_Snapshot"/>
-        <Inherits index="CastShadows" value="1"/>
-        <Inherits index="CloakEffect" value="1"/>
-        <Inherits index="CreepEngulfment" value="1"/>
-        <Inherits index="Decal" value="1"/>
-        <Inherits index="Opacity" value="1"/>
-        <Inherits index="TeamColor" value="1"/>
-        <Inherits index="TimeScale" value="1"/>
-        <Inherits index="TintColor" value="1"/>
-        <Inherits index="Visibility" value="1"/>
-        <Inherits index="WarpGroup" value="1"/>
-        <On Terms="ActorCreation" Send="AnimBracketStart BSD Birth Stand Death Instant"/>
-        <On Terms="ActorCreation" Send="Create ForceField_Inhibitor_Loop_AS"/>
-        <On Terms="ActorOrphan" Send="Destroy"/>
-        <On Terms="AnimBracketState.*.AfterClosing; !AnimBracketExitReason ModelSwap; AnimName BSD" Send="Destroy"/>
-        <!--On Terms="ActorCreation" Send="SetTintColor 255,0,0"/-->
-        <Host Subject="_Selectable"/>
-        <Model value="InhibitorZoneRadius"/>
-        <ModelFlags index="AllowHitTest" value="0"/>
-        <ModelFlags index="AutomateGlobalLoops" value="1"/>
-        <ModelFlags index="UseSyncSeed" value="1"/>
-    </CActorModel>
     <CActorSound id="ForceField_Inhibitor_Loop_AS" parent="SoundContinuous">
         <EditorCategories value=""/>
         <Sound value="ForceField_Inhibitor_Loop"/>
     </CActorSound>
     <CActorDoodad id="VolcanicWeevil">
         <Aliases value="_EditorHelper"/>
-        <FogVisibility value="Hidden"/>
-        <EditorCategories value="DoodadType:Environment"/>
-        <DoodadFlags index="PauseAnimsWhileFogged" value="0"/>
-        <EditorModel value="HelperEmitterSelectionArrow"/>
         <TexSets value="Zerus"/>
-        <RandomScaleRange value="1.000000,1.000000"/>
     </CActorDoodad>
 </Catalog>
