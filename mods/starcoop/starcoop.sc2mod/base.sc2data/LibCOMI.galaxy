@@ -175,6 +175,14 @@ void libCOMI_InitVariables () {
     for (init_i = 0; init_i <= libCOOC_gv_cCC_MAXPLAYERS; init_i += 1) {
         libCOMI_gv_cM_LaserDrillUnitGroup[init_i] = UnitGroupEmpty();
     }
+    libCOMI_gv_cM_Mengsk_CheckRoyalGuardSupply = true;
+    libCOMI_gv_cM_Mengsk_XPHungryUnits = UnitGroupEmpty();
+    libCOMI_gv_cM_Mengsk_VeteranUnits = UnitGroupEmpty();
+    libCOMI_gv_cM_Mengsk_PropagandaUnits = UnitGroupEmpty();
+    libCOMI_gv_cM_Mengsk_ReturningWorkers = UnitGroupEmpty();
+    libCOMI_gv_cM_Mengsk_WeaponPickups = UnitGroupEmpty();
+    libCOMI_gv_cM_Mengsk_WeaponPickerUppers = UnitGroupEmpty();
+    libCOMI_gv_cM_Mengsk_ArtilleryExperimentalStrikeRange = 4.0;
     libCOMI_gv_cM_NovaUnitName_CountCurrentPosition = RandomInt(1, 143);
     libCOMI_gv_cM_NovaUnitName_CountStep = RandomInt(1, 7);
     for (init_i = 0; init_i <= libCOOC_gv_cCC_MAXPLAYERS; init_i += 1) {
@@ -279,6 +287,8 @@ void libCOMI_InitVariables () {
     libCOMI_gv_cM_ArtifactTransmission_SelectAbilityReminder = TimerCreate();
     libCOMI_gv_cMC_ZeratulVOTransmissionProphacyCastDelay = 60.0;
     libCOMI_gv_cM_AbilityTransmission_StetelliteReminder_First = true;
+    libCOMI_gv_cM_MengskTransmissionTimerDirtyBomb = TimerCreate();
+    libCOMI_gv_cM_MengskTransmissionTimerForcedConscription = TimerCreate();
     libCOMI_gv_cM_VOResourceReqSendButton = c_invalidDialogControlId;
     libCOMI_gv_cM_TransmissionPrimaryPlayers = PlayerGroupEmpty();
     libCOMI_gv_cM_TransmissionSecondaryPlayers = PlayerGroupEmpty();
@@ -708,7 +718,7 @@ void libCOMI_gf_CM_CinematicModeInternal (bool lp_onOff, fixed lp_duration) {
         }
 
         libCOMI_gf_CM_CinematicModeActivate();
-        libNtve_gf_GlobalCinematicSetting(true);
+        libNtve_gf_GlobalCinematicSettingFixedSeedOnOff(true, false);
         auto311CBA6C_g = libCOOC_gf_CommanderPlayers();
         lv_indexPlayer = -1;
         while (true) {
@@ -951,6 +961,7 @@ void libCOMI_gf_StartCoopAI (int lp_player, int lp_aIPlayerEnemy) {
     string lv_unitRace;
     int lv_aIPlayerRaceCompositionsCount;
     string lv_aIPersonality;
+    int lv_commanderPlayer;
 
     // Automatic Variable Declarations
     unitgroup auto29712051_g;
@@ -958,6 +969,7 @@ void libCOMI_gf_StartCoopAI (int lp_player, int lp_aIPlayerEnemy) {
     string autoD30B3B6A_val;
     int auto887DFF49_ai;
     int auto887DFF49_ae;
+    playergroup autoE5EF26EC_g;
 
     // Variable Initialization
     lv_playerPreplacedUnits = UnitGroupEmpty();
@@ -1017,7 +1029,11 @@ void libCOMI_gf_StartCoopAI (int lp_player, int lp_aIPlayerEnemy) {
     else {
     }
     AIAddAirDangerCampaignUnits(lp_player);
-    if ((libCOMI_gv_cM_CoopAIPlayer_CommanderShared == "None")) {
+    if ((libCOMI_gv_cM_CoopAIPlayer_CommanderShared == "None") && (PlayerRetryMutation(1, 0) > 0)) {
+        libCOMI_gv_cM_CoopAIPlayer_Commander[lp_player] = libCOOC_gf_CC_AICommanderByUniqueIndex(PlayerACEnemyWaveType(1));
+        libCOMI_gf_CM_CoopAIPersonalitySet(libCOMI_gv_cM_CoopAIPlayer_Commander[lp_player]);
+    }
+    else if ((libCOMI_gv_cM_CoopAIPlayer_CommanderShared == "None")) {
         lv_aIPlayerRaceCompositionsCount = 0;
         auto887DFF49_ai = 1;
         auto887DFF49_ae = UserDataInstanceCount("CoopAICommanders")+1;
@@ -1035,9 +1051,20 @@ void libCOMI_gf_StartCoopAI (int lp_player, int lp_aIPlayerEnemy) {
         }
         libCOMI_gf_CM_CoopAIPersonalitySet(libCOMI_gv_cM_CoopAIPlayer_Commander[lp_player]);
     }
-    else {
+    else if (true) {
         libCOMI_gv_cM_CoopAIPlayer_Commander[lp_player] = libCOMI_gf_CM_CoopAIPersonality();
     }
+    if ((PlayerBrutalPlusDifficulty(1) > 0)) {
+        autoE5EF26EC_g = libCOOC_gf_CommanderPlayers();
+        lv_commanderPlayer = -1;
+        while (true) {
+            lv_commanderPlayer = PlayerGroupNextPlayer(autoE5EF26EC_g, lv_commanderPlayer);
+            if (lv_commanderPlayer < 0) { break; }
+            libCOOC_gf_CC_ScoreValueSet(lv_commanderPlayer, "ACEnemyRace", libCOOC_gf_CC_RaceToInt(libCOOC_gf_CC_AIPersonalityRace(libCOMI_gv_cM_CoopAIPlayer_CommanderShared)));
+            libCOOC_gf_CC_ScoreValueSet(lv_commanderPlayer, "ACEnemyComposition", UserDataGetInt("CoopAICommanders", libCOMI_gv_cM_CoopAIPlayer_CommanderShared, "UniqueIndex", 1));
+        }
+    }
+
     libCOMI_gf_CM_CoopAI_SetupStartingTech(lp_player);
     if (((lp_player == 3) || (lp_player == 4))) {
         libCOUI_gf_CU_EnemyBriefInit(libCOMI_gv_cM_CoopAIPlayer_Commander[lp_player]);
@@ -2238,6 +2265,22 @@ void libCOMI_gf_SendAttackWaveusingCoopAttackForceWaveAttackTargetType (unitgrou
     // Implementation
     libCOMU_gf_CT_Mutator_AttackWaveHook_WaveSent(3, lp_attackForce, libCOMI_gf_LastCreatedCoopAttackForceGatherPoint(), lp_attackTargetType);
     libCOMU_gf_CT_Mutator_AttackWaveHook_WaveSent(4, lp_attackForce, libCOMI_gf_LastCreatedCoopAttackForceGatherPoint(), lp_attackTargetType);
+    libCOMI_gf_SendAttackWaveusingCoopAttackForceInternal(lp_attackForce, lp_time, lp_waitDontWait);
+}
+
+void libCOMI_gf_SendAttackWaveusingCoopAttackForceForceSetSpawnLocationHook (unitgroup lp_attackForce, int lp_time, bool lp_waitDontWait, int lp_attackTargetType, point lp_spawnLocation) {
+    // Variable Declarations
+    unit lv_attackForceIter;
+    playergroup lv_attackingPlayers;
+    int lv_playerIter;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_attackingPlayers = PlayerGroupEmpty();
+
+    // Implementation
+    libCOMU_gf_CT_Mutator_AttackWaveHook_WaveSent(3, lp_attackForce, lp_spawnLocation, lp_attackTargetType);
+    libCOMU_gf_CT_Mutator_AttackWaveHook_WaveSent(4, lp_attackForce, lp_spawnLocation, lp_attackTargetType);
     libCOMI_gf_SendAttackWaveusingCoopAttackForceInternal(lp_attackForce, lp_time, lp_waitDontWait);
 }
 
@@ -3574,6 +3617,21 @@ void libCOMI_gf_SetUnitBuffMultiplier (unit lp_unit, fixed lp_multiplierAmount, 
     }
 }
 
+void libCOMI_gf_SetUnitAttributePoints (string lp_attribute, unit lp_unit, int lp_points) {
+    // Variable Declarations
+    int lv_originalminpoints;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_originalminpoints = CatalogFieldValueGetAsInt(c_gameCatalogBehavior, lp_attribute, "MinPoints", UnitGetOwner(lp_unit));
+
+    // Implementation
+    CatalogFieldValueSet(c_gameCatalogBehavior, lp_attribute, "MinPoints", UnitGetOwner(lp_unit), IntToString(lp_points));
+    UnitBehaviorRemove(lp_unit, lp_attribute, 1);
+    UnitBehaviorAdd(lp_unit, lp_attribute, lp_unit, 1);
+    CatalogFieldValueSet(c_gameCatalogBehavior, lp_attribute, "MinPoints", UnitGetOwner(lp_unit), IntToString(lv_originalminpoints));
+}
+
 void libCOMI_gf_PlayerApplySkinSignal (int lp_player, string lp_skin, bool lp_activateDeactivate, string lp_extraMessage) {
     // Variable Declarations
     string lv_modelOld;
@@ -3654,6 +3712,204 @@ void libCOMI_gf_ButtonReplacement (int lp_player, string lp_button, string lp_bu
     CatalogFieldValueSet(c_gameCatalogButton, lp_button, lv_itPath, lp_player, CatalogFieldValueGet(c_gameCatalogButton, lp_buttonReplacement, lv_itPath, lp_player));
 }
 
+trigger auto_libCOMI_gf_FindandAttackNearestEnemy_Trigger = null;
+unit auto_libCOMI_gf_FindandAttackNearestEnemy_lp_attacker;
+fixed auto_libCOMI_gf_FindandAttackNearestEnemy_lp_searchRadius;
+fixed auto_libCOMI_gf_FindandAttackNearestEnemy_lp_satisfiedPathingDistance;
+fixed auto_libCOMI_gf_FindandAttackNearestEnemy_lp_thinkPeriod;
+unitfilter auto_libCOMI_gf_FindandAttackNearestEnemy_lp_targetFilter;
+unitfilter auto_libCOMI_gf_FindandAttackNearestEnemy_lp_fallbackTargetFilter;
+
+void libCOMI_gf_FindandAttackNearestEnemy (unit lp_attacker, fixed lp_searchRadius, fixed lp_satisfiedPathingDistance, fixed lp_thinkPeriod, unitfilter lp_targetFilter, unitfilter lp_fallbackTargetFilter) {
+    auto_libCOMI_gf_FindandAttackNearestEnemy_lp_attacker = lp_attacker;
+    auto_libCOMI_gf_FindandAttackNearestEnemy_lp_searchRadius = lp_searchRadius;
+    auto_libCOMI_gf_FindandAttackNearestEnemy_lp_satisfiedPathingDistance = lp_satisfiedPathingDistance;
+    auto_libCOMI_gf_FindandAttackNearestEnemy_lp_thinkPeriod = lp_thinkPeriod;
+    auto_libCOMI_gf_FindandAttackNearestEnemy_lp_targetFilter = lp_targetFilter;
+    auto_libCOMI_gf_FindandAttackNearestEnemy_lp_fallbackTargetFilter = lp_fallbackTargetFilter;
+
+    if (auto_libCOMI_gf_FindandAttackNearestEnemy_Trigger == null) {
+        auto_libCOMI_gf_FindandAttackNearestEnemy_Trigger = TriggerCreate("auto_libCOMI_gf_FindandAttackNearestEnemy_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libCOMI_gf_FindandAttackNearestEnemy_Trigger, false, false);
+}
+
+bool auto_libCOMI_gf_FindandAttackNearestEnemy_TriggerFunc (bool testConds, bool runActions) {
+    unit lp_attacker = auto_libCOMI_gf_FindandAttackNearestEnemy_lp_attacker;
+    fixed lp_searchRadius = auto_libCOMI_gf_FindandAttackNearestEnemy_lp_searchRadius;
+    fixed lp_satisfiedPathingDistance = auto_libCOMI_gf_FindandAttackNearestEnemy_lp_satisfiedPathingDistance;
+    fixed lp_thinkPeriod = auto_libCOMI_gf_FindandAttackNearestEnemy_lp_thinkPeriod;
+    unitfilter lp_targetFilter = auto_libCOMI_gf_FindandAttackNearestEnemy_lp_targetFilter;
+    unitfilter lp_fallbackTargetFilter = auto_libCOMI_gf_FindandAttackNearestEnemy_lp_fallbackTargetFilter;
+
+    // Variable Declarations
+    fixed lv_safethinkperiod;
+    point lv_attacktargetpoint;
+    unit lv_bestattacktargetunit;
+    fixed lv_bestpathingdistance;
+    unit lv_currentattacktargetunit;
+    fixed lv_currentpathingdistance;
+
+    // Automatic Variable Declarations
+    unitgroup auto75294CD3_g;
+    int auto75294CD3_u;
+
+    // Variable Initialization
+    lv_safethinkperiod = MaxF(lp_thinkPeriod, 0.5);
+
+    // Implementation
+    while ((UnitIsAlive(lp_attacker) == true)) {
+        lv_bestpathingdistance = 10000.0;
+        auto75294CD3_g = UnitGroupAlliance(UnitGetOwner(lp_attacker), c_unitAllianceEnemy, RegionCircle(UnitGetPosition(lp_attacker), lp_searchRadius), lp_targetFilter, 0);
+        auto75294CD3_u = UnitGroupCount(auto75294CD3_g, c_unitCountAll);
+        for (;; auto75294CD3_u -= 1) {
+            lv_currentattacktargetunit = UnitGroupUnitFromEnd(auto75294CD3_g, auto75294CD3_u);
+            if (lv_currentattacktargetunit == null) { break; }
+            if ((libNtve_gf_UnitCanCreateEffectOnUnit(lv_currentattacktargetunit, "ThreatTest", lp_attacker) == true) && ((UnitFilterMatch(lv_currentattacktargetunit, UnitGetOwner(lp_attacker), UnitFilter(0, 0, (1 << c_targetFilterCloaked), 0)) == true) || (libNtve_gf_UnitIsVisibleToPlayer(lv_currentattacktargetunit, UnitGetOwner(lp_attacker)) == true))) {
+                lv_currentpathingdistance = AIPathingCostUnit(lp_attacker, UnitGetPosition(lv_currentattacktargetunit), c_ignoreEnemyBuildings);
+                if ((lv_currentpathingdistance < lp_satisfiedPathingDistance)) {
+                    lv_bestattacktargetunit = lv_currentattacktargetunit;
+                    break;
+                }
+                else if ((lv_currentpathingdistance < lv_bestpathingdistance)) {
+                    lv_bestpathingdistance = lv_currentpathingdistance;
+                    lv_bestattacktargetunit = lv_currentattacktargetunit;
+                }
+            }
+
+        }
+        if ((UnitIsAlive(lv_bestattacktargetunit) == false)) {
+            lv_bestattacktargetunit = UnitGroupClosestToPoint(UnitGroupAlliance(UnitGetOwner(lp_attacker), c_unitAllianceEnemy, RegionEntireMap(), lp_fallbackTargetFilter, 0), UnitGetPosition(lp_attacker));
+        }
+
+        if ((UnitIsAlive(lv_bestattacktargetunit) == true) && (libNtve_gf_UnitCanCreateEffectOnUnit(lv_bestattacktargetunit, "ThreatTest", lp_attacker) == true) && ((UnitFilterMatch(lv_bestattacktargetunit, UnitGetOwner(lp_attacker), UnitFilter(0, 0, (1 << c_targetFilterCloaked), 0)) == true) || (libNtve_gf_UnitIsVisibleToPlayer(lv_bestattacktargetunit, UnitGetOwner(lp_attacker)) == true))) {
+            while ((UnitIsAlive(lp_attacker) == true) && (UnitIsAlive(lv_bestattacktargetunit) == true) && (libNtve_gf_UnitCanCreateEffectOnUnit(lv_bestattacktargetunit, "ThreatTest", lp_attacker) == true) && ((UnitFilterMatch(lv_bestattacktargetunit, UnitGetOwner(lp_attacker), UnitFilter(0, 0, (1 << c_targetFilterCloaked), 0)) == true) || (libNtve_gf_UnitIsVisibleToPlayer(lv_bestattacktargetunit, UnitGetOwner(lp_attacker)) == true))) {
+                UnitIssueOrder(lp_attacker, OrderTargetingPoint(AbilityCommand("attack", 0), UnitGetPosition(lv_bestattacktargetunit)), c_orderQueueReplace);
+                Wait((lv_safethinkperiod + RandomFixed(-0.125, 0.125)), c_timeGame);
+            }
+        }
+        else {
+            Wait((lv_safethinkperiod + RandomFixed(-0.125, 0.125)), c_timeGame);
+        }
+    }
+    return true;
+}
+
+fixed libCOMI_gf_CombinedPropertyofUnitGroup (unitgroup lp_unitGroup, int lp_unitProperty, bool lp_currentDefault) {
+    // Variable Declarations
+    unit lv_unititer;
+    fixed lv_totalproperty;
+
+    // Automatic Variable Declarations
+    unitgroup auto229CF9C6_g;
+    int auto229CF9C6_u;
+
+    // Variable Initialization
+
+    // Implementation
+    auto229CF9C6_g = lp_unitGroup;
+    auto229CF9C6_u = UnitGroupCount(auto229CF9C6_g, c_unitCountAll);
+    for (;; auto229CF9C6_u -= 1) {
+        lv_unititer = UnitGroupUnitFromEnd(auto229CF9C6_g, auto229CF9C6_u);
+        if (lv_unititer == null) { break; }
+        lv_totalproperty += UnitGetPropertyFixed(lv_unititer, lp_unitProperty, lp_currentDefault);
+    }
+    return lv_totalproperty;
+}
+
+unitgroup libCOMI_gf_ConjoinedTrainsofTrainCar (unit lp_trainCar) {
+    // Variable Declarations
+    fixed lv_trainID;
+    unit lv_indexTrain;
+    unitgroup lv_trainCars;
+
+    // Automatic Variable Declarations
+    unitgroup auto255B490F_g;
+    int auto255B490F_u;
+
+    // Variable Initialization
+    lv_trainCars = UnitGroupEmpty();
+
+    // Implementation
+    lv_trainID = UnitGetCustomValue(lp_trainCar, 2);
+    lv_trainCars = UnitGroup("Caboose", c_playerAny, null, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    UnitGroupAddUnitGroup(lv_trainCars, UnitGroup("TarsonisEngineFast", c_playerAny, null, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    UnitGroupAddUnitGroup(lv_trainCars, UnitGroup("TarsonisEngine", c_playerAny, null, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    UnitGroupAddUnitGroup(lv_trainCars, UnitGroup("FreightCar", c_playerAny, null, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    auto255B490F_g = lv_trainCars;
+    auto255B490F_u = UnitGroupCount(auto255B490F_g, c_unitCountAll);
+    for (;; auto255B490F_u -= 1) {
+        lv_indexTrain = UnitGroupUnitFromEnd(auto255B490F_g, auto255B490F_u);
+        if (lv_indexTrain == null) { break; }
+        if ((UnitGetCustomValue(lv_indexTrain, 2) != lv_trainID)) {
+            UnitGroupRemove(lv_trainCars, lv_indexTrain);
+        }
+
+    }
+    return lv_trainCars;
+}
+
+trigger auto_libCOMI_gf_SynchronizeConjoinedTrainHealth_Trigger = null;
+unitgroup auto_libCOMI_gf_SynchronizeConjoinedTrainHealth_lp_trainCars;
+fixed auto_libCOMI_gf_SynchronizeConjoinedTrainHealth_lp_maxHealth;
+
+void libCOMI_gf_SynchronizeConjoinedTrainHealth (unitgroup lp_trainCars, fixed lp_maxHealth) {
+    auto_libCOMI_gf_SynchronizeConjoinedTrainHealth_lp_trainCars = lp_trainCars;
+    auto_libCOMI_gf_SynchronizeConjoinedTrainHealth_lp_maxHealth = lp_maxHealth;
+
+    if (auto_libCOMI_gf_SynchronizeConjoinedTrainHealth_Trigger == null) {
+        auto_libCOMI_gf_SynchronizeConjoinedTrainHealth_Trigger = TriggerCreate("auto_libCOMI_gf_SynchronizeConjoinedTrainHealth_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libCOMI_gf_SynchronizeConjoinedTrainHealth_Trigger, false, false);
+}
+
+bool auto_libCOMI_gf_SynchronizeConjoinedTrainHealth_TriggerFunc (bool testConds, bool runActions) {
+    unitgroup lp_trainCars = auto_libCOMI_gf_SynchronizeConjoinedTrainHealth_lp_trainCars;
+    fixed lp_maxHealth = auto_libCOMI_gf_SynchronizeConjoinedTrainHealth_lp_maxHealth;
+
+    // Variable Declarations
+    fixed lv_lastseenhealth;
+    fixed lv_healthdelta;
+    unit lv_traincar;
+
+    // Automatic Variable Declarations
+    unitgroup auto6F300234_g;
+    int auto6F300234_u;
+    unitgroup autoBBEEF069_g;
+    int autoBBEEF069_u;
+
+    // Variable Initialization
+    lv_lastseenhealth = lp_maxHealth;
+
+    // Implementation
+    while ((UnitGroupCount(lp_trainCars, c_unitCountAlive) > 0)) {
+        lv_healthdelta = 0.0;
+        auto6F300234_g = lp_trainCars;
+        auto6F300234_u = UnitGroupCount(auto6F300234_g, c_unitCountAll);
+        for (;; auto6F300234_u -= 1) {
+            lv_traincar = UnitGroupUnitFromEnd(auto6F300234_g, auto6F300234_u);
+            if (lv_traincar == null) { break; }
+            lv_healthdelta += (lv_lastseenhealth - UnitGetPropertyFixed(lv_traincar, c_unitPropLife, c_unitPropCurrent));
+        }
+        lv_lastseenhealth -= lv_healthdelta;
+        lv_lastseenhealth = MinF(lv_lastseenhealth, lp_maxHealth);
+        if ((UnitGroupCount(UnitGroupFilter(null, c_playerAny, lp_trainCars, UnitFilter(0, (1 << (c_targetFilterInvulnerable - 32)), 0, 0), 0), c_unitCountAlive) == 0)) {
+            autoBBEEF069_g = lp_trainCars;
+            autoBBEEF069_u = UnitGroupCount(autoBBEEF069_g, c_unitCountAll);
+            for (;; autoBBEEF069_u -= 1) {
+                lv_traincar = UnitGroupUnitFromEnd(autoBBEEF069_g, autoBBEEF069_u);
+                if (lv_traincar == null) { break; }
+                UnitSetPropertyFixed(lv_traincar, c_unitPropLife, lv_lastseenhealth);
+            }
+        }
+
+        Wait(0.0625, c_timeGame);
+    }
+    return true;
+}
+
 void libCOMI_gf_CM_MasteryKerriganArmyVespeneCostList (int lp_player) {
     // Variable Declarations
     int lv_upgradeCount;
@@ -3692,6 +3948,55 @@ void libCOMI_gf_CM_MasteryKerriganArmyVespeneCostReduction (string lp_unitType, 
     lv_UnitVespeneCostReductionPerPoint = 100.0;
 
     // Implementation
+    lv_unitVespeneCostOriginal = IntToFixed(CatalogFieldValueGetAsInt(c_gameCatalogUnit, lp_unitType, "CostResource[" + IntToString(1) + "]", lp_player));
+    lv_unitVespeneCostReduction = (IntToFixed(lp_upgradeCount) * lv_unitVespeneCostOriginal);
+    lv_unitVespeneCostReduction = (lv_unitVespeneCostReduction / lv_UnitVespeneCostReductionPerPoint);
+    lv_UnitVespeneCostNew = FixedToInt((lv_unitVespeneCostOriginal - lv_unitVespeneCostReduction));
+    CatalogFieldValueSet(c_gameCatalogUnit, lp_unitType, "CostResource[" + IntToString(1) + "]", lp_player, IntToString(lv_UnitVespeneCostNew));
+}
+
+void libCOMI_gf_CM_MasteryMengskRoyalGuardCostList (int lp_player) {
+    // Variable Declarations
+    int lv_upgradeCount;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Implementation
+    lv_upgradeCount = TechTreeUpgradeCount(lp_player, "MasteryMengskRoyalGuardCost", c_techCountCompleteOnly);
+    libCOMI_gf_CM_MasteryMengskRoyalGuardCostReduction("MarauderMengsk", lp_player, lv_upgradeCount);
+    libCOMI_gf_CM_MasteryMengskRoyalGuardCostReduction("GhostMengsk", lp_player, lv_upgradeCount);
+    libCOMI_gf_CM_MasteryMengskRoyalGuardCostReduction("SiegeTankMengsk", lp_player, lv_upgradeCount);
+    libCOMI_gf_CM_MasteryMengskRoyalGuardCostReduction("SiegeTankMengskSieged", lp_player, lv_upgradeCount);
+    libCOMI_gf_CM_MasteryMengskRoyalGuardCostReduction("ThorMengsk", lp_player, lv_upgradeCount);
+    libCOMI_gf_CM_MasteryMengskRoyalGuardCostReduction("ThorMengskSieged", lp_player, lv_upgradeCount);
+    libCOMI_gf_CM_MasteryMengskRoyalGuardCostReduction("VikingMengskAssault", lp_player, lv_upgradeCount);
+    libCOMI_gf_CM_MasteryMengskRoyalGuardCostReduction("VikingMengskFighter", lp_player, lv_upgradeCount);
+    libCOMI_gf_CM_MasteryMengskRoyalGuardCostReduction("BattlecruiserMengsk", lp_player, lv_upgradeCount);
+}
+
+void libCOMI_gf_CM_MasteryMengskRoyalGuardCostReduction (string lp_unitType, int lp_player, int lp_upgradeCount) {
+    // Variable Declarations
+    fixed lv_unitMineralCostOriginal;
+    fixed lv_unitVespeneCostOriginal;
+    fixed lv_UnitVespeneCostReductionPerPoint2;
+    fixed lv_UnitVespeneCostReductionPerPoint;
+    fixed lv_unitMineralCostReduction;
+    fixed lv_unitVespeneCostReduction;
+    int lv_UnitVespeneCostNew2;
+    int lv_UnitVespeneCostNew;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_UnitVespeneCostReductionPerPoint2 = 150.0;
+    lv_UnitVespeneCostReductionPerPoint = 150.0;
+
+    // Implementation
+    lv_unitMineralCostOriginal = IntToFixed(CatalogFieldValueGetAsInt(c_gameCatalogUnit, lp_unitType, "CostResource[" + IntToString(0) + "]", lp_player));
+    lv_unitMineralCostReduction = (IntToFixed(lp_upgradeCount) * lv_unitMineralCostOriginal);
+    lv_unitMineralCostReduction = (lv_unitMineralCostReduction / lv_UnitVespeneCostReductionPerPoint2);
+    lv_UnitVespeneCostNew2 = FixedToInt((lv_unitMineralCostOriginal - lv_unitMineralCostReduction));
+    CatalogFieldValueSet(c_gameCatalogUnit, lp_unitType, "CostResource[" + IntToString(0) + "]", lp_player, IntToString(lv_UnitVespeneCostNew2));
     lv_unitVespeneCostOriginal = IntToFixed(CatalogFieldValueGetAsInt(c_gameCatalogUnit, lp_unitType, "CostResource[" + IntToString(1) + "]", lp_player));
     lv_unitVespeneCostReduction = (IntToFixed(lp_upgradeCount) * lv_unitVespeneCostOriginal);
     lv_unitVespeneCostReduction = (lv_unitVespeneCostReduction / lv_UnitVespeneCostReductionPerPoint);
@@ -3911,6 +4216,46 @@ void libCOMI_gf_CM_MasteryResearchCostReduction (int lp_player, string lp_master
         }
 
     }
+}
+
+bool libCOMI_gf_CM_Resources_IsSaturated (unit lp_resourceNodeorTownHall) {
+    // Automatic Variable Declarations
+    // Implementation
+    return (UnitCurrentWorkerCount(lp_resourceNodeorTownHall) >= UnitIdealWorkerCount(lp_resourceNodeorTownHall));
+}
+
+void libCOMI_gf_CM_Resources_FindWork (unit lp_worker, unit lp_townHall, fixed lp_workRadius) {
+    // Variable Declarations
+    region lv_workregion;
+    unitgroup lv_nearbyminerals;
+    unitgroup lv_nearbygeysers;
+    unit lv_resourcenode;
+
+    // Automatic Variable Declarations
+    unitgroup auto9D4D2DDD_g;
+    int auto9D4D2DDD_u;
+
+    // Variable Initialization
+    lv_workregion = RegionCircle(UnitGetPosition(lp_townHall), lp_workRadius);
+    lv_nearbyminerals = UnitGroup(null, 0, lv_workregion, UnitFilter((1 << c_targetFilterHarvestableResource), 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+    lv_nearbygeysers = UnitGroup(null, UnitGetOwner(lp_worker), lv_workregion, UnitFilter((1 << c_targetFilterHarvestableResource), 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+
+    // Implementation
+    auto9D4D2DDD_g = lv_nearbygeysers;
+    auto9D4D2DDD_u = UnitGroupCount(auto9D4D2DDD_g, c_unitCountAll);
+    for (;; auto9D4D2DDD_u -= 1) {
+        lv_resourcenode = UnitGroupUnitFromEnd(auto9D4D2DDD_g, auto9D4D2DDD_u);
+        if (lv_resourcenode == null) { break; }
+        if ((libCOMI_gf_CM_Resources_IsSaturated(lv_resourcenode) == false)) {
+            UnitIssueOrder(lp_worker, OrderTargetingUnit(AbilityCommand("SCVHarvest", 0), lv_resourcenode), c_orderQueueReplace);
+            return ;
+        }
+
+    }
+    if ((UnitGroupCount(lv_nearbyminerals, c_unitCountAlive) > 0) && (libCOMI_gf_CM_Resources_IsSaturated(lp_townHall) == false)) {
+        UnitIssueOrder(lp_worker, OrderTargetingUnit(AbilityCommand("SCVHarvest", 0), UnitGroupUnit(lv_nearbyminerals, RandomInt(1, UnitGroupCount(lv_nearbyminerals, c_unitCountAlive)))), c_orderQueueReplace);
+    }
+
 }
 
 void libCOMI_gf_CM_DataUtilInit () {
@@ -4998,6 +5343,214 @@ point libCOMI_gf_CM_LaserDrillTargetPoint (point lp_casterPoint, point lp_target
     }
 }
 
+void libCOMI_gf_CM_Mengsk_CheckRoyalGuardSupply () {
+    // Variable Declarations
+    unit lv_veteran;
+    fixed lv_maxedsupply;
+    int lv_mengskplayer;
+
+    // Automatic Variable Declarations
+    unitgroup autoED740C17_g;
+    int autoED740C17_u;
+
+    // Variable Initialization
+    lv_mengskplayer = libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranMengsk", libCOOC_gf_CommanderPlayers());
+
+    // Implementation
+    if (((libCOMI_gv_cM_Mengsk_CheckRoyalGuardSupply == false) || ((PlayerDifficulty(lv_mengskplayer) >= 3) == false) || (PlayerCommanderLevel(lv_mengskplayer) < 15))) {
+        return ;
+    }
+
+    autoED740C17_g = libCOMI_gv_cM_Mengsk_VeteranUnits;
+    autoED740C17_u = UnitGroupCount(autoED740C17_g, c_unitCountAll);
+    for (;; autoED740C17_u -= 1) {
+        lv_veteran = UnitGroupUnitFromEnd(autoED740C17_g, autoED740C17_u);
+        if (lv_veteran == null) { break; }
+        if ((UnitXPGetCurrentLevel(lv_veteran, null) >= UnitXPGetNumLevels(lv_veteran, null))) {
+            lv_maxedsupply += UnitGetPropertyFixed(lv_veteran, c_unitPropSuppliesUsed, c_unitPropNormal);
+        }
+
+    }
+    if ((lv_maxedsupply >= 50.0)) {
+        AchievementAward(lv_mengskplayer, "CommanderMengskRoyalGuardSupply");
+        libCOMI_gv_cM_Mengsk_CheckRoyalGuardSupply = false;
+    }
+
+}
+
+fixed libCOMI_gf_CM_Mengsk_SupplyLevel (unitgroup lp_unitGroup) {
+    // Variable Declarations
+    unit lv_unititer;
+    fixed lv_totalproperty;
+
+    // Automatic Variable Declarations
+    unitgroup autoE561B475_g;
+    int autoE561B475_u;
+
+    // Variable Initialization
+
+    // Implementation
+    autoE561B475_g = lp_unitGroup;
+    autoE561B475_u = UnitGroupCount(autoE561B475_g, c_unitCountAll);
+    for (;; autoE561B475_u -= 1) {
+        lv_unititer = UnitGroupUnitFromEnd(autoE561B475_g, autoE561B475_u);
+        if (lv_unititer == null) { break; }
+        if ((UnitIsAlive(lv_unititer) == true)) {
+            lv_totalproperty += (UnitGetPropertyFixed(lv_unititer, c_unitPropSuppliesUsed, c_unitPropCurrent) * UnitXPGetCurrentLevel(lv_unititer, null));
+        }
+
+    }
+    return lv_totalproperty;
+}
+
+void libCOMI_gf_CM_Mengsk_EnergyChanged (int lp_mengskPlayer) {
+    // Variable Declarations
+    int lv_energyperzergcalldownlevel;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_energyperzergcalldownlevel = 25;
+
+    // Implementation
+    libNtve_gf_SetDialogItemMaximumValue(libCOUI_gv_cU_GPEnergyBar[lp_mengskPlayer], UnitGetPropertyFixed(libCOMI_gv_cM_GlobalCasterUnit[lp_mengskPlayer], c_unitPropEnergyMax, c_unitPropCurrent), PlayerGroupAll());
+    libNtve_gf_SetDialogItemCurrentValue(libCOUI_gv_cU_GPEnergyBar[lp_mengskPlayer], UnitGetPropertyFixed(libCOMI_gv_cM_GlobalCasterUnit[lp_mengskPlayer], c_unitPropEnergy, c_unitPropCurrent), PlayerGroupAll());
+    libNtve_gf_SetUpgradeLevelForPlayer(lp_mengskPlayer, "ZergMengskCalldownLevel", (FixedToInt(UnitGetPropertyFixed(libCOMI_gv_cM_GlobalCasterUnit[lp_mengskPlayer], c_unitPropEnergy, c_unitPropCurrent)) / lv_energyperzergcalldownlevel));
+}
+
+trigger auto_libCOMI_gf_CM_Mengsk_GlobalCasterEnergyRegen_Trigger = null;
+unit auto_libCOMI_gf_CM_Mengsk_GlobalCasterEnergyRegen_lp_mengskGlobalCaster;
+
+void libCOMI_gf_CM_Mengsk_GlobalCasterEnergyRegen (unit lp_mengskGlobalCaster) {
+    auto_libCOMI_gf_CM_Mengsk_GlobalCasterEnergyRegen_lp_mengskGlobalCaster = lp_mengskGlobalCaster;
+
+    if (auto_libCOMI_gf_CM_Mengsk_GlobalCasterEnergyRegen_Trigger == null) {
+        auto_libCOMI_gf_CM_Mengsk_GlobalCasterEnergyRegen_Trigger = TriggerCreate("auto_libCOMI_gf_CM_Mengsk_GlobalCasterEnergyRegen_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libCOMI_gf_CM_Mengsk_GlobalCasterEnergyRegen_Trigger, false, false);
+}
+
+bool auto_libCOMI_gf_CM_Mengsk_GlobalCasterEnergyRegen_TriggerFunc (bool testConds, bool runActions) {
+    unit lp_mengskGlobalCaster = auto_libCOMI_gf_CM_Mengsk_GlobalCasterEnergyRegen_lp_mengskGlobalCaster;
+
+    // Variable Declarations
+    unit lv_veteran;
+    fixed lv_baseenergyregen;
+    fixed lv_bonusenergyregenfactor;
+    fixed lv_totalenergyregen;
+    fixed lv_globalcasterenergy;
+    int lv_lastseenmoraleindex;
+    int lv_moraleindex;
+    bool lv_moralecapped;
+    fixed lv_moralecappedremindercooldown;
+    timer lv_moralecappedreminder;
+    int lv_energyperzergcalldownlevel;
+    int lv_mengskplayer;
+
+    // Automatic Variable Declarations
+    int auto23CADF1A_val;
+
+    // Variable Initialization
+    lv_baseenergyregen = libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogUnit, "CoopCasterMengsk", "EnergyRegenRate", c_playerAny);
+    lv_bonusenergyregenfactor = libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogEffect, "TopbarMengskBonusRegenFactorDummy", "Amount", UnitGetOwner(lp_mengskGlobalCaster));
+    lv_moralecappedremindercooldown = 120.0;
+    lv_moralecappedreminder = TimerCreate();
+    lv_energyperzergcalldownlevel = 25;
+    lv_mengskplayer = UnitGetOwner(lp_mengskGlobalCaster);
+
+    // Implementation
+    while (true) {
+        lv_totalenergyregen = MaxF((lv_baseenergyregen + (libCOMI_gv_cM_Mengsk_EnergyRegenRoyalGuard + libCOMI_gv_cM_Mengsk_EnergyRegenTrooper)), 0.01);
+        Wait((lv_bonusenergyregenfactor / lv_totalenergyregen), c_timeGame);
+        lv_globalcasterenergy = RoundI((UnitGetPropertyFixed(lp_mengskGlobalCaster, c_unitPropEnergy, c_unitPropCurrent) + 1));
+        UnitSetPropertyFixed(lp_mengskGlobalCaster, c_unitPropEnergy, lv_globalcasterenergy);
+        libCOMI_gf_CM_Mengsk_EnergyChanged(lv_mengskplayer);
+        lv_moraleindex = ((FixedToInt(lv_globalcasterenergy) / 34) + 1);
+        if ((lv_lastseenmoraleindex != lv_moraleindex)) {
+            auto23CADF1A_val = lv_moraleindex;
+            if (auto23CADF1A_val == 1) {
+                CatalogLinkReplace(lv_mengskplayer, c_gameCatalogSound, "TrooperMengsk_Attack", "TrooperMengsk_Attack_MoraleLow");
+                CatalogLinkReplace(lv_mengskplayer, c_gameCatalogSound, "TrooperMengsk_What", "TrooperMengsk_What_MoraleLow");
+                CatalogLinkReplace(lv_mengskplayer, c_gameCatalogSound, "TrooperMengsk_Yes", "TrooperMengsk_Yes_MoraleLow");
+            }
+            else if (auto23CADF1A_val == 2) {
+                CatalogLinkReplace(lv_mengskplayer, c_gameCatalogSound, "TrooperMengsk_Attack", "TrooperMengsk_Attack");
+                CatalogLinkReplace(lv_mengskplayer, c_gameCatalogSound, "TrooperMengsk_What", "TrooperMengsk_What");
+                CatalogLinkReplace(lv_mengskplayer, c_gameCatalogSound, "TrooperMengsk_Yes", "TrooperMengsk_Yes");
+            }
+            else if (auto23CADF1A_val == 3) {
+                CatalogLinkReplace(lv_mengskplayer, c_gameCatalogSound, "TrooperMengsk_Attack", "TrooperMengsk_Attack_MoraleHigh");
+                CatalogLinkReplace(lv_mengskplayer, c_gameCatalogSound, "TrooperMengsk_What", "TrooperMengsk_What_MoraleHigh");
+                CatalogLinkReplace(lv_mengskplayer, c_gameCatalogSound, "TrooperMengsk_Yes", "TrooperMengsk_Yes_MoraleHigh");
+            }
+            else {
+            }
+        }
+
+        lv_lastseenmoraleindex = lv_moraleindex;
+        if ((lv_globalcasterenergy >= 100.0)) {
+            if ((lv_moralecapped == false) && (TimerGetRemaining(lv_moralecappedreminder) <= 0.0)) {
+                libCOMI_gf_CM_CommanderVOSend(lv_mengskplayer, SoundLink("MengskCommander_PublicPerceptionCapped", -1), PlayerGroupSingle(lv_mengskplayer));
+                TimerStart(lv_moralecappedreminder, lv_moralecappedremindercooldown, false, c_timeReal);
+            }
+
+            lv_moralecapped = true;
+        }
+        else {
+            lv_moralecapped = false;
+        }
+    }
+    return true;
+}
+
+void libCOMI_gf_CM_Mengsk_GlobalCasterEnergyRegenCalculateRoyalGuard (int lp_mengskPlayer) {
+    // Variable Declarations
+    fixed lv_imperialsupportperroyalguardsupplylevel;
+    fixed lv_energyregenperroyalguardsupplylevel;
+    fixed lv_roundeddisplay;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_imperialsupportperroyalguardsupplylevel = libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogEffect, "RoyalGuardMengskTopbarRegenDummy", "Amount", lp_mengskPlayer);
+    lv_energyregenperroyalguardsupplylevel = (lv_imperialsupportperroyalguardsupplylevel * libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogEffect, "MasteryMengskRoyalGuardImperialMandateRegenerationFactorDummy", "Amount", lp_mengskPlayer));
+
+    // Implementation
+    if ((libCOOC_gf_CC_CommanderLevel(lp_mengskPlayer, "TerranMengsk") >= 5)) {
+        libCOMI_gv_cM_Mengsk_EnergyRegenRoyalGuard = (lv_energyregenperroyalguardsupplylevel * libCOMI_gf_CM_Mengsk_SupplyLevel(libCOMI_gv_cM_Mengsk_VeteranUnits));
+        lv_roundeddisplay = Round(libCOMI_gv_cM_Mengsk_EnergyRegenRoyalGuard);
+        libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogEffect, "MengskTopBarEnergyRegenRoyalGuardDummy", "Amount", lp_mengskPlayer, lv_roundeddisplay);
+    }
+    else {
+        lv_roundeddisplay = 0.0;
+    }
+    DialogControlHookup(libCOUI_gv_cU_GPMengskEnergyRegenRoyalGuardContainer[lp_mengskPlayer], c_triggerControlTypeLabel, "Value");
+    libNtve_gf_SetDialogItemText(DialogControlLastCreated(), FixedToText(lv_roundeddisplay, 0), PlayerGroupAll());
+}
+
+void libCOMI_gf_CM_Mengsk_GlobalCasterEnergyRegenCalculateTrooper (int lp_mengskPlayer) {
+    // Variable Declarations
+    fixed lv_imperialsupportpertrooper;
+    fixed lv_energyregenperpropagandaunit;
+    fixed lv_roundeddisplay;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_imperialsupportpertrooper = libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogEffect, "PropagandaMengskTopbarRegenDummy", "Amount", lp_mengskPlayer);
+    lv_energyregenperpropagandaunit = (lv_imperialsupportpertrooper * libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogEffect, "MasteryMengskTrooperImperialMandateRegenerationFactorDummy", "Amount", lp_mengskPlayer));
+
+    // Implementation
+    if ((libCOOC_gf_CC_CommanderLevel(lp_mengskPlayer, "TerranMengsk") >= 5)) {
+        libCOMI_gv_cM_Mengsk_EnergyRegenTrooper = (lv_energyregenperpropagandaunit * UnitGroupCount(libCOMI_gv_cM_Mengsk_PropagandaUnits, c_unitCountAlive));
+        lv_roundeddisplay = Round(libCOMI_gv_cM_Mengsk_EnergyRegenTrooper);
+        libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogEffect, "MengskTopBarEnergyRegenTrooperDummy", "Amount", lp_mengskPlayer, lv_roundeddisplay);
+    }
+    else {
+        lv_roundeddisplay = 0.0;
+    }
+    DialogControlHookup(libCOUI_gv_cU_GPMengskEnergyRegenTrooperContainer[lp_mengskPlayer], c_triggerControlTypeLabel, "Value");
+    libNtve_gf_SetDialogItemText(DialogControlLastCreated(), FixedToText(lv_roundeddisplay, 0), PlayerGroupAll());
+}
+
 text libCOMI_gf_CC_StoryArmyUnitUnitType2 (string lp_unitType) {
     // Variable Declarations
     int lv_i;
@@ -5357,6 +5910,12 @@ void libCOMI_gf_CM_Tychus_UpdateHeroTechTree (int lp_p) {
         libCOMI_gf_CM_Tychus_SetHeroCostMultiply(lp_p, 2.0, 2.0);
     }
 
+    if ((lv_heroCount >= libCOMI_gv_cM_Tychus_MaxHeroCount)) {
+        libNtve_gf_SetUpgradeLevelForPlayer(lp_p, "TychusHeroMaxed", 1);
+    }
+    else {
+        libNtve_gf_SetUpgradeLevelForPlayer(lp_p, "TychusHeroMaxed", 0);
+    }
 }
 
 void libCOMI_gf_CM_Tychus_SetHeroRequiredTechLevel (int lp_p, int lp_level) {
@@ -5489,11 +6048,6 @@ void libCOMI_gf_ApplyTychusMaxChargesPerk (int lp_player) {
     int lv_player;
 
     // Automatic Variable Declarations
-    const int auto7154FA6F_ae = 10;
-    const int auto7154FA6F_ai = 1;
-    const int autoC331B48F_ae = 10;
-    const int autoC331B48F_ai = 1;
-
     // Variable Initialization
     lv_player = lp_player;
 
@@ -5501,25 +6055,8 @@ void libCOMI_gf_ApplyTychusMaxChargesPerk (int lp_player) {
     if ((TechTreeUpgradeCount(lv_player, "TychusCoopFifthHeroUpgrade", c_techCountCompleteOnly) == 0)) {
         libCOMI_gv_cM_Tychus_MaxHeroCount = (libCOMI_gv_cM_Tychus_MaxHeroCount - 1);
         libCOMI_gv_tychusHeroMaxCharges = (libCOMI_gv_tychusHeroMaxCharges - 1);
-        lv_i = 0;
-        for ( ; ( (autoC331B48F_ai >= 0 && lv_i <= autoC331B48F_ae) || (autoC331B48F_ai < 0 && lv_i >= autoC331B48F_ae) ) ; lv_i += autoC331B48F_ai ) {
-            libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusBarracksTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, libCOMI_gv_tychusHeroMaxCharges);
-            libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusFactoryTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, libCOMI_gv_tychusHeroMaxCharges);
-            libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusStarportTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, libCOMI_gv_tychusHeroMaxCharges);
-        }
-        UnitCreateEffectUnit(libCOMI_gv_cM_GlobalCasterUnit[lv_player], "TychusHeroLevel1ChargeAdd", libCOMI_gv_cM_GlobalCasterUnit[lv_player]);
-        UnitCreateEffectUnit(libCOMI_gv_cM_GlobalCasterUnit[lv_player], "TychusHeroLevel1ChargeRemove", libCOMI_gv_cM_GlobalCasterUnit[lv_player]);
     }
-    else {
-        lv_i = 0;
-        for ( ; ( (auto7154FA6F_ai >= 0 && lv_i <= auto7154FA6F_ae) || (auto7154FA6F_ai < 0 && lv_i >= auto7154FA6F_ae) ) ; lv_i += auto7154FA6F_ai ) {
-            libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusBarracksTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, libCOMI_gv_tychusHeroMaxCharges);
-            libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusFactoryTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, libCOMI_gv_tychusHeroMaxCharges);
-            libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusStarportTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, libCOMI_gv_tychusHeroMaxCharges);
-        }
-        UnitCreateEffectUnit(libCOMI_gv_cM_GlobalCasterUnit[lv_player], "TychusHeroChargeAdd", libCOMI_gv_cM_GlobalCasterUnit[lv_player]);
-        UnitCreateEffectUnit(libCOMI_gv_cM_GlobalCasterUnit[lv_player], "TychusHeroChargeRemove", libCOMI_gv_cM_GlobalCasterUnit[lv_player]);
-    }
+
 }
 
 void libCOMI_gf_CM_ReplaceTychusRageEffect (string lp_rageEffect, string lp_dummyEffectInstance, point lp_targetPoint, unit lp_targetUnit, unit lp_tychusUnit) {
@@ -7034,6 +7571,10 @@ void libCOMI_gf_CM_StartingTechForHumanPlayer (int lp_player) {
             TriggerExecute(libCOMI_gt_CM_Tychus_TriggersInit, true, false);
         }
 
+        if ((TechTreeUpgradeCount(lp_player, "MengskCommander", c_techCountCompleteOnly) == 1)) {
+            TriggerExecute(libCOMI_gt_CM_Mengsk_TriggersInit, true, false);
+        }
+
     }
     else if (auto11CC9962_val == "Zerg") {
         if ((TechTreeUpgradeCount(lp_player, "KerriganCommander", c_techCountCompleteOnly) == 1)) {
@@ -7108,6 +7649,10 @@ void libCOMI_gf_CM_StartingTechForHumanPlayer (int lp_player) {
 
     if ((TechTreeUpgradeCount(lp_player, "MasteryStetmannStetzoneBonuses", c_techCountCompleteOnly) >= 1)) {
         libCOMI_gf_CM_MasteryStetmannUpgradeCost(lp_player);
+    }
+
+    if ((TechTreeUpgradeCount(lp_player, "MasteryMengskRoyalGuardCost", c_techCountCompleteOnly) >= 1)) {
+        libCOMI_gf_CM_MasteryMengskRoyalGuardCostList(lp_player);
     }
 
     libCOMI_gf_VoicePackCommanderDefaultApply(lp_player);
@@ -7626,6 +8171,9 @@ void libCOMI_gf_CM_GlobalCasterCreateUnit (int lp_player) {
     }
     else if (autoA976BC21_val == "ZergStukov") {
         libCOMI_gf_CM_Stukov_InfestStructureInitialCooldown(lp_player);
+    }
+    else if (autoA976BC21_val == "TerranMengsk") {
+        libCOMI_gf_CM_Mengsk_GlobalCasterEnergyRegen(libCOMI_gv_cM_GlobalCasterUnit[lp_player]);
     }
     else {
     }
@@ -8412,6 +8960,9 @@ void libCOMI_gf_SetPlayerColors () {
         else if (autoA8B54D99_val == "Stetmann") {
             libCOMI_gv_playerColor[lv_i] = 6;
         }
+        else if (autoA8B54D99_val == "Mengsk") {
+            libCOMI_gv_playerColor[lv_i] = 16;
+        }
         else {
             libCOMI_gv_playerColor[lv_i] = 0;
         }
@@ -8894,6 +9445,7 @@ void libCOMI_gf_CM_CommanderVOInit () {
     ConversationDataRegisterPortrait("char_Vermillion", libNtve_gf_CinematicPortrait(libNtve_ge_CinematicPortraitPosition_CenterLeft));
     ConversationDataRegisterPortrait("char_BelshirScientist", libNtve_gf_CinematicPortrait(libNtve_ge_CinematicPortraitPosition_CenterLeft));
     ConversationDataRegisterPortrait("char_StetmannCommander", libNtve_gf_CinematicPortrait(libNtve_ge_CinematicPortraitPosition_CenterLeft));
+    ConversationDataRegisterPortrait("char_MengskCommander", libNtve_gf_CinematicPortrait(libNtve_ge_CinematicPortraitPosition_CenterLeft));
     ConversationDataRegisterPortrait("char_ACJarbanMiner", libNtve_gf_CinematicPortrait(libNtve_ge_CinematicPortraitPosition_CenterLeft));
     ConversationDataRegisterPortrait("char_ACMeinhoffMedic", libNtve_gf_CinematicPortrait(libNtve_ge_CinematicPortraitPosition_CenterLeft));
     ConversationDataRegisterPortrait("char_ACAiurSiege", libNtve_gf_CinematicPortrait(libNtve_ge_CinematicPortraitPosition_CenterLeft));
@@ -9126,6 +9678,15 @@ void libCOMI_gf_CM_CommanderVOInit () {
             TriggerEnable(libCOMI_gt_CM_GaryUpgradeReminder, true);
             libCOMI_gf_CM_AbilityTransmission_StetelliteReminder(lv_indexPlayer);
             libCOMI_gf_CM_AbilityTransmission_StetzoneReminder(lv_indexPlayer);
+        }
+        else if (autoCD6ED918_val == "TerranMengsk") {
+            TriggerEnable(libCOMI_gt_CM_Mengsk_ArtilleryBuilt, true);
+            TriggerEnable(libCOMI_gt_CM_Mengsk_ArtilleryStarted, true);
+            TriggerEnable(libCOMI_gt_CM_AbilityTransmissionMengskDirtyBomb, true);
+            TriggerEnable(libCOMI_gt_CM_AbilityTransmissionMengskForcedConscription, true);
+            TriggerEnable(libCOMI_gt_CM_AbilityTransmissionMengskNuclearAnnihilation, true);
+            TriggerEnable(libCOMI_gt_CM_AbilityTransmissionMengskZergCalldown, true);
+            libCOMI_gf_CM_AbilityTransmission_MengskReminders(lv_indexPlayer);
         }
         else {
         }
@@ -9774,6 +10335,58 @@ bool auto_libCOMI_gf_CM_AbilityTransmission_GaryUpgradeReminder_TriggerFunc (boo
     return true;
 }
 
+trigger auto_libCOMI_gf_CM_AbilityTransmission_MengskReminders_Trigger = null;
+int auto_libCOMI_gf_CM_AbilityTransmission_MengskReminders_lp_mengskPlayer;
+
+void libCOMI_gf_CM_AbilityTransmission_MengskReminders (int lp_mengskPlayer) {
+    auto_libCOMI_gf_CM_AbilityTransmission_MengskReminders_lp_mengskPlayer = lp_mengskPlayer;
+
+    if (auto_libCOMI_gf_CM_AbilityTransmission_MengskReminders_Trigger == null) {
+        auto_libCOMI_gf_CM_AbilityTransmission_MengskReminders_Trigger = TriggerCreate("auto_libCOMI_gf_CM_AbilityTransmission_MengskReminders_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libCOMI_gf_CM_AbilityTransmission_MengskReminders_Trigger, false, false);
+}
+
+bool auto_libCOMI_gf_CM_AbilityTransmission_MengskReminders_TriggerFunc (bool testConds, bool runActions) {
+    int lp_mengskPlayer = auto_libCOMI_gf_CM_AbilityTransmission_MengskReminders_lp_mengskPlayer;
+
+    // Variable Declarations
+    fixed lv_trooperremindertime;
+    fixed lv_eliteremindertime;
+    fixed lv_artilleryreminder;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_trooperremindertime = (60 * 5);
+    lv_eliteremindertime = (60 * 7);
+    lv_artilleryreminder = (60 * 10);
+
+    // Implementation
+    while (!((GameGetMissionTime() >= lv_trooperremindertime))) {
+        Wait(1.0, c_timeGame);
+    }
+    if ((libCOMI_gv_cM_MengskTrooperEquipped == false)) {
+        libCOMI_gf_CM_CommanderVOSend(lp_mengskPlayer, SoundLink("MengskCommander_EquipTroopsReminder", -1), PlayerGroupSingle(lp_mengskPlayer));
+    }
+
+    while (!((GameGetMissionTime() >= lv_eliteremindertime))) {
+        Wait(1.0, c_timeGame);
+    }
+    if ((libCOMI_gv_cM_MengskEliteBuilt == false)) {
+        libCOMI_gf_CM_CommanderVOSend(lp_mengskPlayer, SoundLink("MengskCommander_TrainVeteranReminder", -1), PlayerGroupSingle(lp_mengskPlayer));
+    }
+
+    while (!((GameGetMissionTime() >= lv_artilleryreminder))) {
+        Wait(1.0, c_timeGame);
+    }
+    if ((libCOMI_gv_cM_MengskArtilleryBuilt == false) && (libCOOC_gf_CC_CommanderLevel(lp_mengskPlayer, "TerranMengsk") >= 3)) {
+        libCOMI_gf_CM_CommanderVOSend(lp_mengskPlayer, SoundLink("MengskCommander_BuildArtilleryReminder", -1), PlayerGroupSingle(lp_mengskPlayer));
+    }
+
+    return true;
+}
+
 trigger auto_libCOMI_gf_CM_VOResourceInit_Trigger = null;
 
 void libCOMI_gf_CM_VOResourceInit () {
@@ -9799,6 +10412,25 @@ void libCOMI_gf_SendMissionTransmission (string lp_transmissionType, bool lp_wai
     libCOMI_gv_cM_TransmissionCurrentType = lp_transmissionType;
     libCOMI_gv_cM_TransmissionSource = lp_sourcePlayer;
     TriggerExecute(libCOMI_gt_CM_TransmissionSend, true, lp_waitUntilDone);
+}
+
+void libCOMI_gf_SendVictoryTransmission (string lp_mapVictoryTransmission) {
+    // Automatic Variable Declarations
+    int autoDBA7354A_val;
+
+    // Implementation
+    autoDBA7354A_val = RandomInt(1, 3);
+    if (autoDBA7354A_val == 1) {
+        libCOMI_gf_SendMissionTransmission("Victory", false, 1);
+    }
+    else if (autoDBA7354A_val == 2) {
+        libCOMI_gf_SendMissionTransmission("Victory", false, 2);
+    }
+    else if (autoDBA7354A_val == 3) {
+        libCOMI_gf_SendMissionTransmission(lp_mapVictoryTransmission, false, -1);
+    }
+    else {
+    }
 }
 
 void libCOMI_gf_SendSplitMissionTransmission (string lp_transmissionType, bool lp_waitUntilDone, int lp_primaryPlayer, int lp_sourcePlayer) {
@@ -11573,6 +12205,11 @@ void libCOMI_gf_CM_CampaignMissionInit () {
     unit lv_indexUnit;
     int lv_indexPlayer;
     playergroup lv_itPlayerGroup;
+    int lv_brutalPlusDiff;
+    int lv_brutalPlusPoints;
+    string lv_difficultyinstance;
+    int lv_mutatorCount;
+    int lv_retrymutatorindex;
 
     // Automatic Variable Declarations
     playergroup autoD1FA3909_playerPool;
@@ -11580,6 +12217,12 @@ void libCOMI_gf_CM_CampaignMissionInit () {
     playergroup autoD1FA3909_itTestPool;
     playergroup auto72F1BEA2_g;
     playergroup auto698A507A_g;
+    const int auto1DB1ED34_ae = 2;
+    const int auto1DB1ED34_ai = 1;
+    const int auto389E0899_ae = 3;
+    const int auto389E0899_ai = 1;
+    string auto9578433B_userType;
+    int auto9578433B_i;
     playergroup autoFBC5769B_g;
 
     // Variable Initialization
@@ -11643,9 +12286,69 @@ void libCOMI_gf_CM_CampaignMissionInit () {
         PlayerSetDifficulty(2, PlayerDifficulty(4));
     }
 
+    TriggerDebugOutput(1, StringExternal("Param/Value/lib_COMI_E7447647"), false);
+    lv_brutalPlusDiff = PlayerBrutalPlusDifficulty(1);
+    lv_indexPlayer = 1;
+    for ( ; ( (auto1DB1ED34_ai >= 0 && lv_indexPlayer <= auto1DB1ED34_ae) || (auto1DB1ED34_ai < 0 && lv_indexPlayer >= auto1DB1ED34_ae) ) ; lv_indexPlayer += auto1DB1ED34_ai ) {
+        TextExpressionSetToken("Param/Expression/lib_COMI_6AC7A3D8", "B", IntToText(lv_indexPlayer));
+        TextExpressionSetToken("Param/Expression/lib_COMI_6AC7A3D8", "A", StringToText(libCOOC_gf_IIF((libCOMI_gf_DifficultyLevelForPlayerCoop(lv_indexPlayer) == 4), "BRUTAL", "NOT BRUTAL")));
+        TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_COMI_6AC7A3D8"), false);
+    }
+    TextExpressionSetToken("Param/Expression/lib_COMI_6AB5C1A4", "A", IntToText(lv_brutalPlusDiff));
+    TextExpressionSetToken("Param/Expression/lib_COMI_6AB5C1A4", "B", StringToText(libCOOC_gf_IIF(((lv_brutalPlusDiff >= 1) && (lv_brutalPlusDiff <= UserDataInstanceCount("MutationDifficultyLevels"))), "WITHIN BOUNDS", "OUT OF BOUNDS")));
+    TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_COMI_6AB5C1A4"), false);
+    if ((libCOMI_gf_DifficultyLevelForPlayerCoop(1) == 4) && (libCOMI_gf_DifficultyLevelForPlayerCoop(2) == 4) && ((lv_brutalPlusDiff >= 1) && (lv_brutalPlusDiff <= UserDataInstanceCount("MutationDifficultyLevels")))) {
+        TriggerDebugOutput(1, StringExternal("Param/Value/lib_COMI_4F9E6618"), false);
+        TextExpressionSetToken("Param/Expression/lib_COMI_C8E147FC", "A", IntToText(PlayerRetryMutation(1, 1)));
+        TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_COMI_C8E147FC"), false);
+        if ((PlayerRetryMutation(1, 0) > 0)) {
+            TriggerDebugOutput(1, StringExternal("Param/Value/lib_COMI_519C94CF"), false);
+            libCOMU_gf_CT_SetMutationDifficultyLevel("Plus1");
+            libCOMU_gv_cT_MAbomination_MutatorsCount = 0;
+            lv_mutatorCount = 0;
+            for ( ; ( (auto389E0899_ai >= 0 && lv_mutatorCount <= auto389E0899_ae) || (auto389E0899_ai < 0 && lv_mutatorCount >= auto389E0899_ae) ) ; lv_mutatorCount += auto389E0899_ai ) {
+                if ((PlayerRetryMutation(1, lv_mutatorCount) > 0)) {
+                    lv_retrymutatorindex = PlayerRetryMutation(1, lv_mutatorCount);
+                    libCOMU_gv_cT_MAbomination_MutatorsCount += 1;
+                    libCOMU_gv_cT_MAbomination_Mutators[libCOMU_gv_cT_MAbomination_MutatorsCount] = UserDataInstance("Mutators", lv_retrymutatorindex);
+                    TextExpressionSetToken("Param/Expression/lib_COMI_677DD770", "A", IntToText(lv_mutatorCount));
+                    TextExpressionSetToken("Param/Expression/lib_COMI_677DD770", "B", UserDataGetText("Mutators", libCOMU_gv_cT_MAbomination_Mutators[libCOMU_gv_cT_MAbomination_MutatorsCount], "Name", 1));
+                    TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_COMI_677DD770"), false);
+                    libCOMU_gf_EnableDisableMutator(true, libCOMU_gv_cT_MAbomination_Mutators[libCOMU_gv_cT_MAbomination_MutatorsCount]);
+                    lv_brutalPlusPoints += UserDataGetInt("MutationAbominations", libCOMU_gf_CT_GetAbomFromMutator(libCOMU_gv_cT_MAbomination_Mutators[libCOMU_gv_cT_MAbomination_MutatorsCount]), "Points", 1);
+                }
+
+            }
+            libCOMU_gf_CT_StoreMutatorScoreValues();
+            TriggerDebugOutput(1, StringExternal("Param/Value/lib_COMI_3789E61C"), false);
+            auto9578433B_userType = "MutationDifficultyLevels";
+            auto9578433B_i = 1;
+            for ( ; auto9578433B_i <= UserDataInstanceCount(auto9578433B_userType) ; auto9578433B_i += 1 ) {
+                lv_difficultyinstance = UserDataInstance(auto9578433B_userType, auto9578433B_i);
+                if (((lv_brutalPlusPoints >= UserDataGetInt("MutationDifficultyLevels", lv_difficultyinstance, "PointsMin", 1)) && (lv_brutalPlusPoints <= UserDataGetInt("MutationDifficultyLevels", lv_difficultyinstance, "PointsMax", 1)))) {
+                    TextExpressionSetToken("Param/Expression/lib_COMI_6F012790", "A", IntToText(libNtve_gf_UserDataInstanceGetIndex("MutationDifficultyLevels", lv_difficultyinstance)));
+                    TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_COMI_6F012790"), false);
+                    libCOMU_gf_CT_SetMutationDifficultyLevel(lv_difficultyinstance);
+                    break;
+                }
+
+            }
+        }
+        else {
+            TriggerDebugOutput(1, StringExternal("Param/Value/lib_COMI_F79488DF"), false);
+            TriggerDebugOutput(1, StringExternal("Param/Value/lib_COMI_9515D9BA"), false);
+            libCOMU_gf_CT_SetMutationDifficultyLevel(UserDataInstance("MutationDifficultyLevels", lv_brutalPlusDiff));
+            lv_mutatorCount = libCOMU_gf_CT_GetRandomMutatorCount();
+            libCOMU_gf_CreateMutationAbominationProbabilities(lv_mutatorCount, lv_mutatorCount, UserDataGetInt("MutationDifficultyLevels", libCOMU_gf_CT_GetMutationDifficultyLevel(), "PointsMin", 1), UserDataGetInt("MutationDifficultyLevels", libCOMU_gf_CT_GetMutationDifficultyLevel(), "PointsMax", 1));
+        }
+    }
+    else {
+        TextExpressionSetToken("Param/Expression/lib_COMI_56E4E616", "A", IntToText(UserDataInstanceCount("MutationDifficultyLevels")));
+        TriggerDebugOutput(1, TextExpressionAssemble("Param/Expression/lib_COMI_56E4E616"), false);
+    }
     GameSetSpeedLocked(true);
     if ((libCOMU_gf_CT_MutatorInCustom() == false)) {
-        if ((libCOMI_gf_DifficultyLevelForPlayerCoop(1) == 4) && (libCOMI_gf_DifficultyLevelForPlayerCoop(2) == 4)) {
+        if (((libCOMI_gf_DifficultyLevelForPlayerCoop(1) == 4) || (libCOMI_gf_DifficultyLevelForPlayerCoop(1) == 3)) && ((libCOMI_gf_DifficultyLevelForPlayerCoop(2) == 4) || (libCOMI_gf_DifficultyLevelForPlayerCoop(2) == 3))) {
             GameSetSpeedValue(c_gameSpeedFaster);
         }
         else {
@@ -18576,8 +19279,7 @@ bool libCOMI_gt_CM_Horner_DeathRattleHellionFearApply_Func (bool testConds, bool
 void libCOMI_gt_CM_Horner_DeathRattleHellionFearApply_Init () {
     libCOMI_gt_CM_Horner_DeathRattleHellionFearApply = TriggerCreate("libCOMI_gt_CM_Horner_DeathRattleHellionFearApply_Func");
     TriggerEnable(libCOMI_gt_CM_Horner_DeathRattleHellionFearApply, false);
-    TriggerAddEventUnitBehaviorChange(libCOMI_gt_CM_Horner_DeathRattleHellionFearApply, null, "HHHellionTankFear", c_unitBehaviorChangeActivate);
-    TriggerAddEventUnitBehaviorChange(libCOMI_gt_CM_Horner_DeathRattleHellionFearApply, null, "HHHellionTankFear", c_unitBehaviorChangeRefresh);
+    TriggerAddEventUnitBehaviorChange(libCOMI_gt_CM_Horner_DeathRattleHellionFearApply, null, "HHHellionTankFear", c_unitBehaviorChangeCreate);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -20463,6 +21165,1277 @@ void libCOMI_gt_CM_LaserDrillTopbarOrder_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_TopBarKills
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_TopBarKills_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_killingplayer;
+    string lv_killingeffect;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_killingplayer = UnitGetOwner(EventUnitDamageSourceUnit());
+    lv_killingeffect = EventUnitDamageEffect();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitIsValid(EventUnitDamageSourceUnit()) == true))) {
+            return false;
+        }
+
+        if (!((PlayerGroupHasPlayer(libCOOC_gf_CommanderPlayers(), lv_killingplayer) == true))) {
+            return false;
+        }
+
+        if (!((PlayerCommander(lv_killingplayer) == "Mengsk"))) {
+            return false;
+        }
+
+        if (!(((UnitGetType(EventUnitDamageSourceUnit()) == "CoopCasterMengsk") || (UnitGetType(EventUnitDamageSourceUnit()) == "ZerglingMengsk") || (UnitGetType(EventUnitDamageSourceUnit()) == "HydraliskMengsk") || (UnitGetType(EventUnitDamageSourceUnit()) == "MutaliskMengsk") || (UnitGetType(EventUnitDamageSourceUnit()) == "UltraliskMengsk") || (lv_killingeffect == "ArtilleryMengskExperimentalStrikePeriodicDamage")))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    AchievementTermQuantityAdd(lv_killingplayer, "CommanderMengskTopBarKills", RoundI(EventUnitDamageAmount()));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_TopBarKills_Init () {
+    libCOMI_gt_CM_Mengsk_TopBarKills = TriggerCreate("libCOMI_gt_CM_Mengsk_TopBarKills_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_TopBarKills, false);
+    TriggerAddEventUnitDamaged(libCOMI_gt_CM_Mengsk_TopBarKills, null, c_unitDamageTypeAny, c_unitDamageFatal, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_TriggersInit
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_TriggersInit_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(libCOMI_gt_CM_Mengsk_GlobalAbilityCast, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_TopBarKills, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_DirtyBombSweetener, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_ArtilleryBombardmentTarget, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_ArtilleryBombardmentCargoChange, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_ArtilleryExperimentalStrikeTarget, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_ArtilleryExperimentalStrikeFearApply, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_ArtilleryGlobalExperimentalStrikeTarget, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_NuclearAnnihilationSmallNukes, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_RegisterVeteranUnit, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_RemoveVeteranUnit, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_VeteranDies, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_VeteranDing, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_RegisterPropagandaUnit, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_RemovePropagandaUnit, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_PropagandaUpgraded, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_VeterancyEarned, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_MedivacAirlift, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_MedivacAirliftDing, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_EnlistStart, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_EnlistStop, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_ReturnToWork, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_ZerglingMengskSpawn, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_HydraliskMengskSpawn, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_MutaliskMengskSpawn, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_UltraliskMengskSpawn, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_BunkerDepotDropFillCargo, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_ZergSeekDestroy, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_WeaponPickerUpperRegister, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_WeaponPickerUpperUnregister, true);
+    TriggerEnable(libCOMI_gt_CM_Mengsk_WeaponPickupRegister, true);
+    TriggerExecute(libCOMI_gt_CM_Mengsk_WeaponPickup, true, false);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_TriggersInit_Init () {
+    libCOMI_gt_CM_Mengsk_TriggersInit = TriggerCreate("libCOMI_gt_CM_Mengsk_TriggersInit_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_ArtilleryBombardmentTarget
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_ArtilleryBombardmentTarget_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    point lv_targetPoint;
+    fixed lv_radiusMaximumSlop;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_targetPoint = EventPlayerEffectUsedPoint(c_effectLocationTargetPoint);
+    lv_radiusMaximumSlop = 7.5;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectPoint(EventPlayerEffectUsedUnit(c_effectUnitCaster), "ArtilleryMengskBombardmentDropDelayCP", RegionRandomPoint(RegionCircle(lv_targetPoint, lv_radiusMaximumSlop)));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_ArtilleryBombardmentTarget_Init () {
+    libCOMI_gt_CM_Mengsk_ArtilleryBombardmentTarget = TriggerCreate("libCOMI_gt_CM_Mengsk_ArtilleryBombardmentTarget_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_ArtilleryBombardmentTarget, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Mengsk_ArtilleryBombardmentTarget, c_playerAny, "ArtilleryMengskBombardmentDummy");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_ArtilleryExperimentalStrikeTarget
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_ArtilleryExperimentalStrikeTarget_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    point lv_targetPoint;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_targetPoint = EventPlayerEffectUsedPoint(c_effectLocationTargetPoint);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectPoint(EventPlayerEffectUsedUnit(c_effectUnitCaster), "ArtilleryMengskExperimentalStrikeDropDeplayCP", RegionRandomPoint(RegionCircle(lv_targetPoint, libCOMI_gv_cM_Mengsk_ArtilleryExperimentalStrikeRange)));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_ArtilleryExperimentalStrikeTarget_Init () {
+    libCOMI_gt_CM_Mengsk_ArtilleryExperimentalStrikeTarget = TriggerCreate("libCOMI_gt_CM_Mengsk_ArtilleryExperimentalStrikeTarget_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_ArtilleryExperimentalStrikeTarget, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Mengsk_ArtilleryExperimentalStrikeTarget, c_playerAny, "ArtilleryMengskExperimentalStrikeDummy");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_ArtilleryGlobalExperimentalStrikeTarget
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_ArtilleryGlobalExperimentalStrikeTarget_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_artillery;
+    abilcmd lv_abilityCommand;
+    point lv_targetPoint;
+
+    // Automatic Variable Declarations
+    unitgroup autoB25CDB2C_g;
+    int autoB25CDB2C_u;
+
+    // Variable Initialization
+    lv_abilityCommand = AbilityCommand("ArtilleryMengskExperimentalStrike",0);
+    lv_targetPoint = EventPlayerEffectUsedPoint(c_effectLocationTargetPoint);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gv_cM_Mengsk_ArtilleryExperimentalStrikeRange = 4.0;
+    autoB25CDB2C_g = UnitGroup("ArtilleryMengsk", EventPlayer(), RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterStasis - 32)) | (1 << (c_targetFilterUnderConstruction - 32)) | (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterStunned - 32))), 0);
+    autoB25CDB2C_u = UnitGroupCount(autoB25CDB2C_g, c_unitCountAll);
+    for (;; autoB25CDB2C_u -= 1) {
+        lv_artillery = UnitGroupUnitFromEnd(autoB25CDB2C_g, autoB25CDB2C_u);
+        if (lv_artillery == null) { break; }
+        UnitIssueOrder(lv_artillery, OrderTargetingPoint(lv_abilityCommand, lv_targetPoint), c_orderQueueAddToFront);
+        if ((libCOMI_gv_cM_Mengsk_ArtilleryExperimentalStrikeRange <= 7.0)) {
+            libCOMI_gv_cM_Mengsk_ArtilleryExperimentalStrikeRange += 0.5;
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_ArtilleryGlobalExperimentalStrikeTarget_Init () {
+    libCOMI_gt_CM_Mengsk_ArtilleryGlobalExperimentalStrikeTarget = TriggerCreate("libCOMI_gt_CM_Mengsk_ArtilleryGlobalExperimentalStrikeTarget_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_ArtilleryGlobalExperimentalStrikeTarget, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Mengsk_ArtilleryGlobalExperimentalStrikeTarget, c_playerAny, "ArtilleryMengskGlobalExperimentalStrikeDummy");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_GlobalAbilityCast
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_GlobalAbilityCast_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(EventUnit()) == "CoopCasterMengsk"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_CM_Mengsk_EnergyChanged(EventPlayer());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_GlobalAbilityCast_Init () {
+    libCOMI_gt_CM_Mengsk_GlobalAbilityCast = TriggerCreate("libCOMI_gt_CM_Mengsk_GlobalAbilityCast_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_GlobalAbilityCast, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_Mengsk_GlobalAbilityCast, null, null, c_abilEffectStageFinish, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_ArtilleryExperimentalStrikeFearApply
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_ArtilleryExperimentalStrikeFearApply_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_scaredUnit;
+    point lv_attackLocation;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_scaredUnit = EventUnit();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_attackLocation = PointWithOffsetPolar(UnitGetPosition(lv_scaredUnit), 1.0, libNtve_gf_RandomAngle());
+    UnitIssueOrder(lv_scaredUnit, OrderTargetingPoint(AbilityCommand("move", 0), libNtve_gf_PointOffsetTowardsPoint(UnitGetPosition(lv_scaredUnit), -5.0, lv_attackLocation)), c_orderQueueReplace);
+    Wait(1.0, c_timeGame);
+    while ((UnitHasBehavior2(lv_scaredUnit, "ArtilleryMengskFear") == true) && (UnitIsAlive(lv_scaredUnit) == true)) {
+        UnitIssueOrder(lv_scaredUnit, OrderTargetingPoint(AbilityCommand("move", 0), RegionRandomPoint(RegionCircle(UnitGetPosition(lv_scaredUnit), 3.0))), c_orderQueueReplace);
+        Wait(0.5, c_timeGame);
+    }
+    UnitIssueOrder(lv_scaredUnit, Order(AbilityCommand("stop", 0)), c_orderQueueReplace);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_ArtilleryExperimentalStrikeFearApply_Init () {
+    libCOMI_gt_CM_Mengsk_ArtilleryExperimentalStrikeFearApply = TriggerCreate("libCOMI_gt_CM_Mengsk_ArtilleryExperimentalStrikeFearApply_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_ArtilleryExperimentalStrikeFearApply, false);
+    TriggerAddEventUnitBehaviorChange(libCOMI_gt_CM_Mengsk_ArtilleryExperimentalStrikeFearApply, null, "ArtilleryMengskFear", c_unitBehaviorChangeCreate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_NuclearAnnihilationSmallNukes
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_NuclearAnnihilationSmallNukes_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    point lv_targetPoint;
+    fixed lv_smallNukeMaxPlacementRadius;
+    int lv_numSmallNukes;
+    int lv_nukeCounter;
+    fixed lv_nukeDelay;
+
+    // Automatic Variable Declarations
+    int auto16E2E8DE_ae;
+    const int auto16E2E8DE_ai = 1;
+
+    // Variable Initialization
+    lv_targetPoint = EventPlayerEffectUsedPoint(c_effectLocationTargetPoint);
+    lv_smallNukeMaxPlacementRadius = libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogEffect, "NuclearAnnihilationMengskSmallNukeDummyCP", "RevealRadius", EventPlayer());
+    lv_numSmallNukes = CatalogFieldValueGetAsInt(c_gameCatalogEffect, "NuclearAnnihilationMengskSmallNukeDummyCP", "PeriodCount", EventPlayer());
+    lv_nukeCounter = 1;
+    lv_nukeDelay = libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogEffect, "NuclearAnnihilationMengskSmallNukeDummyCP", "PeriodicPeriodArray[" + IntToString(0) + "]", EventPlayer());
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto16E2E8DE_ae = lv_numSmallNukes;
+    lv_nukeCounter = 1;
+    for ( ; ( (auto16E2E8DE_ai >= 0 && lv_nukeCounter <= auto16E2E8DE_ae) || (auto16E2E8DE_ai < 0 && lv_nukeCounter >= auto16E2E8DE_ae) ) ; lv_nukeCounter += auto16E2E8DE_ai ) {
+        UnitCreateEffectPoint(EventPlayerEffectUsedUnit(c_effectUnitCaster), "NuclearAnnihilationMengskSmallNukeDropDelayCP", RegionRandomPoint(RegionCircle(lv_targetPoint, lv_smallNukeMaxPlacementRadius)));
+        Wait(lv_nukeDelay, c_timeGame);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_NuclearAnnihilationSmallNukes_Init () {
+    libCOMI_gt_CM_Mengsk_NuclearAnnihilationSmallNukes = TriggerCreate("libCOMI_gt_CM_Mengsk_NuclearAnnihilationSmallNukes_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_NuclearAnnihilationSmallNukes, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Mengsk_NuclearAnnihilationSmallNukes, c_playerAny, "NuclearAnnihilationMengskBigNukeDropDelayCP");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_ArtilleryBombardmentCargoChange
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_ArtilleryBombardmentCargoChange_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_artillery;
+    int lv_cargoCount;
+    string lv_cargoCountBehavior;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_artillery = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_cargoCount = UnitGroupCount(UnitCargoGroup(lv_artillery), c_unitCountAlive);
+    lv_cargoCountBehavior = "ArtilleryMengskCargo";
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_SetUnitAttributePoints(lv_cargoCountBehavior, lv_artillery, lv_cargoCount);
+    if ((lv_cargoCount == 0)) {
+        UnitBehaviorRemove(lv_artillery, "ArtilleryMengskCargoGlobal", 1);
+    }
+    else {
+        UnitBehaviorAdd(lv_artillery, "ArtilleryMengskCargoGlobal", lv_artillery, 1);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_ArtilleryBombardmentCargoChange_Init () {
+    libCOMI_gt_CM_Mengsk_ArtilleryBombardmentCargoChange = TriggerCreate("libCOMI_gt_CM_Mengsk_ArtilleryBombardmentCargoChange_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_ArtilleryBombardmentCargoChange, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Mengsk_ArtilleryBombardmentCargoChange, c_playerAny, "ArtilleryMengskCargoTrigger");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_RegisterVeteranUnit
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_RegisterVeteranUnit_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster))) == "Mengsk"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupAdd(libCOMI_gv_cM_Mengsk_XPHungryUnits, EventPlayerEffectUsedUnit(c_effectUnitCaster));
+    UnitGroupAdd(libCOMI_gv_cM_Mengsk_VeteranUnits, EventPlayerEffectUsedUnit(c_effectUnitCaster));
+    libCOMI_gv_cM_MengskEliteBuilt = true;
+    libCOMI_gf_CM_Mengsk_GlobalCasterEnergyRegenCalculateRoyalGuard(UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster)));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_RegisterVeteranUnit_Init () {
+    libCOMI_gt_CM_Mengsk_RegisterVeteranUnit = TriggerCreate("libCOMI_gt_CM_Mengsk_RegisterVeteranUnit_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_RegisterVeteranUnit, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Mengsk_RegisterVeteranUnit, c_playerAny, "MengskVeteranTrigger");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_RemoveVeteranUnit
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_RemoveVeteranUnit_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_levellingunit;
+    int lv_statusframe;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_levellingunit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_statusframe = c_invalidDialogControlId;
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster))) == "Mengsk"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    DialogControlHookupUnitStatus(c_triggerControlTypeUnitStatusBar, "HealthBar", lv_levellingunit);
+    lv_statusframe = DialogControlLastCreated();
+    DialogControlSetAnimationState(lv_statusframe, PlayerGroupAll(), "Rank", IntToString(UnitXPGetCurrentLevel(lv_levellingunit, null)));
+    UnitGroupRemove(libCOMI_gv_cM_Mengsk_XPHungryUnits, lv_levellingunit);
+    libCOMI_gf_CM_Mengsk_CheckRoyalGuardSupply();
+    libCOMI_gf_CM_Mengsk_GlobalCasterEnergyRegenCalculateRoyalGuard(UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster)));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_RemoveVeteranUnit_Init () {
+    libCOMI_gt_CM_Mengsk_RemoveVeteranUnit = TriggerCreate("libCOMI_gt_CM_Mengsk_RemoveVeteranUnit_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_RemoveVeteranUnit, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Mengsk_RemoveVeteranUnit, c_playerAny, "MengskVeteranMaxedTrigger");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_VeteranDies
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_VeteranDies_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(UnitGetOwner(EventUnit())) == "Mengsk"))) {
+            return false;
+        }
+
+        if (!((UnitGroupHasUnit(libCOMI_gv_cM_Mengsk_VeteranUnits, EventUnit()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_CM_Mengsk_GlobalCasterEnergyRegenCalculateRoyalGuard(UnitGetOwner(EventUnit()));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_VeteranDies_Init () {
+    libCOMI_gt_CM_Mengsk_VeteranDies = TriggerCreate("libCOMI_gt_CM_Mengsk_VeteranDies_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_VeteranDies, false);
+    TriggerAddEventUnitDied(libCOMI_gt_CM_Mengsk_VeteranDies, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_VeteranDing
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_VeteranDing_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_levellingunit;
+    int lv_statusframe;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_levellingunit = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_statusframe = c_invalidDialogControlId;
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster))) == "Mengsk"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    DialogControlHookupUnitStatus(c_triggerControlTypeUnitStatusBar, "HealthBar", lv_levellingunit);
+    lv_statusframe = DialogControlLastCreated();
+    DialogControlSetAnimationState(lv_statusframe, PlayerGroupAll(), "Rank", IntToString(UnitXPGetCurrentLevel(lv_levellingunit, null)));
+    libCOMI_gf_CM_Mengsk_GlobalCasterEnergyRegenCalculateRoyalGuard(UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster)));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_VeteranDing_Init () {
+    libCOMI_gt_CM_Mengsk_VeteranDing = TriggerCreate("libCOMI_gt_CM_Mengsk_VeteranDing_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_VeteranDing, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Mengsk_VeteranDing, c_playerAny, "MengskVeteranLevelUpDummy");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_RegisterPropagandaUnit
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_RegisterPropagandaUnit_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(UnitGetOwner(EventUnit())) == "Mengsk"))) {
+            return false;
+        }
+
+        if (!(((UnitGetType(EventUnit()) == "SCVMengsk") || (UnitGetType(EventUnit()) == "TrooperMengsk") || (UnitGetType(EventUnit()) == "TrooperMengskAA") || (UnitGetType(EventUnit()) == "TrooperMengskFlamethrower") || (UnitGetType(EventUnit()) == "TrooperMengskImproved")))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupAdd(libCOMI_gv_cM_Mengsk_PropagandaUnits, EventUnit());
+    libCOMI_gf_CM_Mengsk_GlobalCasterEnergyRegenCalculateTrooper(UnitGetOwner(EventUnit()));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_RegisterPropagandaUnit_Init () {
+    libCOMI_gt_CM_Mengsk_RegisterPropagandaUnit = TriggerCreate("libCOMI_gt_CM_Mengsk_RegisterPropagandaUnit_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_RegisterPropagandaUnit, false);
+    TriggerAddEventUnitBehaviorChange(libCOMI_gt_CM_Mengsk_RegisterPropagandaUnit, null, "PropagandaBlastMengsk", c_unitBehaviorChangeCreate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_RemovePropagandaUnit
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_RemovePropagandaUnit_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(UnitGetOwner(EventUnit())) == "Mengsk"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupRemove(libCOMI_gv_cM_Mengsk_PropagandaUnits, EventUnit());
+    libCOMI_gf_CM_Mengsk_GlobalCasterEnergyRegenCalculateTrooper(UnitGetOwner(EventUnit()));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_RemovePropagandaUnit_Init () {
+    libCOMI_gt_CM_Mengsk_RemovePropagandaUnit = TriggerCreate("libCOMI_gt_CM_Mengsk_RemovePropagandaUnit_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_RemovePropagandaUnit, false);
+    TriggerAddEventUnitBehaviorChange(libCOMI_gt_CM_Mengsk_RemovePropagandaUnit, null, "PropagandaBlastMengsk", c_unitBehaviorChangeDestroy);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_PropagandaUpgraded
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_PropagandaUpgraded_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(EventPlayer()) == "Mengsk"))) {
+            return false;
+        }
+
+        if (!((EventUpgradeName() == "BlimpMengskTopbarRegen"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_CM_Mengsk_GlobalCasterEnergyRegenCalculateTrooper(EventPlayer());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_PropagandaUpgraded_Init () {
+    libCOMI_gt_CM_Mengsk_PropagandaUpgraded = TriggerCreate("libCOMI_gt_CM_Mengsk_PropagandaUpgraded_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_PropagandaUpgraded, false);
+    TriggerAddEventUpgradeLevelChanged(libCOMI_gt_CM_Mengsk_PropagandaUpgraded, c_playerAny);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_VeterancyEarned
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_VeterancyEarned_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_dyingunit;
+    fixed lv_xp;
+    unitgroup lv_veteranunits;
+    int lv_veterancount;
+    fixed lv_xppersupplyratio;
+    fixed lv_heroicxpoverride;
+    fixed lv_minimumearnedxp;
+    fixed lv_xpradius;
+
+    // Automatic Variable Declarations
+    unitgroup auto9DCFEB60_g;
+    int auto9DCFEB60_u;
+    unit auto9DCFEB60_var;
+
+    // Variable Initialization
+    lv_dyingunit = EventUnit();
+    lv_veteranunits = UnitGroupEmpty();
+    lv_xppersupplyratio = libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogEffect, "MengskRoyalGuardExperienceGainDummy", "Amount", libCOOC_gf_CC_PlayerOfCommanderInGroupFirst("TerranMengsk", libCOOC_gf_CommanderPlayers()));
+    lv_heroicxpoverride = 800.0;
+    lv_minimumearnedxp = 1.0;
+    lv_xpradius = 15.0;
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitFilterMatch(lv_dyingunit, 1, UnitFilter(0, 0, (1 << c_targetFilterPlayer) | (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterStructure) | (1 << c_targetFilterRawResource) | (1 << c_targetFilterHarvestableResource) | (1 << c_targetFilterMissile) | (1 << c_targetFilterDestructible) | (1 << c_targetFilterItem) | (1 << c_targetFilterUncommandable), (1 << (c_targetFilterHallucination - 32)))) == true))) {
+            return false;
+        }
+
+        if (!((libNtve_gf_KillingPlayer() != c_playerAny))) {
+            return false;
+        }
+
+        if (!((UnitHasBehavior2(lv_dyingunit, "NoBiomassDrop") == false))) {
+            return false;
+        }
+
+        if (!((EventUnitDamageDeathCheck(c_deathTypeRemove) == false))) {
+            return false;
+        }
+
+        if (!((libCOMU_gf_CT_UnitSpawnedByMutator(lv_dyingunit) == false))) {
+            return false;
+        }
+
+        if (!((PlayerGroupHasPlayer(libCOOC_gf_CommanderPlayers(), libNtve_gf_KillingPlayer()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_veteranunits = UnitGroupFilterRegion(libCOMI_gv_cM_Mengsk_XPHungryUnits, RegionCircle(UnitGetPosition(lv_dyingunit), lv_xpradius), 0);
+    lv_veterancount = UnitGroupCount(lv_veteranunits, c_unitCountAlive);
+    lv_xp = (UnitTypeGetProperty(UnitGetType(lv_dyingunit), c_unitPropSuppliesUsed) * lv_xppersupplyratio);
+    if ((lv_xp <= 0.0) && (UnitFilterMatch(lv_dyingunit, 1, UnitFilter((1 << c_targetFilterHeroic), 0, 0, 0)) == true)) {
+        lv_xp = lv_heroicxpoverride;
+    }
+    else if ((lv_xp <= 0.0)) {
+        return true;
+    }
+    if ((lv_veterancount == 0)) {
+        lv_veteranunits = UnitGroupCopy(libCOMI_gv_cM_Mengsk_XPHungryUnits);
+        lv_veterancount = UnitGroupCount(lv_veteranunits, c_unitCountAlive);
+        if ((lv_veterancount == 0)) {
+            return true;
+        }
+
+    }
+
+    lv_xp = MaxF(Round((lv_xp / lv_veterancount)), lv_minimumearnedxp);
+    auto9DCFEB60_g = lv_veteranunits;
+    auto9DCFEB60_u = UnitGroupCount(auto9DCFEB60_g, c_unitCountAll);
+    for (;; auto9DCFEB60_u -= 1) {
+        auto9DCFEB60_var = UnitGroupUnitFromEnd(auto9DCFEB60_g, auto9DCFEB60_u);
+        if (auto9DCFEB60_var == null) { break; }
+        UnitXPAddXP(auto9DCFEB60_var, null, lv_xp);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_VeterancyEarned_Init () {
+    libCOMI_gt_CM_Mengsk_VeterancyEarned = TriggerCreate("libCOMI_gt_CM_Mengsk_VeterancyEarned_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_VeterancyEarned, false);
+    TriggerAddEventUnitDied(libCOMI_gt_CM_Mengsk_VeterancyEarned, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_MedivacAirlift
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_MedivacAirlift_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_medivac;
+    unit lv_siegetank;
+    int lv_statusframe;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_medivac = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_siegetank = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_statusframe = c_invalidDialogControlId;
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster))) == "Mengsk"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((EventPlayerEffectUsed() == "MedivacMengskSiegeTankAirliftLoadTrigger")) {
+        UnitBehaviorAdd(lv_medivac, "MedivacMengskSiegeTankAirlift", lv_medivac, 1);
+        libCOMI_gf_SetUnitAttributePoints("MedivacMengskSiegeTankAirliftLevel", lv_medivac, (UnitXPGetCurrentLevel(lv_siegetank, null) - 1));
+        DialogControlHookupUnitStatus(c_triggerControlTypeUnitStatusBar, "HealthBar", lv_medivac);
+        lv_statusframe = DialogControlLastCreated();
+        DialogControlSetAnimationState(lv_statusframe, PlayerGroupAll(), "Rank", IntToString(UnitXPGetCurrentLevel(lv_siegetank, null)));
+    }
+    else {
+        UnitBehaviorRemove(lv_medivac, "MedivacMengskSiegeTankAirlift", 1);
+        UnitBehaviorRemove(lv_medivac, "MedivacMengskSiegeTankAirliftLevel", 1);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_MedivacAirlift_Init () {
+    libCOMI_gt_CM_Mengsk_MedivacAirlift = TriggerCreate("libCOMI_gt_CM_Mengsk_MedivacAirlift_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_MedivacAirlift, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Mengsk_MedivacAirlift, c_playerAny, "MedivacMengskSiegeTankAirliftLoadTrigger");
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Mengsk_MedivacAirlift, c_playerAny, "MedivacMengskSiegeTankAirliftUnloadTrigger");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_MedivacAirliftDing
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_MedivacAirliftDing_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_siegetank;
+    unit lv_medivac;
+    int lv_statusframe;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_siegetank = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_medivac = UnitTransport(lv_siegetank);
+    lv_statusframe = c_invalidDialogControlId;
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGetType(lv_siegetank) == "SiegeTankMengskSieged"))) {
+            return false;
+        }
+
+        if (!((lv_medivac != null))) {
+            return false;
+        }
+
+        if (!((UnitGetType(lv_medivac) == "MedivacMengsk"))) {
+            return false;
+        }
+
+        if (!((PlayerCommander(UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster))) == "Mengsk"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_SetUnitAttributePoints("MedivacMengskSiegeTankAirliftLevel", lv_medivac, (UnitXPGetCurrentLevel(lv_siegetank, null) - 1));
+    DialogControlHookupUnitStatus(c_triggerControlTypeUnitStatusBar, "HealthBar", lv_medivac);
+    lv_statusframe = DialogControlLastCreated();
+    DialogControlSetAnimationState(lv_statusframe, PlayerGroupAll(), "Rank", IntToString(UnitXPGetCurrentLevel(lv_siegetank, null)));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_MedivacAirliftDing_Init () {
+    libCOMI_gt_CM_Mengsk_MedivacAirliftDing = TriggerCreate("libCOMI_gt_CM_Mengsk_MedivacAirliftDing_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_MedivacAirliftDing, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Mengsk_MedivacAirliftDing, c_playerAny, "MengskVeteranLevelUpDummy");
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Mengsk_MedivacAirliftDing, c_playerAny, "MengskVeteranMaxedTrigger");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_EnlistStart
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_EnlistStart_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(EventUnit(), "TrooperMengskEnlistingAB", EventUnit());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_EnlistStart_Init () {
+    libCOMI_gt_CM_Mengsk_EnlistStart = TriggerCreate("libCOMI_gt_CM_Mengsk_EnlistStart_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_EnlistStart, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_Mengsk_EnlistStart, null, AbilityCommand("TrooperMengskEnlist",0), c_abilEffectStageApproach, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_Mengsk_EnlistStart, null, AbilityCommand("SCVMengskEnlist",0), c_abilEffectStageApproach, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_EnlistStop
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_EnlistStop_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(EventUnit(), "TrooperMengskEnlistingRB", EventUnit());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_EnlistStop_Init () {
+    libCOMI_gt_CM_Mengsk_EnlistStop = TriggerCreate("libCOMI_gt_CM_Mengsk_EnlistStop_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_EnlistStop, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_Mengsk_EnlistStop, null, AbilityCommand("TrooperMengskEnlist",0), c_unitAbilStageCancel, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_Mengsk_EnlistStop, null, AbilityCommand("SCVMengskEnlist",0), c_unitAbilStageCancel, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_Mengsk_EnlistStop, null, AbilityCommand("TrooperMengskEnlist",0), c_abilEffectStageFinish, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_Mengsk_EnlistStop, null, AbilityCommand("SCVMengskEnlist",0), c_abilEffectStageFinish, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_ReturnToWork
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_ReturnToWork_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_worker;
+    unit lv_nearbytownhall;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitIsAlive(EventUnit()) == true))) {
+            return false;
+        }
+
+        if (!((UnitOrderCount(EventUnit()) == 0))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupAdd(libCOMI_gv_cM_Mengsk_ReturningWorkers, EventUnit());
+    if ((TriggerActiveCount(TriggerGetCurrent()) > 1)) {
+        return true;
+    }
+
+    while ((UnitGroupCount(libCOMI_gv_cM_Mengsk_ReturningWorkers, c_unitCountAlive) > 0)) {
+        lv_worker = UnitGroupUnit(libCOMI_gv_cM_Mengsk_ReturningWorkers, 1);
+        Wait(0.0625, c_timeGame);
+        if ((UnitIsAlive(lv_worker) == true)) {
+            UnitGroupRemove(libCOMI_gv_cM_Mengsk_ReturningWorkers, lv_worker);
+            lv_nearbytownhall = UnitGroupClosestToPoint(UnitGroup("CommandCenterMengsk", UnitGetOwner(lv_worker), RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), UnitGetPosition(lv_worker));
+            if ((UnitIsAlive(lv_nearbytownhall) == true) && (DistanceBetweenPoints(UnitGetPosition(lv_worker), UnitGetPosition(lv_nearbytownhall)) < 8.0)) {
+                libCOMI_gf_CM_Resources_FindWork(lv_worker, lv_nearbytownhall, 12.0);
+            }
+
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_ReturnToWork_Init () {
+    libCOMI_gt_CM_Mengsk_ReturnToWork = TriggerCreate("libCOMI_gt_CM_Mengsk_ReturnToWork_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_ReturnToWork, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_Mengsk_ReturnToWork, null, AbilityCommand("TrooperMengskEnlist",0), c_abilEffectStageFinish, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_WeaponPickupRegister
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_WeaponPickupRegister_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_registrant;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_registrant = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(UnitGetOwner(lv_registrant)) == "Mengsk"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupAdd(libCOMI_gv_cM_Mengsk_WeaponPickups, lv_registrant);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_WeaponPickupRegister_Init () {
+    libCOMI_gt_CM_Mengsk_WeaponPickupRegister = TriggerCreate("libCOMI_gt_CM_Mengsk_WeaponPickupRegister_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_WeaponPickupRegister, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Mengsk_WeaponPickupRegister, c_playerAny, "TrooperMengskWeaponPickupRegister");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_WeaponPickerUpperRegister
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_WeaponPickerUpperRegister_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_registrant;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_registrant = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(UnitGetOwner(lv_registrant)) == "Mengsk"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupAdd(libCOMI_gv_cM_Mengsk_WeaponPickerUppers, lv_registrant);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_WeaponPickerUpperRegister_Init () {
+    libCOMI_gt_CM_Mengsk_WeaponPickerUpperRegister = TriggerCreate("libCOMI_gt_CM_Mengsk_WeaponPickerUpperRegister_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_WeaponPickerUpperRegister, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Mengsk_WeaponPickerUpperRegister, c_playerAny, "TrooperMengskWeaponPickerUpperRegister");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_WeaponPickerUpperUnregister
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_WeaponPickerUpperUnregister_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_registrant;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_registrant = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(UnitGetOwner(lv_registrant)) == "Mengsk"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupRemove(libCOMI_gv_cM_Mengsk_WeaponPickerUppers, lv_registrant);
+    libCOMI_gv_cM_MengskTrooperEquipped = true;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_WeaponPickerUpperUnregister_Init () {
+    libCOMI_gt_CM_Mengsk_WeaponPickerUpperUnregister = TriggerCreate("libCOMI_gt_CM_Mengsk_WeaponPickerUpperUnregister_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_WeaponPickerUpperUnregister, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Mengsk_WeaponPickerUpperUnregister, c_playerAny, "TrooperMengskWeaponPickerupperUnregister");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_WeaponPickup
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_WeaponPickup_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_pickup;
+    unit lv_pickerupper;
+
+    // Automatic Variable Declarations
+    unitgroup auto663E6980_g;
+    int auto663E6980_u;
+    string auto2B75F55C_val;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((TriggerActiveCount(TriggerGetCurrent()) > 1)) {
+        return true;
+    }
+
+    while (true) {
+        Wait(0.5, c_timeGame);
+        if ((UnitGroupCount(libCOMI_gv_cM_Mengsk_WeaponPickups, c_unitCountAlive) > 0) && (UnitGroupCount(libCOMI_gv_cM_Mengsk_WeaponPickerUppers, c_unitCountAlive) > 0)) {
+            auto663E6980_g = libCOMI_gv_cM_Mengsk_WeaponPickups;
+            auto663E6980_u = UnitGroupCount(auto663E6980_g, c_unitCountAll);
+            for (;; auto663E6980_u -= 1) {
+                lv_pickup = UnitGroupUnitFromEnd(auto663E6980_g, auto663E6980_u);
+                if (lv_pickup == null) { break; }
+                lv_pickerupper = UnitGroupClosestToPoint(libCOMI_gv_cM_Mengsk_WeaponPickerUppers, UnitGetPosition(lv_pickup));
+                if ((UnitIsAlive(lv_pickerupper) == true) && (DistanceBetweenPoints(UnitGetPosition(lv_pickup), UnitGetPosition(lv_pickerupper)) <= 2.0)) {
+                    auto2B75F55C_val = UnitGetType(lv_pickup);
+                    if (auto2B75F55C_val == "TrooperMengskWeaponAAPickup") {
+                        UnitCreateEffectUnit(lv_pickerupper, "TrooperMengskMorphAA", lv_pickerupper);
+                        UnitBehaviorAdd(lv_pickerupper, "TrooperMengskWeaponAA", lv_pickerupper, 1);
+                        UnitKill(lv_pickup);
+                        UnitGroupRemove(libCOMI_gv_cM_Mengsk_WeaponPickerUppers, lv_pickerupper);
+                        libNtve_gf_SendActorMessageToUnit(lv_pickerupper, "Signal ClearWeapon");
+                        libNtve_gf_SendActorMessageToUnit(lv_pickerupper, "Signal SetWeaponAA");
+                        AchievementTermQuantityAdd(UnitGetOwner(lv_pickerupper), "CommanderMengskWeaponPickup", 1);
+                    }
+                    else if (auto2B75F55C_val == "TrooperMengskWeaponFlamethrowerPickup") {
+                        UnitCreateEffectUnit(lv_pickerupper, "TrooperMengskMorphFlamethrower", lv_pickerupper);
+                        UnitBehaviorAdd(lv_pickerupper, "TrooperMengskWeaponFlamethrower", lv_pickerupper, 1);
+                        UnitKill(lv_pickup);
+                        UnitGroupRemove(libCOMI_gv_cM_Mengsk_WeaponPickerUppers, lv_pickerupper);
+                        libNtve_gf_SendActorMessageToUnit(lv_pickerupper, "Signal ClearWeapon");
+                        libNtve_gf_SendActorMessageToUnit(lv_pickerupper, "Signal SetWeaponFlamethrower");
+                        AchievementTermQuantityAdd(UnitGetOwner(lv_pickerupper), "CommanderMengskWeaponPickup", 1);
+                    }
+                    else if (auto2B75F55C_val == "TrooperMengskWeaponImprovedPickup") {
+                        UnitCreateEffectUnit(lv_pickerupper, "TrooperMengskMorphImproved", lv_pickerupper);
+                        UnitBehaviorAdd(lv_pickerupper, "TrooperMengskWeaponImproved", lv_pickerupper, 1);
+                        UnitKill(lv_pickup);
+                        UnitGroupRemove(libCOMI_gv_cM_Mengsk_WeaponPickerUppers, lv_pickerupper);
+                        libNtve_gf_SendActorMessageToUnit(lv_pickerupper, "Signal ClearWeapon");
+                        libNtve_gf_SendActorMessageToUnit(lv_pickerupper, "Signal SetWeaponImproved");
+                        AchievementTermQuantityAdd(UnitGetOwner(lv_pickerupper), "CommanderMengskWeaponPickup", 1);
+                    }
+                    else {
+                        UnitGroupRemove(libCOMI_gv_cM_Mengsk_WeaponPickups, lv_pickup);
+                    }
+                }
+
+                lv_pickerupper = null;
+            }
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_WeaponPickup_Init () {
+    libCOMI_gt_CM_Mengsk_WeaponPickup = TriggerCreate("libCOMI_gt_CM_Mengsk_WeaponPickup_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_WeaponPickup, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_ZergSeekDestroy
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_ZergSeekDestroy_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster))) == "Mengsk"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_FindandAttackNearestEnemy(EventPlayerEffectUsedUnit(c_effectUnitCaster), 30.0, 6.0, 2.0, UnitFilter(0, 0, (1 << c_targetFilterMissile) | (1 << c_targetFilterDestructible), (1 << (c_targetFilterStasis - 32)) | (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterInvulnerable - 32)) | (1 << (c_targetFilterBenign - 32))), UnitFilter(0, 0, (1 << c_targetFilterAir) | (1 << c_targetFilterMissile) | (1 << c_targetFilterCloaked), (1 << (c_targetFilterStasis - 32)) | (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterInvulnerable - 32)) | (1 << (c_targetFilterBenign - 32))));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_ZergSeekDestroy_Init () {
+    libCOMI_gt_CM_Mengsk_ZergSeekDestroy = TriggerCreate("libCOMI_gt_CM_Mengsk_ZergSeekDestroy_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_ZergSeekDestroy, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Mengsk_ZergSeekDestroy, c_playerAny, "MengskSeekDestroyTrigger");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_ZerglingMengskSpawn
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_ZerglingMengskSpawn_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster))) == "Mengsk"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreate(1, "ZerglingMengsk", 0, UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster)), PointWithOffsetPolar(EventPlayerEffectUsedPoint(c_effectLocationTargetPoint), (SquareRoot(RandomFixed(0.0, 1.0)) * libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogEffect, "MengskZergCalldownAreaDummy", "AreaArray[" + IntToString(0) + "].Radius", c_playerAny)), RandomFixed(0.0, 360.0)), RandomFixed(0.0, 360.0));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_ZerglingMengskSpawn_Init () {
+    libCOMI_gt_CM_Mengsk_ZerglingMengskSpawn = TriggerCreate("libCOMI_gt_CM_Mengsk_ZerglingMengskSpawn_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_ZerglingMengskSpawn, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Mengsk_ZerglingMengskSpawn, c_playerAny, "ZerglingMengskSpawnTrigger");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_HydraliskMengskSpawn
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_HydraliskMengskSpawn_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster))) == "Mengsk"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreate(1, "HydraliskMengsk", 0, UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster)), PointWithOffsetPolar(EventPlayerEffectUsedPoint(c_effectLocationTargetPoint), (SquareRoot(RandomFixed(0.0, 1.0)) * libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogEffect, "MengskZergCalldownAreaDummy", "AreaArray[" + IntToString(0) + "].Radius", c_playerAny)), RandomFixed(0.0, 360.0)), RandomFixed(0.0, 360.0));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_HydraliskMengskSpawn_Init () {
+    libCOMI_gt_CM_Mengsk_HydraliskMengskSpawn = TriggerCreate("libCOMI_gt_CM_Mengsk_HydraliskMengskSpawn_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_HydraliskMengskSpawn, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Mengsk_HydraliskMengskSpawn, c_playerAny, "HydraliskMengskSpawnTrigger");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_MutaliskMengskSpawn
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_MutaliskMengskSpawn_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster))) == "Mengsk"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreate(1, "MutaliskMengsk", 0, UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster)), PointWithOffsetPolar(EventPlayerEffectUsedPoint(c_effectLocationTargetPoint), (SquareRoot(RandomFixed(0.0, 1.0)) * libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogEffect, "MengskZergCalldownAreaDummy", "AreaArray[" + IntToString(0) + "].Radius", c_playerAny)), RandomFixed(0.0, 360.0)), RandomFixed(0.0, 360.0));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_MutaliskMengskSpawn_Init () {
+    libCOMI_gt_CM_Mengsk_MutaliskMengskSpawn = TriggerCreate("libCOMI_gt_CM_Mengsk_MutaliskMengskSpawn_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_MutaliskMengskSpawn, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Mengsk_MutaliskMengskSpawn, c_playerAny, "MutaliskMengskSpawnTrigger");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_UltraliskMengskSpawn
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_UltraliskMengskSpawn_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((PlayerCommander(UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster))) == "Mengsk"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreate(1, "UltraliskMengsk", 0, UnitGetOwner(EventPlayerEffectUsedUnit(c_effectUnitCaster)), PointWithOffsetPolar(EventPlayerEffectUsedPoint(c_effectLocationTargetPoint), (SquareRoot(RandomFixed(0.0, 1.0)) * libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogEffect, "MengskZergCalldownAreaDummy", "AreaArray[" + IntToString(0) + "].Radius", c_playerAny)), RandomFixed(0.0, 360.0)), RandomFixed(0.0, 360.0));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_UltraliskMengskSpawn_Init () {
+    libCOMI_gt_CM_Mengsk_UltraliskMengskSpawn = TriggerCreate("libCOMI_gt_CM_Mengsk_UltraliskMengskSpawn_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_UltraliskMengskSpawn, false);
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Mengsk_UltraliskMengskSpawn, c_playerAny, "UltraliskMengskSpawnTrigger");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_BunkerDepotDropFillCargo
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_BunkerDepotDropFillCargo_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_bunkerdepot;
+    int lv_troopercargosize;
+    int lv_bunkerdepotcargocapacity;
+    int lv_bunkerdepotcargomaxcount;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_bunkerdepot = EventUnit();
+    lv_troopercargosize = CatalogFieldValueGetAsInt(c_gameCatalogUnit, "TrooperMengsk", "CargoSize", EventPlayer());
+    lv_bunkerdepotcargocapacity = CatalogFieldValueGetAsInt(c_gameCatalogAbil, "BunkerMengskTransport", "TotalCargoSpace", EventPlayer());
+    lv_bunkerdepotcargomaxcount = CatalogFieldValueGetAsInt(c_gameCatalogAbil, "BunkerMengskTransport", "MaxCargoCount", EventPlayer());
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((lv_troopercargosize != 0) && (lv_bunkerdepotcargocapacity != 0) && (lv_bunkerdepotcargomaxcount != 0)) {
+        UnitCargoCreate(lv_bunkerdepot, "TrooperMengsk", MinI((lv_bunkerdepotcargocapacity / lv_troopercargosize), lv_bunkerdepotcargomaxcount));
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_BunkerDepotDropFillCargo_Init () {
+    libCOMI_gt_CM_Mengsk_BunkerDepotDropFillCargo = TriggerCreate("libCOMI_gt_CM_Mengsk_BunkerDepotDropFillCargo_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_BunkerDepotDropFillCargo, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_Mengsk_BunkerDepotDropFillCargo, null, AbilityCommand("BunkerDepotMengskDropMorph",0), c_abilMorphStageUnitEnd, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_DirtyBombSweetener
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_DirtyBombSweetener_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((UnitGroupCount(UnitGroup("ArtilleryMengsk", UnitGetOwner(EventUnit()), RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterStasis - 32)) | (1 << (c_targetFilterUnderConstruction - 32)) | (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterStunned - 32))), 0), c_unitCountAlive) > 4))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    Wait(1.5, c_timeGame);
+    TriggerEnable(TriggerGetCurrent(), false);
+    SoundPlayForPlayer(SoundLink("UI_Mengsk_TopBar_Stinger_Up", -1), c_maxPlayers, PlayerGroupSingle(UnitGetOwner(EventUnit())), 100.0, 0.0);
+    Wait(3.0, c_timeGame);
+    SoundPlayForPlayer(SoundLink("UI_Mengsk_TopBar_Stinger_Down", -1), c_maxPlayers, PlayerGroupSingle(UnitGetOwner(EventUnit())), 100.0, 0.0);
+    Wait(16.5, c_timeGame);
+    TriggerEnable(TriggerGetCurrent(), true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_DirtyBombSweetener_Init () {
+    libCOMI_gt_CM_Mengsk_DirtyBombSweetener = TriggerCreate("libCOMI_gt_CM_Mengsk_DirtyBombSweetener_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_DirtyBombSweetener, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_Mengsk_DirtyBombSweetener, null, AbilityCommand("ArtilleryMengskGlobalExperimentalStrike",0), c_unitAbilStageAll, false);
+}
+
+//--------------------------------------------------------------------------------------------------
 // Trigger: NovaUnitNames_GenerateNameList
 //--------------------------------------------------------------------------------------------------
 bool libCOMI_gt_NovaUnitNames_GenerateNameList_Func (bool testConds, bool runActions) {
@@ -20796,6 +22769,7 @@ bool libCOMI_gt_CM_NovaGriffinTransportTeleportUnload_Func (bool testConds, bool
     fixed lv_angle;
     fixed lv_distance;
     int lv_p;
+    point lv_placementtestpoint;
 
     // Automatic Variable Declarations
     unitgroup auto5C6CB81D_g;
@@ -20833,7 +22807,11 @@ bool libCOMI_gt_CM_NovaGriffinTransportTeleportUnload_Func (bool testConds, bool
             UnitSetPosition(auto33602D3D_var, PointWithOffsetPolar(UnitGetPosition(auto33602D3D_var), lv_distance, lv_angle), false);
         }
         else {
-            UnitSetPosition(auto33602D3D_var, UnitTypePlacementFromPoint(UnitGetType(auto33602D3D_var), UnitGetOwner(auto33602D3D_var), lv_unloadPoint, 5.0), false);
+            lv_placementtestpoint = UnitTypePlacementFromPoint(UnitGetType(auto33602D3D_var), UnitGetOwner(auto33602D3D_var), lv_unloadPoint, 5.0);
+            if ((lv_placementtestpoint != null)) {
+                UnitSetPosition(auto33602D3D_var, lv_placementtestpoint, false);
+            }
+
         }
         UnitCreateEffectUnit(EventPlayerEffectUsedUnit(c_effectUnitCaster), "NovaGriffinTransportUnhideUnitsSet", auto33602D3D_var);
     }
@@ -21492,18 +23470,41 @@ bool libCOMI_gt_CM_Stetmann_BanelingEnergyDamageBoost_Func (bool testConds, bool
     // Variable Declarations
     unit lv_baneling;
     fixed lv_energy;
+    unit lv_target;
 
     // Automatic Variable Declarations
+    string auto698BF1AA_val;
+
     // Variable Initialization
     lv_baneling = EventPlayerEffectUsedUnit(c_effectUnitCaster);
     lv_energy = UnitGetPropertyFixed(lv_baneling, c_unitPropEnergy, c_unitPropCurrent);
+    lv_target = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitIsAlive(lv_target) == true))) {
+            return false;
+        }
+    }
 
     // Actions
     if (!runActions) {
         return true;
     }
 
-    UnitDamage(lv_baneling, "BanelingExplodeLargeSearchDamageStetmann", EventPlayerEffectUsedUnit(c_effectUnitTarget), lv_energy);
+    libCOMI_gf_SetUnitAttributePoints("BanelingStetmannBonusDamage", lv_baneling, RoundI(lv_energy));
+    auto698BF1AA_val = EventPlayerEffectUsed();
+    if (auto698BF1AA_val == "BanelingStetmannExplodeAbilityBonusDamageTrigger") {
+        UnitCreateEffectUnit(lv_baneling, "BanelingDeathExplodeLargeSetStetmann", lv_target);
+    }
+    else if (auto698BF1AA_val == "BanelingStetmannExplodeDelayBonusDamageTrigger") {
+        UnitCreateEffectUnit(lv_baneling, "BanelingStetmannExplodeDelaySet", lv_target);
+    }
+    else if (auto698BF1AA_val == "BanelingStetmannExplodeWeaponBonusDamageTrigger") {
+        UnitCreateEffectUnit(lv_baneling, "BanelingExplodeLargeSetStetmann", lv_target);
+    }
+    else {
+    }
     return true;
 }
 
@@ -21511,7 +23512,9 @@ bool libCOMI_gt_CM_Stetmann_BanelingEnergyDamageBoost_Func (bool testConds, bool
 void libCOMI_gt_CM_Stetmann_BanelingEnergyDamageBoost_Init () {
     libCOMI_gt_CM_Stetmann_BanelingEnergyDamageBoost = TriggerCreate("libCOMI_gt_CM_Stetmann_BanelingEnergyDamageBoost_Func");
     TriggerEnable(libCOMI_gt_CM_Stetmann_BanelingEnergyDamageBoost, false);
-    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Stetmann_BanelingEnergyDamageBoost, c_playerAny, "BanelingStetmannDamageTrigger");
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Stetmann_BanelingEnergyDamageBoost, c_playerAny, "BanelingStetmannExplodeAbilityBonusDamageTrigger");
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Stetmann_BanelingEnergyDamageBoost, c_playerAny, "BanelingStetmannExplodeDelayBonusDamageTrigger");
+    TriggerAddEventPlayerEffectUsed(libCOMI_gt_CM_Stetmann_BanelingEnergyDamageBoost, c_playerAny, "BanelingStetmannExplodeWeaponBonusDamageTrigger");
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -23430,6 +25433,7 @@ bool libCOMI_gt_CM_TychusMedicTransportTeleportUnload_Func (bool testConds, bool
     fixed lv_angle;
     fixed lv_distance;
     int lv_p;
+    point lv_placementtestpoint;
 
     // Automatic Variable Declarations
     unitgroup auto3E7138D6_g;
@@ -23467,7 +25471,11 @@ bool libCOMI_gt_CM_TychusMedicTransportTeleportUnload_Func (bool testConds, bool
             UnitSetPosition(auto7BF82D02_var, PointWithOffsetPolar(UnitGetPosition(auto7BF82D02_var), lv_distance, lv_angle), false);
         }
         else {
-            UnitSetPosition(auto7BF82D02_var, UnitTypePlacementFromPoint(UnitGetType(auto7BF82D02_var), UnitGetOwner(auto7BF82D02_var), lv_unloadPoint, 5.0), false);
+            lv_placementtestpoint = UnitTypePlacementFromPoint(UnitGetType(auto7BF82D02_var), UnitGetOwner(auto7BF82D02_var), lv_unloadPoint, 5.0);
+            if ((lv_placementtestpoint != null)) {
+                UnitSetPosition(auto7BF82D02_var, lv_placementtestpoint, false);
+            }
+
         }
         UnitCreateEffectUnit(EventPlayerEffectUsedUnit(c_effectUnitCaster), "TychusMedicTransportUnhideUnitsSet", auto7BF82D02_var);
     }
@@ -23556,9 +25564,6 @@ bool libCOMI_gt_CM_Tychus_TrainMaxChargesRemove_Func (bool testConds, bool runAc
     int lv_i;
 
     // Automatic Variable Declarations
-    const int autoF1C761A8_ae = 10;
-    const int autoF1C761A8_ai = 1;
-
     // Variable Initialization
 
     // Conditions
@@ -23574,13 +25579,6 @@ bool libCOMI_gt_CM_Tychus_TrainMaxChargesRemove_Func (bool testConds, bool runAc
     }
 
     libCOMI_gv_tychusHeroMaxCharges -= 1;
-    lv_i = 0;
-    for ( ; ( (autoF1C761A8_ai >= 0 && lv_i <= autoF1C761A8_ae) || (autoF1C761A8_ai < 0 && lv_i >= autoF1C761A8_ae) ) ; lv_i += autoF1C761A8_ai ) {
-        libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusBarracksTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", UnitGetOwner(libCOMI_gf_EventTychusHero()), libCOMI_gv_tychusHeroMaxCharges);
-        libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusFactoryTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", UnitGetOwner(libCOMI_gf_EventTychusHero()), libCOMI_gv_tychusHeroMaxCharges);
-        libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusStarportTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", UnitGetOwner(libCOMI_gf_EventTychusHero()), libCOMI_gv_tychusHeroMaxCharges);
-    }
-    UnitCreateEffectUnit(libCOMI_gv_cM_GlobalCasterUnit[UnitGetOwner(libCOMI_gf_EventTychusHero())], "TychusHeroTrainChargeAdd", libCOMI_gv_cM_GlobalCasterUnit[UnitGetOwner(libCOMI_gf_EventTychusHero())]);
     return true;
 }
 
@@ -23949,15 +25947,16 @@ bool libCOMI_gt_CM_Tychus_TriggersInit_Func (bool testConds, bool runActions) {
         if ((PlayerCommander(lv_player) == "Tychus")) {
             lv_i = 0;
             for ( ; ( (auto2E3538DB_ai >= 0 && lv_i <= auto2E3538DB_ae) || (auto2E3538DB_ai < 0 && lv_i >= auto2E3538DB_ae) ) ; lv_i += auto2E3538DB_ai ) {
-                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusBarracksTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, 1.0);
-                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusFactoryTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, 1.0);
-                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusStarportTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, 1.0);
+                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusBarracksTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, 4.0);
+                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusFactoryTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, 4.0);
+                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusStarportTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.CountMax", lv_player, 4.0);
             }
             libCOMI_gf_CM_Tychus_InitHeroTechLimit(lv_player);
             libCOMI_gf_CM_Tychus_UpdateHeroTechTree(lv_player);
         }
 
     }
+    TriggerExecute(libCOMI_gt_CM_Tychus_Hero_Charge_Timing, true, false);
     return true;
 }
 
@@ -24118,8 +26117,6 @@ bool libCOMI_gt_CM_Tychus_Hero_Charge_Timing_Func (bool testConds, bool runActio
 
     // Automatic Variable Declarations
     playergroup auto2F37A26F_g;
-    const int auto305C41C6_ae = 10;
-    const int auto305C41C6_ai = 1;
 
     // Variable Initialization
 
@@ -24128,6 +26125,9 @@ bool libCOMI_gt_CM_Tychus_Hero_Charge_Timing_Func (bool testConds, bool runActio
         return true;
     }
 
+    while (!((GameGetMissionTime() >= libCOMI_gv_cM_Tychus_InitialTrainTime))) {
+        Wait(0.25, c_timeGame);
+    }
     auto2F37A26F_g = libCOOC_gf_CommanderPlayers();
     lv_player = -1;
     while (true) {
@@ -24135,15 +26135,6 @@ bool libCOMI_gt_CM_Tychus_Hero_Charge_Timing_Func (bool testConds, bool runActio
         if (lv_player < 0) { break; }
         if ((PlayerCommander(lv_player) == "Tychus")) {
             lv_heroCooldown = libCOMI_gf_CalculateTychusRecruitmentChargeCooldown(lv_player);
-            lv_i = 0;
-            for ( ; ( (auto305C41C6_ai >= 0 && lv_i <= auto305C41C6_ae) || (auto305C41C6_ai < 0 && lv_i >= auto305C41C6_ae) ) ; lv_i += auto305C41C6_ai ) {
-                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusBarracksTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.TimeStart", lv_player, lv_heroCooldown);
-                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusBarracksTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.TimeUse", lv_player, lv_heroCooldown);
-                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusFactoryTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.TimeStart", lv_player, lv_heroCooldown);
-                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusFactoryTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.TimeUse", lv_player, lv_heroCooldown);
-                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusStarportTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.TimeStart", lv_player, lv_heroCooldown);
-                libNtve_gf_CatalogFieldValueSetAsReal(c_gameCatalogAbil, "TychusStarportTrain", "InfoArray[" + IntToString(lv_i) + "].Charge.TimeUse", lv_player, lv_heroCooldown);
-            }
             libCOMI_gf_ApplyTychusMaxChargesPerk(lv_player);
         }
 
@@ -24156,7 +26147,6 @@ bool libCOMI_gt_CM_Tychus_Hero_Charge_Timing_Func (bool testConds, bool runActio
 void libCOMI_gt_CM_Tychus_Hero_Charge_Timing_Init () {
     libCOMI_gt_CM_Tychus_Hero_Charge_Timing = TriggerCreate("libCOMI_gt_CM_Tychus_Hero_Charge_Timing_Func");
     TriggerEnable(libCOMI_gt_CM_Tychus_Hero_Charge_Timing, false);
-    TriggerAddEventTimeElapsed(libCOMI_gt_CM_Tychus_Hero_Charge_Timing, libCOMI_gv_cM_Tychus_InitialTrainTime, c_timeGame);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -24766,14 +26756,21 @@ bool libCOMI_gt_CM_Zeratul_TransportDropOff_Func (bool testConds, bool runAction
     fixed lv_interpolationperiod;
     fixed lv_interpolationdistance;
     point lv_nextinterpolatedpoint;
+    unitgroup lv_cargounits;
+    point lv_fallbackexitpoint;
 
     // Automatic Variable Declarations
+    unitgroup autoF8BB9D10_g;
+    int autoF8BB9D10_u;
+    unit autoF8BB9D10_var;
+
     // Variable Initialization
     lv_voidseeker = EventPlayerEffectUsedUnit(c_effectUnitCaster);
     lv_unloadpoint = EventPlayerEffectUsedPoint(c_effectLocationTargetPoint);
     lv_facingangle = UnitGetFacing(lv_voidseeker);
     lv_interpolationperiod = 0.125;
     lv_interpolationdistance = 1.0;
+    lv_cargounits = UnitGroupEmpty();
 
     // Conditions
     if (testConds) {
@@ -24796,6 +26793,19 @@ bool libCOMI_gt_CM_Zeratul_TransportDropOff_Func (bool testConds, bool runAction
     UnitIssueOrder(lv_voidseeker, OrderTargetingPoint(AbilityCommand("move", 0), lv_nextinterpolatedpoint), c_orderQueueAddToEnd);
     Wait(0.25, c_timeGame);
     UnitWaitUntilIdle(lv_voidseeker, true);
+    lv_cargounits = UnitCargoGroup(lv_voidseeker);
+    autoF8BB9D10_g = lv_cargounits;
+    autoF8BB9D10_u = UnitGroupCount(autoF8BB9D10_g, c_unitCountAll);
+    for (;; autoF8BB9D10_u -= 1) {
+        autoF8BB9D10_var = UnitGroupUnitFromEnd(autoF8BB9D10_g, autoF8BB9D10_u);
+        if (autoF8BB9D10_var == null) { break; }
+        lv_fallbackexitpoint = UnitTypePlacementFromUnit(UnitGetType(autoF8BB9D10_var), UnitGetOwner(autoF8BB9D10_var), lv_voidseeker, 10.0);
+        if ((lv_fallbackexitpoint == null)) {
+            lv_fallbackexitpoint = UnitTypePlacementFromPoint(UnitGetType(autoF8BB9D10_var), UnitGetOwner(autoF8BB9D10_var), PlayerStartLocation(UnitGetOwner(lv_voidseeker)), 10.0);
+        }
+
+        UnitSetPosition(autoF8BB9D10_var, lv_fallbackexitpoint, false);
+    }
     UnitKill(lv_voidseeker);
     libCOMI_gv_cM_ZeratulVoidSeeker = lv_voidseeker;
     return true;
@@ -25188,6 +27198,35 @@ void libCOMI_gt_CM_Zeratul_ProphecyArtifactRevealed_Init () {
     libCOMI_gt_CM_Zeratul_ProphecyArtifactRevealed = TriggerCreate("libCOMI_gt_CM_Zeratul_ProphecyArtifactRevealed_Func");
     TriggerEnable(libCOMI_gt_CM_Zeratul_ProphecyArtifactRevealed, false);
     libCOMI_gf_CM_ZeratulProphecyEvent(libCOMI_gt_CM_Zeratul_ProphecyArtifactRevealed, "ZeratulEvent_ArtifactFound");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Zeratul_ProphecyArtifactPathingSafety
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Zeratul_ProphecyArtifactPathingSafety_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libCOMI_gv_cM_ZeratulProphecyArtifactNumber > 3)) {
+        TriggerEnable(TriggerGetCurrent(), false);
+        return true;
+    }
+
+    if ((UnitIsAlive(libCOMI_gv_cM_ZeratulProphecyArtifact) == true) && (PathingType(UnitGetPosition(libCOMI_gv_cM_ZeratulProphecyArtifact)) != c_pathingGround)) {
+        UnitSetPosition(libCOMI_gv_cM_ZeratulProphecyArtifact, UnitTypePlacementFromUnit("ZeratulCoop", UnitGetOwner(libCOMI_gv_cM_ZeratulProphecyArtifact), libCOMI_gv_cM_ZeratulProphecyArtifact, 10.0), true);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Zeratul_ProphecyArtifactPathingSafety_Init () {
+    libCOMI_gt_CM_Zeratul_ProphecyArtifactPathingSafety = TriggerCreate("libCOMI_gt_CM_Zeratul_ProphecyArtifactPathingSafety_Func");
+    TriggerEnable(libCOMI_gt_CM_Zeratul_ProphecyArtifactPathingSafety, false);
+    TriggerAddEventTimePeriodic(libCOMI_gt_CM_Zeratul_ProphecyArtifactPathingSafety, 5.0, c_timeGame);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -26046,6 +28085,7 @@ bool libCOMI_gt_CM_Zeratul_TriggersInit_Func (bool testConds, bool runActions) {
     TriggerEnable(libCOMI_gt_CM_Zeratul_ProphecyCastStop, true);
     TriggerEnable(libCOMI_gt_CM_Zeratul_ProphecyArtifactPickedUp, true);
     TriggerEnable(libCOMI_gt_CM_Zeratul_ProphecyArtifactRevealed, true);
+    TriggerEnable(libCOMI_gt_CM_Zeratul_ProphecyArtifactPathingSafety, true);
     TriggerEnable(libCOMI_gt_CM_ZeratulArtifactTriggerUpgrades, true);
     TriggerEnable(libCOMI_gt_CM_ZeratulTopBarWarpTrainStart, true);
     TriggerEnable(libCOMI_gt_CM_ZeratulTopBarWarpTrainFinish, true);
@@ -28114,6 +30154,13 @@ bool libCOMI_gt_CM_AbilityTransmissionRaynorHyperion_Func (bool testConds, bool 
 
     libCOMI_gf_CM_GPReminderDisable(UnitGetOwner(EventUnit()));
     libCOMI_gf_CM_CommanderVOSend(libCOOC_gf_CC_PlayerAlly(UnitGetOwner(EventUnit())), SoundLink("RaynorCommander_Hyperion", -1), PlayerGroupAll());
+    if ((libCOMI_gv_cM_MengskSnarkExecuted == false) && (libCOOC_gf_CC_CommanderInGame("TerranMengsk") == true)) {
+        SoundWait(SoundLastPlayed(), 0.0, c_soundOffsetEnd);
+        libCOMI_gv_cM_MengskSnarkExecuted = true;
+        Wait(0.5, c_timeReal);
+        libCOMI_gf_CM_CommanderVOSend(UnitGetOwner(EventUnit()), SoundLink("MengskCommander_RaynorHyperion", -1), PlayerGroupAll());
+    }
+
     return true;
 }
 
@@ -28136,6 +30183,9 @@ bool libCOMI_gt_CM_AbilityTransmissionRaynorBansheesUsed_Func (bool testConds, b
 
     libCOMI_gf_CM_GPReminderDisable(UnitGetOwner(EventUnit()));
     libCOMI_gf_CM_CommanderVOSend(libCOOC_gf_CC_PlayerAlly(UnitGetOwner(EventUnit())), SoundLink("RaynorCommander_Banshee", -1), PlayerGroupSingle(UnitGetOwner(EventUnit())));
+    if (true) {
+    }
+
     return true;
 }
 
@@ -28223,6 +30273,13 @@ bool libCOMI_gt_CM_AbilityTransmissionKerriganCrushingGrip_Func (bool testConds,
     }
 
     libCOMI_gf_CM_CommanderVOSend(libCOOC_gf_CC_PlayerAlly(EventPlayer()), SoundLink("KerriganCommander_CrushingGrip", -1), PlayerGroupAll());
+    if ((libCOMI_gv_cM_MengskSnarkExecuted == false) && (libCOOC_gf_CC_CommanderInGame("TerranMengsk") == true)) {
+        SoundWait(SoundLastPlayed(), 0.0, c_soundOffsetEnd);
+        libCOMI_gv_cM_MengskSnarkExecuted = true;
+        Wait(0.5, c_timeReal);
+        libCOMI_gf_CM_CommanderVOSend(EventPlayer(), SoundLink("MengskCommander_KerriganImmobilizationWave", -1), PlayerGroupAll());
+    }
+
     return true;
 }
 
@@ -29805,6 +31862,13 @@ bool libCOMI_gt_CM_AbilityTransmissionTychusOdinUse_Func (bool testConds, bool r
     }
 
     libCOMI_gf_CM_CommanderVOSend(libCOOC_gf_CC_PlayerAllyNew(UnitGetOwner(EventUnit())), SoundLink("TychusCommander_OdinUsed", -1), PlayerGroupAll());
+    if ((libCOMI_gv_cM_MengskSnarkExecuted == false) && (libCOOC_gf_CC_CommanderInGame("TerranMengsk") == true)) {
+        SoundWait(SoundLastPlayed(), 0.0, c_soundOffsetEnd);
+        libCOMI_gv_cM_MengskSnarkExecuted = true;
+        Wait(0.5, c_timeReal);
+        libCOMI_gf_CM_CommanderVOSend(EventPlayer(), SoundLink("MengskCommander_TychusSpawn", -1), PlayerGroupAll());
+    }
+
     return true;
 }
 
@@ -30379,6 +32443,175 @@ void libCOMI_gt_CM_GaryUpgradeReminder_Init () {
 }
 
 //--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_ArtilleryBuilt
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_ArtilleryBuilt_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((libCOOC_gf_PlayerIsCommander(UnitGetOwner(EventUnitProgressUnit())) == true))) {
+            return false;
+        }
+
+        if (!((libNtve_gf_TriggeringProgressUnitType() == "ArtilleryMengsk"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libCOMI_gf_CM_CommanderVOSend(UnitGetOwner(EventUnitProgressUnit()), SoundLink("MengskCommander_ArtilleryReady", -1), PlayerGroupSingle(UnitGetOwner(EventUnitProgressUnit())));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_ArtilleryBuilt_Init () {
+    libCOMI_gt_CM_Mengsk_ArtilleryBuilt = TriggerCreate("libCOMI_gt_CM_Mengsk_ArtilleryBuilt_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_ArtilleryBuilt, false);
+    TriggerAddEventUnitConstructProgress(libCOMI_gt_CM_Mengsk_ArtilleryBuilt, null, c_unitProgressStageComplete);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_Mengsk_ArtilleryStarted
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_Mengsk_ArtilleryStarted_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((libCOOC_gf_PlayerIsCommander(UnitGetOwner(EventUnitProgressUnit())) == true))) {
+            return false;
+        }
+
+        if (!((libNtve_gf_TriggeringProgressUnitType() == "ArtilleryMengsk"))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerEnable(TriggerGetCurrent(), false);
+    libCOMI_gv_cM_MengskArtilleryBuilt = true;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_Mengsk_ArtilleryStarted_Init () {
+    libCOMI_gt_CM_Mengsk_ArtilleryStarted = TriggerCreate("libCOMI_gt_CM_Mengsk_ArtilleryStarted_Func");
+    TriggerEnable(libCOMI_gt_CM_Mengsk_ArtilleryStarted, false);
+    TriggerAddEventUnitConstructProgress(libCOMI_gt_CM_Mengsk_ArtilleryStarted, null, c_unitProgressStageStart);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_AbilityTransmissionMengskNuclearAnnihilation
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_AbilityTransmissionMengskNuclearAnnihilation_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_CM_CommanderVOSend(libCOOC_gf_CC_PlayerAlly(EventPlayer()), SoundLink("MengskCommander_NuclearAnnihilationUsed", -1), PlayerGroupAll());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_AbilityTransmissionMengskNuclearAnnihilation_Init () {
+    libCOMI_gt_CM_AbilityTransmissionMengskNuclearAnnihilation = TriggerCreate("libCOMI_gt_CM_AbilityTransmissionMengskNuclearAnnihilation_Func");
+    TriggerEnable(libCOMI_gt_CM_AbilityTransmissionMengskNuclearAnnihilation, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_AbilityTransmissionMengskNuclearAnnihilation, null, AbilityCommand("NuclearAnnihilationMengsk", 0), c_unitAbilStageExecute, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_AbilityTransmissionMengskDirtyBomb
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_AbilityTransmissionMengskDirtyBomb_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TimerGetRemaining(libCOMI_gv_cM_MengskTransmissionTimerDirtyBomb) <= 0.0))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TimerStart(libCOMI_gv_cM_MengskTransmissionTimerDirtyBomb, 120.0, false, c_timeReal);
+    libCOMI_gf_CM_CommanderVOSend(libCOOC_gf_CC_PlayerAlly(EventPlayer()), SoundLink("MengskCommander_DirtyBombUsed", -1), PlayerGroupAll());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_AbilityTransmissionMengskDirtyBomb_Init () {
+    libCOMI_gt_CM_AbilityTransmissionMengskDirtyBomb = TriggerCreate("libCOMI_gt_CM_AbilityTransmissionMengskDirtyBomb_Func");
+    TriggerEnable(libCOMI_gt_CM_AbilityTransmissionMengskDirtyBomb, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_AbilityTransmissionMengskDirtyBomb, null, AbilityCommand("ArtilleryMengskGlobalExperimentalStrike", 0), c_unitAbilStageExecute, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_AbilityTransmissionMengskZergCalldown
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_AbilityTransmissionMengskZergCalldown_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libCOMI_gf_CM_CommanderVOSend(libCOOC_gf_CC_PlayerAlly(EventPlayer()), SoundLink("MengskCommander_ZergCalldownUsed", -1), PlayerGroupAll());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_AbilityTransmissionMengskZergCalldown_Init () {
+    libCOMI_gt_CM_AbilityTransmissionMengskZergCalldown = TriggerCreate("libCOMI_gt_CM_AbilityTransmissionMengskZergCalldown_Func");
+    TriggerEnable(libCOMI_gt_CM_AbilityTransmissionMengskZergCalldown, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_AbilityTransmissionMengskZergCalldown, null, AbilityCommand("MengskZergCalldownLevel1", 0), c_unitAbilStageExecute, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_AbilityTransmissionMengskZergCalldown, null, AbilityCommand("MengskZergCalldownLevel2", 0), c_unitAbilStageExecute, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_AbilityTransmissionMengskZergCalldown, null, AbilityCommand("MengskZergCalldownLevel3", 0), c_unitAbilStageExecute, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_AbilityTransmissionMengskZergCalldown, null, AbilityCommand("MengskZergCalldownLevel4", 0), c_unitAbilStageExecute, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: CM_AbilityTransmissionMengskForcedConscription
+//--------------------------------------------------------------------------------------------------
+bool libCOMI_gt_CM_AbilityTransmissionMengskForcedConscription_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TimerGetRemaining(libCOMI_gv_cM_MengskTransmissionTimerForcedConscription) <= 0.0))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TimerStart(libCOMI_gv_cM_MengskTransmissionTimerForcedConscription, 120.0, false, c_timeReal);
+    libCOMI_gf_CM_CommanderVOSend(libCOOC_gf_CC_PlayerAlly(EventPlayer()), SoundLink("MengskCommander_ForcedConscriptionUsed", -1), PlayerGroupAll());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libCOMI_gt_CM_AbilityTransmissionMengskForcedConscription_Init () {
+    libCOMI_gt_CM_AbilityTransmissionMengskForcedConscription = TriggerCreate("libCOMI_gt_CM_AbilityTransmissionMengskForcedConscription_Func");
+    TriggerEnable(libCOMI_gt_CM_AbilityTransmissionMengskForcedConscription, false);
+    TriggerAddEventUnitAbility(libCOMI_gt_CM_AbilityTransmissionMengskForcedConscription, null, AbilityCommand("BunkerDepotMengskDrop", 0), c_unitAbilStageExecute, false);
+}
+
+//--------------------------------------------------------------------------------------------------
 // Trigger: CM_VOResourceSent
 //--------------------------------------------------------------------------------------------------
 bool libCOMI_gt_CM_VOResourceSent_Func (bool testConds, bool runActions) {
@@ -30551,7 +32784,7 @@ bool libCOMI_gt_CM_VOUnitsLostCheck_Func (bool testConds, bool runActions) {
             lv_indexPlayer = PlayerGroupNextPlayer(autoBA9689F6_g, lv_indexPlayer);
             if (lv_indexPlayer < 0) { break; }
             lv_currentArmySize = 0;
-            auto7D09EFD3_g = UnitGroup(null, lv_indexPlayer, null, UnitFilter(0, 0, (1 << c_targetFilterStructure) | (1 << c_targetFilterWorker) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterBenign - 32)) | (1 << (c_targetFilterSummoned - 32))), 0);
+            auto7D09EFD3_g = UnitGroup(null, lv_indexPlayer, null, UnitFilter(0, 0, (1 << c_targetFilterStructure) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterBenign - 32)) | (1 << (c_targetFilterSummoned - 32))), 0);
             auto7D09EFD3_u = UnitGroupCount(auto7D09EFD3_g, c_unitCountAll);
             for (;; auto7D09EFD3_u -= 1) {
                 lv_indexUnit = UnitGroupUnitFromEnd(auto7D09EFD3_g, auto7D09EFD3_u);
@@ -30559,7 +32792,9 @@ bool libCOMI_gt_CM_VOUnitsLostCheck_Func (bool testConds, bool runActions) {
                 if (((UnitTestState(lv_indexUnit, c_unitStateUsingSupply) == false) || ((libNtve_gf_UnitIsHidden(lv_indexUnit) == true) && (libNtve_gf_UnitIsInsideTransport(lv_indexUnit) == false)))) {
                     continue;
                 }
-
+                else if ((UnitFilterMatch(lv_indexUnit, lv_indexPlayer, UnitFilter((1 << c_targetFilterWorker), 0, 0, 0)) == true) && (UnitGetType(lv_indexUnit) != "SCVMengsk")) {
+                    continue;
+                }
                 lv_currentArmySize += UnitGetPropertyFixed(lv_indexUnit, c_unitPropSuppliesUsed, c_unitPropCurrent);
             }
             if ((lv_currentArmySize > lv_highestArmySize[lv_indexPlayer])) {
@@ -31418,6 +33653,39 @@ void libCOMI_InitTriggers () {
     libCOMI_gt_LaserDrillNukeBeamSoundFiring_Init();
     libCOMI_gt_LaserDrillNukeBeamSoundRegionClear_Init();
     libCOMI_gt_CM_LaserDrillTopbarOrder_Init();
+    libCOMI_gt_CM_Mengsk_TopBarKills_Init();
+    libCOMI_gt_CM_Mengsk_TriggersInit_Init();
+    libCOMI_gt_CM_Mengsk_ArtilleryBombardmentTarget_Init();
+    libCOMI_gt_CM_Mengsk_ArtilleryExperimentalStrikeTarget_Init();
+    libCOMI_gt_CM_Mengsk_ArtilleryGlobalExperimentalStrikeTarget_Init();
+    libCOMI_gt_CM_Mengsk_GlobalAbilityCast_Init();
+    libCOMI_gt_CM_Mengsk_ArtilleryExperimentalStrikeFearApply_Init();
+    libCOMI_gt_CM_Mengsk_NuclearAnnihilationSmallNukes_Init();
+    libCOMI_gt_CM_Mengsk_ArtilleryBombardmentCargoChange_Init();
+    libCOMI_gt_CM_Mengsk_RegisterVeteranUnit_Init();
+    libCOMI_gt_CM_Mengsk_RemoveVeteranUnit_Init();
+    libCOMI_gt_CM_Mengsk_VeteranDies_Init();
+    libCOMI_gt_CM_Mengsk_VeteranDing_Init();
+    libCOMI_gt_CM_Mengsk_RegisterPropagandaUnit_Init();
+    libCOMI_gt_CM_Mengsk_RemovePropagandaUnit_Init();
+    libCOMI_gt_CM_Mengsk_PropagandaUpgraded_Init();
+    libCOMI_gt_CM_Mengsk_VeterancyEarned_Init();
+    libCOMI_gt_CM_Mengsk_MedivacAirlift_Init();
+    libCOMI_gt_CM_Mengsk_MedivacAirliftDing_Init();
+    libCOMI_gt_CM_Mengsk_EnlistStart_Init();
+    libCOMI_gt_CM_Mengsk_EnlistStop_Init();
+    libCOMI_gt_CM_Mengsk_ReturnToWork_Init();
+    libCOMI_gt_CM_Mengsk_WeaponPickupRegister_Init();
+    libCOMI_gt_CM_Mengsk_WeaponPickerUpperRegister_Init();
+    libCOMI_gt_CM_Mengsk_WeaponPickerUpperUnregister_Init();
+    libCOMI_gt_CM_Mengsk_WeaponPickup_Init();
+    libCOMI_gt_CM_Mengsk_ZergSeekDestroy_Init();
+    libCOMI_gt_CM_Mengsk_ZerglingMengskSpawn_Init();
+    libCOMI_gt_CM_Mengsk_HydraliskMengskSpawn_Init();
+    libCOMI_gt_CM_Mengsk_MutaliskMengskSpawn_Init();
+    libCOMI_gt_CM_Mengsk_UltraliskMengskSpawn_Init();
+    libCOMI_gt_CM_Mengsk_BunkerDepotDropFillCargo_Init();
+    libCOMI_gt_CM_Mengsk_DirtyBombSweetener_Init();
     libCOMI_gt_NovaUnitNames_GenerateNameList_Init();
     libCOMI_gt_NovaUnitNames_Assign_Init();
     libCOMI_gt_NovaUnitNames_KillCountUpdate_Init();
@@ -31532,6 +33800,7 @@ void libCOMI_InitTriggers () {
     libCOMI_gt_CM_Zeratul_ProphecyIntroQ_Init();
     libCOMI_gt_CM_Zeratul_ProphecyArtifactPickedUp_Init();
     libCOMI_gt_CM_Zeratul_ProphecyArtifactRevealed_Init();
+    libCOMI_gt_CM_Zeratul_ProphecyArtifactPathingSafety_Init();
     libCOMI_gt_CM_Zeratul_ProphecyArtifactDebug_Init();
     libCOMI_gt_CM_ZeratulTopBarWarpTrainStart_Init();
     libCOMI_gt_CM_ZeratulTopBarWarpTrainFinish_Init();
@@ -31686,6 +33955,12 @@ void libCOMI_InitTriggers () {
     libCOMI_gt_CM_ArtifactTransmission_SelectAbilityReminder_Init();
     libCOMI_gt_CM_GaryDeath_Init();
     libCOMI_gt_CM_GaryUpgradeReminder_Init();
+    libCOMI_gt_CM_Mengsk_ArtilleryBuilt_Init();
+    libCOMI_gt_CM_Mengsk_ArtilleryStarted_Init();
+    libCOMI_gt_CM_AbilityTransmissionMengskNuclearAnnihilation_Init();
+    libCOMI_gt_CM_AbilityTransmissionMengskDirtyBomb_Init();
+    libCOMI_gt_CM_AbilityTransmissionMengskZergCalldown_Init();
+    libCOMI_gt_CM_AbilityTransmissionMengskForcedConscription_Init();
     libCOMI_gt_CM_VOResourceSent_Init();
     libCOMI_gt_CM_VOResourceRequest_Init();
     libCOMI_gt_CM_VOEnemySpotted_Init();
