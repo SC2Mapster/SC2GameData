@@ -1,0 +1,567 @@
+static bool MatchingFunc(){
+    return false;
+}
+static unit c_MatchUnit;
+static unit c_TempUnit;
+static unit MatchUnit(){return c_MatchUnit;}
+static unitgroup UnitGroupMatching(unitgroup ug, funcref<MatchingFunc> m){
+    int i=1;
+    int c=UnitGroupCount(ug,c_unitCountAll);
+    unitgroup g=UnitGroupEmpty();
+    for(;i<=c;i+=1){
+        c_MatchUnit=UnitGroupUnit(ug,i);
+        if(m()){UnitGroupAdd(g,c_MatchUnit);}
+    }
+    return g;
+}
+const string c_AB_HeroInventory="AInv";
+static unit AIUnitGetItem(unit u,string itemType){
+    int c=UnitInventoryCount(u,c_unitInventoryCountCarried);
+    int i=1;
+    unit item;
+    unit itemTarget;
+    for(;i<=c;i+=1){
+        item=UnitInventoryItem(u,i);
+        if(UnitGetType(item)==itemType){
+            itemTarget=item;
+            break;
+        }
+    }
+    return itemTarget;
+}
+static order AICreateItemOrder(int player,unit aiUnit,string itemType,int abilIndex){
+    order ord=AICreateOrder(player, c_AB_HeroInventory, abilIndex);
+    unit item=AIUnitGetItem(aiUnit,itemType);
+    if(item==null){return null;}
+    OrderSetTargetItem(ord,item);
+    return ord;
+}
+const string c_IT_PotionofHealingAI="PotionofHealingAI";
+const string c_IT_PotionofManaAI="PotionofManaAI";
+const string c_IT_ScrollofTownPortalAI="ScrollofTownPortalAI";
+const string c_IT_ScrollofRegenerationAI="ScrollofRegenerationAI";
+const string c_IT_ScrollofRegenerationAIValidateEffect="AIslTactAISearch";
+const string c_UnitTownFilter="PreventReveal;Enemy,Neutral,Hidden";
+unitfilter GAw3_UnitTownFilter=UnitFilterStr(c_UnitTownFilter);
+static order AIOrderCheatItem(int player, unit aiUnit){
+    order ord;
+    string itemType;
+	wave w;
+	point goal;
+	fixed dGoal;
+	fixed dTown;
+	unitgroup towns;
+	unit town;
+    //Potion of Healing
+    if(UnitGetPropertyFixed(aiUnit,c_unitPropLifeMax,c_unitPropCurrent)-UnitGetPropertyFixed(aiUnit,c_unitPropLife,c_unitPropCurrent)>=250){
+        itemType=c_IT_PotionofHealingAI;
+        ord=AICreateItemOrder(player,aiUnit,itemType,c_abilInventoryCmdItemInstant);
+        if (UnitOrderIsValid(aiUnit, ord)) {
+            return ord;
+        }
+    }
+    //Potion of Mana
+    if(UnitGetPropertyFixed(aiUnit,c_unitPropEnergyMax,c_unitPropCurrent)-UnitGetPropertyFixed(aiUnit,c_unitPropEnergy,c_unitPropCurrent)>=150){
+        itemType=c_IT_PotionofManaAI;
+        ord=AICreateItemOrder(player,aiUnit,itemType,c_abilInventoryCmdItemInstant);
+        if (UnitOrderIsValid(aiUnit, ord)) {
+            return ord;
+        }
+    }
+    //Scroll of Regeneration
+    if(!AIUnitIsInCombat(aiUnit)){
+        if(UnitValidateEffectUnit(aiUnit,c_IT_ScrollofRegenerationAIValidateEffect,aiUnit)==0){
+            itemType=c_IT_ScrollofRegenerationAI;
+            ord=AICreateItemOrder(player,aiUnit,itemType,c_abilInventoryCmdItemInstant);
+            if (UnitOrderIsValid(aiUnit, ord)) {
+                return ord;
+            }
+        }
+    }
+	//Scroll of Town Portal
+	w=AIUnitGetWave(aiUnit);
+	if(w==null){return null;}
+	if(AIWaveState(w)==c_waveStateRetreat){return null;}//For Fun
+	goal=AIWaveGoal(w);
+	if(goal==null){return null;}
+	if(DistanceBetweenPoints(UnitGetPosition(aiUnit),goal)>30){
+		towns=UnitGroupSearch(null,player,goal,20,GAw3_UnitTownFilter,1);
+		town=UnitGroupUnit(towns,1);
+		if(town!=null){
+			itemType=c_IT_ScrollofTownPortalAI;
+			ord=AICreateItemOrder(player,aiUnit,itemType,c_abilInventoryCmdItemTarget);
+			OrderSetTargetPoint(ord,UnitGetPosition(town));
+			if (UnitOrderIsValid(aiUnit, ord)) {
+                return ord;
+            }
+		}
+		
+	}
+    return null;
+}
+const string c_AB_LightningShield="Alsh";
+const string c_EF_LightningShieldSearch="BlshSearch";
+// void AIThinkDevour(int player, unit aiUnit, unitgroup scanGroup){
+	// order ord=AICreateOrder(player,"Adev",0);
+	// marker mark=AIMarker(aiUnit,"AIMarker/Adev");
+	// aifilter filter = AIFilter(player);
+	// unit target;
+	// unitgroup targetGroup;
+    // if (!UnitOrderIsValid(aiUnit, ord)) {
+        // return;
+    // }
+	// AISetFilterAlliance(filter, c_playerGroupEnemy);
+	// AISetFilterPlane(filter, c_planeGround);
+	// AISetFilterRange(filter, aiUnit, 2);
+	// AISetFilterLife(filter, 0, c_noMax);
+	// AISetFilterMarker(filter, c_noMarkersMin, c_noMarkersMax, mark);
+	// targetGroup = AIGetFilterGroup(filter, scanGroup);
+    // if (targetGroup == null) {
+        // return;
+    // }
+    // ord=AIUnitGroupGetValidOrder(targetGroup, ord, aiUnit, c_forwards);
+	// OrderSetTargetPassenger(ord,OrderGetTargetUnit(ord));
+    // if (ord != null) {
+        // AICast(aiUnit, ord, mark, c_castHold); 
+    // }
+// }
+
+static order AIOrderLightningShield(int player, unit aiUnit, unitgroup scanGroup, marker mark) {
+    order ord;
+    aifilter filter;
+    unitgroup targetGroup;
+    unitfilter shieldDPSfilter=UnitFilterStr(AIEffectStr(player, c_EF_LightningShieldSearch, c_fieldFilters));
+    fixed Radius=AIEffectFixed(player, c_EF_LightningShieldSearch, c_fieldAreaRadius0);
+    ord = AICreateOrder(player, c_AB_LightningShield, 0);
+    if (!UnitOrderIsValid(aiUnit, ord)) {
+        return null;
+    }
+    filter = AIFilter(player);
+    //AISetFilterAlliance(filter, c_playerGroupEnemy);
+    AISetFilterBits(filter, UnitFilterStr(AIAbilityStr(player, c_AB_LightningShield, c_fieldTargetFiltersAB)));
+    AISetFilterRange(filter, aiUnit, AIAbilityFixed(player, c_AB_LightningShield, c_fieldRange0));
+    AISetFilterMarker(filter, c_noMarkersMin, c_noMarkersMax, mark);
+    targetGroup = AIGetFilterGroup(filter, scanGroup);
+    if (targetGroup == null) {
+        return null;
+    }
+    return AIUnitGroupGetValidOrder(targetGroup, ord, aiUnit, c_forwards);
+}
+const fixed c_spellScaleEthereal=1.66;
+const fixed C_spellScaleHeroic=0.7;
+static aifilter AIWar3SpellDamageFilter(int player, unit aiUnit, marker mark, fixed maxlife, unitfilter uf, fixed range, fixed damage){
+    aifilter filter=AIFilter(player);
+    AISetFilterAlliance(filter, c_playerGroupEnemy);
+    AISetFilterBits(filter, uf);
+    AISetFilterRange(filter, aiUnit, range+3);
+    AISetFilterLife(filter, 0, maxlife);
+    AISetFilterLifeMod(filter, c_unitAttributeHeroic,damage*C_spellScaleHeroic-damage);
+    //AISetFilterLifePerMarker(filter, damage, mark);
+    //AISetFilterLifeSortReference(filter, damage, damage*c_distanceFromDamage);
+    return filter;
+}
+static bool UnitIsHero(unit u){
+    return UnitTypeTestFlag(UnitGetType(u), c_unitFlagHero);
+}
+static bool UnitIsEthereal(unit u){
+    return UnitTestState(u, c_unitStateInStasis);
+}
+static bool MatchUnitIsHero(){
+    return UnitIsHero(MatchUnit());
+}
+static bool MatchUnitIsEthereal(){
+    return UnitIsEthereal(MatchUnit());
+}
+//1. Killable Hero
+//2. Killable Ethreal
+//3. Killable Unit
+//4. Ethereal
+//5. Normal
+static bool UnitGroupIsEmpty(unitgroup ug){
+    return ((ug==null)||(UnitGroupCount(ug,c_unitCountAll)==0));
+}
+static unitgroup AIWar3DamageSpellTargetBestGroup(int player, unit aiUnit, unitgroup scanGroup, marker mark, unitfilter uf, fixed range,fixed damage){
+    aifilter filter=AIWar3SpellDamageFilter(player,aiUnit,mark,c_noMax,uf,range,damage);
+    aifilter filterBonus=AIWar3SpellDamageFilter(player,aiUnit,mark,c_noMax,uf,range,damage*c_spellScaleEthereal);
+    aifilter filterKillable=AIWar3SpellDamageFilter(player,aiUnit,mark,damage,uf,range,damage);
+    aifilter filterKillableBonus=AIWar3SpellDamageFilter(player,aiUnit,mark,damage*c_spellScaleEthereal,uf,range,damage*c_spellScaleEthereal);
+    unitgroup heroes=UnitGroupMatching(scanGroup,MatchUnitIsHero);
+    unitgroup ethereals=UnitGroupMatching(scanGroup,MatchUnitIsEthereal);
+    unitgroup targets;
+    //Killable Filters Marker;
+    AISetFilterMarker(filterKillable, c_noMarkersMin, c_noMarkersMax, mark);
+    AISetFilterMarker(filterKillableBonus, c_noMarkersMin, c_noMarkersMax, mark);
+    //UnKillable Filters Marker;
+    AISetFilterLifePerMarker(filter, damage, mark);
+    AISetFilterLifeSortReference(filter, damage, damage*c_distanceFromDamage);
+    AISetFilterLifePerMarker(filterBonus, damage, mark);
+    AISetFilterLifeSortReference(filterBonus, damage, damage*c_distanceFromDamage);
+    //Killable Hero
+    targets= AIGetFilterGroup(filterKillable, heroes);
+    if(!UnitGroupIsEmpty(targets)){
+        return targets;
+    }
+    //killable Ethereal
+    targets= AIGetFilterGroup(filterKillableBonus, ethereals);
+    if(!UnitGroupIsEmpty(targets)){
+        return targets;
+    }
+    //killable Units
+    targets= AIGetFilterGroup(filterKillable, scanGroup);
+    if(!UnitGroupIsEmpty(targets)){
+        return targets;
+    }
+    //Ethereal
+    targets= AIGetFilterGroup(filterBonus, ethereals);
+    if(!UnitGroupIsEmpty(targets)){
+        return targets;
+    }
+    //normal
+    targets= AIGetFilterGroup(filter, scanGroup);
+    if(!UnitGroupIsEmpty(targets)){
+        return targets;
+    }
+    //can't find
+    return null;
+}
+static string FieldWithIndex(string field, int index){
+    return field+"["+IntToString(index)+"]";
+}
+static unitfilter AIAbilTargetFilter(int player, string entry, int level)
+{
+    return UnitFilterStr(AIAbilityStr(player,entry,FieldWithIndex(c_fieldTargetFilters,level)));
+}
+static fixed AIAbilRange(int player, string entry, int level)
+{
+    return AIAbilityFixed(player, entry, FieldWithIndex(c_fieldRange,level));
+}
+static fixed AIEffectDamage(int player, string entry)
+{
+    return AIEffectInt(player, entry, c_fieldAmount);
+}
+static unitfilter EnemyEtherealFilter=UnitFilterStr("Enemy,Visible,Stasis;Dead");
+static unitfilter EnemyInvisibleFilter=UnitFilterStr("Enemy,Cloak,Stasis;Dead");
+static unitgroup AIGetEtherealEnemies(int player,point pos,fixed range){
+    return UnitGroupSearch(null, player, pos, range, EnemyEtherealFilter,0); 
+}
+static unitgroup AIGetInvisibleEnemies(int player,point pos,fixed range){
+    return UnitGroupSearch(null, player, pos, range, EnemyInvisibleFilter,0); 
+}
+static order AIOrderChainLightning(int player, unit aiUnit, unitgroup scanGroup, marker mark, string entry, int level) {
+    order ord;
+    unitgroup targetGroup;
+    unitfilter uf;
+    fixed range;
+    fixed damage;
+    bool killable=c_forwards;
+    unitgroup scanGroupEx;
+    ord = AICreateOrder(player, entry, 0);
+    if (!UnitOrderIsValid(aiUnit, ord)) {
+        return null;
+    }
+    uf=AIAbilTargetFilter(player,entry,level);
+    range=AIAbilRange(player,entry,level);
+    damage=AIEffectDamage(player,entry+IntToString(level+1));
+    //include Ethereal
+    scanGroupEx=AIGetEtherealEnemies(player, UnitGetPosition(aiUnit),range+2);
+    UnitGroupAddUnitGroup(scanGroupEx,scanGroup);
+    targetGroup=AIWar3DamageSpellTargetBestGroup(player,aiUnit,scanGroupEx,mark,uf,range,damage);
+    if (targetGroup == null) {
+        return null;
+    }
+    //lib755ACB0A_gf_MarkGroupUnits(targetGroup);
+    //killable or unkillable?
+    if(UnitGetPropertyFixed(UnitGroupUnit(targetGroup,1),c_unitPropLife, c_unitPropCurrent)>=damage){
+        killable=c_backwards;
+    }
+    return AIUnitGroupGetValidOrder(targetGroup, ord, aiUnit, killable);
+}
+static order AIOrderCombatSummon(int player, unit aiUnit,string entry) {
+    order ord = AICreateOrder(player, entry, 0);
+    if (!UnitOrderIsValid(aiUnit, ord)) {
+        return null;
+    }
+    if(!AIUnitIsInCombat(aiUnit)){
+        return null;       
+    }
+    if(UnitHasBehavior(aiUnit,entry+"UniqueSummon")){
+        return null; 
+    }
+    return ord;
+}
+static order AIOrderSpiritWolf(int player, unit aiUnit,string entry) {
+    order ord = AICreateOrder(player, entry, 0);
+    if (!UnitOrderIsValid(aiUnit, ord)) {
+        return null;
+    }
+    if(!AIUnitIsInCombat(aiUnit)){
+        return null;       
+    }
+    if(UnitHasBehavior(aiUnit,entry+"UniqueSummon")){
+        return null; 
+    }
+    return ord;
+}
+static bool AIFarSight (int player, unit aiUnit, string entry) {
+    order ord;
+    point loc;
+    bool needsNearbyAttackers;
+    ord = AICreateOrder(player, entry, 0);
+    if (!UnitOrderIsValid(aiUnit, ord)) {
+        return false;
+    }
+    loc = AIGetCloakedAttacker(player);  // includes unscanned detect beacon
+    if (loc == null) {
+        return false;
+    }
+    OrderSetTargetPoint(ord, loc);
+    if (!UnitOrderIsValid(aiUnit, ord)) {
+        return false;
+    }
+    
+    needsNearbyAttackers = true;
+    if (PlayerBeaconIsSet(player, c_beaconDetect)) {
+        if (loc == PlayerBeaconGetTargetPoint(player, c_beaconDetect)) {
+            needsNearbyAttackers = false;
+        }
+    }
+    if (needsNearbyAttackers && !AIHasNearbyAlliedAttackers(player, loc, 10.0)) {
+        return false;
+    }
+    AICast(aiUnit, ord, c_noMarker, c_castHold);
+    AIClearCloakedAttacker(player, loc);
+    return true;
+}
+//--------------------------------------------------------------------------------------------------
+static order AIOrderHealingWave (int player, unit aiUnit, string entry, int level) {
+    order ord;
+    unitgroup group;
+    aifilter filter;
+    unitgroup ethereals;
+	fixed amount=UserDataGetFixed("AbilityDataHealingWave", entry, "Healing Array", level+1);
+    ord = AICreateOrder(player, entry, 0);
+    if (!UnitOrderIsValid(aiUnit, ord)) {
+        return null;
+    }
+
+    group = AIFindUnits(player, null, UnitGetPosition(aiUnit), 
+                        AIAbilityFixed(player, entry, c_fieldRange0) + 2,
+                        c_noMaxCount)
+    ;
+	//ethereals=UnitGroupMatching(group,MatchUnitIsEthereal);
+    // filter = AIFilter(player);
+    // AISetFilterAlliance(filter, c_playerGroupAlly);
+    // AISetFilterLifeLost(filter, amount*c_spellScaleEthereal - 20, c_noMax);
+    // ethereals = AIGetFilterGroup(filter, ethereals);
+    // if (ethereals != null) {
+		// return AIUnitGroupGetValidOrder(ethereals, ord, aiUnit, c_forwards);
+	// }
+	filter = AIFilter(player);
+	AISetFilterAlliance(filter, c_playerGroupAlly);
+	AISetFilterLifeLost(filter, amount, c_noMax);
+	group = AIGetFilterGroup(filter, group);
+    if (group == null) {
+        return null;
+    }
+    return AIUnitGroupGetValidOrder(group, ord, aiUnit, c_forwards);
+}
+abilcmd c_cmd_Attack=AbilityCommand("Aatk", 0);
+const string c_CreepConjoinBehavior="CreepConjoin";
+// static bool MatchUnitCreepIdle(){
+	// if(UnitHasBehavior2(c_MatchUnit,"CreepsLeash")){return false;}
+	// return UnitHasBehavior2(c_MatchUnit,"HostileSleeperAlert");
+// }
+// static bool MatchUnitCanAttackTemp(){
+	// return UnitCanAttackTarget(c_MatchUnit,c_TempUnit);
+// }
+static void WakeUpCreepGroupAndAttackTarget(unitgroup ug,unit target){
+    int i=1;
+    int c=UnitGroupCount(ug,c_unitCountAll);
+	unit u;
+    for(;i<=c;i+=1){
+		u=UnitGroupUnit(ug,i);
+		if(UnitHasBehavior(u,"CreepsLeash")){continue;}
+		if(UnitHasBehavior(u,"HostileSleeperAlert")){
+			UnitBehaviorAdd (u,"ACspSleepSuppress",u,1);
+			UnitCreateEffectUnit(target,"TriggerCallForHelp", u);
+		}
+    }
+    //return g;
+}
+
+void AIThinkCreep(int player, unit aiUnit, unitgroup scanGroup){
+	order ordCurr;
+	order ord;
+	unit oldTar;
+	fixed range;
+	bool chaos=false;
+    aifilter filter;
+	string weapon;
+	unit target;
+    unitgroup targetGroup;
+	unitgroup creepGroup;
+	if(!UnitIsAlive(aiUnit)){
+		return;
+	}
+    if (AIEvalTacticalData(aiUnit, null)) {
+        return;
+    }
+	if(!AIUnitIsInCombat(aiUnit)){
+		return;
+	}
+
+	if(player!=15){
+        return;
+    }
+	ord=AIUnitGroupGetValidOrder(targetGroup, ord, aiUnit, c_backwards);
+	target=OrderGetTargetUnit(ord);
+	ordCurr=UnitOrder(aiUnit,0);
+	if(OrderGetAbilityCommand(ordCurr)!=c_cmd_Attack){
+        return;
+    }
+	oldTar=OrderGetTargetUnit(ordCurr);
+	//Combat WakeUp
+	creepGroup=UnitConjoinedGroup(aiUnit,"CreepConjoin");
+	if(creepGroup != null){
+		WakeUpCreepGroupAndAttackTarget(creepGroup,oldTar);
+	}
+	weapon=UnitWeaponGet(aiUnit,1);
+	if(CatalogFieldValueGet(c_gameCatalogWeapon, weapon, "Name", c_playerAny) == "DAMAGE_CHAOS"){
+		chaos=true;
+	}
+	ord = AICreateOrder(player, "Aatk", 0);
+	range=UnitWeaponRange(aiUnit,1);
+	AIWeaponGroup(player, weapon, scanGroup);
+    filter = AIFilter(player);
+    AISetFilterAlliance(filter, c_playerGroupEnemy);
+	AISetFilterBehaviorCount(filter,0,0,"ThreatClearer");
+
+	if(chaos){
+		AISetFilterRange(filter, aiUnit, range);
+		AISetFilterLife(filter, c_noMin, c_noMax);
+		AISetFilterLifeMod(filter, c_unitAttributeHeroic,-100);
+	}else{
+		AISetFilterBits(filter, UnitFilterStr("Summoned;Player,Ally,Neutral"));
+		AISetFilterRange(filter, aiUnit, range);
+	}
+    targetGroup = AIGetFilterGroup(filter, scanGroup);
+	if (targetGroup == null) {
+		return;
+    }
+
+	if(target==oldTar){
+		return;
+	}
+	ord=AIUnitGroupGetValidOrder(targetGroup, ord, aiUnit, c_backwards);
+	target=OrderGetTargetUnit(ord);
+	if (ord != null) {
+		UnitIssueOrder(aiUnit,ord,c_orderQueueReplace);
+		UnitIssueOrder(aiUnit,Order(AbilityCommand("stop", 0)),c_orderQueueReplace);
+		//AISetUnitScriptControlled(aiUnit, false);
+        //AICast(aiUnit, ord, c_noMarker, c_castHold);
+        return;
+    }
+}
+const string c_AB_ChainLightning="AOcl";
+const string c_AB_SPIRITWOLF="AOsf";
+const string c_AB_FarSight="AOfs";
+void AIThinkFarseer(int player, unit aiUnit, unitgroup scanGroup){
+    marker mark;
+    order ord;
+    fixed cooldown;
+    string entryCL=c_AB_ChainLightning;
+    string entrySF=c_AB_SPIRITWOLF;
+    string entryFS=c_AB_FarSight;
+    bool hold=c_castHold;
+    int levelCL=UnitAbilityGetLevel(aiUnit,entryCL);
+	if(!UnitIsAlive(aiUnit)){
+		return;
+	}
+    if(UnitGetPropertyInt(aiUnit, c_unitPropVitalityPercent, c_unitPropCurrent)<=30){
+        hold=c_castRetreat;
+    }
+    //Generic Items
+    ord=AIOrderCheatItem(player,aiUnit);
+    if (ord != null) {
+        AICast(aiUnit, ord, c_noMarker, hold);
+        return;
+    }
+    //Chain Lightning
+    mark = AIMarker(aiUnit,"AIMarker/"+entryCL);
+    ord = AIOrderChainLightning(player, aiUnit, scanGroup, mark,entryCL,levelCL);
+    if (ord != null) {
+        AICast(aiUnit, ord, mark, hold);
+        return;
+    }
+    //SPIRIT WOLF
+    ord = AIOrderSpiritWolf(player,aiUnit,entrySF);
+    if (ord != null) {
+        AICast(aiUnit, ord, c_noMarker, hold); 
+        return;
+    }
+    //Far Sight
+    if (AIFarSight(player,aiUnit,entryFS)) {
+        return;
+    }
+    if (AIEvalTacticalData(aiUnit, null)) {
+        return;
+    }
+}
+//const string c_AB_ShockWave="AOsh";
+const string c_AB_WarStomp="AOws";
+void AIThinkTaurenChieftain(int player, unit aiUnit, unitgroup scanGroup){
+    //marker mark;
+    order ord;
+    //fixed cooldown;
+    //string entrySW=c_AB_ShockWave;
+    //string entryWS=c_AB_SPIRITWOLF;
+    //bool hold=c_castHold;
+    //int LevelSW=UnitAbilityGetLevel(aiUnit,entrySW);
+    //int LevelWS=UnitAbilityGetLevel(aiUnit,entryWS);
+    //In data
+    //Generic Items
+	if(!UnitIsAlive(aiUnit)){
+		return;
+	}
+    ord=AIOrderCheatItem(player,aiUnit);
+    if (ord != null) {
+        AICast(aiUnit, ord, c_noMarker, c_castHold);
+        return;
+    }
+    if (AIEvalTacticalData(aiUnit, null)) {
+        return;
+    }
+}
+const string c_AB_HealingWave="AOhw";
+const string c_AB_SerpentWard="AOsw";
+void AIThinkShadowHunter(int player, unit aiUnit, unitgroup scanGroup){
+    //marker mark;
+    order ord;
+    //fixed cooldown;
+    string entryHW=c_AB_HealingWave;
+    string entrySW=c_AB_SerpentWard;
+    bool hold=c_castHold;
+    int LevelHW=UnitAbilityGetLevel(aiUnit,entryHW);
+    //int LevelWS=UnitAbilityGetLevel(aiUnit,entryWS);
+	if(!UnitIsAlive(aiUnit)){
+		return;
+	}
+    if(UnitGetPropertyInt(aiUnit, c_unitPropVitalityPercent, c_unitPropCurrent)<=30){
+        hold=c_castRetreat;
+    }
+    //Generic Items
+    ord=AIOrderCheatItem(player,aiUnit);
+    if (ord != null) {
+        AICast(aiUnit, ord, c_noMarker, c_castHold);
+        return;
+    }
+    //Healing Wave
+    ord = AIOrderHealingWave(player,aiUnit,entryHW,LevelHW);
+    if (ord != null) {
+        AICast(aiUnit, ord, c_noMarker, hold); 
+        return;
+    }
+    if (AIEvalTacticalData(aiUnit, null)) {
+        return;
+    }
+}

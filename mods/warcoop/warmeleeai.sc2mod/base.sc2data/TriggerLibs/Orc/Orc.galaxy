@@ -1,0 +1,673 @@
+//--------------------------------------------------------------------------------------------------
+// Script: Build Order
+//--------------------------------------------------------------------------------------------------
+static int[16] lastExpand;
+void GAw3_AIForceBuildDefenseEx(int player, int townid,int qty, string unitid){
+    int has=TownCountEx(player,unitid,false,townid); 
+    int count=qty-has;
+    if(count>0){
+        AIBuild(player,c_makePriorityTown,townid,unitid,count,c_nearChokePoint);
+    }
+}
+// void GAw3_AIForceBuildDefense(int player,int qty, string unitid){
+    // int has=GetUnitCount(player,unitid); 
+    // int count=qty-has;
+    // if((count>0)){
+        // AIBuild(player,c_makePriorityTown,-1,unitid,count,c_nearChokePoint);
+    // }
+// }
+void GAw3_AIForceBuildDefense(int player,int qty, string unitid){
+	AISetStock(player,qty,unitid);
+}
+void GAw3_AIStockUpgradeEx(int player, int qty, string aliasType){
+    int has=TechTreeUpgradeCount(player,aliasType,c_techCountQueuedOrBetter); 
+    int count=qty-has;
+    
+    if((AIDefaultGetFirstMissingReq(player, aliasType)==null)&&(count>0)){
+        //TriggerDebugOutput(1, StringToText("passed"), true);
+        AIResearch(player,0,-1,aliasType);
+    }
+}
+bool GAw3_LastExpandOver(int player){
+    int state=AIGetTownState(player,lastExpand[player]);
+    if(state==c_townStateClaimed||state==c_townStateBuilding){
+        return false;
+    }else{return true;}
+}
+void MeleeTownHall(int player, int townid, string unitid){
+    if(AIGetTownState(player,townid)<c_townStateClaimed){return;}
+    if((!TownHasHall(player,townid))&&TownHasMine(player,townid)){
+        //call SecondaryTown ( townid, 1, unitid )
+        //TriggerDebugOutput(1, StringToText("rebuildtown"), true);
+        AISetStockEx(player, townid, 1, unitid, c_makeDefault, c_stockNormal);
+    }
+}
+void BasicExpansion(int player,boolean build_it, string unitid){
+    if(build_it &&GAw3_LastExpandOver(player)&& HallsCompleted(player,unitid)){
+            //lastExpand[player]=AIExpand( player,AIGetTownLocation(player,AIGetMainTown(player)),unitid);
+    }
+}
+
+void StockHero(int player,int count,string aliasUnitType){
+    //count = count - TechTreeUnitAliasCount(player, aliasUnitType, c_techCountRevivableOnly) - TechTreeUnitAliasCount(player, aliasUnitType, c_techCountQueuedOrBetter);
+    count = count - TechTreeUnitAliasCount(player, aliasUnitType, c_techCountQueuedOrBetter);
+    if(count<=0){return;}
+    if(!GetUnitCountDone(player,"TALT")){return;}
+    if(aiHeroes[player]==null){
+        AISetStock(player, count,aliasUnitType);
+        return;    
+    }
+    if(!UnitGroupCount(aiHeroes[player],c_unitCountDead)){
+        AISetStock(player, count,aliasUnitType);
+    }
+    
+}
+void GuardSecondary(int player, integer townid, integer qty, string unitid){
+    if(TownHasHall(player,townid)&&TownHasMine(player,townid)){
+        GAw3_AIForceBuildDefenseEx(player, townid, qty, unitid);
+    }
+}
+void SetBuildNext(int player,integer qty, string unitid){
+    AISetStockUnitNext(player, qty, unitid,true );
+}
+void BuildFactory(int player,string unitid){
+    if(GetGold(player) > 1000 && GetWood(player) > 500){
+        AISetStock(player, 2, unitid );
+    }else{
+        AISetStock(player, 1, unitid );
+    }
+}
+void GetZeppelin(int player){
+    AIUpdateMainTown(player);
+	UnitCreate(1, "nzep", 0, player, AIGetTownLocation(player, AIGetMainTown(player)), 270.0);
+    //libNtve_gf_CreateUnitsAtPoint2(1, "nzep", 0, player, AIGetTownLocation(player, AIGetMainTown(player)));
+    AISetUnitScriptControlled(UnitLastCreated(), false);
+}
+//--------------------------------------------------------------------------------------------------
+//  do_upgrades
+//--------------------------------------------------------------------------------------------------
+void do_upgradesOrc (int player){
+    if(c_totem_done[player] >= 1 && c_tauren[player] >= 1){
+         AISetStock(player, 1, UPG_ORC_PULVERIZE );
+    }
+    if(c_forge_done[player] >= 1){
+        if(c_fortress_done[player] >= 1){
+             AISetStock(player, 1, UPG_ORC_BURROWS   );
+             GAw3_AIStockUpgradeEx(player, 3, UPG_ORC_MELEE     );
+             GAw3_AIStockUpgradeEx(player, 3, UPG_ORC_RANGED    );
+             GAw3_AIStockUpgradeEx(player, 3, UPG_ORC_ARMOR     );
+             GAw3_AIStockUpgradeEx(player, 3, UPG_ORC_SPIKES    );
+        }else if(c_stronghold_done[player] >= 1){
+             GAw3_AIStockUpgradeEx(player, 2, UPG_ORC_MELEE     );
+             GAw3_AIStockUpgradeEx(player, 2, UPG_ORC_RANGED    );
+             GAw3_AIStockUpgradeEx(player, 2, UPG_ORC_ARMOR     );
+        }else{
+             AISetStock(player, 1, UPG_ORC_MELEE     );
+             AISetStock(player, 1, UPG_ORC_RANGED    );
+             AISetStock(player, 1, UPG_ORC_ARMOR     );
+        }
+    }
+    if(c_bestiary_done[player] >= 1){
+        if(c_raider[player] >= 1){
+             AISetStock(player, 1, UPG_ORC_ENSNARE );
+        }
+        if(c_fortress_done[player] >= 1){
+            if(c_wyvern[player] >= 1){
+                 AISetStock(player, 1, UPG_ORC_VENOM )      ;
+            }
+            if(c_forge_done[player] >= 1 && c_kodo[player] >= 1){
+                 AISetStock(player, 1, UPG_ORC_WAR_DRUMS );
+            }
+            if(c_voodoo_done[player] >= 1 && c_batrider[player] >= 1){
+                 AISetStock(player, 1, UPG_ORC_FIRE );
+            }
+        }
+    }
+    if(c_barracks_done[player] >= 1){
+        if(c_fortress_done[player] >= 1 && c_grunt[player] >= 2){
+             AISetStock(player, 1, UPG_ORC_BERSERK   )    ;
+        }
+        if(c_stronghold_done[player] >= 1 && c_hunter[player] >= 2){
+            if(c_forge_done[player] >= 1){
+                 AISetStock(player, 1, UPG_ORC_BERSERKER );
+            }
+             AISetStock(player, 1, UPG_ORC_REGEN );
+        }
+    }
+    if(c_lodge_done[player] >= 1){
+        if(c_fortress_done[player] >= 1){
+            if(c_shaman[player] >= 1){
+                 GAw3_AIStockUpgradeEx(player, 2, UPG_ORC_SHAMAN    ) ;
+            }
+            if(c_doc[player] >= 1){
+                 GAw3_AIStockUpgradeEx(player, 2, UPG_ORC_DOCS      ) ;
+            }
+            if(c_swalker[player] >= 1){
+                 GAw3_AIStockUpgradeEx(player, 2, UPG_ORC_SWALKER   );
+            }
+        }else{
+            if(c_shaman[player] >= 2){
+                 AISetStock(player, 1, UPG_ORC_SHAMAN    ) ;
+            }
+            if(c_doc[player] >= 2){
+                 AISetStock(player, 1, UPG_ORC_DOCS      ) ;
+            }
+            if(c_swalker[player] >= 1){
+                 AISetStock(player, 1, UPG_ORC_SWALKER   );
+            }
+        }
+    }
+    if(c_great_hall_done[player] >= 1 && c_raider[player] >= 1){
+         AISetStock(player, 1, UPG_ORC_PILLAGE );
+    }
+    if(c_forge_done[player] >= 1){
+        if(c_fortress_done[player] >= 1){
+             GAw3_AIStockUpgradeEx(player, 3, UPG_ORC_SPIKES    );
+        }else if(c_stronghold_done[player] >= 1){
+             GAw3_AIStockUpgradeEx(player, 2, UPG_ORC_SPIKES    );
+        }else{
+             AISetStock(player, 1, UPG_ORC_SPIKES    );
+        }
+    }
+}
+//--------------------------------------------------------------------------------------------------
+//  build_sequence
+//--------------------------------------------------------------------------------------------------
+void build_sequenceOrc(int player){
+    integer peons;
+    //AIClearStock(player);
+    //AIClearBuildQueue(player);
+    if((c_food_used[player] + 5 >= c_food_made[player])&&(c_food_made[player]<100)){
+        GAw3_AIForceBuildDefense(player,  c_burrow_done[player] + 1,BURROW);
+    }
+    if(basic_opening[player]){
+        MeleeTownHall( player, 0, GREAT_HALL );
+        //MeleeTownHall( player, 1, GREAT_HALL );
+        AISetStock( player,  6, PEON             );
+        AISetStock( player,  1, ORC_ALTAR        );
+        AISetStock( player,  7, PEON             );
+        GAw3_AIForceBuildDefense( player,  1,BURROW);
+        AISetStock( player,  8, PEON             );
+        GAw3_AIForceBuildDefense( player,  3,BURROW);
+        AISetStock( player, 10, PEON             );
+        StockHero( player,  1, hero_id[player]);
+        AISetStock( player, 11, PEON             );
+        AISetStock( player,  1, FORGE            );
+        AISetStock( player,  1, ORC_BARRACKS     );
+        AISetStock( player, 12, PEON             );
+        AISetStock( player,  1, GRUNT            );
+        GAw3_AIStockUpgradeEx( player,  1, UPG_ORC_MELEE    );
+        AISetStock( player,  2, GRUNT            );
+        GAw3_AIForceBuildDefense( player,  4,BURROW);
+        AISetStock( player,  1, HEAD_HUNTER      );
+        AISetStock( player,  1, VOODOO_LOUNGE    );
+        GAw3_AIStockUpgradeEx( player,  1, UPG_ORC_RANGED   );
+        AISetStock( player,  3, HEAD_HUNTER      );
+        GAw3_AIStockUpgradeEx( player,  1, UPG_ORC_ARMOR    );
+        AISetStock( player,  4, GRUNT            );
+        //if(GetUnitCount(player,FORGE)>=1){
+            ////BasicExpansion(player, c_mines[player] < 2, GREAT_HALL );
+        //}
+        //GuardSecondary( player, 1, 1, BURROW );
+        //GuardSecondary( player, 1, 2, ORC_WATCH_TOWER );
+        GAw3_AIForceBuildDefense( player,  4,BURROW);
+        AISetStock( player,  6, GRUNT            );
+        AISetStock( player,  1, STRONGHOLD       );
+        AISetStock( player,  1, UPG_ORC_SPIKES   );
+        if(GetUnitCountDone(player,"TWN2")){
+            StockHero( player,  1, hero_id2[player]     );
+        }
+        GAw3_AIForceBuildDefense( player,  5,BURROW);
+        AISetStock( player, 14, PEON             );
+        AISetStock( player,  1, CATAPULT         );
+        GAw3_AIStockUpgradeEx( player,  2, UPG_ORC_MELEE    );
+        AISetStock( player,  1, UPG_ORC_PILLAGE  );
+        AISetStock( player,  2, CATAPULT         );
+        //AIEnableStock(player);
+        return;
+    }
+    if(c_great_hall[player] < 1 && c_peon_done[player] >= 1){
+        MeleeTownHall(player, 0, GREAT_HALL );
+        MeleeTownHall(player, 1, GREAT_HALL );
+        MeleeTownHall(player, 2, GREAT_HALL );
+    }
+    if(c_great_hall_done[player] >= 1){
+        peons = 6 - GetWood(player) / 200;
+        if(peons < 3){
+            peons = 3;
+        }
+        if(c_mines[player] < 2 || c_great_hall_done[player] < 2){
+            peons = peons + 5;
+        }else{
+            peons = peons + 10;
+        }
+        if(peons > 15){
+            peons = 15;
+        }
+        AISetStockUnitNext(player, peons, PEON,true );
+    }
+    // need a great hall or we can't resource && make more peons
+    //
+    if(c_gold[player] > 500 && GetWood(player) < 100){
+        SetBuildNext(player, 15, PEON );
+    }
+    // if(we have low gold in our mines){ we need to expand
+    //
+    if(c_gold_owned[player] < 2000){
+        //BasicExpansion(player, c_mines[player] < 2, GREAT_HALL );
+           //GuardSecondary(player, 1, 1, BURROW );
+    }
+    // get enough burrows to handle current food demand
+    //
+    // always rebuild heroes for defense
+    //
+    // if(c_altar_done[player] >= 1){
+        // if(b_hero1_done){
+            // AISetStock(player, 1, hero_id2[player] );
+        // }else{
+            // AISetStock(player, 1, hero_id[player] );
+        // }
+    // }else{
+        // AISetStock(player, 1, ORC_ALTAR );
+    // }
+    // minimum melee defense
+    //
+    if(c_totem_done[player] >= 1){
+        AISetStock(player, 2, TAUREN        );
+    }else{
+        AISetStock(player, 1, ORC_BARRACKS  );
+        AISetStock(player, 3, GRUNT         );
+    }
+    // minimum ranged/air defense && siege units
+    //
+    if(c_bestiary_done[player] >= 1){
+        if(c_fortress_done[player] >= 1){
+            AISetStock(player, 2, WYVERN );
+        }else if(b_ensnare[player]){
+            AISetStock(player, 2, RAIDER );
+        }else{
+            AISetStock(player, 1, ORC_BARRACKS  );
+            AISetStock(player, 3, hunter_code   );
+        }
+        if(c_voodoo_done[player] >= 1 && c_fortress_done[player] >= 1){
+            AISetStock(player, 2, BATRIDER  );
+        }else{
+            AISetStock(player, 3, RAIDER    );
+        }
+    }else{
+        AISetStock(player, 1, ORC_BARRACKS  );
+        AISetStock(player, 3, hunter_code   );
+        AISetStock(player, 2, CATAPULT      );
+    }
+    // if(we have a lot of gold){ advance the tech tree
+    //
+    if(c_gold[player] > 1000){
+           //GuardSecondary(player, 1, 1, BURROW           );
+           //GuardSecondary(player, 1, 1, ORC_WATCH_TOWER  );
+           //GuardSecondary(player, 1, 2, BURROW           );
+           //GuardSecondary(player, 1, 2, ORC_WATCH_TOWER  );
+        AISetStock(player, 1, ORC_BARRACKS  );
+        AISetStock(player, 1, FORGE         );
+        AISetStock(player, 1, VOODOO_LOUNGE );
+        AISetStock(player, 1, STRONGHOLD    );
+        AISetStock(player, 1, LODGE         );
+        AISetStock(player, 1, BESTIARY      );
+        //TriggerDebugOutput(1, StringToText("T3"), true);
+        AISetStock(player, 1, FORTRESS      );
+        AISetStock(player, 1, TOTEM         );
+        do_upgradesOrc(player);
+        if(c_gold[player] > 2000){
+            BuildFactory(player, ORC_BARRACKS );
+            BuildFactory(player, LODGE        );
+            BuildFactory(player, BESTIARY     );
+            BuildFactory(player, TOTEM        );
+        }
+    }else if(c_food_used[player] >= UPKEEP_TIER1){
+        do_upgradesOrc(player);
+    }
+    //BasicExpansion(player, c_mines[player] < 2, GREAT_HALL );
+       //GuardSecondary(player, 1, 1, BURROW );
+       //GuardSecondary(player, 1, 2, ORC_WATCH_TOWER );
+    if(c_food_used[player] >= UPKEEP_TIER2 - 10 && c_gold[player] < 2000){
+        return;
+    }
+    // full up with more troops in general
+    //
+    if(c_totem_done[player] >= 1){
+        SetBuildNext(player, 4, TAUREN    );
+    }else{
+        SetBuildNext(player, 6, GRUNT     );
+    }
+    if(c_bestiary_done[player] >= 1){
+        if(c_fortress_done[player] >= 1){
+            SetBuildNext(player, 3, WYVERN );
+        }else if(b_ensnare[player]){
+            SetBuildNext(player, 4, RAIDER );
+        }
+        if(c_forge_done[player] >= 1){
+            AISetStock(player, 1, KODO_BEAST );
+        }
+    }
+    if(c_lodge_done[player] >= 1){
+	 //TriggerDebugOutput(1, StringToText("spell"), true);
+        AISetStock(player, 1, SHAMAN        );
+        AISetStock(player, 1, WITCH_DOCTOR  );
+        AISetStock(player, 1, SPIRIT_WALKER );
+        SetBuildNext(player, 4, SHAMAN        );
+        SetBuildNext(player, 2, WITCH_DOCTOR  );
+    }
+    if(c_gold_owned[player] < 10000){
+        //BasicExpansion(player, c_mines[player] < 3, GREAT_HALL );
+           //GuardSecondary(player, 2, 1, BURROW );
+           //GuardSecondary(player, 2, 2, ORC_WATCH_TOWER );
+    }
+    if(c_food_used[player] >= 60 && c_zep[player] < 3){
+        GetZeppelin(player);
+    }
+}
+//--------------------------------------------------------------------------------------------------
+//  init_vars
+//--------------------------------------------------------------------------------------------------
+void init_vars (int player){
+    b_hero1_done[player]        = GetUnitCountDone(player,hero_id[player]) >= 1;
+    b_hero2_done[player]        = GetUnitCountDone(player,hero_id2[player]) >= 1;
+    b_ensnare[player]           = GetUpgradeLevel(player,UPG_ORC_ENSNARE) >= 1;
+    c_altar_done[player]        = GetUnitCountDone(player,ORC_ALTAR);
+    c_barracks_done[player]     = GetUnitCountDone(player,ORC_BARRACKS);
+    c_batrider[player]          = GetUnitCount(player,BATRIDER);
+    c_batrider_done[player]     = GetUnitCountDone(player,BATRIDER);
+    c_bestiary_done[player]     = GetUnitCountDone(player,BESTIARY);
+    c_burrow[player]            = GetUnitCount(player,BURROW);
+    c_burrow_done[player]       = GetUnitCountDone(player,BURROW);
+    c_cat[player]               = GetUnitCount(player,CATAPULT);
+    c_cat_done[player]          = GetUnitCountDone(player,CATAPULT);
+    c_doc[player]               = GetUnitCount(player,WITCH_DOCTOR);
+    c_doc_done[player]          = GetUnitCountDone(player,WITCH_DOCTOR);
+    c_food_made[player]         = c_great_hall[player] * GetFoodMade(GREAT_HALL) + c_burrow[player] * GetFoodMade(BURROW);
+    c_food_used[player]         = FoodUsed(player);
+    c_forge_done[player]        = GetUnitCountDone(player,FORGE);
+    c_fortress_done[player]     = GetUnitCountDone(player,FORTRESS);
+    c_gold[player]              = GetGold(player);
+    //c_gold_owned[player]        = GetGoldOwned(player);
+    c_great_hall[player]        = GetUnitCount(player,GREAT_HALL);
+    c_great_hall_done[player]   = GetUnitCountDone(player,GREAT_HALL);
+    c_grunt[player]             = GetUnitCount(player,GRUNT);
+    c_grunt_done[player]        = GetUnitCountDone(player,GRUNT);
+    c_hero1_done[player]        = GetUnitCountDone(player,hero_id[player]);
+    c_hero2_done[player]        = GetUnitCountDone(player,hero_id2[player]);
+    c_hero3_done[player]        = GetUnitCountDone(player,hero_id3[player]);
+    c_hunter_done[player]       = GetUnitCountDone(player,HEAD_HUNTER);
+    c_kodo[player]              = GetUnitCount(player,KODO_BEAST);
+    c_kodo_done[player]         = GetUnitCountDone(player,KODO_BEAST);
+    c_lodge_done[player]        = GetUnitCountDone(player,LODGE);
+    //c_mines[player]             = GetMinesOwned(player);
+    c_peon_done[player]         = GetUnitCountDone(player,PEON);
+    c_raider[player]            = GetUnitCount(player,RAIDER);
+    c_raider_done[player]       = GetUnitCountDone(player,RAIDER);
+    c_shaman[player]            = GetUnitCount(player,SHAMAN);
+    c_shaman_done[player]       = GetUnitCountDone(player,SHAMAN);
+    c_stronghold_done[player]   = GetUnitCountDone(player,STRONGHOLD);
+    c_swalker[player]           = GetUnitCount(player,SPIRIT_WALKER);
+    c_swalker_done[player]      = GetUnitCountDone(player,SPIRIT_WALKER);
+    c_tauren[player]            = GetUnitCount(player,TAUREN);
+    c_tauren_done[player]       = GetUnitCountDone(player,TAUREN);
+    c_totem_done[player]        = GetUnitCountDone(player,TOTEM);
+    c_voodoo_done[player]       = GetUnitCountDone(player,VOODOO_LOUNGE);
+    c_wyvern[player]            = GetUnitCount(player,WYVERN);
+    c_wyvern_done[player]       = GetUnitCountDone(player,WYVERN);
+    c_zep[player]               = GetUnitCount(player,ZEPPELIN);
+    if(basic_opening[player] && (b_hero2_done[player])){
+        basic_opening[player] = false;
+    }
+}
+
+//--------------------------------------------------------------------------------------------------
+// Script: Wave
+//--------------------------------------------------------------------------------------------------
+bool CaptainRetreating(int player){
+    return AIWaveState(AIWaveGet(player,c_waveMain))==c_waveStateRetreat;
+}
+void setup_forceOrc (int player){
+    unitgroup ug=UnitGroup(null, player, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterEnemy) | (1 << c_targetFilterWorker) | (1 << c_targetFilterMissile) | (1 << c_targetFilterPreventDefeat), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0); 
+     //if(c_hero1_done[player]+c_hero2_done[player]==0){return;}
+    
+    AIAttackWaveUseGroup(player, ug);
+}
+void SingleMeleeAttack(int player, bool needs_exp, bool has_siege, bool major_ok, bool air_units){
+    unitgroup ug=UnitGroup(null, player, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterEnemy) | (1 << c_targetFilterWorker) | (1 << c_targetFilterMissile) | (1 << c_targetFilterPreventDefeat), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0); 
+    playergroup enemies=PlayerGroupAlliance(c_playerGroupEnemy, player);
+    playergroup weakEnemies=PlayerGroupSingle(GAw3_AICreepPlayer);
+    point p;
+    int i=1;
+    int pi;
+    int pc=PlayerGroupCount(enemies);
+    int CRSelf=0;
+    int CREnemy=0;
+    unit creep;
+    //TownThreat
+    if(GAw3_AIThreatedByNonHostilePlayer(player)){
+        AIAttackWaveSetTargetMeleeDefend(player);
+        AIAttackWaveSend(player,3,false);
+        //TriggerDebugOutput(1, StringToText("TownThreat"), true);
+        return;
+    }
+    //TODO: Still in combat, wait
+    //Too many army, go suicide 
+    if(c_food_used[player]>90){
+        p=AIGetBestTarget (player, enemies, UnitGroupCenterOfGroup(ug), c_btDefaultPrefersPath);
+        AIAttackWaveSetTargetPoint(player,p);
+        AIAttackWaveSetGatherPoint(player, p);
+        AIAttackWaveSend(player,10,false);
+        return;
+    }
+    //TODO: Cancel combat if no hero
+    //No Hero, No attack
+     if(c_hero1_done[player]+c_hero2_done[player]==0){return;}
+    CRSelf=GAw3_UnitGroupCRLevel(ug);
+    //AI not too weak, try attack
+    if(CRSelf>20){
+        for(;i<=pc;i+=1){
+            pi=PlayerGroupPlayer(enemies,i);
+            CREnemy=GAw3_UnitGroupCRLevel(UnitGroup(null, pi, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterEnemy) | (1 << c_targetFilterWorker) | (1 << c_targetFilterMissile) | (1 << c_targetFilterPreventDefeat), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+            if(CRSelf-CREnemy>=8){PlayerGroupAdd(weakEnemies,pi);}
+        }
+        //Check weak enemies
+        if(PlayerGroupCount(weakEnemies)>1){
+            //Attack weak enemies
+            p=AIGetBestTarget (player, weakEnemies, UnitGroupCenterOfGroup(ug), c_btDefaultPrefersPath);
+            AIAttackWaveSetTargetPoint(player,p);
+            AIAttackWaveSetGatherPoint(player, p);
+            AIAttackWaveSend(player,10,false);
+            return;
+        }
+    }
+    //No weak enemies, go creep
+    creep=GetCreepCamp(player,0,CRSelf-1,allow_air_creeps[player]);
+    if(creep!=null){
+        p=UnitGetPosition(creep);
+        AIAttackWaveSetTargetPoint(player,p);
+        AIAttackWaveSetGatherPoint(player, p);
+        AIAttackWaveSend(player,10,false);
+    }
+}
+void SingleMeleeAttack33(int player, bool needs_exp, bool has_siege, bool major_ok, bool air_units){
+    bool  can_siege;
+    fixed      daytime;
+    unit      hall;
+    unit      mega;
+    unit      creep;
+    unit      common;
+    int   minimum;
+    bool   allies;
+    int p;
+    unitgroup ug=UnitGroup(null, player, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterEnemy) | (1 << c_targetFilterWorker) | (1 << c_targetFilterMissile) | (1 << c_targetFilterPreventDefeat), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0); 
+    playergroup enemies=PlayerGroupAlliance(c_playerGroupEnemy, player);
+    point po=AIGetBestTarget (player, enemies, UnitGroupCenterOfGroup(ug), c_btDefaultPrefersPath);
+     if(c_hero1_done[player]+c_hero2_done[player]==0){return;}
+    if(c_food_used[player]>90){
+        AIAttackWaveSetTargetPoint(player,po);
+        AIAttackWaveSetGatherPoint(player, UnitGroupCenterOfGroup(ug));
+        AIAttackWaveSend(player,10,false);
+    }
+}
+//--------------------------------------------------------------------------------------------------
+//  force_level
+//--------------------------------------------------------------------------------------------------
+integer force_levelOrc (int player){
+    int level = 4;
+    level = level + 2 * (c_hunter_done[player] + c_raider_done[player] + c_batrider_done[player] + c_shaman_done[player] + c_doc_done[player] + c_swalker_done[player]);
+    level = level + 3 * (c_grunt_done[player] + c_kodo_done[player] + c_wyvern_done[player]);
+    level = level + 5 * (c_hero3_done[player] + c_tauren_done[player]);
+    level = level + 6 *  c_hero2_done[player];
+    return level;
+}
+void attack_sequenceOrc(int player){
+    bool needs_exp;
+    bool has_siege;
+    bool air_units;
+    int level;
+     //if(!(c_hero1_done[player] > 0)&&(c_grunt_done[player] >= 2)){return;}
+     if(CaptainRetreating(player)){return;}
+        setup_forceOrc(player);
+        level = force_levelOrc(player);
+        max_creeps[player] = level * 4 / 5;
+        min_creeps[player] = max_creeps[player] - 10;
+        if(min_creeps[player] < 0){
+            min_creeps[player] = 0;
+        }
+        air_units        = (c_wyvern_done[player] > 0)||(c_batrider_done[player] > 0);
+        needs_exp        = take_exp[player]&& ((level >= 9)||(c_gold_owned[player] < 2000)) ;
+        has_siege        = (level >= 40)||(2*c_cat_done[player] + c_raider_done[player] + c_batrider_done[player] >= 2);
+        allow_air_creeps[player] = c_wyvern_done[player] + c_raider_done[player] + c_hunter_done[player] >= 3;
+        SingleMeleeAttack(player,needs_exp,has_siege,false,air_units);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Script: Run
+//--------------------------------------------------------------------------------------------------
+trigger GAw3_BOThreadOrc=TriggerCreate("BOThreadOrc");
+void GAw3_AIAddHealer(int player){
+    AIAddHealer(player, "opeo", "Arep", 0);
+}
+unit AIGetScoutOrc (int player, int index, unit prev, bool allowWorkers) {
+    unit obs;
+    string prevType = UnitGetType(prev);
+    
+    if (!PlayerBeaconIsSet(player, c_beaconScout) &&
+        !AIGetFlag(player, e_flagsScouting)) {
+        // if no scouting beacons are set and we're not ready to scout, don't return a unit
+        return c_nullUnit;
+    }
+    if (index == 1 && PlayerBeaconIsSet(player, c_beaconScout)) {
+        AISetFlag(player, e_flagsScouting, true);
+        if (allowWorkers) {
+            // only return a worker, we want to claim a tower
+            if (prevType == "opeo") {
+                return prev;
+            } 
+            return AIGrabUnit(player, "opeo", c_prioScout, null);
+        }
+    }
+    if (prev) {
+        return prev;
+    }
+    // back to allowing workers as late scouts
+    //if (AIGetFlag(player, e_flagsLateScout)) {
+    //    return c_nullUnit;
+    //}
+    if (!allowWorkers) {
+        return c_nullUnit;
+    }
+    return AIGrabUnit(player, "opeo", c_prioScout, null);
+}
+void OrcInit(int player){
+    //InitCounters(player);
+    AIMeleeCheatResources(player);
+    AIMeleeSharedInit(player);
+    //AISetFlag(player, e_flagsScouting, false);
+    //AISetFlag(player, e_flagsEarlyDefScout, false);
+    //AISetPowerBuilding(player, c_PB_Pylon);
+    AISetDefaultArmyUnit(player, GRUNT);
+    AISetDefaultTownHall(player, GREAT_HALL);
+    AITransportSetPanic(player, 0.27); // just below max shield threshold
+    //AISetFlag(player, e_flagsDiversion, true);  // for now start diverson right away
+    GAw3_AIAddHealer(player);
+    AIDefaultEconomy(player, "ogre", "ofor", "otrb", "opeo", 1, c_stockAlways);
+    PickMeleeHero(player,"Orc");
+    init_vars_Temp();
+    AISetMainState(player, e_mainState_Open, e_mainSubState_Init);
+    GAw3_BOPlayer=player;
+    TriggerExecute(GAw3_BOThreadOrc,false,false);
+}
+bool BOThreadOrc(bool c, bool a){
+    int player=GAw3_BOPlayer;
+	TriggerCurrentTriggerThreadSetFlags(c_triggerThreadFlagAI, true);
+    while(PlayerStatus(player)==c_playerStatusActive){
+        AIClearStock(player);
+        //AIClearBuildQueue(player);
+        AIClearResearchQueue(player);
+        //AIClearTrainQueue(player);
+        build_sequenceOrc(player);
+        AIEnableStock(player);
+        AISetAttackStatus(player, "HERO", 0, 1, c_continuousMerge);
+        init_vars(player);
+        Wait(2,c_timeAI);
+    }
+    return true;
+}
+void AIMeleeOrc(int player){
+    int mainState = AIState(player, e_mainState);
+    if (mainState == e_mainState_Init)              { OrcInit(player);    }else {return;}
+        //AIClearStock(player);
+        //AIClearResearchQueue(player);
+        //build_sequenceOrc(player);
+        //AIEnableStock(player);
+        //AISetAttackStatus(player, "HERO", 0, 1, c_continuousMerge);
+        //init_vars(player);
+}
+//--------------------------------------------------------------------------------------------------
+//  AINewUnitOrc
+//--------------------------------------------------------------------------------------------------
+void AINewUnitOrc (int player, unit u) {
+    string type = UnitGetType(u);
+    // ignored units
+    //
+    if (UnitTypeTestFlag(type, c_unitFlagPreventDefeat)) {
+        return;
+    }
+    if (UnitTypeTestFlag(type, c_unitFlagWorker)) {
+        return;
+    }
+    if (UnitTypeTestFlag(type, c_unitFlagHero)) {
+        if(!aiHeroes[player]){
+            aiHeroes[player]=UnitGroupEmpty();
+        }
+        UnitGroupAdd(aiHeroes[player],u);
+        UnitInventoryCreate(u,c_IT_PotionofHealingAI);
+        UnitInventoryCreate(u,c_IT_PotionofManaAI);
+        UnitInventoryCreate(u,c_IT_ScrollofRegenerationAI);
+        UnitInventoryCreate(u,c_IT_ScrollofTownPortalAI);
+    }
+    if (type == ZEPPLIN) {
+        AIWaveAddUnitPriority(AIWaveGet(player, c_waveHome), u, c_prioWavePeon);
+        return;
+    }
+    AINewUnitDefault(player, u);
+}
+//--------------------------------------------------------------------------------------------------
+//  AIWaveThinkOrc
+//--------------------------------------------------------------------------------------------------
+void AIWaveThinkOrc (int player, wave w, int type) {
+    AIWaveThinkDefault(player, w, type);
+}
+//--------------------------------------------------------------------------------------------------
+//  DebugCallbackOrc
+//--------------------------------------------------------------------------------------------------
+void DebugCallbackOrc (int player) {
+    DebugAI("=====Orc=====\n");
+    DebugMelee(player);
+    DebugAI("e_mainState = "        + MainStateName(AIState(player, e_mainState))           +
+            ", e_mainSubState = "   + ProtossSubStateName(AIState(player, e_mainSubState))  +
+            ", e_attackState = "    + AttackStateName(AIState(player, e_attackState))
+    );
+}

@@ -1,0 +1,385 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/WarCoopData"
+
+include "LibPEqu_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Equipments
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libPEqu_InitLibraries () {
+    libNtve_InitVariables();
+    libWCdr_InitVariables();
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: ArtifactHeroAttackTeleport
+//--------------------------------------------------------------------------------------------------
+bool libPEqu_gt_ArtifactHeroAttackTeleport_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_attacker;
+    unit lv_defender;
+    int lv_attackingowner;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_attacker = EventUnit();
+    lv_defender = OrderGetTargetUnit(EventUnitOrder());
+    lv_attackingowner = UnitGetOwner(lv_attacker);
+
+    // Conditions
+    if (testConds) {
+        if (!((OrderGetTargetType(EventUnitOrder()) == c_orderTargetUnit))) {
+            return false;
+        }
+
+        if (!((UnitIsAlive(lv_attacker) == true))) {
+            return false;
+        }
+
+        if (!((UnitIsAlive(lv_defender) == true))) {
+            return false;
+        }
+
+        if (!((UnitFilterMatch(lv_attacker, lv_attackingowner, UnitFilter((1 << c_targetFilterHeroic), 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)))) == true))) {
+            return false;
+        }
+
+        if (!((TechTreeUpgradeCount(lv_attackingowner, "ArtifactHeroAttackTeleport", c_techCountCompleteOnly) > 0))) {
+            return false;
+        }
+
+        if (!((UnitGetCooldown(lv_attacker, "Artifact/ArtifactHeroAttackTeleport") <= 0.0))) {
+            return false;
+        }
+
+        if (!((DistanceBetweenPoints(UnitGetPosition(lv_attacker), UnitGetPosition(lv_defender)) <= 10.0))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitModifyCooldown(lv_attacker, "Artifact/ArtifactHeroAttackTeleport", 10.0, c_cooldownOperationSet);
+    UnitSetPosition(lv_attacker, UnitTypePlacementFromPoint(UnitGetType(lv_attacker), lv_attackingowner, UnitGetPosition(lv_defender), 10.0), false);
+    ActorCreate(ActorScopeFromUnit(lv_attacker), "RemoveUnitTeleportVisual", null, null, null);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPEqu_gt_ArtifactHeroAttackTeleport_Init () {
+    libPEqu_gt_ArtifactHeroAttackTeleport = TriggerCreate("libPEqu_gt_ArtifactHeroAttackTeleport_Func");
+    TriggerAddEventUnitOrder(libPEqu_gt_ArtifactHeroAttackTeleport, null, AbilityCommand("Aatk", 0));
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: ArtifactShredders
+//--------------------------------------------------------------------------------------------------
+bool libPEqu_gt_ArtifactShredders_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Automatic Variable Declarations
+    playergroup autoABFD2902_g;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    autoABFD2902_g = libWCdr_gv_legends.lv_legendPlayers;
+    lv_player = -1;
+    while (true) {
+        lv_player = PlayerGroupNextPlayer(autoABFD2902_g, lv_player);
+        if (lv_player < 0) { break; }
+        if ((TechTreeUpgradeCount(lv_player, "ArtifactShredders", c_techCountCompleteOnly) > 0)) {
+            libNtve_gf_CreateUnitsWithDefaultFacing(2, "UnbreakableShredder", 0, lv_player, PlayerStartLocation(lv_player));
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPEqu_gt_ArtifactShredders_Init () {
+    libPEqu_gt_ArtifactShredders = TriggerCreate("libPEqu_gt_ArtifactShredders_Func");
+    TriggerAddEventGeneric(libPEqu_gt_ArtifactShredders, "Mission Started");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Artifact Greater Staff Of Teleportation Enable
+//--------------------------------------------------------------------------------------------------
+bool libPEqu_gt_ArtifactGreaterStaffOfTeleportationEnable_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+
+    // Automatic Variable Declarations
+    playergroup autoF2835DC1_g;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    autoF2835DC1_g = libWCdr_gv_legends.lv_legendPlayers;
+    lv_player = -1;
+    while (true) {
+        lv_player = PlayerGroupNextPlayer(autoF2835DC1_g, lv_player);
+        if (lv_player < 0) { break; }
+        if ((TechTreeUpgradeCount(lv_player, "ArtifactGreaterStaffofTeleportation", c_techCountCompleteOnly) > 0)) {
+            TriggerEnable(libPEqu_gt_ArtifactGreaterStaffOfTeleportation, true);
+            return true;
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPEqu_gt_ArtifactGreaterStaffOfTeleportationEnable_Init () {
+    libPEqu_gt_ArtifactGreaterStaffOfTeleportationEnable = TriggerCreate("libPEqu_gt_ArtifactGreaterStaffOfTeleportationEnable_Func");
+    TriggerAddEventGeneric(libPEqu_gt_ArtifactGreaterStaffOfTeleportationEnable, "Mission Started");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Artifact Greater Staff Of Teleportation
+//--------------------------------------------------------------------------------------------------
+bool libPEqu_gt_ArtifactGreaterStaffOfTeleportation_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+    unit lv_hero;
+    fixed lv_placementDistance;
+    fixed lv_placementAngle;
+    point lv_placementPoint;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_player = UnitGetOwner(EventUnit());
+    lv_hero = libWCdr_gf_GetLegendHero(lv_player);
+
+    // Conditions
+    if (testConds) {
+        if (!((TechTreeUpgradeCount(lv_player, "ArtifactGreaterStaffofTeleportation", c_techCountCompleteOnly) > 0))) {
+            return false;
+        }
+
+        if (!((UnitIsAlive(lv_hero) == true))) {
+            return false;
+        }
+
+        if (!((UnitFilterMatch(EventUnitProgressUnit(), UnitGetOwner(EventUnit()), UnitFilter(0, 0, (1 << c_targetFilterStructure) | (1 << c_targetFilterWorker) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)))) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_placementAngle = (UnitGetFacing(lv_hero) + RandomFixed(-90.0, 90.0));
+    lv_placementDistance = RandomFixed(-3.5, -1.5);
+    do {
+        lv_placementPoint = PointWithOffsetPolar(UnitGetPosition(lv_hero), lv_placementDistance, lv_placementAngle);
+        lv_placementDistance += 0.5;
+    }while (((PointPathingPassable(lv_placementPoint) == false) || (PointPathingCost(lv_placementPoint, UnitGetPosition(lv_hero)) > 4)) && (lv_placementDistance < 0.5));
+    UnitSetPosition(EventUnitProgressUnit(), lv_placementPoint, false);
+    UnitCreateEffectUnit(EventUnitProgressUnit(), "GreaterStaffofTeleportationArtDummy", EventUnitProgressUnit());
+    UnitIssueOrder(EventUnitProgressUnit(), OrderTargetingUnit(AbilityCommand("Amov", 0), lv_hero), c_orderQueueReplace);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPEqu_gt_ArtifactGreaterStaffOfTeleportation_Init () {
+    libPEqu_gt_ArtifactGreaterStaffOfTeleportation = TriggerCreate("libPEqu_gt_ArtifactGreaterStaffOfTeleportation_Func");
+    TriggerEnable(libPEqu_gt_ArtifactGreaterStaffOfTeleportation, false);
+    TriggerAddEventUnitTrainProgress(libPEqu_gt_ArtifactGreaterStaffOfTeleportation, null, c_unitProgressStageComplete);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Artifact Cask of Holy Water Initial Apply
+//--------------------------------------------------------------------------------------------------
+bool libPEqu_gt_ArtifactCaskofHolyWaterInitialApply_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+    unit lv_unit;
+
+    // Automatic Variable Declarations
+    playergroup auto81B3F814_g;
+    unitgroup auto39CE8D99_g;
+    int auto39CE8D99_u;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto81B3F814_g = libWCdr_gv_legends.lv_legendPlayers;
+    lv_player = -1;
+    while (true) {
+        lv_player = PlayerGroupNextPlayer(auto81B3F814_g, lv_player);
+        if (lv_player < 0) { break; }
+        if ((TechTreeUpgradeCount(lv_player, "ArtifactCaskofHolyWater", c_techCountCompleteOnly) > 0)) {
+            auto39CE8D99_g = UnitGroup(null, lv_player, RegionEntireMap(), UnitFilter((1 << c_targetFilterStructure) | (1 << c_targetFilterPreventReveal), 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+            auto39CE8D99_u = UnitGroupCount(auto39CE8D99_g, c_unitCountAll);
+            for (;; auto39CE8D99_u -= 1) {
+                lv_unit = UnitGroupUnitFromEnd(auto39CE8D99_g, auto39CE8D99_u);
+                if (lv_unit == null) { break; }
+                UnitBehaviorAddPlayer(lv_unit, "CaskofHolyWater", lv_player, 1);
+            }
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPEqu_gt_ArtifactCaskofHolyWaterInitialApply_Init () {
+    libPEqu_gt_ArtifactCaskofHolyWaterInitialApply = TriggerCreate("libPEqu_gt_ArtifactCaskofHolyWaterInitialApply_Func");
+    TriggerAddEventGeneric(libPEqu_gt_ArtifactCaskofHolyWaterInitialApply, "Mission Started");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Artifact Cask of Holy Water Apply
+//--------------------------------------------------------------------------------------------------
+bool libPEqu_gt_ArtifactCaskofHolyWaterApply_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TechTreeUpgradeCount(UnitGetOwner(EventUnitProgressUnit()), "ArtifactCaskofHolyWater", c_techCountCompleteOnly) > 0))) {
+            return false;
+        }
+
+        if (!((UnitFilterMatch(EventUnitProgressUnit(), UnitGetOwner(EventUnitProgressUnit()), UnitFilter((1 << c_targetFilterStructure) | (1 << c_targetFilterPreventReveal), 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)))) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitBehaviorAddPlayer(EventUnitProgressUnit(), "CaskofHolyWater", UnitGetOwner(EventUnitProgressUnit()), 1);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPEqu_gt_ArtifactCaskofHolyWaterApply_Init () {
+    libPEqu_gt_ArtifactCaskofHolyWaterApply = TriggerCreate("libPEqu_gt_ArtifactCaskofHolyWaterApply_Func");
+    TriggerAddEventUnitConstructProgress(libPEqu_gt_ArtifactCaskofHolyWaterApply, null, c_unitProgressStageComplete);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Artifact Shepherd's Staff Initial Apply
+//--------------------------------------------------------------------------------------------------
+bool libPEqu_gt_ArtifactShepherdsStaffInitialApply_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_player;
+    unit lv_unit;
+
+    // Automatic Variable Declarations
+    playergroup auto151892E8_g;
+    unitgroup auto2FF98D29_g;
+    int auto2FF98D29_u;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto151892E8_g = libWCdr_gv_legends.lv_legendPlayers;
+    lv_player = -1;
+    while (true) {
+        lv_player = PlayerGroupNextPlayer(auto151892E8_g, lv_player);
+        if (lv_player < 0) { break; }
+        if ((TechTreeUpgradeCount(lv_player, "ArtifactShepherdsStaff", c_techCountCompleteOnly) > 0)) {
+            auto2FF98D29_g = UnitGroup(null, lv_player, RegionEntireMap(), UnitFilter((1 << c_targetFilterStructure) | (1 << c_targetFilterPreventReveal), 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+            auto2FF98D29_u = UnitGroupCount(auto2FF98D29_g, c_unitCountAll);
+            for (;; auto2FF98D29_u -= 1) {
+                lv_unit = UnitGroupUnitFromEnd(auto2FF98D29_g, auto2FF98D29_u);
+                if (lv_unit == null) { break; }
+                UnitBehaviorAddPlayer(lv_unit, "ShepherdsStaff", lv_player, 1);
+            }
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPEqu_gt_ArtifactShepherdsStaffInitialApply_Init () {
+    libPEqu_gt_ArtifactShepherdsStaffInitialApply = TriggerCreate("libPEqu_gt_ArtifactShepherdsStaffInitialApply_Func");
+    TriggerAddEventGeneric(libPEqu_gt_ArtifactShepherdsStaffInitialApply, "Mission Started");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Artifact Shepherd's Staff Apply
+//--------------------------------------------------------------------------------------------------
+bool libPEqu_gt_ArtifactShepherdsStaffApply_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((TechTreeUpgradeCount(UnitGetOwner(EventUnitProgressUnit()), "ArtifactShepherdsStaff", c_techCountCompleteOnly) > 0))) {
+            return false;
+        }
+
+        if (!((UnitFilterMatch(EventUnitProgressUnit(), UnitGetOwner(EventUnitProgressUnit()), UnitFilter((1 << c_targetFilterStructure) | (1 << c_targetFilterPreventReveal), 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)))) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitBehaviorAddPlayer(EventUnitProgressUnit(), "ShepherdsStaff", UnitGetOwner(EventUnitProgressUnit()), 1);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libPEqu_gt_ArtifactShepherdsStaffApply_Init () {
+    libPEqu_gt_ArtifactShepherdsStaffApply = TriggerCreate("libPEqu_gt_ArtifactShepherdsStaffApply_Func");
+    TriggerAddEventUnitConstructProgress(libPEqu_gt_ArtifactShepherdsStaffApply, null, c_unitProgressStageComplete);
+}
+
+void libPEqu_InitTriggers () {
+    libPEqu_gt_ArtifactHeroAttackTeleport_Init();
+    libPEqu_gt_ArtifactShredders_Init();
+    libPEqu_gt_ArtifactGreaterStaffOfTeleportationEnable_Init();
+    libPEqu_gt_ArtifactGreaterStaffOfTeleportation_Init();
+    libPEqu_gt_ArtifactCaskofHolyWaterInitialApply_Init();
+    libPEqu_gt_ArtifactCaskofHolyWaterApply_Init();
+    libPEqu_gt_ArtifactShepherdsStaffInitialApply_Init();
+    libPEqu_gt_ArtifactShepherdsStaffApply_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libPEqu_InitLib_completed = false;
+
+void libPEqu_InitLib () {
+    if (libPEqu_InitLib_completed) {
+        return;
+    }
+
+    libPEqu_InitLib_completed = true;
+
+    libPEqu_InitLibraries();
+    libPEqu_InitTriggers();
+}
+

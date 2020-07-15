@@ -120,6 +120,130 @@ void libNtve_InitVariables () {
 
 // Presets
 // Functions
+abilcmd libNtve_gf_EventItemAbilityOrUnitAbility () {
+    // Variable Declarations
+    unit lv_otherUnit;
+    abilcmd lv_abilUsed;
+    string lv_itemType;
+    int lv_classId;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_otherUnit = EventUnitAbilityOtherUnit();
+    lv_abilUsed = EventUnitAbility();
+    lv_itemType = "";
+
+    // Implementation
+    if ((lv_otherUnit != null)) {
+        lv_itemType = CatalogFieldValueGet(c_gameCatalogUnit, UnitGetType(lv_otherUnit), "Item", UnitGetOwner(lv_otherUnit));
+        lv_classId = CatalogEntryClass(c_gameCatalogAbil, CatalogFieldValueGet(c_gameCatalogItem, lv_itemType, "Abil", UnitGetOwner(lv_otherUnit)));
+        if (((lv_classId == c_classIdCAbilEffectTarget) || (lv_classId == c_classIdCAbilEffectInstant))) {
+            lv_abilUsed = StringToAbilCmd(CatalogFieldValueGet(c_gameCatalogItem, lv_itemType, "Abil", UnitGetOwner(lv_otherUnit)));
+        }
+
+    }
+
+    return lv_abilUsed;
+}
+
+string libNtve_gf_UnitAbilityGetByType (unit lp_unit, int lp_abilityClass, int lp_index) {
+    // Variable Declarations
+    string lv_abil;
+    int lv_classIndex;
+
+    // Automatic Variable Declarations
+    unit auto5A8FAC35_unit;
+    int auto5A8FAC35_i;
+
+    // Variable Initialization
+
+    // Implementation
+    auto5A8FAC35_unit = lp_unit;
+    auto5A8FAC35_i = 1;
+    for ( ; auto5A8FAC35_i <= UnitAbilityCount(auto5A8FAC35_unit) ; auto5A8FAC35_i += 1 ) {
+        lv_abil = UnitAbilityGet(auto5A8FAC35_unit, auto5A8FAC35_i);
+        if ((AbilityClass(lv_abil) == lp_abilityClass)) {
+            lv_classIndex += 1;
+        }
+
+        if ((lp_index == lv_classIndex)) {
+            return lv_abil;
+        }
+
+    }
+    return null;
+}
+
+bool libNtve_gf_AbilityMatchesFilters (string lp_ability, int lp_abilityOwner, int lp_abilityClass, string lp_alias) {
+    // Variable Declarations
+    string lv_itAlias;
+    int lv_player;
+
+    // Automatic Variable Declarations
+    int auto0C13F64D_catalog;
+    string auto0C13F64D_entry;
+    string auto0C13F64D_fieldPath;
+    int auto0C13F64D_player;
+    int auto0C13F64D_i;
+
+    // Variable Initialization
+    lv_itAlias = "";
+
+    // Implementation
+    if ((AbilityClass(lp_ability) != c_classIdCAbil)) {
+        if ((AbilityClass(lp_ability) != lp_abilityClass)) {
+            return false;
+        }
+
+    }
+
+    if ((lp_alias == "")) {
+    }
+    else {
+        auto0C13F64D_catalog = c_gameCatalogAbil;
+        auto0C13F64D_entry = lp_ability;
+        auto0C13F64D_fieldPath = "TechAliasArray";
+        auto0C13F64D_player = lv_player;
+        auto0C13F64D_i = 0;
+        for ( ; auto0C13F64D_i <= CatalogFieldValueCount(c_gameCatalogAbil,auto0C13F64D_entry,auto0C13F64D_fieldPath,auto0C13F64D_player)-1 ; auto0C13F64D_i += 1 ) {
+            lv_itAlias = CatalogFieldValueGet(c_gameCatalogAbil,auto0C13F64D_entry,auto0C13F64D_fieldPath+"["+IntToString(auto0C13F64D_i)+"]",auto0C13F64D_player);
+            if ((lp_alias == lv_itAlias)) {
+                break;
+            }
+
+        }
+        return false;
+    }
+    return true;
+}
+
+string libNtve_gf_UnitAbilityByFilters (unit lp_unit, int lp_abilityClass, string lp_alias) {
+    // Variable Declarations
+    string lv_itAbil;
+    string lv_itAlias;
+    int lv_player;
+
+    // Automatic Variable Declarations
+    unit auto981DBC05_unit;
+    int auto981DBC05_i;
+
+    // Variable Initialization
+    lv_itAlias = "";
+    lv_player = UnitGetOwner(lp_unit);
+
+    // Implementation
+    auto981DBC05_unit = lp_unit;
+    auto981DBC05_i = 1;
+    for ( ; auto981DBC05_i <= UnitAbilityCount(auto981DBC05_unit) ; auto981DBC05_i += 1 ) {
+        lv_itAbil = UnitAbilityGet(auto981DBC05_unit, auto981DBC05_i);
+        if ((libNtve_gf_AbilityMatchesFilters(lv_itAbil, lv_player, lp_abilityClass, lp_alias) == true)) {
+            return lv_itAbil;
+        }
+
+    }
+    return null;
+}
+
 actor libNtve_gf_AttachModelToActor (actor lp_actor, string lp_model, string lp_attachPoint) {
     // Variable Declarations
     actorscope lv_scope;
@@ -1542,6 +1666,29 @@ void libNtve_gf_SetAnimationDuration (actor lp_target, string lp_identifier, fix
     // Implementation
     lv_actorMessageString = ("AnimSetDuration " + lp_identifier + " " + FixedToString(lp_duration, c_fixedPrecisionAny));
     ActorSend(lp_target, (lv_actorMessageString));
+}
+
+void libNtve_gf_SetBehaviorCount (unit lp_inUnit, string lp_inBehavior, unit lp_inCaster, int lp_inCount) {
+    // Variable Declarations
+    int lv_count;
+    int lv_delta;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_count = UnitBehaviorCount(lp_inUnit, lp_inBehavior);
+    lv_delta = AbsI((lp_inCount - lv_count));
+
+    // Implementation
+    if ((lv_delta == 0)) {
+        return ;
+    }
+
+    if ((lp_inCount > lv_count)) {
+        UnitBehaviorAdd(lp_inUnit, lp_inBehavior, lp_inCaster, lv_delta);
+    }
+    else {
+        UnitBehaviorRemove(lp_inUnit, lp_inBehavior, lv_delta);
+    }
 }
 
 void libNtve_gf_SwooshCamera (int lp_player, fixed lp_distance1, fixed lp_distance2, point lp_location, fixed lp_duration) {
@@ -3288,6 +3435,28 @@ void libNtve_gf_ShowHideLeaderboard (int lp_board, bool lp_showHide, playergroup
     }
 }
 
+void libNtve_gf_CreateRandomItemLootAtPoint (int lp_dropPlayer, point lp_dropLocation, int lp_level, string lp_class, int lp_killerPlayer) {
+    // Variable Declarations
+    string lv_generator;
+    string lv_level;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_generator = "TriggerRandomItemGeneratorAnyClass";
+    lv_level = IntToString(lp_level);
+
+    // Implementation
+    if ((lp_class != "")) {
+        lv_generator = "TriggerRandomItemGenerator";
+        CatalogReferenceSet("Loot,TriggerRandomItemGenerator,ClassArray[0]", lp_dropPlayer, (lp_class));
+    }
+    else {
+        CatalogFieldValueSet(c_gameCatalogLoot, lv_generator, "MaxLevel", lp_dropPlayer, lv_level);
+    }
+    CatalogFieldValueSet(c_gameCatalogLoot, lv_generator, "MinLevel", lp_dropPlayer, lv_level);
+    UnitLootDropPoint(lp_dropPlayer, lp_dropLocation, lv_generator, lp_killerPlayer);
+}
+
 int libNtve_gf_ArithmeticIntClamp (int lp_value, int lp_min, int lp_max) {
     // Automatic Variable Declarations
     // Implementation
@@ -4358,6 +4527,19 @@ int TransmissionSend (playergroup lp_Players, transmissionsource lp_Source, int 
     // Implementation
     TransmissionSendForPlayer(lp_Players, lp_Source, lp_Target, "", lp_PortraitAnim, lp_Sound, lp_Speaker, lp_Subtitle, lp_Duration, lp_DurationType, lp_WaitUntilDone, c_maxPlayers);
     return TransmissionLastSent();
+}
+
+void libNtve_gf_TriggerExecuteByName (string lp_t, bool lp_check, bool lp_wait) {
+    // Variable Declarations
+    trigger lv_trigger;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_trigger = TriggerCreate(lp_t);
+
+    // Implementation
+    TriggerExecute(lv_trigger, lp_check, lp_wait);
+    TriggerDestroy(lv_trigger);
 }
 
 void libNtve_gf_UIErrorMessage (playergroup lp_players, text lp_message, soundlink lp_sound) {
@@ -5472,83 +5654,6 @@ bool libNtve_gf_UnitIsInsidePlayerTransport (unit lp_u) {
     // Automatic Variable Declarations
     // Implementation
     return UnitTestState(lp_u, c_unitStateInsidePlayerTransport);
-}
-
-abilcmd libNtve_gf_EventItemAbilityOrUnitAbility () {
-    // Variable Declarations
-    unit lv_otherUnit;
-    abilcmd lv_abilUsed;
-    string lv_itemType;
-    int lv_classId;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-    lv_otherUnit = EventUnitAbilityOtherUnit();
-    lv_abilUsed = EventUnitAbility();
-    lv_itemType = "";
-
-    // Implementation
-    if ((lv_otherUnit != null)) {
-        lv_itemType = CatalogFieldValueGet(c_gameCatalogUnit, UnitGetType(lv_otherUnit), "Item", UnitGetOwner(lv_otherUnit));
-        lv_classId = CatalogEntryClass(c_gameCatalogAbil, CatalogFieldValueGet(c_gameCatalogItem, lv_itemType, "Abil", UnitGetOwner(lv_otherUnit)));
-        if (((lv_classId == c_classIdCAbilEffectTarget) || (lv_classId == c_classIdCAbilEffectInstant))) {
-            lv_abilUsed = StringToAbilCmd(CatalogFieldValueGet(c_gameCatalogItem, lv_itemType, "Abil", UnitGetOwner(lv_otherUnit)));
-        }
-
-    }
-
-    return lv_abilUsed;
-}
-
-string libNtve_gf_UnitAbilityGetByType (unit lp_unit, int lp_abilityClass, int lp_index) {
-    // Variable Declarations
-    string lv_abil;
-    int lv_classIndex;
-
-    // Automatic Variable Declarations
-    unit auto5A8FAC35_unit;
-    int auto5A8FAC35_i;
-
-    // Variable Initialization
-
-    // Implementation
-    auto5A8FAC35_unit = lp_unit;
-    auto5A8FAC35_i = 1;
-    for ( ; auto5A8FAC35_i <= UnitAbilityCount(auto5A8FAC35_unit) ; auto5A8FAC35_i += 1 ) {
-        lv_abil = UnitAbilityGet(auto5A8FAC35_unit, auto5A8FAC35_i);
-        if ((AbilityClass(lv_abil) == lp_abilityClass)) {
-            lv_classIndex += 1;
-        }
-
-        if ((lp_index == lv_classIndex)) {
-            return lv_abil;
-        }
-
-    }
-    return null;
-}
-
-void libNtve_gf_SetBehaviorCount (unit lp_inUnit, string lp_inBehavior, unit lp_inCaster, int lp_inCount) {
-    // Variable Declarations
-    int lv_count;
-    int lv_delta;
-
-    // Automatic Variable Declarations
-    // Variable Initialization
-    lv_count = UnitBehaviorCount(lp_inUnit, lp_inBehavior);
-    lv_delta = AbsI((lp_inCount - lv_count));
-
-    // Implementation
-    if ((lv_delta == 0)) {
-        return ;
-    }
-
-    if ((lp_inCount > lv_count)) {
-        UnitBehaviorAdd(lp_inUnit, lp_inBehavior, lp_inCaster, lv_delta);
-    }
-    else {
-        UnitBehaviorRemove(lp_inUnit, lp_inBehavior, lv_delta);
-    }
 }
 
 bool libNtve_gf_UnitCanAttackUnit (unit lp_u, unit lp_s) {

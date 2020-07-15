@@ -1,0 +1,327 @@
+include "TriggerLibs/natives"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Warcraft Commander
+//--------------------------------------------------------------------------------------------------
+// Preset Declarations
+const int libWCdr_ge_CoopDebugOption_SuppressStartingUnits = 0;
+const int libWCdr_ge_CoopDebugOption_SuppressLegendTech = 1;
+const int libWCdr_ge_WarCoopReticleType_ZergMainObjective = 0;
+const int libWCdr_ge_WarCoopReticleType_ZergBonusObjective = 1;
+const int libWCdr_ge_WarCoopReticleType_ZergEnemy = 2;
+const int libWCdr_ge_WarCoopReticleType_TerranMainObjective = 3;
+const int libWCdr_ge_WarCoopReticleType_TerranBonusObjective = 4;
+const int libWCdr_ge_WarCoopReticleType_TerranEnemy = 5;
+const int libWCdr_ge_WarCoopReticleType_ProtossMainObjective = 6;
+const int libWCdr_ge_WarCoopReticleType_ProtossBonusObjective = 7;
+const int libWCdr_ge_WarCoopReticleType_ProtossEnemy = 8;
+const int libWCdr_ge_WarCoopReticleSize_Large = 0;
+const int libWCdr_ge_WarCoopReticleSize_Medium = 1;
+const int libWCdr_ge_WarCoopReticleSize_Small = 2;
+const int libWCdr_ge_CircleOfPowerCaptureState_OnAcceptHero = 0;
+const int libWCdr_ge_CircleOfPowerCaptureState_OffIgnoreHero = 1;
+const int libWCdr_ge_CircleOfPowerCaptureState_ActivatedGreen = 2;
+const int libWCdr_ge_CircleOfPowerCaptureState_CompleteBlue = 3;
+
+// Constants
+const int libWCdr_gv_lEGENDS_MAX_EQUIPMENT = 3;
+const int libWCdr_gv_lEGENDS_MAX_PLAYERS = 16;
+const int libWCdr_gv_dEBUG_HERO_SELECT_MAX_LEGENDS = 18;
+const int libWCdr_gv_dEBUG_HERO_SELECT_MAX_PLAYERS = 16;
+const int libWCdr_gv_dEBUG_HERO_SELECT_MAX_EQUIP_PER_PAGE = 36;
+const int libWCdr_gv_dEBUG_HERO_SELECT_MAX_EQUIP_PER_SCROLLSTEP = 6;
+const int libWCdr_gv_dEBUG_LOOT_AWARD_MAX_LOOT = 3;
+const string libWCdr_gv_waygateAbility = "Awrp";
+const string libWCdr_gv_waygateBehaviorDestination = "AwrpDestinationTracker";
+const string libWCdr_gv_waygateEffectAssignDestination = "AwrpAssignDestination";
+const string libWCdr_gv_effectLinkHeroEnteredCircle = "War_Shared_HeroEnterCircle";
+const int libWCdr_gv_mAX_WAVES_PER_TECH_TIER = 10;
+
+// Structures
+struct libWCdr_gs_LegendPlayer {
+    string lv_selectedLegend;
+    string[libWCdr_gv_lEGENDS_MAX_EQUIPMENT + 1] lv_equipment;
+    string[libWCdr_gv_dEBUG_LOOT_AWARD_MAX_LOOT + 1] lv_loot;
+    unit lv_hero;
+    unit lv_townHall;
+};
+
+struct libWCdr_gs_Legends {
+    playergroup lv_legendPlayers;
+    playergroup lv_allyPlayers;
+    playergroup lv_enemyPlayers;
+    libWCdr_gs_LegendPlayer[libWCdr_gv_lEGENDS_MAX_PLAYERS + 1] lv_player;
+    bool lv_debugModeIsOn;
+    string lv_mission;
+    bool lv_gameIsOver;
+    string lv_gameMode;
+    bool lv_debugSuppressStartingUnits;
+    bool lv_debugSuppressLegendTech;
+    int lv_difficultyLevel;
+    fixed lv_playerCountHandicap;
+    string lv_enemyArmy;
+};
+
+struct libWCdr_gs_DebugHeroSelectButton {
+    int lv_button;
+    int lv_icon;
+    int lv_friendLabel;
+    string lv_legendInstance;
+};
+
+struct libWCdr_gs_DebugHeroSelectReadyPanel {
+    int lv_readyPanel;
+    int lv_playerLabel;
+    int lv_legendLabel;
+    int lv_legendIcon;
+};
+
+struct libWCdr_gs_DebugHeroSelectOptionsPanel {
+    int lv_difficultySlider;
+    int lv_difficultyLabel;
+    int lv_damageLabel;
+    int lv_healthLabel;
+    int lv_bucketSizeLabel;
+    int lv_handicapLabel;
+    int lv_mutatorLabel;
+};
+
+struct libWCdr_gs_DebugHeroSelectEquipmentPanel {
+    int[libWCdr_gv_dEBUG_HERO_SELECT_MAX_EQUIP_PER_PAGE + 1] lv_equipmentButton;
+    int[libWCdr_gv_dEBUG_HERO_SELECT_MAX_EQUIP_PER_PAGE + 1] lv_equipmentIcon;
+    string[libWCdr_gv_dEBUG_HERO_SELECT_MAX_EQUIP_PER_PAGE + 1][libWCdr_gv_dEBUG_HERO_SELECT_MAX_PLAYERS + 1] lv_equipmentLink;
+    int[libWCdr_gv_dEBUG_HERO_SELECT_MAX_PLAYERS + 1] lv_currentEquipmentSlot;
+    int[libWCdr_gv_dEBUG_HERO_SELECT_MAX_PLAYERS + 1] lv_currentScrollstep;
+    int lv_clearButton;
+};
+
+struct libWCdr_gs_DebugHeroSelectEquipmentSlot {
+    int lv_equipmentButton;
+    int lv_equipmentIcon;
+};
+
+struct libWCdr_gs_DebugHeroSelectUI {
+    int lv_heroSelectUI;
+    libWCdr_gs_DebugHeroSelectButton[libWCdr_gv_dEBUG_HERO_SELECT_MAX_LEGENDS + 1] lv_heroSelectButtons;
+    libWCdr_gs_DebugHeroSelectEquipmentSlot[libWCdr_gv_lEGENDS_MAX_EQUIPMENT + 1] lv_equipmentSlotButtons;
+    libWCdr_gs_DebugHeroSelectReadyPanel[libWCdr_gv_dEBUG_HERO_SELECT_MAX_PLAYERS + 1] lv_readyPanels;
+    libWCdr_gs_DebugHeroSelectOptionsPanel lv_optionsPanel;
+    libWCdr_gs_DebugHeroSelectEquipmentPanel lv_equipmentPanel;
+    int lv_readyButton;
+    int lv_heroNameLabel;
+    int lv_heroTitleLabel;
+    int lv_heroLoreLabel;
+    int lv_heroBackgroundImage;
+    int lv_numberofLegends;
+    bool[libWCdr_gv_dEBUG_HERO_SELECT_MAX_PLAYERS + 1] lv_playerIsReady;
+    trigger lv_callbackTrigger;
+    bool lv_initialized;
+    timer lv_gameStartTimer;
+};
+
+struct libWCdr_gs_GameUI {
+    int lv_consoleUIContainer;
+    int lv_hero_LevelLabel;
+    int lv_hero_Portrait;
+    int lv_hero_CommandPanel;
+    int lv_hero_InventoryPanel;
+};
+
+struct libWCdr_gs_LootAward {
+    int lv_lootAwardPanel;
+    int lv_closeButton;
+    int[libWCdr_gv_dEBUG_LOOT_AWARD_MAX_LOOT + 1] lv_lootAwardButtons;
+};
+
+struct libWCdr_gs_AnimationStates {
+    string lv_readyState;
+    string lv_readyState_Ready;
+    string lv_readyState_NotReady;
+    string lv_emptyState;
+    string lv_emptyState_Empty;
+    string lv_emptyState_NotEmpty;
+    string lv_hoverState;
+    string lv_hoverState_Hovered;
+    string lv_hoverState_NotHovered;
+    string lv_rarityState;
+    string lv_friendSelectionState;
+    string lv_friendSelectionState_Selected;
+    string lv_friendSelectionState_NotSelected;
+    string lv_enabledState;
+    string lv_enabledState_Enabled;
+    string lv_enabledState_Disabled;
+    string lv_selectionState;
+    string lv_selectionState_Selected;
+    string lv_selectionState_NotSelected;
+};
+
+struct libWCdr_gs_ReticleEffect {
+    actor lv_effectActor;
+    int lv_textTag;
+};
+
+// Variable Declarations
+libWCdr_gs_Legends libWCdr_gv_legends;
+bank[libWCdr_gv_dEBUG_HERO_SELECT_MAX_PLAYERS + 1] libWCdr_gv_w3CBank;
+libWCdr_gs_DebugHeroSelectUI libWCdr_gv_debugHeroSelectUI;
+libWCdr_gs_GameUI libWCdr_gv_gameUI;
+libWCdr_gs_LootAward libWCdr_gv_lootAward;
+libWCdr_gs_AnimationStates libWCdr_gv_animationStates;
+unitgroup libWCdr_gv_wayGatesUnitGroup;
+fixed libWCdr_gv_bucketSizeMultiplier;
+int libWCdr_gv_nextAttackWaveIndex;
+wave libWCdr_gv_lastSentEnemyWave;
+int libWCdr_gv_lastPickedWaveUnitCost;
+
+// Function Declarations
+void AIWaveThinkWarCoop (int lp_player, wave lp_wave, int lp_type);
+void libWCdr_gf_AIWaveClearedWarCoop (trigger t);
+void libWCdr_gf_EventVictoryDefeat (trigger t, string lp_victoryDefeat);
+void libWCdr_gf_EndWarCoopMission (string lp_victoryDefeat);
+void libWCdr_gf_ChatCheat (trigger t, string lp_cheatString);
+string libWCdr_gf_TriggeringChatCheat ();
+int libWCdr_gf_TriggeringChatCheatPlayer ();
+string libWCdr_gf_TriggeringChatCheatParameter (int lp_parameterIndex);
+int libWCdr_gf_TriggeringChatCheatParameterCount ();
+void libWCdr_gf_InitializeWarCoopMission (string lp_mission, string lp_gameMode, playergroup lp_legendPlayers, playergroup lp_allyPlayers, playergroup lp_enemyPlayers, trigger lp_callbackTrigger);
+void libWCdr_gf_PauseUnpauseMission (bool lp_pauseUnpause);
+void libWCdr_gf_StartMissionWithCallback (trigger lp_triggerCallback);
+void libWCdr_gf_InitializeCommanderScripts ();
+void libWCdr_gf_InitializeCommanderUIElements ();
+void libWCdr_gf_CommanderInitRunTrigger (int lp_player);
+int libWCdr_gf_CommanderInitGetIntegerParameter (string lp_commanderInitParameter);
+bool libWCdr_gf_WarCoopMissionIsOver ();
+bool libWCdr_gf_StringIsInteger (string lp_string);
+bool libWCdr_gf_UserDataInstanceExists (string lp_type, string lp_instance);
+bool libWCdr_gf_PlayerIsLegendPlayer (int lp_player);
+bool libWCdr_gf_LegendIsDisabled (string lp_legendInstance);
+bool libWCdr_gf_ConvertBooleantoEnableDisableOption (bool lp_boolean);
+int libWCdr_gf_GetRandomPlayerFromPlayerGroup (playergroup lp_playerGroup);
+playergroup libWCdr_gf_GetHumanPlayers ();
+playergroup libWCdr_gf_GetLegendPlayers ();
+playergroup libWCdr_gf_GetEnemiesofLegendPlayers ();
+playergroup libWCdr_gf_GetAlliesofLegendPlayers ();
+string libWCdr_gf_GetNextWord (string lp_sentence, string lp_delimiter);
+string libWCdr_gf_CliptoWord (string lp_sentence, string lp_clippingWord);
+string libWCdr_gf_IIFString (bool lp_logic, string lp_stringIF, string lp_stringELSE);
+string libWCdr_gf_GetLegendUnitTypeofPlayer (int lp_legendPlayer);
+string libWCdr_gf_GetLegendInstanceForPlayer (int lp_legendPlayer);
+unit libWCdr_gf_GetLegendHero (int lp_legendPlayer);
+void libWCdr_gf_TurnTriggerOnOffWithDelay (trigger lp_trigger, bool lp_onOff, fixed lp_delay, int lp_timeType);
+void libWCdr_gf_W3CBankOpen ();
+void libWCdr_gf_W3CBankStoreStringandSave (int lp_player, string lp_section, string lp_key, string lp_value);
+void libWCdr_gf_W3CBankStoreLastPlayedCommander (int lp_player);
+void libWCdr_gf_W3CBankStoreLoot (int lp_player, string lp_artifact, int lp_lootRank);
+void libWCdr_gf_W3CBankStoreEquipmentInSlot (int lp_player, int lp_slotIndex);
+void libWCdr_gf_W3CBankStoreArtifactInSlotForCommander (int lp_player, string lp_artifact, int lp_slotIndex, string lp_commander);
+void libWCdr_gf_W3CBankRestoreEquipment (int lp_player);
+string libWCdr_gf_W3CBankRetrieveString (int lp_player, string lp_section, string lp_key);
+bool libWCdr_gf_W3CBankKeyExists (int lp_player, string lp_section, string lp_key);
+string libWCdr_gf_W3CBankRetrieveLastPlayedCommander (int lp_player);
+void libWCdr_gf_W3CBankRemoveKey (int lp_player, string lp_section, string lp_key);
+void libWCdr_gf_W3CBankRemoveSection (int lp_player, string lp_section);
+void libWCdr_gf_InitializeDebugSelectionUI ();
+void libWCdr_gf_ShowHideDebugSelectionUI (bool lp_showHide);
+void libWCdr_gf_DebugSetSelectedHeroForPlayer (string lp_selectedLegendInstance, int lp_player);
+void libWCdr_gf_UpdateDebugFriendHeroSelections ();
+void libWCdr_gf_UpdateDebugDifficultySetting (int lp_difficultyLevel);
+void libWCdr_gf_UpdateSelectedHeroButtonToggle (int lp_player);
+void libWCdr_gf_RenderEquipmentListForPlayer (int lp_player);
+void libWCdr_gf_RenderEquipmentSlotForPlayer (int lp_player, int lp_slotIndex);
+int libWCdr_gf_GetNumberofPlayersDebugSelectingHeroIndex (int lp_legendIndex);
+bool libWCdr_gf_AllLegendPlayersAreReady ();
+void libWCdr_gf_DebugSelectLegends (trigger lp_callbackTrigger);
+void libWCdr_gf_SetCoopDebugOption (int lp_debugOption, bool lp_on);
+void libWCdr_gf_InitializeGameUI ();
+void libWCdr_gf_HookUpHeroInGameUI (int lp_player, unit lp_hero);
+void libWCdr_gf_HookUpHeroPortrait (int lp_player);
+void libWCdr_gf_UpdateHeroLevelLabel (unit lp_hero);
+void libWCdr_gf_InitializeLootAwardUI ();
+void libWCdr_gf_ShowHideLootAwardUI (playergroup lp_playerGroup, bool lp_showHide);
+string libWCdr_gf_WC_ReticleModelOfStyle (int lp_type, int lp_size);
+string libWCdr_gf_WC_ReticleTextFontOfStyle (int lp_type);
+void libWCdr_gf_WC_ReticleApplyTint (actor lp_reticle, int lp_type);
+void libWCdr_gf_CreateReticleEffectAndTextTagAtPoint (int lp_type, int lp_size, text lp_text, point lp_location, structref<libWCdr_gs_ReticleEffect> lp_outReticleRef);
+void libWCdr_gf_AttachReticleEffectAndTextTagOnUnit (int lp_type, int lp_size, text lp_text, unit lp_target, string lp_attachPoint, structref<libWCdr_gs_ReticleEffect> lp_outReticleRef);
+void libWCdr_gf_InitPlayerColors ();
+void libWCdr_gf_ApplyPlayerTalentCoop (int lp_player, string lp_talent);
+void libWCdr_gf_ApplyArtifactEquipmentUpgrades ();
+void libWCdr_gf_GiveArtifactGrantedItemstoHero (unit lp_hero);
+void libWCdr_gf_RenderEquipmentButton (int lp_player, int lp_button, string lp_artifact);
+void libWCdr_gf_AwardLoot (int lp_player, int lp_numberofLoots);
+string libWCdr_gf_RandomArtifact (int lp_player);
+bool libWCdr_gf_CommanderCanEquipArtifact (string lp_commander, string lp_artifact);
+bool libWCdr_gf_PlayerHasArtifactEquipped (int lp_player, string lp_artifact);
+bool libWCdr_gf_PlayerOwnsArtifact (int lp_player, string lp_artifact);
+bool libWCdr_gf_ArtifactCanBeAwarded (string lp_artifact);
+void libWCdr_gf_RegisterWayGateOneway (unit lp_sourceWayGate, unit lp_destinationWayGate);
+void libWCdr_gf_RegisterWayGatePairing (unit lp_wayGate1, unit lp_wayGate2);
+void libWCdr_gf_EnableDisableWayGate (unit lp_wayGate, bool lp_enabled);
+void libWCdr_gf_SetCircleOfPowerCaptureState (unit lp_circleOfPower, int lp_state);
+void libWCdr_gf_CreateStartingUnitsandSetGameplayOptions ();
+void libWCdr_gf_SetLegendTechForPlayer (int lp_legendPlayer);
+void libWCdr_gf_SetCoopCommanderTechForPlayer (int lp_player);
+void libWCdr_gf_SetRaceTechForPlayer (int lp_player);
+void libWCdr_gf_SetLegendTechForAllPlayers ();
+void libWCdr_gf_SetStartingUnitsForLegendPlayers ();
+void libWCdr_gf_SetGameplayOptionsForLegendPlayers ();
+void libWCdr_gf_OrderStartingUnitstoGettoWork ();
+void libWCdr_gf_RevealStartingBaseRegion ();
+void libWCdr_gf_RemoveStartingGoldMineIfNotUsed (unit lp_goldMineUnit, point lp_associatedStartingLocation);
+void libWCdr_gf_RemoveExtraExpansionGoldMines (unitgroup lp_expansionGoldMines);
+void libWCdr_gf_DataCollectionApplyTech (string lp_dataCollection, int lp_player, bool lp_replaceButton);
+void libWCdr_gf_SendTransmissiontoPlayerGroup (playergroup lp_listeningPlayers, string lp_conversationState, int lp_conversationStateIndex, string lp_conversation);
+text libWCdr_gf_MissionObjectiveDescription (string lp_objective);
+text libWCdr_gf_MissionObjectiveName (string lp_objective);
+int libWCdr_gf_MissionObjectiveItemCount (string lp_objective);
+void libWCdr_gf_DisableCostsforPlayerGroup (playergroup lp_playerGroup);
+void libWCdr_gf_SetDifficultyLevel (int lp_difficultyLevel);
+void libWCdr_gf_SetEnemyPlayerHandicap ();
+bool libWCdr_gf_DifficultyScalingAppliestoCurrentGameMode (string lp_difficultyScalingInstance);
+bool libWCdr_gf_DifficultyPresetAppliestoCurrentGameMode (string lp_difficultyScalingInstance);
+string libWCdr_gf_GetDifficultyLevelRangeInstance ();
+fixed libWCdr_gf_GetDifficultyMultiplier (string lp_difficultyType, int lp_difficultyLevel);
+fixed libWCdr_gf_GetDifficultySum (string lp_difficultyType, int lp_difficultyLevel);
+int libWCdr_gf_GetPlayerCountHandicap ();
+string libWCdr_gf_GetPresetNameofDifficultyLevel (int lp_difficultyLevel);
+int libWCdr_gf_GetDifficultyLevel ();
+void libWCdr_gf_EnableWaveLogicforPlayerGroup (playergroup lp_playerGroup);
+string libWCdr_gf_PickPotentialUnitForWave (string lp_wave, int lp_budget, int lp_difficultyLevel);
+string libWCdr_gf_PickWaveByArmyandTier (string lp_army, int lp_techTier);
+int libWCdr_gf_GetCostofUnitInWave (string lp_wave, int lp_unitIndex);
+int libWCdr_gf_NextAttackWaveIndex ();
+unitgroup libWCdr_gf_CreateEnemyWave (int lp_controllingPlayer, point lp_spawnLocation, string lp_bucketSize, int lp_difficultyLevel, string lp_army, int lp_techTier);
+void libWCdr_gf_SendEnemyWave (int lp_attackingPlayer, unitgroup lp_attackWave, wavetarget lp_attackTarget, int lp_delay);
+wave libWCdr_gf_GetLastSentEnemyWave ();
+void libWCdr_gf_AttachPingtoEnemyWave (wave lp_wave, string lp_pingModel, fixed lp_scale, color lp_color);
+void libWCdr_gf_SetTransportReturnLocationforPlayerGroup (playergroup lp_playerGroup, point lp_returnLocation);
+void libWCdr_gf_RemoveUnitsFromtheMap (unitgroup lp_unitstoRemove, string lp_actorVisual);
+
+// Trigger Declarations
+trigger libWCdr_gt_ChatCheatListener;
+trigger libWCdr_gt_InitializePortraitCameraandTeamColorFix;
+trigger libWCdr_gt_InitializeDisableInventoryTech;
+trigger libWCdr_gt_HeroSelectButtonClicked;
+trigger libWCdr_gt_ReadyButtonClicked;
+trigger libWCdr_gt_GameStartTimerExpires;
+trigger libWCdr_gt_DifficultySliderMoved;
+trigger libWCdr_gt_EquipmentSlotClicked;
+trigger libWCdr_gt_EquipmentSelectButtonClicked;
+trigger libWCdr_gt_EquipmentClearButtonClicked;
+trigger libWCdr_gt_victorys;
+trigger libWCdr_gt_setdiff;
+trigger libWCdr_gt_lootdelete;
+trigger libWCdr_gt_lootgrant;
+trigger libWCdr_gt_lootshow;
+trigger libWCdr_gt_LootAwardCloseButtonClicked;
+trigger libWCdr_gt_DemoItemSetup;
+trigger libWCdr_gt_LootDropEffect;
+trigger libWCdr_gt_BaseDestroyedDefeat;
+trigger libWCdr_gt_HeroUnitBirth;
+trigger libWCdr_gt_HeroAutoRevive;
+trigger libWCdr_gt_HeroLevelsUp;
+trigger libWCdr_gt_AttackWaveUnitCreatesaNewUnit;
+
+// Library Initialization
+void libWCdr_InitVariables ();
+

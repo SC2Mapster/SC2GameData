@@ -1,0 +1,682 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/WarClassic"
+
+include "TriggerLibs/WarClassicTactical_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Warcraft III Tactical
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libGAwT_InitLibraries () {
+    libNtve_InitVariables();
+    libGAw3_InitVariables();
+}
+
+// Variable Initialization
+bool libGAwT_InitVariables_completed = false;
+
+void libGAwT_InitVariables () {
+    if (libGAwT_InitVariables_completed) {
+        return;
+    }
+
+    libGAwT_InitVariables_completed = true;
+
+}
+
+// Presets
+// Functions
+order libGAwT_gf_OrderConstructor (int lp_owner, string lp_abil, int lp_type, unit lp_item) {
+    // Variable Declarations
+    bool lv_hasItem;
+    order lv_order;
+
+    // Automatic Variable Declarations
+    int autoC0025F40_val;
+    int autoA05C0B7A_val;
+
+    // Variable Initialization
+    lv_hasItem = (lp_item != null);
+
+    // Implementation
+    if ((lv_hasItem == true)) {
+        autoA05C0B7A_val = lp_type;
+        if (autoA05C0B7A_val == libGAwT_ge_OrderType_Instant) {
+            lv_order = Order(AbilityCommand(libGAwT_gv_iNVENTORY_LINK, 3));
+        }
+        else if (autoA05C0B7A_val == libGAwT_ge_OrderType_Target) {
+            lv_order = Order(AbilityCommand(libGAwT_gv_iNVENTORY_LINK, 4));
+        }
+        else if (autoA05C0B7A_val == libGAwT_ge_OrderType_On) {
+            lv_order = Order(AbilityCommand(libGAwT_gv_iNVENTORY_LINK, 8));
+        }
+        else if (autoA05C0B7A_val == libGAwT_ge_OrderType_Off) {
+            lv_order = Order(AbilityCommand(libGAwT_gv_iNVENTORY_LINK, 7));
+        }
+        else {
+        }
+        OrderSetTargetItem(lv_order, lp_item);
+    }
+    else {
+        autoC0025F40_val = lp_type;
+        if (autoC0025F40_val == libGAwT_ge_OrderType_Instant) {
+            lv_order = Order(AbilityCommand(lp_abil, 0));
+        }
+        else if (autoC0025F40_val == libGAwT_ge_OrderType_Target) {
+            lv_order = Order(AbilityCommand(lp_abil, 0));
+        }
+        else if (autoC0025F40_val == libGAwT_ge_OrderType_On) {
+            lv_order = Order(AbilityCommand(lp_abil, 0));
+        }
+        else if (autoC0025F40_val == libGAwT_ge_OrderType_Off) {
+            lv_order = Order(AbilityCommand(lp_abil, 1));
+        }
+        else if (autoC0025F40_val == libGAwT_ge_OrderType_AutoCastOn) {
+            lv_order = OrderSetAutoCast(AbilityCommand(lp_abil, 0), true);
+        }
+        else if (autoC0025F40_val == libGAwT_ge_OrderType_AutoCastOff) {
+            lv_order = OrderSetAutoCast(AbilityCommand(lp_abil, 0), false);
+        }
+        else {
+        }
+    }
+    return lv_order;
+}
+
+bool libGAwT_gf_HeroInDanger (unit lp_hero) {
+    // Automatic Variable Declarations
+    // Implementation
+    return ((UnitGetDamageTakenTime(lp_hero) < 1) && (UnitGetPropertyFixed(lp_hero, c_unitPropLife, c_unitPropCurrent) < libGAwT_gv_dYING_HERO_HP));
+}
+
+fixed libGAwT_gf_AIEffectAbilRange (int lp_owner, unit lp_aIUnit, string lp_abil, int lp_level, bool lp_addRadius) {
+    // Variable Declarations
+    int lv_index;
+    fixed lv_range;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_index = MinI((CatalogFieldValueCount(c_gameCatalogAbil, lp_abil, "Range", lp_owner)-1), lp_level);
+    lv_range = libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogAbil, lp_abil, "Range[" + IntToString(lv_index) + "]", lp_owner);
+
+    // Implementation
+    if ((lp_addRadius == true)) {
+        lv_range += UnitGetPropertyFixed(lp_aIUnit, c_unitPropRadius, c_unitPropCurrent);
+    }
+
+    return lv_range;
+}
+
+fixed libGAwT_gf_AIEffectAbilSearchRadius (int lp_owner, unit lp_aIUnit, string lp_abil, int lp_level, bool lp_addRadius) {
+    // Variable Declarations
+    int lv_index;
+    fixed lv_radius;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_index = (CatalogFieldValueCount(c_gameCatalogEffect, ((lp_abil) + "@Search"), "AreaArray", lp_owner)-1);
+    lv_radius = libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogEffect, (((lp_abil) + "@Search")), "AreaArray[" + IntToString(lv_index) + "].Radius", lp_owner);
+
+    // Implementation
+    if ((lp_addRadius == true)) {
+        lv_radius += UnitGetPropertyFixed(lp_aIUnit, c_unitPropRadius, c_unitPropCurrent);
+    }
+
+    return lv_radius;
+}
+
+fixed libGAwT_gf_AIEffectAbilManaCost (int lp_owner, unit lp_aIUnit, string lp_abil, int lp_level) {
+    // Variable Declarations
+    int lv_index;
+    fixed lv_mana;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_index = MinI((CatalogFieldValueCount(c_gameCatalogAbil, lp_abil, "Cost", lp_owner)-1), lp_level);
+    lv_mana = libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogAbil, lp_abil, (("Cost[" + IntToString(lv_index) + "].Vital[Energy]")), lp_owner);
+
+    // Implementation
+    return lv_mana;
+}
+
+unitfilter libGAwT_gf_AIEffectAbilTargetUnitFilter (int lp_owner, unit lp_aIUnit, string lp_abil, int lp_level) {
+    // Variable Declarations
+    int lv_index;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_index = MinI((CatalogFieldValueCount(c_gameCatalogAbil, lp_abil, "TargetFilters", lp_owner)-1), lp_level);
+
+    // Implementation
+    return libNtve_gf_ConvertTargetFilterStringToUnitFilter(CatalogFieldValueGet(c_gameCatalogAbil, lp_abil, "TargetFilters[" + IntToString(lv_index) + "]", lp_owner));
+}
+
+unitfilter libGAwT_gf_AIEffectAbilSearchUnitFilter (int lp_owner, unit lp_aIUnit, string lp_abil, int lp_level) {
+    // Automatic Variable Declarations
+    // Implementation
+    return libNtve_gf_ConvertTargetFilterStringToUnitFilter(CatalogFieldValueGet(c_gameCatalogEffect, (((lp_abil) + "@Search")), "SearchFilters", lp_owner));
+}
+
+fixed libGAwT_gf_AIAbilAccumlatedAmount (int lp_owner, unit lp_aIUnit, string lp_abil, int lp_level, string lp_extention) {
+    // Variable Declarations
+    int lv_index;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_index = MinI((CatalogFieldValueCount(c_gameCatalogAccumulator, (((lp_abil) + "@" + lp_extention)), "Amount", lp_owner)-1), lp_level);
+
+    // Implementation
+    return StringToFixed(CatalogFieldValueGet(c_gameCatalogAccumulator, (((lp_abil) + "@" + lp_extention)), "Amount[" + IntToString(lv_index) + "]", lp_owner));
+}
+
+string libGAwT_gf_AIItemAbil (int lp_owner, unit lp_item) {
+    // Variable Declarations
+    string lv_itemLink;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_itemLink = libGAw3_gf_ItemTypeOfUnit(UnitGetType(lp_item));
+
+    // Implementation
+    if ((CatalogEntryScope(c_gameCatalogItem, lv_itemLink) != "CItemAbil")) {
+        return null;
+    }
+
+    return (CatalogFieldValueGet(c_gameCatalogItem, lv_itemLink, "Abil", lp_owner));
+}
+
+void libGAwT_gf_AIThinkDefend (int lp_owner, unit lp_aIUnit, unitgroup lp_nearByUnits, string lp_abil, unit lp_item) {
+    // Variable Declarations
+    unitgroup lv_enemiesNearby;
+    aifilter lv_enemyNearbyFilter;
+    order lv_cmd;
+    order lv_cmdOff;
+    unit lv_itUnit;
+    int lv_itWeaponIndex;
+    string lv_itWeapon;
+    bool lv_canDefend;
+
+    // Automatic Variable Declarations
+    unitgroup auto2822F891_g;
+    int auto2822F891_u;
+    int auto05DEC010_ae;
+    const int auto05DEC010_ai = 1;
+
+    // Variable Initialization
+    lv_enemiesNearby = UnitGroupEmpty();
+    lv_enemyNearbyFilter = AIFilter(lp_owner);
+    lv_cmd = libGAwT_gf_OrderConstructor(lp_owner, lp_abil, libGAwT_ge_OrderType_On, lp_item);
+    lv_cmdOff = libGAwT_gf_OrderConstructor(lp_owner, lp_abil, libGAwT_ge_OrderType_Off, lp_item);
+
+    // Implementation
+    if ((AIUnitIsInCombat(lp_aIUnit) == false)) {
+        if ((UnitOrderIsValid(lp_aIUnit, lv_cmdOff) == true)) {
+            libNtve_gf_AICast(lp_aIUnit, lv_cmdOff);
+        }
+
+        return ;
+    }
+
+    lv_canDefend = UnitOrderIsValid(lp_aIUnit, lv_cmd);
+    if ((lv_canDefend == false) && (UnitOrderIsValid(lp_aIUnit, lv_cmdOff) == false)) {
+        return ;
+    }
+
+    AISetFilterAlliance(lv_enemyNearbyFilter, c_playerGroupEnemy);
+    AISetFilterMelee(lv_enemyNearbyFilter, false);
+    lv_enemiesNearby = AIGetFilterGroup(lv_enemyNearbyFilter, lp_nearByUnits);
+    auto2822F891_g = lv_enemiesNearby;
+    auto2822F891_u = UnitGroupCount(auto2822F891_g, c_unitCountAll);
+    for (;; auto2822F891_u -= 1) {
+        lv_itUnit = UnitGroupUnitFromEnd(auto2822F891_g, auto2822F891_u);
+        if (lv_itUnit == null) { break; }
+        auto05DEC010_ae = UnitWeaponCount(lv_itUnit);
+        lv_itWeaponIndex = 1;
+        for ( ; ( (auto05DEC010_ai >= 0 && lv_itWeaponIndex <= auto05DEC010_ae) || (auto05DEC010_ai < 0 && lv_itWeaponIndex >= auto05DEC010_ae) ) ; lv_itWeaponIndex += auto05DEC010_ai ) {
+            lv_itWeapon = UnitWeaponGet(lv_itUnit, lv_itWeaponIndex);
+            if ((UnitWeaponIsEnabled(lv_itUnit, lv_itWeaponIndex) == true) && (libGAw3_gf_GAw3_WeaponAtkType(lv_itWeapon) == "Pierce")) {
+                if ((lv_canDefend == true)) {
+                    libNtve_gf_AICast(lp_aIUnit, lv_cmd);
+                }
+
+                return ;
+            }
+
+        }
+    }
+    if ((lv_canDefend == false)) {
+        libNtve_gf_AICast(lp_aIUnit, lv_cmdOff);
+    }
+
+}
+
+void libGAwT_gf_AIThinkMagicDefense (int lp_owner, unit lp_aIUnit, unitgroup lp_nearByUnits, string lp_abil, unit lp_item) {
+    // Variable Declarations
+    unitgroup lv_enemiesNearby;
+    aifilter lv_enemyNearbyFilter;
+    order lv_cmd;
+    order lv_cmdOff;
+    unit lv_itUnit;
+    int lv_itWeaponIndex;
+    string lv_itWeapon;
+    bool lv_canDefend;
+
+    // Automatic Variable Declarations
+    unitgroup auto9461D501_g;
+    int auto9461D501_u;
+    int auto35BE4688_ae;
+    const int auto35BE4688_ai = 1;
+
+    // Variable Initialization
+    lv_enemiesNearby = UnitGroupEmpty();
+    lv_enemyNearbyFilter = AIFilter(lp_owner);
+    lv_cmd = libGAwT_gf_OrderConstructor(lp_owner, lp_abil, libGAwT_ge_OrderType_On, lp_item);
+    lv_cmdOff = libGAwT_gf_OrderConstructor(lp_owner, lp_abil, libGAwT_ge_OrderType_Off, lp_item);
+
+    // Implementation
+    if ((AIUnitIsInCombat(lp_aIUnit) == false)) {
+        if ((UnitOrderIsValid(lp_aIUnit, lv_cmdOff) == true)) {
+            libNtve_gf_AICast(lp_aIUnit, lv_cmdOff);
+        }
+
+        return ;
+    }
+
+    lv_canDefend = UnitOrderIsValid(lp_aIUnit, lv_cmd);
+    if ((lv_canDefend == false) && (UnitOrderIsValid(lp_aIUnit, lv_cmdOff) == false)) {
+        return ;
+    }
+
+    AISetFilterAlliance(lv_enemyNearbyFilter, c_playerGroupEnemy);
+    AISetFilterMelee(lv_enemyNearbyFilter, false);
+    lv_enemiesNearby = AIGetFilterGroup(lv_enemyNearbyFilter, lp_nearByUnits);
+    auto9461D501_g = lv_enemiesNearby;
+    auto9461D501_u = UnitGroupCount(auto9461D501_g, c_unitCountAll);
+    for (;; auto9461D501_u -= 1) {
+        lv_itUnit = UnitGroupUnitFromEnd(auto9461D501_g, auto9461D501_u);
+        if (lv_itUnit == null) { break; }
+        auto35BE4688_ae = UnitWeaponCount(lv_itUnit);
+        lv_itWeaponIndex = 1;
+        for ( ; ( (auto35BE4688_ai >= 0 && lv_itWeaponIndex <= auto35BE4688_ae) || (auto35BE4688_ai < 0 && lv_itWeaponIndex >= auto35BE4688_ae) ) ; lv_itWeaponIndex += auto35BE4688_ai ) {
+            lv_itWeapon = UnitWeaponGet(lv_itUnit, lv_itWeaponIndex);
+            if ((UnitWeaponIsEnabled(lv_itUnit, lv_itWeaponIndex) == true) && (libGAw3_gf_GAw3_WeaponAtkType(lv_itWeapon) == "Magic")) {
+                if ((lv_canDefend == true)) {
+                    libNtve_gf_AICast(lp_aIUnit, lv_cmd);
+                }
+
+                return ;
+            }
+
+        }
+    }
+    if ((lv_canDefend == false)) {
+        libNtve_gf_AICast(lp_aIUnit, lv_cmdOff);
+    }
+
+}
+
+void libGAwT_gf_AIThinkThunderClap (int lp_owner, unit lp_aIUnit, unitgroup lp_nearByUnits, string lp_abil, unit lp_item) {
+    // Variable Declarations
+    fixed lv_radius;
+    aifilter lv_rangeFilter;
+    unitgroup lv_unitsInRange;
+    unitgroup lv_enemiesNearby;
+    aifilter lv_enemyNearbyFilter;
+    unitgroup lv_friendNearby;
+    aifilter lv_friendNearbyFilter;
+    order lv_cmd;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_rangeFilter = AIFilter(lp_owner);
+    lv_unitsInRange = UnitGroupEmpty();
+    lv_enemiesNearby = UnitGroupEmpty();
+    lv_enemyNearbyFilter = AIFilter(lp_owner);
+    lv_friendNearby = UnitGroupEmpty();
+    lv_friendNearbyFilter = AIFilter(lp_owner);
+    lv_cmd = libGAwT_gf_OrderConstructor(lp_owner, lp_abil, libGAwT_ge_OrderType_Instant, lp_item);
+
+    // Implementation
+    if ((AIUnitIsInCombat(lp_aIUnit) == false)) {
+        return ;
+    }
+
+    if ((UnitOrderIsValid(lp_aIUnit, lv_cmd) == false)) {
+        return ;
+    }
+
+    lv_radius = libNtve_gf_CatalogFieldValueGetAsReal(c_gameCatalogEffect, (((lp_abil) + "@Search")), "AreaArray[" + IntToString(0) + "].Radius", lp_owner);
+    lv_radius += UnitGetPropertyFixed(lp_aIUnit, c_unitPropRadius, c_unitPropCurrent);
+    AISetFilterRange(lv_rangeFilter, lp_aIUnit, lv_radius);
+    lv_unitsInRange = AIGetFilterGroup(lv_rangeFilter, lp_nearByUnits);
+    AISetFilterAlliance(lv_enemyNearbyFilter, c_playerGroupEnemy);
+    AISetFilterBits(lv_enemyNearbyFilter, libNtve_gf_ConvertTargetFilterStringToUnitFilter(CatalogFieldValueGet(c_gameCatalogEffect, (((lp_abil) + "@Search")), "SearchFilters", lp_owner)));
+    lv_enemiesNearby = AIGetFilterGroup(lv_enemyNearbyFilter, lv_unitsInRange);
+    AISetFilterAlliance(lv_friendNearbyFilter, c_playerGroupAlly);
+    lv_friendNearby = AIGetFilterGroup(lv_friendNearbyFilter, lv_unitsInRange);
+    if ((libGAwT_gf_HeroInDanger(lp_aIUnit) == true)) {
+        if ((UnitGroupCount(lv_enemiesNearby, c_unitCountAll) < 2)) {
+            return ;
+        }
+
+    }
+    else {
+        if (((UnitGroupCount(lv_enemiesNearby, c_unitCountAll) < 3) || (UnitGroupCount(lv_enemiesNearby, c_unitCountAll) < UnitGroupCount(lv_friendNearby, c_unitCountAll)))) {
+            return ;
+        }
+
+    }
+    libNtve_gf_AICast(lp_aIUnit, lv_cmd);
+}
+
+void libGAwT_gf_AIThinkAvatar (int lp_owner, unit lp_aIUnit, unitgroup lp_nearByUnits, string lp_abil, unit lp_item) {
+    // Variable Declarations
+    order lv_cmd;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_cmd = libGAwT_gf_OrderConstructor(lp_owner, lp_abil, libGAwT_ge_OrderType_Instant, lp_item);
+
+    // Implementation
+    if ((AIUnitIsInCombat(lp_aIUnit) == false)) {
+        return ;
+    }
+
+    if ((UnitOrderIsValid(lp_aIUnit, lv_cmd) == false)) {
+        return ;
+    }
+
+    if ((UnitGetPropertyFixed(lp_aIUnit, c_unitPropLifePercent, c_unitPropCurrent) > 50.0)) {
+        return ;
+    }
+
+    libNtve_gf_AICast(lp_aIUnit, lv_cmd);
+}
+
+void libGAwT_gf_AIThinkSummonPhoenix (int lp_owner, unit lp_aIUnit, unitgroup lp_nearByUnits, string lp_abil, unit lp_item) {
+    // Variable Declarations
+    order lv_cmd;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_cmd = libGAwT_gf_OrderConstructor(lp_owner, lp_abil, libGAwT_ge_OrderType_Instant, lp_item);
+
+    // Implementation
+    if ((AIUnitIsInCombat(lp_aIUnit) == false)) {
+        return ;
+    }
+
+    if ((UnitOrderIsValid(lp_aIUnit, lv_cmd) == false)) {
+        return ;
+    }
+
+    if ((UnitGroupCount(UnitGetTrackedUnitGroup(lp_aIUnit, (((lp_abil) + "@UniqueSummonTracker"))), c_unitCountAlive) > 0)) {
+        return ;
+    }
+
+    libNtve_gf_AICast(lp_aIUnit, lv_cmd);
+}
+
+void libGAwT_gf_AIThinkWaterElemental (int lp_owner, unit lp_aIUnit, unitgroup lp_nearByUnits, string lp_abil, unit lp_item) {
+    // Variable Declarations
+    order lv_cmd;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_cmd = libGAwT_gf_OrderConstructor(lp_owner, lp_abil, libGAwT_ge_OrderType_Instant, lp_item);
+
+    // Implementation
+    if ((AIUnitIsInCombat(lp_aIUnit) == false)) {
+        return ;
+    }
+
+    if ((UnitOrderIsValid(lp_aIUnit, lv_cmd) == false)) {
+        return ;
+    }
+
+    if ((UnitGetDamageTakenTime(lp_aIUnit) > 1.0) && (UnitGetPropertyFixed(lp_aIUnit, c_unitPropLifePercent, c_unitPropCurrent) > 50.0) && (UnitGroupCount(UnitGroupFilterAlliance(lp_nearByUnits, lp_owner, c_unitAllianceEnemy, 3), c_unitCountAlive) <= 2)) {
+        return ;
+    }
+
+    libNtve_gf_AICast(lp_aIUnit, lv_cmd);
+}
+
+void libGAwT_gf_AIThinkDivineShield (int lp_owner, unit lp_aIUnit, unitgroup lp_nearByUnits, string lp_abil, unit lp_item) {
+    // Variable Declarations
+    order lv_cmd;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_cmd = libGAwT_gf_OrderConstructor(lp_owner, lp_abil, libGAwT_ge_OrderType_Instant, lp_item);
+
+    // Implementation
+    if ((AIUnitIsInCombat(lp_aIUnit) == false)) {
+        return ;
+    }
+
+    if ((UnitOrderIsValid(lp_aIUnit, lv_cmd) == false)) {
+        return ;
+    }
+
+    if ((UnitFilterMatch(lp_aIUnit, lp_owner, UnitFilter(0, (1 << (c_targetFilterInvulnerable - 32)), 0, (1 << (c_targetFilterHidden - 32)))) == true)) {
+        return ;
+    }
+
+    if ((UnitGetDamageTakenTime(lp_aIUnit) > 1.0)) {
+        return ;
+    }
+
+    libNtve_gf_AICast(lp_aIUnit, lv_cmd);
+}
+
+void libGAwT_gf_AIThinkResurrection (int lp_owner, unit lp_aIUnit, unitgroup lp_nearByUnits, string lp_abil, unit lp_item) {
+    // Variable Declarations
+    order lv_cmd;
+    bool lv_hasBig;
+    unitgroup lv_ug;
+    int lv_level;
+    int lv_corpseCount;
+    unit lv_itUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_cmd = libGAwT_gf_OrderConstructor(lp_owner, lp_abil, libGAwT_ge_OrderType_Instant, lp_item);
+    lv_ug = UnitGroupEmpty();
+
+    // Implementation
+    if ((UnitOrderIsValid(lp_aIUnit, lv_cmd) == false)) {
+        return ;
+    }
+
+    lv_level = UnitAbilityGetLevel(lp_aIUnit, lp_abil);
+    lv_ug = UnitGroupSearch(null, lp_owner, UnitGetPosition(lp_aIUnit), libGAwT_gf_AIEffectAbilSearchRadius(lp_owner, lp_aIUnit, lp_abil, lv_level, true), libGAwT_gf_AIEffectAbilSearchUnitFilter(lp_owner, lp_aIUnit, lp_abil, lv_level), 0);
+    lv_ug = UnitGroupFilter(null, c_playerAny, lv_ug, UnitFilter(0, 0, (1 << c_targetFilterWorker), 0), 0);
+    lv_corpseCount = UnitGroupCount(lv_ug, c_unitCountAll);
+    if ((CatalogFieldValueGetAsInt(c_gameCatalogEffect, (((lp_abil) + "@Search")), "MaxCount", lp_owner) <= lv_corpseCount)) {
+        libNtve_gf_AICast(lp_aIUnit, lv_cmd);
+        return ;
+    }
+
+    if ((UnitGetPropertyFixed(lp_aIUnit, c_unitPropLife, c_unitPropCurrent) >= libGAwT_gv_dYING_HERO_HP)) {
+        return ;
+    }
+
+    if ((lv_corpseCount >= 2)) {
+        libNtve_gf_AICast(lp_aIUnit, lv_cmd);
+        return ;
+    }
+
+    if ((UnitGetPropertyFixed(UnitGroupUnit(lv_ug, 1), c_unitPropLifeMax, c_unitPropCurrent) >= libGAwT_gv_hIGH_HP)) {
+        libNtve_gf_AICast(lp_aIUnit, lv_cmd);
+        return ;
+    }
+
+}
+
+void libGAwT_gf_AIThinkHolyBolt (int lp_owner, unit lp_aIUnit, unitgroup lp_nearByUnits, string lp_abil, unit lp_item) {
+    // Variable Declarations
+    int lv_level;
+    fixed lv_range;
+    aifilter lv_rangeUnitFilter;
+    unitgroup lv_unitsInRange;
+    unitgroup lv_unitsInRangeFriend;
+    unitgroup lv_unitsInRangeEnemy;
+    unitgroup lv_unitsInRangeEnemyHeroes;
+    order lv_order;
+    order lv_orderFinal;
+    bool lv_checkDamage;
+    unit lv_itUnit;
+    fixed lv_damage;
+    fixed lv_heal;
+    fixed lv_cost;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_rangeUnitFilter = AIFilter(lp_owner);
+    lv_unitsInRange = UnitGroupEmpty();
+    lv_unitsInRangeFriend = UnitGroupEmpty();
+    lv_unitsInRangeEnemy = UnitGroupEmpty();
+    lv_unitsInRangeEnemyHeroes = UnitGroupEmpty();
+    lv_order = libGAwT_gf_OrderConstructor(lp_owner, lp_abil, libGAwT_ge_OrderType_Target, lp_item);
+    lv_orderFinal = lv_order;
+    lv_checkDamage = AIUnitIsInCombat(lp_aIUnit);
+
+    // Implementation
+    if ((UnitOrderIsValid(lp_aIUnit, lv_order) == false)) {
+        return ;
+    }
+
+    lv_level = UnitAbilityGetLevel(lp_aIUnit, lp_abil);
+    lv_range = libGAwT_gf_AIEffectAbilRange(lp_owner, lp_aIUnit, lp_abil, lv_level, true);
+    lv_heal = libGAwT_gf_AIAbilAccumlatedAmount(lp_owner, lp_aIUnit, lp_abil, lv_level, "Heal");
+    AISetFilterRange(lv_rangeUnitFilter, lp_aIUnit, lv_range);
+    AISetFilterSelf(lv_rangeUnitFilter, lv_itUnit);
+    AISetFilterBits(lv_rangeUnitFilter, libGAwT_gf_AIEffectAbilTargetUnitFilter(lp_owner, lp_aIUnit, lp_abil, lv_level));
+    lv_unitsInRange = AIGetFilterGroup(lv_rangeUnitFilter, lp_nearByUnits);
+    lv_rangeUnitFilter = AIFilter(lp_owner);
+    AISetFilterAlliance(lv_rangeUnitFilter, c_playerGroupAlly);
+    AISetFilterLife(lv_rangeUnitFilter, libGAwT_gv_c_noMin, 100.0);
+    lv_unitsInRangeFriend = AIGetFilterGroup(lv_rangeUnitFilter, lv_unitsInRange);
+    lv_orderFinal = AIUnitGroupGetValidOrder(lv_unitsInRangeFriend, lv_order, lp_aIUnit, true);
+    if ((lv_orderFinal != null)) {
+        libNtve_gf_AICast(lp_aIUnit, lv_orderFinal);
+        return ;
+    }
+
+    lv_rangeUnitFilter = AIFilter(lp_owner);
+    AISetFilterAlliance(lv_rangeUnitFilter, c_playerGroupAlly);
+    AISetFilterAlliance(lv_rangeUnitFilter, c_playerGroupAlly);
+    AISetFilterLifeLost(lv_rangeUnitFilter, lv_heal, libGAwT_gv_c_noMax);
+    lv_unitsInRangeFriend = AIGetFilterGroup(lv_rangeUnitFilter, lv_unitsInRange);
+    lv_orderFinal = AIUnitGroupGetValidOrder(lv_unitsInRangeFriend, lv_order, lp_aIUnit, true);
+    if ((lv_orderFinal != null)) {
+        libNtve_gf_AICast(lp_aIUnit, lv_orderFinal);
+        return ;
+    }
+
+    if ((lv_checkDamage == false)) {
+        return ;
+    }
+
+    lv_cost = libGAwT_gf_AIEffectAbilManaCost(lp_owner, lp_aIUnit, lp_abil, lv_level);
+    if ((UnitGetDamageTakenTime(lp_aIUnit) > 1.0) && ((UnitGetPropertyFixed(lp_aIUnit, c_unitPropEnergy, c_unitPropCurrent) / 3.0) <= lv_cost)) {
+        return ;
+    }
+
+    lv_rangeUnitFilter = AIFilter(lp_owner);
+    lv_damage = libGAwT_gf_AIAbilAccumlatedAmount(lp_owner, lp_aIUnit, lp_abil, lv_level, "Damage");
+    AISetFilterInCombat(lv_rangeUnitFilter, true);
+    AISetFilterAlliance(lv_rangeUnitFilter, c_playerGroupEnemy);
+    lv_unitsInRangeEnemyHeroes = AIGetFilterGroup(lv_rangeUnitFilter, UnitGroupFilter(null, c_playerAny, lv_unitsInRange, UnitFilter(0, (1 << (c_targetFilterHeroUnit - 32)), (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    lv_orderFinal = AIUnitGroupGetValidOrder(lv_unitsInRangeEnemyHeroes, lv_order, lp_aIUnit, true);
+    if ((lv_orderFinal != null)) {
+        libNtve_gf_AICast(lp_aIUnit, lv_orderFinal);
+        return ;
+    }
+
+    AISetFilterLife(lv_rangeUnitFilter, (lv_damage-50), lv_damage);
+    lv_unitsInRangeEnemy = AIGetFilterGroup(lv_rangeUnitFilter, lv_unitsInRange);
+    lv_orderFinal = AIUnitGroupGetValidOrder(lv_unitsInRangeEnemy, lv_order, lp_aIUnit, true);
+    if ((lv_orderFinal != null)) {
+        libNtve_gf_AICast(lp_aIUnit, lv_orderFinal);
+        return ;
+    }
+
+}
+
+void libGAwT_gf_AIThinkWar3 (int lp_owner, unit lp_aIUnit, unitgroup lp_nearByUnits) {
+    // Variable Declarations
+    string lv_itAbilLink;
+    string lv_itAbilTact;
+    unit lv_itItem;
+    unitgroup lv_itItems;
+    string lv_inventoryLink;
+
+    // Automatic Variable Declarations
+    unit autoEE073BD6_unit;
+    int autoEE073BD6_i;
+    unitgroup autoA2999706_g;
+    int autoA2999706_u;
+
+    // Variable Initialization
+    lv_itAbilLink = "";
+    lv_itAbilTact = "";
+    lv_itItems = UnitGroupEmpty();
+
+    // Implementation
+    if ((UnitIsAlive(lp_aIUnit) == false)) {
+        return ;
+    }
+
+    autoEE073BD6_unit = lp_aIUnit;
+    autoEE073BD6_i = 1;
+    for ( ; autoEE073BD6_i <= UnitAbilityCount(autoEE073BD6_unit) ; autoEE073BD6_i += 1 ) {
+        lv_itAbilLink = UnitAbilityGet(autoEE073BD6_unit, autoEE073BD6_i);
+        if ((AbilityClass(lv_itAbilLink) == c_classIdCAbilInventory)) {
+            lv_inventoryLink = lv_itAbilLink;
+        }
+        else {
+            if ((UnitAbilityCheck(lp_aIUnit, lv_itAbilLink, true) == true) && (UnitCheckAbilCmdState(lp_aIUnit, AbilityCommand(lv_itAbilLink, 0), c_cmdStateDisabled) == false)) {
+                lv_itAbilTact = CatalogFieldValueGet(c_gameCatalogAbil, lv_itAbilLink, "TacticalAIFunc", lp_owner);
+                if ((StringLength(lv_itAbilTact) > 0)) {
+                    AIExecuteAbilTactical(lp_aIUnit, lv_itAbilTact, lp_nearByUnits, lv_itAbilLink, null);
+                }
+
+            }
+
+        }
+    }
+    if (((lv_inventoryLink == null) || (CatalogFieldValueGet(c_gameCatalogAbil, lv_inventoryLink, "Flags[CanUseItem]", lp_owner) == "0"))) {
+        return ;
+    }
+
+    autoA2999706_g = UnitInventoryGroup(lp_aIUnit);
+    autoA2999706_u = UnitGroupCount(autoA2999706_g, c_unitCountAll);
+    for (;; autoA2999706_u -= 1) {
+        lv_itItem = UnitGroupUnitFromEnd(autoA2999706_g, autoA2999706_u);
+        if (lv_itItem == null) { break; }
+        lv_itAbilLink = libGAwT_gf_AIItemAbil(lp_owner, lv_itItem);
+        if ((lv_itAbilLink != null)) {
+            lv_itAbilTact = CatalogFieldValueGet(c_gameCatalogAbil, lv_itAbilLink, "TacticalAIFunc", lp_owner);
+            AIExecuteAbilTactical(lp_aIUnit, lv_itAbilTact, lp_nearByUnits, lv_itAbilLink, lv_itItem);
+        }
+
+    }
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libGAwT_InitLib_completed = false;
+
+void libGAwT_InitLib () {
+    if (libGAwT_InitLib_completed) {
+        return;
+    }
+
+    libGAwT_InitLib_completed = true;
+
+    libGAwT_InitLibraries();
+    libGAwT_InitVariables();
+}
+

@@ -1,0 +1,150 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/WarClassicSystem"
+include "TriggerLibs/WarCoopData"
+
+include "LibLGrm_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: GromCoop
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libLGrm_InitLibraries () {
+    libNtve_InitVariables();
+    libGAwX_InitVariables();
+    libWCdr_InitVariables();
+}
+
+// Functions
+point libLGrm_gf_GetPathableEndPointFromIdealTargetPoint (unit lp_pathingUnit, point lp_targetPoint, fixed lp_distanceIncrement) {
+    // Variable Declarations
+    point lv_startingpoint;
+    fixed lv_startingclifflevel;
+    fixed lv_totaldistancebetweenstartandtarget;
+    fixed lv_anglebetweenstartandtarget;
+    point lv_finaltarget;
+    fixed lv_currentdistance;
+    point lv_currentpoint;
+    fixed lv_distancedecrement;
+    fixed lv_maxcliffdifference;
+
+    // Automatic Variable Declarations
+    const fixed auto52194A69_ae = 0.0;
+    fixed auto52194A69_ai;
+
+    // Variable Initialization
+    lv_startingpoint = UnitGetPosition(lp_pathingUnit);
+    lv_startingclifflevel = PointPathingCliffLevel(lv_startingpoint);
+    lv_totaldistancebetweenstartandtarget = DistanceBetweenPoints(lv_startingpoint, lp_targetPoint);
+    lv_anglebetweenstartandtarget = AngleBetweenPoints(lv_startingpoint, lp_targetPoint);
+    lv_finaltarget = lp_targetPoint;
+    lv_currentpoint = lp_targetPoint;
+    lv_distancedecrement = (lp_distanceIncrement * -1.0);
+    lv_maxcliffdifference = 1.0;
+
+    // Implementation
+    auto52194A69_ai = lv_distancedecrement;
+    lv_currentdistance = lv_totaldistancebetweenstartandtarget;
+    for ( ; ( (auto52194A69_ai >= 0 && lv_currentdistance <= auto52194A69_ae) || (auto52194A69_ai < 0 && lv_currentdistance >= auto52194A69_ae) ) ; lv_currentdistance += auto52194A69_ai ) {
+        lv_currentpoint = PointWithOffsetPolar(lv_startingpoint, lv_currentdistance, lv_anglebetweenstartandtarget);
+        if ((PathingType(lv_currentpoint) == c_pathingGround) && (AbsF((lv_startingclifflevel - PointPathingCliffLevel(lv_currentpoint))) < lv_maxcliffdifference) && (UnitPathableToPoint(lp_pathingUnit, lv_currentpoint, 0.0, 500.0) == true)) {
+            return PointWithOffsetPolar(lv_startingpoint, lv_currentdistance, lv_anglebetweenstartandtarget);
+        }
+
+    }
+    return lv_startingpoint;
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: CommanderInit
+//--------------------------------------------------------------------------------------------------
+bool libLGrm_gt_CommanderInit_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_gromplayer;
+    int lv_player;
+    playergroup lv_soulplayergroup;
+
+    // Automatic Variable Declarations
+    playergroup auto5A10EB2C_g;
+
+    // Variable Initialization
+    lv_gromplayer = libWCdr_gf_CommanderInitGetIntegerParameter("Player");
+    lv_soulplayergroup = PlayerGroupEmpty();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libNtve_gf_AddPlayerGroupToPlayerGroup(libWCdr_gf_GetLegendPlayers(), lv_soulplayergroup);
+    libNtve_gf_AddPlayerGroupToPlayerGroup(libWCdr_gf_GetEnemiesofLegendPlayers(), lv_soulplayergroup);
+    libNtve_gf_AddPlayerGroupToPlayerGroup(libWCdr_gf_GetAlliesofLegendPlayers(), lv_soulplayergroup);
+    PlayerGroupAdd(lv_soulplayergroup, 15);
+    auto5A10EB2C_g = lv_soulplayergroup;
+    lv_player = -1;
+    while (true) {
+        lv_player = PlayerGroupNextPlayer(auto5A10EB2C_g, lv_player);
+        if (lv_player < 0) { break; }
+        PlayerAddResponse(lv_player, "ShamanGromSoulStealOnDeath");
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLGrm_gt_CommanderInit_Init () {
+    libLGrm_gt_CommanderInit = TriggerCreate("libLGrm_gt_CommanderInit_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Reckless Charge Cast
+//--------------------------------------------------------------------------------------------------
+bool libLGrm_gt_RecklessChargeCast_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_grom;
+    point lv_initialcasterpoint;
+    point lv_initialtargetpoint;
+    string lv_replacementeffect;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_grom = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+    lv_initialcasterpoint = EventPlayerEffectUsedPoint(c_effectLocationCasterPoint);
+    lv_initialtargetpoint = EventPlayerEffectUsedPoint(c_effectLocationTargetPoint);
+    lv_replacementeffect = "GromCoopRecklessChargeCP";
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectPoint(lv_grom, lv_replacementeffect, libLGrm_gf_GetPathableEndPointFromIdealTargetPoint(lv_grom, lv_initialtargetpoint, 0.1));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLGrm_gt_RecklessChargeCast_Init () {
+    libLGrm_gt_RecklessChargeCast = TriggerCreate("libLGrm_gt_RecklessChargeCast_Func");
+    TriggerAddEventPlayerEffectUsed(libLGrm_gt_RecklessChargeCast, c_playerAny, "GromCoopRecklessChargeTrigger");
+}
+
+void libLGrm_InitTriggers () {
+    libLGrm_gt_CommanderInit_Init();
+    libLGrm_gt_RecklessChargeCast_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libLGrm_InitLib_completed = false;
+
+void libLGrm_InitLib () {
+    if (libLGrm_InitLib_completed) {
+        return;
+    }
+
+    libLGrm_InitLib_completed = true;
+
+    libLGrm_InitLibraries();
+    libLGrm_InitTriggers();
+}
+

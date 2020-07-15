@@ -1,0 +1,1805 @@
+include "TriggerLibs/NativeLib"
+include "TriggerLibs/WarClassic"
+
+include "TriggerLibs/WarClassicSystem_h"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Warcraft III Extra
+//--------------------------------------------------------------------------------------------------
+// External Library Initialization
+void libGAwX_InitLibraries () {
+    libNtve_InitVariables();
+    libGAw3_InitVariables();
+}
+
+// Variable Initialization
+bool libGAwX_InitVariables_completed = false;
+
+void libGAwX_InitVariables () {
+    int init_i;
+
+    if (libGAwX_InitVariables_completed) {
+        return;
+    }
+
+    libGAwX_InitVariables_completed = true;
+
+    libGAwX_gv_dayLenth = UserDataGetFixed("MiscData", "Misc", "DayLength", 1);
+    libGAwX_gv_allPlayers = PlayerGroupAll();
+    for (init_i = 0; init_i <= 30; init_i += 1) {
+        libGAwX_gv_creepPlayersCreepSpots[init_i].lv_id = -1;
+    }
+    libGAwX_gv_ceepAIGoldMineUnitType = UserDataGetGameLink("MiscData", "Misc", "AI - Gold Mine Unit Type", 1);
+    libGAwX_gv_creepPlayersGroup = PlayerGroupEmpty();
+    libGAwX_gv_creepSpotsGuardBehavior = UserDataGetGameLink("MiscData", "Misc", "Creep - Guard Behavior", 1);
+    libGAwX_gv_creepSpotsBenignBehavior = UserDataGetGameLink("MiscData", "Misc", "Creep - Benign Behavior", 1);
+    libGAwX_gv_creepSpotsSleepBehavior = UserDataGetGameLink("MiscData", "Misc", "Creep - Sleep Behavior", 1);
+    libGAwX_gv_creepSpotsCampBehavior = UserDataGetGameLink("MiscData", "Misc", "Creep - Camp Behavior", 1);
+    libGAwX_gv_creepSpotsMaxCampSize = MaxI(UserDataGetInt("MiscData", "Misc", "Creep - Max Camp Size", 1), 1);
+    libGAwX_gv_creepSpotsMaxCampRadius = MaxF(UserDataGetFixed("MiscData", "Misc", "Creep - Max Camp Radius", 1), 0.0625);
+    libGAwX_gv_warningText = c_invalidDialogControlId;
+    libGAwX_gv_warningDialog = c_invalidDialogId;
+    libGAwX_gv_c_CommandPanelFrame = c_invalidDialogControlId;
+    libGAwX_gv_c_PortraitTimeOfDayFrame = c_invalidDialogControlId;
+    libGAwX_gv_mirrorImageSourceUnits = UnitGroupEmpty();
+    libGAwX_gv_timeOfDayOverrideOldTOD = "00";
+    libGAwX_gv_manaFlareMonitorGroup = UnitGroupEmpty();
+    libGAwX_gv_c_UNITPROP_DEFAULT_ACQUIRERAD = -1.0;
+    libGAwX_gv_c_UNITPROP_ACQUIRERAD_CAMP = -2.0;
+}
+
+// Custom Script
+//--------------------------------------------------------------------------------------------------
+// Custom Script: Code Behind
+//--------------------------------------------------------------------------------------------------
+int GAw3_UnitCREval(unit u){
+    return UserDataGetInt("UnitBalance",UnitGetType(u), "Level", 1)+UnitLevel(u);
+}
+static bool MatchingFunc(){
+    return false;
+}
+static unit c_MatchUnit;
+static unit MatchUnit(){return c_MatchUnit;}
+unit GAw3_MatchUnit(){return c_MatchUnit;}
+unitgroup GAw3_UnitGroupMatching(unitgroup ug, funcref<MatchingFunc> m){
+    int i=1;
+    int c=UnitGroupCount(ug,c_unitCountAll);
+    unitgroup g=UnitGroupEmpty();
+    for(;i<=c;i+=1){
+        c_MatchUnit=UnitGroupUnit(ug,i);
+        if(m()){UnitGroupAdd(g,c_MatchUnit);}
+    }
+    return g;
+}
+int GAw3_HostilePlayerGet(){
+    return 15;
+}
+
+void libGAwX_InitCustomScript () {
+}
+
+// Presets
+// Functions
+void libGAwX_gf_ShowHideItemForPlayers (string lp_showHide, unit lp_item, playergroup lp_players) {
+    // Variable Declarations
+    int lv_p;
+
+    // Automatic Variable Declarations
+    playergroup auto2132177D_g;
+
+    // Variable Initialization
+
+    // Implementation
+    auto2132177D_g = lp_players;
+    lv_p = -1;
+    while (true) {
+        lv_p = PlayerGroupNextPlayer(auto2132177D_g, lv_p);
+        if (lv_p < 0) { break; }
+        ActorSend(libNtve_gf_MainActorofUnit(lp_item), (("SetFilterPlayers " + IntToString(lv_p) + " " + (lp_showHide))));
+    }
+}
+
+void libGAwX_gf_SetRaceTechForPlayer (int lp_player) {
+    // Variable Declarations
+    string lv_itEntry;
+    string lv_raceToken;
+    string lv_oldLink;
+    string lv_newLink;
+
+    // Automatic Variable Declarations
+    int autoB7D8DFCC_catalog;
+    int autoB7D8DFCC_i;
+
+    // Variable Initialization
+    lv_raceToken = ("_" + (PlayerRace(lp_player)));
+    lv_oldLink = "";
+    lv_newLink = "";
+
+    // Implementation
+    autoB7D8DFCC_catalog = c_gameCatalogDataCollection;
+    autoB7D8DFCC_i = 1;
+    for ( ; autoB7D8DFCC_i <= CatalogEntryCount(c_gameCatalogDataCollection) ; autoB7D8DFCC_i += 1 ) {
+        lv_itEntry = CatalogEntryGet(autoB7D8DFCC_catalog, autoB7D8DFCC_i);
+        if ((CatalogEntryScope(c_gameCatalogDataCollection, lv_itEntry) == "CDataCollectionAbil") && (StringContains((lv_itEntry), lv_raceToken, c_stringEnd, c_stringCase) == true)) {
+            lv_newLink = CatalogFieldValueGet(c_gameCatalogDataCollection, lv_itEntry, "TechInfoAbil", lp_player);
+            lv_oldLink = CatalogFieldValueGet(c_gameCatalogDataCollection, lv_itEntry, "TechInfoAbilReplaced", lp_player);
+            if ((CatalogEntryIsValid(c_gameCatalogAbil, lv_oldLink) == true)) {
+                CatalogLinkReplace(lp_player, c_gameCatalogAbil, lv_oldLink, lv_newLink);
+            }
+
+        }
+
+    }
+}
+
+string libGAwX_gf_ItemTypeCooldownLink (string lp_itemType) {
+    // Variable Declarations
+    string lv_itemEntry;
+    string lv_abilEntry;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_itemEntry = CatalogFieldValueGet(c_gameCatalogUnit, lp_itemType, "Item", c_playerAny);
+
+    // Implementation
+    if ((CatalogEntryIsValid(c_gameCatalogItem, lv_itemEntry) == false)) {
+        return "";
+    }
+
+    if ((CatalogEntryScope(c_gameCatalogItem, lv_itemEntry) == "CItemAbil")) {
+        lv_abilEntry = CatalogFieldValueGet(c_gameCatalogItem, lp_itemType, "Abil", c_playerAny);
+        return CatalogFieldValueGet(c_gameCatalogAbil, lv_abilEntry, "Cost[" + IntToString(0) + "].Cooldown.Link", c_playerAny);
+    }
+
+    if (((CatalogEntryScope(c_gameCatalogItem, lv_itemEntry) == "CItemEffectInstant") || (CatalogEntryScope(c_gameCatalogItem, lv_itemEntry) == "CItemEffectTarget"))) {
+        return CatalogFieldValueGet(c_gameCatalogItem, lv_itemEntry, "EffectCost.Cooldown.Link", c_playerAny);
+    }
+
+    return "";
+}
+
+string libGAwX_gf_ItemTypeCooldownLocation (string lp_itemType) {
+    // Variable Declarations
+    string lv_itemEntry;
+    string lv_abilEntry;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_itemEntry = CatalogFieldValueGet(c_gameCatalogUnit, lp_itemType, "Item", c_playerAny);
+
+    // Implementation
+    if ((CatalogEntryIsValid(c_gameCatalogItem, lv_itemEntry) == false)) {
+        return "";
+    }
+
+    if ((CatalogEntryScope(c_gameCatalogItem, lv_itemEntry) == "CItemAbil")) {
+        lv_abilEntry = CatalogFieldValueGet(c_gameCatalogItem, lp_itemType, "Abil", c_playerAny);
+        return "";
+    }
+
+    if (((CatalogEntryScope(c_gameCatalogItem, lv_itemEntry) == "CItemEffectInstant") || (CatalogEntryScope(c_gameCatalogItem, lv_itemEntry) == "CItemEffectTarget"))) {
+        return "";
+    }
+
+    return "";
+}
+
+void libGAwX_gf_UseWar3MeleeSetting () {
+    // Variable Declarations
+    unit lv_townHall;
+    unit lv_goldmine;
+    int lv_p;
+    playergroup lv_pg;
+    point lv_startloc;
+    string lv_race;
+    string lv_raceAtt;
+    unitgroup lv_peons;
+    unit lv_cloestTree;
+    unitgroup lv_ghouls;
+    unit lv_worker;
+    point lv_creationOffset;
+    string lv_itLimitInstance;
+    point lv_placement;
+
+    // Automatic Variable Declarations
+    playergroup auto373C6EF4_g;
+    string autoACA08899_userType;
+    int autoACA08899_i;
+    unitgroup auto11D568B2_g;
+    int auto11D568B2_u;
+    unit auto11D568B2_var;
+    unitgroup auto785D9532_g;
+    int auto785D9532_u;
+    unit auto785D9532_var;
+    string autoA87D0C6F_val;
+    unitgroup autoCE2B86A9_g;
+    int autoCE2B86A9_u;
+
+    // Variable Initialization
+    lv_pg = PlayerGroupActive();
+    lv_peons = UnitGroupEmpty();
+    lv_ghouls = UnitGroupEmpty();
+
+    // Implementation
+    MeleeInitResources();
+    MeleeInitAI();
+    MeleeInitOptions();
+    MeleeInitUnits();
+    GameTimeOfDaySet(libGAwX_gv_bj_MELEE_STARTING_TOD);
+    auto373C6EF4_g = lv_pg;
+    lv_p = -1;
+    while (true) {
+        lv_p = PlayerGroupNextPlayer(auto373C6EF4_g, lv_p);
+        if (lv_p < 0) { break; }
+        autoACA08899_userType = "MeleeSetting_HeroLimit";
+        autoACA08899_i = 1;
+        for ( ; autoACA08899_i <= UserDataInstanceCount(autoACA08899_userType) ; autoACA08899_i += 1 ) {
+            lv_itLimitInstance = UserDataInstance(autoACA08899_userType, autoACA08899_i);
+            TechTreeSetProduceCap(lv_p, UserDataGetGameLink("MeleeSetting_HeroLimit", lv_itLimitInstance, "Hero", 1), c_techCatUnit, UserDataGetInt("MeleeSetting_HeroLimit", lv_itLimitInstance, "Limit", 1));
+        }
+        lv_startloc = PlayerStartLocation(lv_p);
+        lv_race = PlayerRace(lv_p);
+        lv_goldmine = UnitGroupClosestToPoint(UnitGroupSearch("ngol", c_playerAny, lv_startloc, 20.0, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), lv_startloc);
+        lv_cloestTree = UnitGroupClosestToPoint(UnitGroupSearch(null, c_playerAny, lv_startloc, 20.0, UnitFilter((1 << c_targetFilterHarvestableResource), 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)) | (1 << (c_targetFilterInvulnerable - 32))), 0), lv_startloc);
+        lv_townHall = UnitGroupUnit(UnitGroup(null, lv_p, RegionEntireMap(), UnitFilter((1 << c_targetFilterPreventReveal), 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), 1);
+        auto11D568B2_g = UnitGroupSearch(null, 15, lv_startloc, 20.0, UnitFilter(0, 0, (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterEnemy) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+        auto11D568B2_u = UnitGroupCount(auto11D568B2_g, c_unitCountAll);
+        for (;; auto11D568B2_u -= 1) {
+            auto11D568B2_var = UnitGroupUnitFromEnd(auto11D568B2_g, auto11D568B2_u);
+            if (auto11D568B2_var == null) { break; }
+            UnitRemove(auto11D568B2_var);
+        }
+        auto785D9532_g = UnitGroupSearch("egol", lv_p, lv_startloc, 20.0, UnitFilter(0, 0, (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterEnemy) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32))), 0);
+        auto785D9532_u = UnitGroupCount(auto785D9532_g, c_unitCountAll);
+        for (;; auto785D9532_u -= 1) {
+            auto785D9532_var = UnitGroupUnitFromEnd(auto785D9532_g, auto785D9532_u);
+            if (auto785D9532_var == null) { break; }
+            UnitRemove(auto785D9532_var);
+        }
+        autoA87D0C6F_val = lv_race;
+        if (autoA87D0C6F_val == "Human") {
+            UnitBehaviorRemove(lv_townHall, "DisableCallToArms", 1);
+        }
+        else if (autoA87D0C6F_val == "NightElf") {
+            UnitCreate(1, "egol", c_unitCreateIgnorePlacement, lv_p, UnitGetPosition(lv_goldmine), 270.0);
+            lv_goldmine = UnitLastCreated();
+            UnitCreateEffectUnit(lv_townHall, "Aent", lv_goldmine);
+        }
+        else if (autoA87D0C6F_val == "Undead") {
+            UnitCreate(1, "ugol", c_unitCreateIgnorePlacement, lv_p, UnitGetPosition(lv_goldmine), 270.0);
+            lv_goldmine = UnitLastCreated();
+        }
+        else {
+        }
+        lv_ghouls = UnitGroupSearch("ugho", lv_p, lv_startloc, 20.0, UnitFilter(0, 0, (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterEnemy) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+        lv_peons = UnitGroupSearch(null, lv_p, lv_startloc, 20.0, UnitFilter((1 << c_targetFilterWorker), 0, (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterEnemy) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+        lv_creationOffset = libNtve_gf_PointOffsetTowardsPoint(UnitGetPosition(lv_townHall), 1.0, UnitGetPosition(lv_goldmine));
+        autoCE2B86A9_g = lv_peons;
+        autoCE2B86A9_u = UnitGroupCount(autoCE2B86A9_g, c_unitCountAll);
+        for (;; autoCE2B86A9_u -= 1) {
+            lv_worker = UnitGroupUnitFromEnd(autoCE2B86A9_g, autoCE2B86A9_u);
+            if (lv_worker == null) { break; }
+            lv_placement = UnitTypePlacementFromPoint(UnitGetType(lv_worker), lv_p, lv_creationOffset, 20.0);
+            UnitSetPosition(lv_worker, lv_placement, false);
+        }
+        UnitGroupIssueOrder(lv_peons, OrderTargetingUnit(null, lv_goldmine), c_orderQueueReplace);
+        UnitGroupIssueOrder(lv_ghouls, OrderTargetingUnit(null, lv_cloestTree), c_orderQueueReplace);
+        if ((UnitGetType(lv_townHall) != "unpl")) {
+            UnitIssueOrder(lv_townHall, OrderTargetingUnit(null, lv_cloestTree), c_orderQueueReplace);
+        }
+
+    }
+}
+
+void libGAwX_gf_CreepPlayersCreepUnitProcess (unit lp_unit, bool lp_state) {
+    // Variable Declarations
+    bool lv_canSleep;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_canSleep = (CatalogFieldValueGetAsInt(c_gameCatalogUnit, UnitGetType(lp_unit), "UserFlagArray[CanSleep]", UnitGetOwner(lp_unit)) == 1);
+
+    // Implementation
+    if ((lp_state == true)) {
+        UnitBehaviorAdd(lp_unit, libGAwX_gv_creepSpotsGuardBehavior, lp_unit, 1);
+        UnitBehaviorAdd(lp_unit, libGAwX_gv_creepSpotsBenignBehavior, lp_unit, 1);
+        if ((lv_canSleep == true)) {
+            UnitBehaviorAdd(lp_unit, libGAwX_gv_creepSpotsSleepBehavior, lp_unit, 1);
+        }
+
+    }
+    else {
+        UnitBehaviorRemove(lp_unit, libGAwX_gv_creepSpotsGuardBehavior, c_unitBehaviorCountAll);
+        UnitBehaviorRemove(lp_unit, libGAwX_gv_creepSpotsBenignBehavior, c_unitBehaviorCountAll);
+        UnitBehaviorRemove(lp_unit, libGAwX_gv_creepSpotsCampBehavior, c_unitBehaviorCountAll);
+        if ((lv_canSleep == true)) {
+            UnitBehaviorRemove(lp_unit, libGAwX_gv_creepSpotsSleepBehavior, c_unitBehaviorCountAll);
+        }
+
+    }
+}
+
+trigger auto_libGAwX_gf_ShowWarningForPlayer_Trigger = null;
+int auto_libGAwX_gf_ShowWarningForPlayer_lp_player;
+text auto_libGAwX_gf_ShowWarningForPlayer_lp_msg;
+soundlink auto_libGAwX_gf_ShowWarningForPlayer_lp_snd;
+
+void libGAwX_gf_ShowWarningForPlayer (int lp_player, text lp_msg, soundlink lp_snd) {
+    auto_libGAwX_gf_ShowWarningForPlayer_lp_player = lp_player;
+    auto_libGAwX_gf_ShowWarningForPlayer_lp_msg = lp_msg;
+    auto_libGAwX_gf_ShowWarningForPlayer_lp_snd = lp_snd;
+
+    if (auto_libGAwX_gf_ShowWarningForPlayer_Trigger == null) {
+        auto_libGAwX_gf_ShowWarningForPlayer_Trigger = TriggerCreate("auto_libGAwX_gf_ShowWarningForPlayer_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libGAwX_gf_ShowWarningForPlayer_Trigger, false, false);
+}
+
+bool auto_libGAwX_gf_ShowWarningForPlayer_TriggerFunc (bool testConds, bool runActions) {
+    int lp_player = auto_libGAwX_gf_ShowWarningForPlayer_lp_player;
+    text lp_msg = auto_libGAwX_gf_ShowWarningForPlayer_lp_msg;
+    soundlink lp_snd = auto_libGAwX_gf_ShowWarningForPlayer_lp_snd;
+
+    // Automatic Variable Declarations
+    // Implementation
+    if ((libGAwX_gv_warningDialog == c_invalidDialogId)) {
+        return true;
+    }
+
+    libGAwX_gv_warningFadeCritSection[lp_player] += 1;
+    DialogSetVisible(libGAwX_gv_warningDialog, PlayerGroupSingle(lp_player), true);
+    DialogControlFadeTransparency(libGAwX_gv_warningText, PlayerGroupSingle(lp_player), 0.0, 0.0);
+    SoundPlay(lp_snd, PlayerGroupSingle(lp_player), 100.0, 0.0);
+    TextExpressionSetToken("Param/Expression/lib_GAwX_97BBDC50", "A", lp_msg);
+    libNtve_gf_SetDialogItemText(libGAwX_gv_warningText, TextExpressionAssemble("Param/Expression/lib_GAwX_97BBDC50"), PlayerGroupSingle(lp_player));
+    Wait(2.0, c_timeGame);
+    libGAwX_gv_warningFadeCritSection[lp_player] -= 1;
+    if ((libGAwX_gv_warningFadeCritSection[lp_player] <= 0)) {
+        libGAwX_gv_warningFadeCritSection[lp_player] = 0;
+        DialogControlFadeTransparency(libGAwX_gv_warningText, PlayerGroupSingle(lp_player), 3.0, 100.0);
+        Wait(3.0, c_timeGame);
+        if ((libGAwX_gv_warningFadeCritSection[lp_player] <= 0)) {
+            libGAwX_gv_warningFadeCritSection[lp_player] = 0;
+            DialogSetVisible(libGAwX_gv_warningDialog, PlayerGroupSingle(lp_player), false);
+        }
+
+    }
+
+    return true;
+}
+
+bool libGAwX_gf_IsDay () {
+    // Automatic Variable Declarations
+    // Implementation
+    return (GameTimeOfDayCurrentTimeEvent() == c_gameTimeEventDawn);
+}
+
+trigger auto_libGAwX_gf_MirrorUnitState_Trigger = null;
+unit auto_libGAwX_gf_MirrorUnitState_lp_source;
+unit auto_libGAwX_gf_MirrorUnitState_lp_target;
+unit auto_libGAwX_gf_MirrorUnitState_lp_effectItem;
+
+void libGAwX_gf_MirrorUnitState (unit lp_source, unit lp_target, unit lp_effectItem) {
+    auto_libGAwX_gf_MirrorUnitState_lp_source = lp_source;
+    auto_libGAwX_gf_MirrorUnitState_lp_target = lp_target;
+    auto_libGAwX_gf_MirrorUnitState_lp_effectItem = lp_effectItem;
+
+    if (auto_libGAwX_gf_MirrorUnitState_Trigger == null) {
+        auto_libGAwX_gf_MirrorUnitState_Trigger = TriggerCreate("auto_libGAwX_gf_MirrorUnitState_TriggerFunc");
+    }
+
+    TriggerExecute(auto_libGAwX_gf_MirrorUnitState_Trigger, false, false);
+}
+
+bool auto_libGAwX_gf_MirrorUnitState_TriggerFunc (bool testConds, bool runActions) {
+    unit lp_source = auto_libGAwX_gf_MirrorUnitState_lp_source;
+    unit lp_target = auto_libGAwX_gf_MirrorUnitState_lp_target;
+    unit lp_effectItem = auto_libGAwX_gf_MirrorUnitState_lp_effectItem;
+
+    // Variable Declarations
+    unit lv_caster;
+    unit lv_target;
+    unitgroup lv_itemSources;
+    unit lv_item;
+    unit lv_itemCopy;
+    int lv_i;
+    string lv_abil;
+    int lv_itLearnedLevel;
+    int lv_slot;
+    int lv_container;
+    int lv_c;
+    string lv_itBuff;
+    int lv_itStack;
+    int lv_itStackExist;
+    int lv_itStackBonus;
+    fixed lv_itItemStack;
+
+    // Automatic Variable Declarations
+    unitgroup autoD806A99B_g;
+    int autoD806A99B_u;
+    int auto9DD7372B_i;
+    int auto9DD7372B_c;
+    string auto9DD7372B_eval;
+    int autoCFB9FEA6_ae;
+    const int autoCFB9FEA6_ai = 1;
+    int auto8D9AF44D_ae;
+    const int auto8D9AF44D_ai = 1;
+
+    // Variable Initialization
+    lv_caster = lp_source;
+    lv_target = lp_target;
+    lv_itemSources = UnitInventoryGroup(lv_caster);
+
+    // Implementation
+    UnitSetFacing(lv_target, UnitGetFacing(lv_caster), 0.0);
+    autoD806A99B_g = lv_itemSources;
+    autoD806A99B_u = UnitGroupCount(autoD806A99B_g, c_unitCountAll);
+    for (;; autoD806A99B_u -= 1) {
+        lv_item = UnitGroupUnitFromEnd(autoD806A99B_g, autoD806A99B_u);
+        if (lv_item == null) { break; }
+        lv_slot = UnitInventorySlot(lv_item);
+        lv_itItemStack = ItemGetChargeCount(lv_item, false);
+        lv_container = UnitInventoryContainer(lv_item);
+        UnitInventoryCreate(lv_target, UnitGetType(lv_item));
+        lv_itemCopy = UnitInventoryLastCreated();
+        UnitInventoryMove(lv_itemCopy, lv_container, lv_slot);
+        ItemSetChargeCount(lv_itemCopy, lv_itItemStack);
+    }
+    UnitSetPropertyFixed(lv_target, c_unitPropXP, UnitGetPropertyFixed(lv_caster, c_unitPropXP, c_unitPropCurrent));
+    auto9DD7372B_i=0;
+    auto9DD7372B_c=c_abilLearnCmdLearn20;
+    auto9DD7372B_eval="";
+    for(;auto9DD7372B_i<auto9DD7372B_c;auto9DD7372B_i+=1){
+
+        auto9DD7372B_eval=CatalogFieldValueGet(c_gameCatalogUnit,UnitGetType(lv_caster),"LearnInfoArray["+IntToString(auto9DD7372B_i)+"].Abil",c_playerAny);
+        if(CatalogEntryIsValid(c_gameCatalogAbil,auto9DD7372B_eval)){
+            lv_abil=auto9DD7372B_eval;
+            lv_i=auto9DD7372B_i;
+        }else{continue;}
+        lv_itLearnedLevel = UnitLearnAbilGetLevel(lp_source, "War3_LearnHero", lv_i);
+        UnitLearnAbilAddLevel(lp_target, "War3_LearnHero", lv_i, lv_itLearnedLevel);
+    }
+    lv_c = UnitBehaviorCountAll(lv_caster);
+    autoCFB9FEA6_ae = lv_c;
+    lv_i = 1;
+    for ( ; ( (autoCFB9FEA6_ai >= 0 && lv_i <= autoCFB9FEA6_ae) || (autoCFB9FEA6_ai < 0 && lv_i >= autoCFB9FEA6_ae) ) ; lv_i += autoCFB9FEA6_ai ) {
+        lv_itBuff = UnitBehaviorGet(lv_caster, lv_i);
+        lv_itStack = UnitBehaviorCount(lv_caster, lv_itBuff);
+        lv_itStackExist = UnitBehaviorCount(lv_target, lv_itBuff);
+        UnitBehaviorAdd(lv_target, lv_itBuff, lv_target, (lv_itStack-lv_itStackExist));
+    }
+    auto8D9AF44D_ae = lv_c;
+    lv_i = 1;
+    for ( ; ( (auto8D9AF44D_ai >= 0 && lv_i <= auto8D9AF44D_ae) || (auto8D9AF44D_ai < 0 && lv_i >= auto8D9AF44D_ae) ) ; lv_i += auto8D9AF44D_ai ) {
+        lv_itBuff = UnitBehaviorGet(lv_caster, lv_i);
+        if ((CatalogEntryScope(c_gameCatalogBehavior, lv_itBuff) == "CBehaviorAttribute")) {
+            lv_itStack = UnitGetAttributePoint(lp_source, lv_itBuff, true);
+            UnitSetAttributePoint(lv_target, lv_itBuff, true, lv_itStack);
+        }
+
+    }
+    UnitSetSeed(lv_target, UnitGetSeed(lv_caster));
+    Wait(0.125, c_timeGame);
+    UnitSetPropertyFixed(lv_target, c_unitPropLifeMax, UnitGetPropertyFixed(lv_caster, c_unitPropLifeMax, c_unitPropCurrent));
+    UnitSetPropertyFixed(lv_target, c_unitPropLife, UnitGetPropertyFixed(lv_caster, c_unitPropLife, c_unitPropCurrent));
+    UnitSetPropertyFixed(lv_target, c_unitPropEnergyMax, UnitGetPropertyFixed(lv_caster, c_unitPropEnergyMax, c_unitPropCurrent));
+    UnitSetPropertyFixed(lv_target, c_unitPropEnergy, UnitGetPropertyFixed(lv_caster, c_unitPropEnergy, c_unitPropCurrent));
+    UnitSetPropertyFixed(lv_target, c_unitPropShieldsMax, UnitGetPropertyFixed(lv_caster, c_unitPropShieldsMax, c_unitPropCurrent));
+    UnitSetPropertyFixed(lv_target, c_unitPropShields, UnitGetPropertyFixed(lv_caster, c_unitPropShields, c_unitPropCurrent));
+    return true;
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: Suppress Invisibility when Using Items
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_SuppressInvisibilitywhenUsingItems_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_u;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_u = EventUnit();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitTestState(lv_u, c_unitStateCloaked) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitBehaviorAdd(lv_u, "SuppressInvisibility", lv_u, 1);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_SuppressInvisibilitywhenUsingItems_Init () {
+    libGAwX_gt_SuppressInvisibilitywhenUsingItems = TriggerCreate("libGAwX_gt_SuppressInvisibilitywhenUsingItems_Func");
+    TriggerAddEventUnitInventoryChange(libGAwX_gt_SuppressInvisibilitywhenUsingItems, null, c_unitInventoryChangeUses, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Override
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_Override_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_p;
+    playergroup lv_pg;
+
+    // Automatic Variable Declarations
+    playergroup auto71B3A3EC_g;
+
+    // Variable Initialization
+    lv_pg = PlayerGroupActive();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    MeleeSetOption(lv_p, c_meleeOptionXPGainDisable, false);
+    auto71B3A3EC_g = lv_pg;
+    lv_p = -1;
+    while (true) {
+        lv_p = PlayerGroupNextPlayer(auto71B3A3EC_g, lv_p);
+        if (lv_p < 0) { break; }
+        PlayerOptionOverride(lv_p, "selectuncontrolable", "1");
+        PlayerOptionOverride(lv_p, "gametooltips", "1");
+        PlayerOptionOverride(lv_p, "tickedunitstatus", "0");
+        PlayerOptionOverride(lv_p, "selectuncontrolable", "1");
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_Override_Init () {
+    libGAwX_gt_Override = TriggerCreate("libGAwX_gt_Override_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Mod Init
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_ModInit_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_p;
+
+    // Automatic Variable Declarations
+    playergroup auto978116DE_g;
+    playergroup auto65C979C9_g;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    TriggerExecute(libGAwX_gt_TimeOfDayIndicatorHook, true, false);
+    TriggerExecute(libGAwX_gt_CommandPanelHook, true, false);
+    TriggerExecute(libGAwX_gt_UpkeepInit, true, false);
+    TriggerExecute(libGAwX_gt_Override, true, false);
+    TriggerExecute(libGAwX_gt_CreepPlayersInit, true, false);
+    TriggerExecute(libGAwX_gt_PlacedObjectUnits, true, false);
+    if ((libGAwX_gf_IsDay() == false)) {
+        auto978116DE_g = libGAwX_gv_allPlayers;
+        lv_p = -1;
+        while (true) {
+            lv_p = PlayerGroupNextPlayer(auto978116DE_g, lv_p);
+            if (lv_p < 0) { break; }
+            libNtve_gf_SetUpgradeLevelForPlayer(lv_p, "Night", 1);
+        }
+    }
+
+    auto65C979C9_g = libGAwX_gv_allPlayers;
+    lv_p = -1;
+    while (true) {
+        lv_p = PlayerGroupNextPlayer(auto65C979C9_g, lv_p);
+        if (lv_p < 0) { break; }
+        libGAwX_gf_SetRaceTechForPlayer(lv_p);
+    }
+    if ((PlayerType(0) == c_playerTypeNeutral)) {
+        VisRevealerCreate(0, RegionEntireMap());
+        VisRevealerEnable(VisRevealerLastCreated(), true);
+    }
+
+    if ((PlayerType(15) == c_playerTypeHostile)) {
+        VisRevealerCreate(15, RegionEntireMap());
+        VisRevealerEnable(VisRevealerLastCreated(), true);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_ModInit_Init () {
+    libGAwX_gt_ModInit = TriggerCreate("libGAwX_gt_ModInit_Func");
+    TriggerAddEventMapInit(libGAwX_gt_ModInit);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Creep Players - Init
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_CreepPlayersInit_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itPlayer;
+    unit lv_itUnit;
+    unitgroup lv_itUnitGroupCreeps;
+    unitgroup lv_itUnitGroupCamp;
+    unit lv_itGoldMine;
+    int lv_itUnitLevel;
+
+    // Automatic Variable Declarations
+    playergroup autoB838FF1C_g;
+    playergroup autoD680E430_g;
+    unitgroup auto27691D7D_g;
+    int auto27691D7D_u;
+    unitgroup auto5AF0B447_g;
+    int auto5AF0B447_u;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    autoB838FF1C_g = PlayerGroupAll();
+    lv_itPlayer = -1;
+    while (true) {
+        lv_itPlayer = PlayerGroupNextPlayer(autoB838FF1C_g, lv_itPlayer);
+        if (lv_itPlayer < 0) { break; }
+        if ((PlayerType(lv_itPlayer) == c_playerTypeHostile)) {
+            PlayerGroupAdd(libGAwX_gv_creepPlayersGroup, lv_itPlayer);
+        }
+
+    }
+    libGAwX_gv_creepPlayersInitialized = true;
+    autoD680E430_g = libGAwX_gv_creepPlayersGroup;
+    lv_itPlayer = -1;
+    while (true) {
+        lv_itPlayer = PlayerGroupNextPlayer(autoD680E430_g, lv_itPlayer);
+        if (lv_itPlayer < 0) { break; }
+        lv_itUnitGroupCreeps = UnitGroup(null, lv_itPlayer, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterEnemy) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+        auto27691D7D_g = lv_itUnitGroupCreeps;
+        auto27691D7D_u = UnitGroupCount(auto27691D7D_g, c_unitCountAll);
+        for (;; auto27691D7D_u -= 1) {
+            lv_itUnit = UnitGroupUnitFromEnd(auto27691D7D_g, auto27691D7D_u);
+            if (lv_itUnit == null) { break; }
+            libGAwX_gf_CreepPlayersCreepUnitProcess(lv_itUnit, true);
+        }
+        while ((UnitGroupCount(lv_itUnitGroupCreeps, c_unitCountAll) > 0) && (libGAwX_gv_creepPlayersSpotsCount <= 30)) {
+            lv_itUnitGroupCamp = UnitGroupFilterRegion(lv_itUnitGroupCreeps, RegionCircle(UnitGetPosition(UnitGroupUnit(lv_itUnitGroupCreeps, 1)), libGAwX_gv_creepSpotsMaxCampRadius), libGAwX_gv_creepSpotsMaxCampSize);
+            lv_itGoldMine = UnitGroupUnit(UnitGroup(libGAwX_gv_ceepAIGoldMineUnitType, c_playerAny, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), 1);
+            if ((lv_itGoldMine != null)) {
+                libGAwX_gv_creepPlayersCreepSpots[libGAwX_gv_creepPlayersSpotsCount].lv_guardsExpansion = true;
+            }
+
+            UnitGroupRemoveUnitGroup(lv_itUnitGroupCreeps, lv_itUnitGroupCamp);
+            libGAwX_gv_creepPlayersCreepSpots[libGAwX_gv_creepPlayersSpotsCount].lv_units = lv_itUnitGroupCamp;
+            libGAwX_gv_creepPlayersCreepSpots[libGAwX_gv_creepPlayersSpotsCount].lv_units = lv_itUnitGroupCamp;
+            auto5AF0B447_g = lv_itUnitGroupCamp;
+            auto5AF0B447_u = UnitGroupCount(auto5AF0B447_g, c_unitCountAll);
+            for (;; auto5AF0B447_u -= 1) {
+                lv_itUnit = UnitGroupUnitFromEnd(auto5AF0B447_g, auto5AF0B447_u);
+                if (lv_itUnit == null) { break; }
+                lv_itUnitLevel = UnitGetPropertyInt(lv_itUnit, c_unitPropLevel, c_unitPropCurrent);
+                if ((lv_itUnitLevel == 0)) {
+                    lv_itUnitLevel = CatalogFieldValueGetAsInt(c_gameCatalogUnit, UnitGetType(lv_itUnit), "Level", lv_itPlayer);
+                }
+
+                if ((UnitFilterMatch(lv_itUnit, lv_itPlayer, UnitFilter(0, (1 << (c_targetFilterAirUnit - 32)), (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32)))) == true)) {
+                    libGAwX_gv_creepPlayersCreepSpots[libGAwX_gv_creepPlayersSpotsCount].lv_haveFlyer = true;
+                    lv_itUnitLevel *= 2;
+                }
+
+                libGAwX_gv_creepPlayersCreepSpots[libGAwX_gv_creepPlayersSpotsCount].lv_level += lv_itUnitLevel;
+            }
+            libGAwX_gv_creepPlayersCreepSpots[libGAwX_gv_creepPlayersSpotsCount].lv_id = UnitObjectGroupFromUnitGroup(lv_itUnitGroupCamp, libGAwX_gv_creepPlayersCreepSpots[libGAwX_gv_creepPlayersSpotsCount].lv_level);
+            libGAwX_gv_creepPlayersSpotsCount += 1;
+        }
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_CreepPlayersInit_Init () {
+    libGAwX_gt_CreepPlayersInit = TriggerCreate("libGAwX_gt_CreepPlayersInit_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Creep Players - Owner Change
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_CreepPlayersOwnerChange_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_playerNew;
+    int lv_playerOld;
+    int lv_itInteger;
+
+    // Automatic Variable Declarations
+    int auto3635791A_ae;
+    const int auto3635791A_ai = 1;
+
+    // Variable Initialization
+    lv_playerNew = EventUnitOwnerNew();
+    lv_playerOld = EventUnitOwnerOld();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((PlayerType(lv_playerOld) == c_playerTypeHostile) && (PlayerType(lv_playerNew) != c_playerTypeHostile)) {
+        libGAwX_gf_CreepPlayersCreepUnitProcess(EventUnit(), false);
+        auto3635791A_ae = libGAwX_gv_creepPlayersSpotsCount;
+        lv_itInteger = 0;
+        for ( ; ( (auto3635791A_ai >= 0 && lv_itInteger <= auto3635791A_ae) || (auto3635791A_ai < 0 && lv_itInteger >= auto3635791A_ae) ) ; lv_itInteger += auto3635791A_ai ) {
+            UnitGroupRemove(libGAwX_gv_creepPlayersCreepSpots[lv_itInteger].lv_units, EventUnit());
+        }
+    }
+
+    if ((PlayerType(lv_playerNew) == c_playerTypeHostile) && (PlayerType(lv_playerOld) != c_playerTypeHostile)) {
+        libGAwX_gf_CreepPlayersCreepUnitProcess(EventUnit(), true);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_CreepPlayersOwnerChange_Init () {
+    libGAwX_gt_CreepPlayersOwnerChange = TriggerCreate("libGAwX_gt_CreepPlayersOwnerChange_Func");
+    TriggerAddEventUnitChangeOwner(libGAwX_gt_CreepPlayersOwnerChange, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Creep Players - Creation
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_CreepPlayersCreation_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_itUnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((PlayerType(UnitGetOwner(EventUnit())) == c_playerTypeHostile))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGAwX_gf_CreepPlayersCreepUnitProcess(EventUnit(), true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_CreepPlayersCreation_Init () {
+    libGAwX_gt_CreepPlayersCreation = TriggerCreate("libGAwX_gt_CreepPlayersCreation_Func");
+    TriggerAddEventUnitCreated(libGAwX_gt_CreepPlayersCreation, null, null, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Creep Players - Camp Agro
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_CreepPlayersCampAgro_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_creepUnit;
+    unit lv_attacker;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_creepUnit = EventPlayerEffectUsedUnit(c_effectUnitSource);
+    lv_attacker = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitObjectGroupCallForHelp(lv_creepUnit, lv_attacker);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_CreepPlayersCampAgro_Init () {
+    libGAwX_gt_CreepPlayersCampAgro = TriggerCreate("libGAwX_gt_CreepPlayersCampAgro_Func");
+    TriggerAddEventPlayerEffectUsed(libGAwX_gt_CreepPlayersCampAgro, c_playerAny, "War3_LinkedAgro");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Creep Players - Linked Agro
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_CreepPlayersLinkedAgro_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((PlayerType(UnitGetOwner(EventUnit())) == c_playerTypeHostile))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitObjectGroupCallForHelp(EventUnit(), libNtve_gf_AcquiredTarget());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_CreepPlayersLinkedAgro_Init () {
+    libGAwX_gt_CreepPlayersLinkedAgro = TriggerCreate("libGAwX_gt_CreepPlayersLinkedAgro_Func");
+    TriggerAddEventUnitAcquiredTarget(libGAwX_gt_CreepPlayersLinkedAgro, null);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Creep Players - Building Agro
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_CreepPlayersBuildingAgro_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_unnit;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_unnit = EventUnitProgressUnit();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(lv_unnit, "War3_BuildingPlacementWakeUp", lv_unnit);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_CreepPlayersBuildingAgro_Init () {
+    libGAwX_gt_CreepPlayersBuildingAgro = TriggerCreate("libGAwX_gt_CreepPlayersBuildingAgro_Func");
+    TriggerAddEventUnitConstructProgress(libGAwX_gt_CreepPlayersBuildingAgro, null, c_unitProgressStageStart);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Creep Player - Dawn/Dusk Switch
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_CreepPlayerDawnDuskSwitch_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_itPlayer;
+
+    // Automatic Variable Declarations
+    playergroup auto460EA58E_g;
+    playergroup auto89AEC29B_g;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((EventGameTimeEvent() == c_gameTimeEventDusk)) {
+        auto89AEC29B_g = libGAwX_gv_creepPlayersGroup;
+        lv_itPlayer = -1;
+        while (true) {
+            lv_itPlayer = PlayerGroupNextPlayer(auto89AEC29B_g, lv_itPlayer);
+            if (lv_itPlayer < 0) { break; }
+            TechTreeBehaviorAllow(lv_itPlayer, libGAwX_gv_creepSpotsSleepBehavior, true);
+        }
+    }
+    else {
+        auto460EA58E_g = libGAwX_gv_creepPlayersGroup;
+        lv_itPlayer = -1;
+        while (true) {
+            lv_itPlayer = PlayerGroupNextPlayer(auto460EA58E_g, lv_itPlayer);
+            if (lv_itPlayer < 0) { break; }
+            TechTreeBehaviorAllow(lv_itPlayer, libGAwX_gv_creepSpotsSleepBehavior, false);
+        }
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_CreepPlayerDawnDuskSwitch_Init () {
+    libGAwX_gt_CreepPlayerDawnDuskSwitch = TriggerCreate("libGAwX_gt_CreepPlayerDawnDuskSwitch_Func");
+    TriggerAddEventGameTimeEvent(libGAwX_gt_CreepPlayerDawnDuskSwitch, -1);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: New Hero
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_NewHero_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_u;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_u = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitTestState(lv_u, c_unitStateHallucination) == false))) {
+            return false;
+        }
+
+        if (!((libGAwX_gv_heroCreationCount <= 10))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libNtve_gf_SetBehaviorCount(lv_u, "SubgroupIncrease", lv_u, (10-libGAwX_gv_heroCreationCount));
+    UnitSetAttributePoint(lv_u, "SubgroupIncrease", true, libGAwX_gv_heroCreationCount);
+    libGAwX_gv_heroCreationCount += 1;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_NewHero_Init () {
+    libGAwX_gt_NewHero = TriggerCreate("libGAwX_gt_NewHero_Func");
+    TriggerAddEventPlayerEffectUsed(libGAwX_gt_NewHero, c_playerAny, "HeroCreationTriggerNotice");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Init Warn Player
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_InitWarnPlayer_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_racingStartDIALOG;
+    int lv_racingStartTEXT;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_racingStartDIALOG = c_invalidDialogId;
+    lv_racingStartTEXT = c_invalidDialogControlId;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    DialogCreate(500, 400, c_anchorCenter, 0, 0, false);
+    lv_racingStartDIALOG = DialogLastCreated();
+    DialogSetImageVisible(lv_racingStartDIALOG, false);
+    DialogControlCreate(lv_racingStartDIALOG, c_triggerControlTypeLabel);
+    lv_racingStartTEXT = DialogControlLastCreated();
+    DialogControlSetFullDialog(lv_racingStartTEXT, PlayerGroupAll(), true);
+    libNtve_gf_SetDialogItemStyle(lv_racingStartTEXT, "W3_UpkeepFont", PlayerGroupAll());
+    libGAwX_gv_warningText = lv_racingStartTEXT;
+    libNtve_gf_SetDialogItemRenderPriority(libGAwX_gv_warningText, 1512, PlayerGroupAll());
+    libGAwX_gv_warningDialog = lv_racingStartDIALOG;
+    libNtve_gf_SetDialogItemAcceptMouse(libGAwX_gv_warningText, false, PlayerGroupAll());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_InitWarnPlayer_Init () {
+    libGAwX_gt_InitWarnPlayer = TriggerCreate("libGAwX_gt_InitWarnPlayer_Func");
+    TriggerAddEventTimeElapsed(libGAwX_gt_InitWarnPlayer, 0.0625, c_timeGame);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Command Panel Hook
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_CommandPanelHook_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    DialogControlHookupStandard(c_triggerControlTypeCommandPanel, "UIContainer/ConsoleUIContainer/CommandPanel");
+    libGAwX_gv_c_CommandPanelFrame = DialogControlLastCreated();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_CommandPanelHook_Init () {
+    libGAwX_gt_CommandPanelHook = TriggerCreate("libGAwX_gt_CommandPanelHook_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Time Of Day Indicator Hook
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_TimeOfDayIndicatorHook_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    GameTimeOfDaySet("00");
+    GameTimeOfDaySetLength(libGAwX_gv_dayLenth);
+    DialogControlHookupStandard(c_triggerControlTypePortrait, "UIContainer/ConsoleUIContainer/GameTODIndicator");
+    libGAwX_gv_c_PortraitTimeOfDayFrame = DialogControlLastCreated();
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_TimeOfDayIndicatorHook_Init () {
+    libGAwX_gt_TimeOfDayIndicatorHook = TriggerCreate("libGAwX_gt_TimeOfDayIndicatorHook_Func");
+    TriggerAddEventPlayerPropChange(libGAwX_gt_TimeOfDayIndicatorHook, 1, c_playerPropMinerals);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Day Warning
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_DayWarning_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_p;
+
+    // Automatic Variable Declarations
+    playergroup autoA699F132_g;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libNtve_gf_PlayerInCinematicMode(1) == false)) {
+        if(GAw3_Core_useTODSound){
+        SoundPlay(SoundLink("RoosterSound", -1), PlayerGroupAll(), 100.0, 0.0);
+        }
+    }
+
+    autoA699F132_g = libGAwX_gv_allPlayers;
+    lv_p = -1;
+    while (true) {
+        lv_p = PlayerGroupNextPlayer(autoA699F132_g, lv_p);
+        if (lv_p < 0) { break; }
+        libNtve_gf_SetUpgradeLevelForPlayer(lv_p, "Night", 0);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_DayWarning_Init () {
+    libGAwX_gt_DayWarning = TriggerCreate("libGAwX_gt_DayWarning_Func");
+    TriggerAddEventGameTimeEvent(libGAwX_gt_DayWarning, c_gameTimeEventDawn);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Night Warning
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_NightWarning_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_p;
+
+    // Automatic Variable Declarations
+    playergroup auto6CAB47B2_g;
+
+    // Variable Initialization
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libNtve_gf_PlayerInCinematicMode(1) == false)) {
+        if(GAw3_Core_useTODSound){
+        SoundPlay(SoundLink("WolfSound", -1), PlayerGroupAll(), 100.0, 0.0);
+        }
+    }
+
+    auto6CAB47B2_g = libGAwX_gv_allPlayers;
+    lv_p = -1;
+    while (true) {
+        lv_p = PlayerGroupNextPlayer(auto6CAB47B2_g, lv_p);
+        if (lv_p < 0) { break; }
+        libNtve_gf_SetUpgradeLevelForPlayer(lv_p, "Night", 1);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_NightWarning_Init () {
+    libGAwX_gt_NightWarning = TriggerCreate("libGAwX_gt_NightWarning_Func");
+    TriggerAddEventGameTimeEvent(libGAwX_gt_NightWarning, c_gameTimeEventDusk);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Upkeep Init
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_UpkeepInit_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    playergroup auto8E9CA265_g;
+    int auto8E9CA265_var;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto8E9CA265_g = PlayerGroupActive();
+    auto8E9CA265_var = -1;
+    while (true) {
+        auto8E9CA265_var = PlayerGroupNextPlayer(auto8E9CA265_g, auto8E9CA265_var);
+        if (auto8E9CA265_var < 0) { break; }
+        libGAwX_gv_upkeepLevels[auto8E9CA265_var] = PlayerScoreValueGetAsInt(auto8E9CA265_var, "FoodUpkeepLevel");
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_UpkeepInit_Init () {
+    libGAwX_gt_UpkeepInit = TriggerCreate("libGAwX_gt_UpkeepInit_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Upkeep Update
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_UpkeepUpdate_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    int lv_p;
+    int lv_newLevel;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_p = EventPlayer();
+    lv_newLevel = PlayerScoreValueGetAsInt(lv_p, "FoodUpkeepLevel");
+
+    // Conditions
+    if (testConds) {
+        if (!((lv_newLevel != libGAwX_gv_upkeepLevels[lv_p]))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGAwX_gf_ShowWarningForPlayer(lv_p, StringExternal(("UI/ResourceUpkeepLevel_" + IntToString(lv_newLevel) + "_" + (PlayerRace(lv_p)))), SoundLink("UpkeepLevel", -1));
+    libGAwX_gv_upkeepLevels[lv_p] = lv_newLevel;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_UpkeepUpdate_Init () {
+    libGAwX_gt_UpkeepUpdate = TriggerCreate("libGAwX_gt_UpkeepUpdate_Func");
+    TriggerAddEventPlayerPropChange(libGAwX_gt_UpkeepUpdate, 16, c_playerPropSuppliesUsed);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Effect Submenu
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_EffectSubmenu_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    string lv_abil;
+    string lv_abilSetID;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_abil = EventPlayerEffectUsedAbil();
+    lv_abilSetID = CatalogFieldValueGet(c_gameCatalogAbil, lv_abil, "AbilSetId", EventPlayer());
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libNtve_gf_SetDialogItemSubmenu(libGAwX_gv_c_CommandPanelFrame, lv_abilSetID, PlayerGroupSingle(EventPlayer()));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_EffectSubmenu_Init () {
+    libGAwX_gt_EffectSubmenu = TriggerCreate("libGAwX_gt_EffectSubmenu_Func");
+    TriggerAddEventPlayerEffectUsed(libGAwX_gt_EffectSubmenu, c_playerAny, "War3_SubMenuSet");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Effect Level Up
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_EffectLevelUp_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_u;
+    fixed lv_currentLevel;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_u = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_currentLevel = UnitGetPropertyFixed(lv_u, c_unitPropLevel, c_unitPropCurrent);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitSetPropertyFixed(lv_u, c_unitPropLevel, (lv_currentLevel + 1.0));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_EffectLevelUp_Init () {
+    libGAwX_gt_EffectLevelUp = TriggerCreate("libGAwX_gt_EffectLevelUp_Func");
+    TriggerAddEventPlayerEffectUsed(libGAwX_gt_EffectLevelUp, c_playerAny, "War3_HeroLevelIncrease");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Mirror Image Copy
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_MirrorImageCopy_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_caster;
+    unit lv_target;
+    unit lv_effectItem;
+    int lv_p;
+
+    // Automatic Variable Declarations
+    playergroup auto2C0C58B9_g;
+
+    // Variable Initialization
+    lv_caster = EventPlayerEffectUsedUnit(c_effectUnitSource);
+    lv_target = EventPlayerEffectUsedUnit(c_effectUnitTarget);
+    lv_effectItem = EventPlayerEffectUsedItem();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGAwX_gf_MirrorUnitState(lv_caster, lv_target, lv_effectItem);
+    auto2C0C58B9_g = PlayerGroupAlliance(c_playerGroupEnemy, UnitGetOwner(lv_caster));
+    lv_p = -1;
+    while (true) {
+        lv_p = PlayerGroupNextPlayer(auto2C0C58B9_g, lv_p);
+        if (lv_p < 0) { break; }
+        UnitSelect(lv_caster, lv_p, false);
+    }
+    UnitGroupAdd(libGAwX_gv_mirrorImageSourceUnits, lv_caster);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_MirrorImageCopy_Init () {
+    libGAwX_gt_MirrorImageCopy = TriggerCreate("libGAwX_gt_MirrorImageCopy_Func");
+    TriggerAddEventPlayerEffectUsed(libGAwX_gt_MirrorImageCopy, c_playerAny, "War3_IllusionCopyUnitTrigger");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Mirror Image Level Sync
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_MirrorImageLevelSync_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_u;
+    unitgroup lv_ug;
+    string lv_itBehavior;
+    unit lv_itUnit;
+    string lv_unitType;
+    fixed lv_xP;
+
+    // Automatic Variable Declarations
+    unit auto37CC6DB9_u;
+    int auto37CC6DB9_i;
+    unitgroup auto9CEDDE2C_g;
+    int auto9CEDDE2C_u;
+
+    // Variable Initialization
+    lv_u = EventUnit();
+    lv_ug = UnitGroupEmpty();
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGroupHasUnit(libGAwX_gv_mirrorImageSourceUnits, lv_u) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_unitType = UnitGetType(lv_u);
+    lv_xP = UnitGetPropertyFixed(lv_u, c_unitPropXP, c_unitPropCurrent);
+    auto37CC6DB9_u = lv_u;
+    auto37CC6DB9_i = 1;
+    for ( ; auto37CC6DB9_i <= UnitBehaviorCountAll(auto37CC6DB9_u) ; auto37CC6DB9_i += BoolToInt(lv_itBehavior == UnitBehaviorGet(auto37CC6DB9_u, auto37CC6DB9_i)) ) {
+        lv_itBehavior = UnitBehaviorGet(auto37CC6DB9_u, auto37CC6DB9_i);
+        if ((CatalogEntryScope(c_gameCatalogBehavior, lv_itBehavior) == "CBehaviorUnitTracker")) {
+            lv_ug = UnitGetTrackedUnitGroup(lv_u, lv_itBehavior);
+            auto9CEDDE2C_g = lv_ug;
+            auto9CEDDE2C_u = UnitGroupCount(auto9CEDDE2C_g, c_unitCountAll);
+            for (;; auto9CEDDE2C_u -= 1) {
+                lv_itUnit = UnitGroupUnitFromEnd(auto9CEDDE2C_g, auto9CEDDE2C_u);
+                if (lv_itUnit == null) { break; }
+                if ((UnitTestState(lv_itUnit, c_unitStateHallucination) == true) && (UnitGetType(lv_itUnit) == lv_unitType)) {
+                    ActorSendTo(libNtve_gf_MainActorofUnit(lv_itUnit), "AHerSuppress", "Destroy");
+                    UnitSetPropertyFixed(lv_itUnit, c_unitPropXP, lv_xP);
+                }
+
+            }
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_MirrorImageLevelSync_Init () {
+    libGAwX_gt_MirrorImageLevelSync = TriggerCreate("libGAwX_gt_MirrorImageLevelSync_Func");
+    TriggerAddEventUnitProperty(libGAwX_gt_MirrorImageLevelSync, null, c_unitPropLevel);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Effect Item Charge Remove
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_EffectItemChargeRemove_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    string lv_itemType;
+    unit lv_caster;
+    unit lv_itItem;
+
+    // Automatic Variable Declarations
+    unitgroup auto26E7FEFB_g;
+    int auto26E7FEFB_u;
+
+    // Variable Initialization
+    lv_itemType = EventPlayerEffectUsedItemType();
+    lv_caster = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto26E7FEFB_g = UnitInventoryGroup(lv_caster);
+    auto26E7FEFB_u = UnitGroupCount(auto26E7FEFB_g, c_unitCountAll);
+    for (;; auto26E7FEFB_u -= 1) {
+        lv_itItem = UnitGroupUnitFromEnd(auto26E7FEFB_g, auto26E7FEFB_u);
+        if (lv_itItem == null) { break; }
+        if ((UnitGetType(lv_itItem) == lv_itemType)) {
+            ItemSetChargeCount(lv_itItem, (ItemGetChargeCount(lv_itItem, false)-1));
+            if ((ItemGetChargeCount(lv_itItem, false) <= 0.0)) {
+                UnitInventoryRemove(lv_itItem);
+            }
+
+            break;
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_EffectItemChargeRemove_Init () {
+    libGAwX_gt_EffectItemChargeRemove = TriggerCreate("libGAwX_gt_EffectItemChargeRemove_Func");
+    TriggerAddEventPlayerEffectUsed(libGAwX_gt_EffectItemChargeRemove, c_playerAny, "War3_InventoryChargeRemoveEffectItemType");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Effect Item Charge Add
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_EffectItemChargeAdd_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    string lv_itemType;
+    unit lv_caster;
+    unit lv_itItem;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_itemType = EventPlayerEffectUsedItemType();
+    lv_caster = EventPlayerEffectUsedUnit(c_effectUnitCaster);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitInventoryCreate(lv_caster, lv_itemType);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_EffectItemChargeAdd_Init () {
+    libGAwX_gt_EffectItemChargeAdd = TriggerCreate("libGAwX_gt_EffectItemChargeAdd_Func");
+    TriggerAddEventPlayerEffectUsed(libGAwX_gt_EffectItemChargeAdd, c_playerAny, "War3_InventoryChargeAddEffectItemType");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Time Of Day Override - Start
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_TimeOfDayOverrideStart_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    if ((libGAwX_gv_timeOfDayOverrideCritSection == 0)) {
+        libGAwX_gv_timeOfDayOverrideOldTOD = GameTimeOfDayGet();
+        GameTimeOfDaySet(libGAwX_gv_timeOfDayOverrideNewTOD);
+        GameTimeOfDayPause(true);
+        ActorSend(ActorFromDialogControl(libGAwX_gv_c_PortraitTimeOfDayFrame), "AnimPlay Cover Cover");
+    }
+
+    libGAwX_gv_timeOfDayOverrideCritSection += 1;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_TimeOfDayOverrideStart_Init () {
+    libGAwX_gt_TimeOfDayOverrideStart = TriggerCreate("libGAwX_gt_TimeOfDayOverrideStart_Func");
+    TriggerAddEventPlayerEffectUsed(libGAwX_gt_TimeOfDayOverrideStart, c_playerAny, "War3_TimeOfDayOverride");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Time Of Day Override - Stop
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_TimeOfDayOverrideStop_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libGAwX_gv_timeOfDayOverrideCritSection -= 1;
+    if ((libGAwX_gv_timeOfDayOverrideCritSection == 0)) {
+        GameTimeOfDaySet(libGAwX_gv_timeOfDayOverrideOldTOD);
+        GameTimeOfDayPause(false);
+        ActorSend(ActorFromDialogControl(libGAwX_gv_c_PortraitTimeOfDayFrame), "AnimClear Cover");
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_TimeOfDayOverrideStop_Init () {
+    libGAwX_gt_TimeOfDayOverrideStop = TriggerCreate("libGAwX_gt_TimeOfDayOverrideStop_Func");
+    TriggerAddEventPlayerEffectUsed(libGAwX_gt_TimeOfDayOverrideStop, c_playerAny, "War3_TimeOfDayRestore");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Channel Stop Cancel
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_ChannelStopCancel_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    order lv_order;
+    int lv_p;
+    unit lv_u;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_order = EventUnitOrder();
+    lv_p = OrderGetPlayer(lv_order);
+    lv_u = EventUnit();
+
+    // Conditions
+    if (testConds) {
+        if (!((OrderGetFlag(lv_order, c_cmdQueued) == false))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitCreateEffectUnit(lv_u, "CancelAttackOrdersWar3Active", lv_u);
+    if ((libGAw3_gf_UnitIsChannelling(lv_u) == true)) {
+        UnitIssueOrder(lv_u, Order(AbilityCommand(AbilityCommandGetAbility(OrderGetAbilityCommand(UnitOrder(lv_u, 0))), 1)), c_orderQueueReplace);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_ChannelStopCancel_Init () {
+    libGAwX_gt_ChannelStopCancel = TriggerCreate("libGAwX_gt_ChannelStopCancel_Func");
+    TriggerAddEventUnitOrder(libGAwX_gt_ChannelStopCancel, null, AbilityCommand("stop", 0));
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Awha - Place
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_AwhaPlace_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_u;
+    unit lv_t;
+    actor lv_aw;
+    actor lv_at;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_u = EventUnit();
+    lv_t = EventUnitTargetUnit();
+    lv_aw = libNtve_gf_MainActorofUnit(lv_u);
+    lv_at = libNtve_gf_MainActorofUnit(lv_t);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    ActorScopeMoveTo(ActorScopeFromActor(lv_aw), lv_at);
+    ActorSend(lv_aw, libNtve_gf_SetFacing(UnitGetFacing(lv_u)));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_AwhaPlace_Init () {
+    libGAwX_gt_AwhaPlace = TriggerCreate("libGAwX_gt_AwhaPlace_Func");
+    TriggerAddEventUnitAbility(libGAwX_gt_AwhaPlace, null, AbilityCommand("Awha", 0), c_abilHarvestStageHarvest, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Mana Flare - Register
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_ManaFlareRegister_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupAdd(libGAwX_gv_manaFlareMonitorGroup, EventUnit());
+    TriggerEnable(libGAwX_gt_ManaFlareSpendMana, true);
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_ManaFlareRegister_Init () {
+    libGAwX_gt_ManaFlareRegister = TriggerCreate("libGAwX_gt_ManaFlareRegister_Func");
+    TriggerAddEventUnitBehaviorChange(libGAwX_gt_ManaFlareRegister, null, libGAwX_gv_manaFlareRegisterLink, c_unitBehaviorChangeActivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Mana Flare - Unregister
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_ManaFlareUnregister_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_u;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_u = EventUnit();
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    UnitGroupRemove(libGAwX_gv_manaFlareMonitorGroup, lv_u);
+    UnitBehaviorRemove(lv_u, libGAwX_gv_manaFlareManaTokenLink, c_unitBehaviorCountAll);
+    if ((UnitGroupCount(libGAwX_gv_manaFlareMonitorGroup, c_unitCountAll) == 0)) {
+        TriggerEnable(libGAwX_gt_ManaFlareSpendMana, false);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_ManaFlareUnregister_Init () {
+    libGAwX_gt_ManaFlareUnregister = TriggerCreate("libGAwX_gt_ManaFlareUnregister_Func");
+    TriggerAddEventUnitBehaviorChange(libGAwX_gt_ManaFlareUnregister, null, libGAwX_gv_manaFlareRegisterLink, c_unitBehaviorChangeDeactivate);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Mana Flare - Spend Mana
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_ManaFlareSpendMana_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_u;
+    fixed lv_mana;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+
+    // Conditions
+    if (testConds) {
+        if (!((UnitGroupHasUnit(libGAwX_gv_manaFlareMonitorGroup, EventUnit()) == true))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_u = EventUnit();
+    lv_mana = EventUnitSpentVitalAmount();
+    UnitBehaviorAdd(lv_u, libGAwX_gv_manaFlareManaTokenLink, lv_u, 1);
+    UnitSetAttributePoint(lv_u, libGAwX_gv_manaFlareManaTokenLink, true, (FixedToInt(lv_mana) + UnitGetAttributePoint(lv_u, libGAwX_gv_manaFlareManaTokenLink, true)));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_ManaFlareSpendMana_Init () {
+    libGAwX_gt_ManaFlareSpendMana = TriggerCreate("libGAwX_gt_ManaFlareSpendMana_Func");
+    TriggerEnable(libGAwX_gt_ManaFlareSpendMana, false);
+    TriggerAddEventUnitSpendVital(libGAwX_gt_ManaFlareSpendMana, null, c_unitVitalEnergy);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: stwp - Hearthstone Remove
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_stwpHearthstoneRemove_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_unit;
+    unitgroup lv_items;
+    unit lv_item;
+
+    // Automatic Variable Declarations
+    unitgroup autoF596DF2B_g;
+    int autoF596DF2B_u;
+
+    // Variable Initialization
+    lv_unit = EventUnit();
+    lv_items = UnitInventoryGroup(lv_unit);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    autoF596DF2B_g = lv_items;
+    autoF596DF2B_u = UnitGroupCount(autoF596DF2B_g, c_unitCountAll);
+    for (;; autoF596DF2B_u -= 1) {
+        lv_item = UnitGroupUnitFromEnd(autoF596DF2B_g, autoF596DF2B_u);
+        if (lv_item == null) { break; }
+        if ((UnitGetType(lv_item) == "stwp")) {
+            break;
+        }
+
+    }
+    if ((UnitGetType(lv_item) == "stwp")) {
+        Wait(5.1, c_timeGame);
+        UnitRemove(lv_item);
+    }
+
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_stwpHearthstoneRemove_Init () {
+    libGAwX_gt_stwpHearthstoneRemove = TriggerCreate("libGAwX_gt_stwpHearthstoneRemove_Func");
+    TriggerAddEventUnitAbility(libGAwX_gt_stwpHearthstoneRemove, null, AbilityCommand("Hearthstone", 0), c_abilEffectStageChannel, false);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Hearthstone - Set Charge
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_HearthstoneSetCharge_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_u;
+    int lv_c;
+
+    // Automatic Variable Declarations
+    // Variable Initialization
+    lv_u = EventUnit();
+    lv_c = UnitBehaviorCount(lv_u, libGAwX_gv_hearthstoneChargeBuff);
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    libNtve_gf_UnitRemoveChargeUsed(lv_u, libGAwX_gv_hearthstoneChargeLink);
+    UnitAddChargeUsed(lv_u, libGAwX_gv_hearthstoneChargeLink, (libGAwX_gv_hearthstoneChargeMax - lv_c));
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_HearthstoneSetCharge_Init () {
+    libGAwX_gt_HearthstoneSetCharge = TriggerCreate("libGAwX_gt_HearthstoneSetCharge_Func");
+    TriggerAddEventUnitBehaviorChange(libGAwX_gt_HearthstoneSetCharge, null, libGAwX_gv_hearthstoneChargeBuff, c_unitBehaviorChangeIncrease);
+    TriggerAddEventUnitBehaviorChange(libGAwX_gt_HearthstoneSetCharge, null, libGAwX_gv_hearthstoneChargeBuff, c_unitBehaviorChangeDecrease);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Placed Object - Units
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_gt_PlacedObjectUnits_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    string lv_instance;
+    fixed lv_itReal;
+    string lv_userType;
+    unit lv_itUnit;
+    int lv_itPlaceId;
+
+    // Automatic Variable Declarations
+    string auto80084C4F_userType;
+    int auto80084C4F_i;
+
+    // Variable Initialization
+    lv_userType = "PlacedObject_Units";
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto80084C4F_userType = "PlacedObject_Units";
+    auto80084C4F_i = 1;
+    for ( ; auto80084C4F_i <= UserDataInstanceCount(auto80084C4F_userType) ; auto80084C4F_i += 1 ) {
+        lv_instance = UserDataInstance(auto80084C4F_userType, auto80084C4F_i);
+        lv_itPlaceId = UserDataGetInt(lv_userType, lv_instance, "Placed_Id", 1);
+        lv_itUnit = UnitFromId(lv_itPlaceId);
+        lv_itReal = UserDataGetFixed(lv_userType, lv_instance, "AcquireRadius", 1);
+        if ((lv_itReal == libGAwX_gv_c_UNITPROP_ACQUIRERAD_CAMP)) {
+            UnitBehaviorAdd(lv_itUnit, "War3_CreepCamp", lv_itUnit, 1);
+        }
+
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libGAwX_gt_PlacedObjectUnits_Init () {
+    libGAwX_gt_PlacedObjectUnits = TriggerCreate("libGAwX_gt_PlacedObjectUnits_Func");
+}
+
+void libGAwX_InitTriggers () {
+    libGAwX_gt_SuppressInvisibilitywhenUsingItems_Init();
+    libGAwX_gt_Override_Init();
+    libGAwX_gt_ModInit_Init();
+    libGAwX_gt_CreepPlayersInit_Init();
+    libGAwX_gt_CreepPlayersOwnerChange_Init();
+    libGAwX_gt_CreepPlayersCreation_Init();
+    libGAwX_gt_CreepPlayersCampAgro_Init();
+    libGAwX_gt_CreepPlayersLinkedAgro_Init();
+    libGAwX_gt_CreepPlayersBuildingAgro_Init();
+    libGAwX_gt_CreepPlayerDawnDuskSwitch_Init();
+    libGAwX_gt_NewHero_Init();
+    libGAwX_gt_InitWarnPlayer_Init();
+    libGAwX_gt_CommandPanelHook_Init();
+    libGAwX_gt_TimeOfDayIndicatorHook_Init();
+    libGAwX_gt_DayWarning_Init();
+    libGAwX_gt_NightWarning_Init();
+    libGAwX_gt_UpkeepInit_Init();
+    libGAwX_gt_UpkeepUpdate_Init();
+    libGAwX_gt_EffectSubmenu_Init();
+    libGAwX_gt_EffectLevelUp_Init();
+    libGAwX_gt_MirrorImageCopy_Init();
+    libGAwX_gt_MirrorImageLevelSync_Init();
+    libGAwX_gt_EffectItemChargeRemove_Init();
+    libGAwX_gt_EffectItemChargeAdd_Init();
+    libGAwX_gt_TimeOfDayOverrideStart_Init();
+    libGAwX_gt_TimeOfDayOverrideStop_Init();
+    libGAwX_gt_ChannelStopCancel_Init();
+    libGAwX_gt_AwhaPlace_Init();
+    libGAwX_gt_ManaFlareRegister_Init();
+    libGAwX_gt_ManaFlareUnregister_Init();
+    libGAwX_gt_ManaFlareSpendMana_Init();
+    libGAwX_gt_stwpHearthstoneRemove_Init();
+    libGAwX_gt_HearthstoneSetCharge_Init();
+    libGAwX_gt_PlacedObjectUnits_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+bool libGAwX_InitLib_completed = false;
+
+void libGAwX_InitLib () {
+    if (libGAwX_InitLib_completed) {
+        return;
+    }
+
+    libGAwX_InitLib_completed = true;
+
+    libGAwX_InitLibraries();
+    libGAwX_InitVariables();
+    libGAwX_InitCustomScript();
+    libGAwX_InitTriggers();
+}
+
