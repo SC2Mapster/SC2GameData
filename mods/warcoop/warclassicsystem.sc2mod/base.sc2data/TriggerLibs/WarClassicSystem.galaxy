@@ -202,9 +202,14 @@ void libGAwX_gf_UseWar3MeleeSetting () {
     point lv_placement;
 
     // Automatic Variable Declarations
+    playergroup autoB16709C6_g;
+    unitgroup autoF9B19856_g;
+    int autoF9B19856_u;
+    unit autoF9B19856_var;
     playergroup auto373C6EF4_g;
     string autoACA08899_userType;
     int autoACA08899_i;
+    playergroup auto6FC9B9BF_g;
     unitgroup auto11D568B2_g;
     int auto11D568B2_u;
     unit auto11D568B2_var;
@@ -221,22 +226,44 @@ void libGAwX_gf_UseWar3MeleeSetting () {
     lv_ghouls = UnitGroupEmpty();
 
     // Implementation
+    autoB16709C6_g = lv_pg;
+    lv_p = -1;
+    while (true) {
+        lv_p = PlayerGroupNextPlayer(autoB16709C6_g, lv_p);
+        if (lv_p < 0) { break; }
+        lv_startloc = PlayerStartLocation(lv_p);
+        autoF9B19856_g = UnitGroupSearch(null, 15, lv_startloc, 20.0, UnitFilter(0, 0, (1 << c_targetFilterAlly) | (1 << c_targetFilterNeutral) | (1 << c_targetFilterEnemy) | (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+        autoF9B19856_u = UnitGroupCount(autoF9B19856_g, c_unitCountAll);
+        for (;; autoF9B19856_u -= 1) {
+            autoF9B19856_var = UnitGroupUnitFromEnd(autoF9B19856_g, autoF9B19856_u);
+            if (autoF9B19856_var == null) { break; }
+            UnitRemove(autoF9B19856_var);
+        }
+    }
     MeleeInitResources();
     MeleeInitAI();
     MeleeInitOptions();
     MeleeInitUnits();
     GameTimeOfDaySet(libGAwX_gv_bj_MELEE_STARTING_TOD);
-    auto373C6EF4_g = lv_pg;
+    auto373C6EF4_g = libGAwX_gv_allPlayers;
     lv_p = -1;
     while (true) {
         lv_p = PlayerGroupNextPlayer(auto373C6EF4_g, lv_p);
         if (lv_p < 0) { break; }
+        MeleeSetOption(lv_p, c_meleeOptionXPGainDisable, false);
+        libNtve_gf_SetUpgradeLevelForPlayer(lv_p, "War3_FreeHeroSlots", 1);
         autoACA08899_userType = "MeleeSetting_HeroLimit";
         autoACA08899_i = 1;
         for ( ; autoACA08899_i <= UserDataInstanceCount(autoACA08899_userType) ; autoACA08899_i += 1 ) {
             lv_itLimitInstance = UserDataInstance(autoACA08899_userType, autoACA08899_i);
             TechTreeSetProduceCap(lv_p, UserDataGetGameLink("MeleeSetting_HeroLimit", lv_itLimitInstance, "Hero", 1), c_techCatUnit, UserDataGetInt("MeleeSetting_HeroLimit", lv_itLimitInstance, "Limit", 1));
         }
+    }
+    auto6FC9B9BF_g = lv_pg;
+    lv_p = -1;
+    while (true) {
+        lv_p = PlayerGroupNextPlayer(auto6FC9B9BF_g, lv_p);
+        if (lv_p < 0) { break; }
         lv_startloc = PlayerStartLocation(lv_p);
         lv_race = PlayerRace(lv_p);
         lv_goldmine = UnitGroupClosestToPoint(UnitGroupSearch("ngol", c_playerAny, lv_startloc, 20.0, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0), lv_startloc);
@@ -258,7 +285,7 @@ void libGAwX_gf_UseWar3MeleeSetting () {
         }
         autoA87D0C6F_val = lv_race;
         if (autoA87D0C6F_val == "Human") {
-            UnitBehaviorRemove(lv_townHall, "DisableCallToArms", 1);
+            UnitAbilityAdd(lv_townHall, "Amic");
         }
         else if (autoA87D0C6F_val == "NightElf") {
             UnitCreate(1, "egol", c_unitCreateIgnorePlacement, lv_p, UnitGetPosition(lv_goldmine), 270.0);
@@ -536,19 +563,19 @@ bool libGAwX_gt_Override_Func (bool testConds, bool runActions) {
     playergroup auto71B3A3EC_g;
 
     // Variable Initialization
-    lv_pg = PlayerGroupActive();
+    lv_pg = PlayerGroupAll();
 
     // Actions
     if (!runActions) {
         return true;
     }
 
-    MeleeSetOption(lv_p, c_meleeOptionXPGainDisable, false);
     auto71B3A3EC_g = lv_pg;
     lv_p = -1;
     while (true) {
         lv_p = PlayerGroupNextPlayer(auto71B3A3EC_g, lv_p);
         if (lv_p < 0) { break; }
+        MeleeSetOption(lv_p, c_meleeOptionXPGainDisable, false);
         PlayerOptionOverride(lv_p, "selectuncontrolable", "1");
         PlayerOptionOverride(lv_p, "gametooltips", "1");
         PlayerOptionOverride(lv_p, "tickedunitstatus", "0");
@@ -560,6 +587,7 @@ bool libGAwX_gt_Override_Func (bool testConds, bool runActions) {
 //--------------------------------------------------------------------------------------------------
 void libGAwX_gt_Override_Init () {
     libGAwX_gt_Override = TriggerCreate("libGAwX_gt_Override_Func");
+    TriggerAddEventLoadGameDone(libGAwX_gt_Override);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -611,6 +639,14 @@ bool libGAwX_gt_ModInit_Func (bool testConds, bool runActions) {
     if ((PlayerType(15) == c_playerTypeHostile)) {
         VisRevealerCreate(15, RegionEntireMap());
         VisRevealerEnable(VisRevealerLastCreated(), true);
+    }
+
+    if ((GameIsTestMap(false) == true)) {
+        Wait(3.0, c_timeGame);
+        if ((MeleeGetOption(PlayerGroupPlayer(PlayerGroupActive(), 1), c_meleeOptionXPGainDisable) == true)) {
+            TriggerDebugOutput(1, StringExternal("Param/Value/lib_GAwX_2EB16EED"), true);
+        }
+
     }
 
     return true;
@@ -1031,7 +1067,6 @@ bool libGAwX_gt_TimeOfDayIndicatorHook_Func (bool testConds, bool runActions) {
 //--------------------------------------------------------------------------------------------------
 void libGAwX_gt_TimeOfDayIndicatorHook_Init () {
     libGAwX_gt_TimeOfDayIndicatorHook = TriggerCreate("libGAwX_gt_TimeOfDayIndicatorHook_Func");
-    TriggerAddEventPlayerPropChange(libGAwX_gt_TimeOfDayIndicatorHook, 1, c_playerPropMinerals);
 }
 
 //--------------------------------------------------------------------------------------------------

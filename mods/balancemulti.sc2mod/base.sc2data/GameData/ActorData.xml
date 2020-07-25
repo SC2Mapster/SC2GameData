@@ -30,6 +30,17 @@
         <Remove Terms="Abil.attack.ReadyStop" Target="_BattlecruiserTurretATS" Send="LookAtDisengage"/>
         <Remove Terms="Abil.attack.ReadyStop" Target="_BattlecruiserTurretATA" Send="LookAtDisengage"/>
     </CActorUnit>
+    <CActorModel id="ShieldBatteryRechargeEx5@ImpactActor">
+        <Flags index="SuppressCreationErrors" value="1"/>
+        <Inherits index="TintColor" value="1"/>
+        <Inherits index="Visibility" value="1"/>
+        <Supporter Subject="::Creator"/>
+        <On Terms="ActorCreation" Send="AnimBracketStart BSD Birth Stand Death"/>
+        <On Terms="AnimBracketState.*.AfterClosing; AnimName BSD" Send="Destroy"/>
+        <On Terms="SupporterDestruction" Send="AnimBracketStop BSD"/>
+        <HostForProps Subject="ShieldBatteryRechargeEx5@Beam" Scope="Caster" Actor="Find"/>
+        <ModelFlags index="AllowHitTest" value="0"/>
+    </CActorModel>
     <CActorList id="NexusShieldBatteryRangeIndicatorHelperList">
         <On Terms="ActorCreation" Send="ExternalFinderAdd"/>
         <On Terms="Signal.*.NexusAddMe" Send="RefSetFromMsg ::actor.NexusToAdd ::Sender"/>
@@ -127,9 +138,30 @@
         <On Terms="TimerExpired; TimerName NexusOverchargeSearch; !ValidatePosition NexusBatteryOvercharge8RangePlacementVisual" Send="StatusSet NexusOvercharge 0"/>
         <On Terms="TimerExpired; TimerName NexusOverchargeSearch; ValidatePosition NexusBatteryOvercharge8RangePlacementVisual" Send="StatusSet NexusOvercharge 1"/>
         <On Terms="StatusSet.*.NexusOvercharge; IsStatus NexusOvercharge 0; !Option Model Low" Send="ModelSwap ShieldBatteryPlacement"/>
-        <On Terms="StatusSet.*.NexusOvercharge; IsStatus NexusOvercharge 0; Option Model Low" Send="ModelSwap ShieldBattery"/>
-        <On Terms="StatusSet.*.NexusOvercharge; IsStatus NexusOvercharge 1" Send="ModelSwap ShieldBattery_Placement_Overcharged"/>
+        <On Terms="StatusSet.*.NexusOvercharge; IsStatus NexusOvercharge 1; !Option Model Low" Send="ModelSwap ShieldBattery_Placement_Overcharged"/>
+        <On Terms="StatusSet.*.NexusOvercharge; IsStatus NexusOvercharge 0; Option Model Low" Send="SetTintColor 60,84,255 0.000000 OneShot OverchargeTint"/>
+        <On Terms="StatusSet.*.NexusOvercharge; IsStatus NexusOvercharge 1; Option Model Low" Send="SetTintColor 238,255,21 0.000000 OneShot OverchargeTint"/>
     </CActorModel>
+    <CActorSound id="ShieldBatteryRechargeEx5@SoundLoop" parent="SoundContinuous">
+        <Sound value="ShieldBattery_Recharge_Loop"/>
+    </CActorSound>
+    <CActorAction id="ShieldBatteryRechargeEx5@Action" parent="GenericAttackBase">
+        <On Terms="Effect.ShieldBatteryRechargeEx5.Start; At Caster" Send="Create"/>
+        <On Terms="Effect.ShieldBatteryRechargeEx5.Stop" Send="Destroy"/>
+        <LaunchAssets Sound="ShieldBattery_RechargeStart"/>
+        <Beam value="ShieldBatteryRechargeEx5@Beam"/>
+        <BeamScope value="Caster"/>
+        <ImpactSiteOps Ops="SOpAttachHarness SOpForwardLaunchGuide"/>
+        <ShieldFlashType value="None"/>
+        <Lifetime value="-1.000000"/>
+        <ImpactModel value="ShieldBatteryRechargeEx5@ImpactActor"/>
+    </CActorAction>
+    <CActorSound id="ShieldBatteryRechargeEx5@SoundStart" parent="SoundOneShot">
+        <Sound value="ShieldBattery_RechargeStart"/>
+    </CActorSound>
+    <CActorSound id="ShieldBatteryRechargeEx5@SoundEnd" parent="SoundOneShot">
+        <Sound value="ShieldBattery_RechargeEnd"/>
+    </CActorSound>
     <CActorAction id="ZealotSunderingImpactAttackImpactEffect" parent="GenericAttack" effectAttack="ChargingDamage">
         <ImpactMap index="None" Model="PurificationNovaImpact" Sound="" ModelReaction=""/>
         <ImpactMap index="Shield" Sound="" ModelReaction=""/>
@@ -547,7 +579,7 @@
     <CActorRange id="EggMonsterHarpyRange">
         <On Terms="SelectionLocalUpdate.SwarmHostMP.Start" Send="Create"/>
         <On Terms="SelectionLocalUpdate.SwarmHostMP.Stop" Send="Destroy"/>
-        <Remove index="0" Terms="AbilMorph.*.Start; MorphTo SwarmHostBurrowedMP; Selected" Send="Create"/>
+        <Remove index="0" Terms="AbilMorph.*.Start; MorphTo SwarmHostBurrowedMP; Selected"/>
         <Remove index="1" Terms="AbilMorph.*.Start; MorphTo SwarmHostMP" Send="Destroy"/>
         <Remove index="2" removed="1"/>
         <Remove index="3" removed="1"/>
@@ -2321,8 +2353,6 @@
         <Layers Sound="Emitter_PowerStructure_Fill"/>
     </CActorSound>
     <CActorDoodad id="CastanarHoloProjector">
-        <RandomScaleRange value="1.000000,1.000000"/>
-        <Footprint value="FootprintDoodad1x1"/>
         <TexSets value="Castanar"/>
         <On Terms="ActorCreation" Send="Create SoundEmitter HologramProjectorLoop"/>
         <!--On Terms="ModelEvent; ModelEventName PowerOn" Send="Create HologramProjector_PowerOn_AS"/>
@@ -2330,4 +2360,18 @@
         <On Terms="ModelEvent; ModelEventName PowerOff" Target="HologramProjector_PowerLoop_AS" Send="Destroy"/>
         <On Terms="ModelEvent; ModelEventName PowerOff" Send="Create HologramProjector_PowerOff_AS"/>-->
     </CActorDoodad>
+    <CActorBeamSimple id="ShieldBatteryRechargeEx5@Beam" parent="BeamSimpleAnimationStyleContinuous">
+        <Supporter Subject="::Creator"/>
+        <On Terms="SupporterDestruction" Send="AnimBracketStop BSD"/>
+        <On Terms="AnimBracketState.*.BeforeOpening" Send="Create ShieldBatteryRechargeEx5@SoundStart"/>
+        <On Terms="AnimBracketState.*.BeforeClosing" Send="Create ShieldBatteryRechargeEx5@SoundEnd"/>
+        <On Terms="AnimBracketState.*.AfterOpening" Send="Create ShieldBatteryRechargeEx5@SoundLoop"/>
+        <On Terms="ActorCreation; ValidateUnit CasterHasBatteryOverchargeBehavior" Send="SetTintColor 0,255,108 0.000000 OneShot Overcharge"/>
+        <On Terms="Behavior.BatteryOvercharge.On" Send="SetTintColor 0,255,108 0.000000 OneShot Overcharge"/>
+        <On Terms="Behavior.BatteryOvercharge.Off" Send="ClearTintColor 0.000000 Overcharge"/>
+        <On Terms="ActorCreation; ValidateUnit CasterHasBatteryOverchargeBehavior" Send="SetScale 2.000000 0.000000 OverchargeScale"/>
+        <On Terms="Behavior.BatteryOvercharge.On" Send="SetScale 2.000000 0.000000 OverchargeScale"/>
+        <On Terms="Behavior.BatteryOvercharge.Off" Send="ClearScale 0.000000 OverchargeScale"/>
+        <ModelFlags index="AutomateGlobalLoops" value="1"/>
+    </CActorBeamSimple>
 </Catalog>
