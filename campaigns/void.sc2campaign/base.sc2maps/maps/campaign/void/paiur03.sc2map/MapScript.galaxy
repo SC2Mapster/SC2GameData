@@ -61,7 +61,7 @@ int gv_nydusDelay;
 unitgroup gv_critterGroup;
 bool gv_leftZerglingsSent;
 unitgroup gv_achievementWarpTourGroup;
-int gv_achievementStructureLost;
+bool gv_achievementStructureLost;
 int gv_proxyPylonsWarpedIn;
 int gv_unitsWarpedInByWarpGates;
 fixed gv_shieldsRechargedByShieldBatteries;
@@ -174,6 +174,7 @@ trigger gt_Victory;
 trigger gt_Defeat;
 trigger gt_VictoryCheat;
 trigger gt_DefeatCheat;
+trigger gt_AchievementNoStructuresLost;
 trigger gt_AchievementWarpTour;
 trigger gt_AchievementSprinterCell;
 trigger gt_MasteryAllStructuresDestroyed;
@@ -3308,6 +3309,7 @@ bool gt_VictoryActivatePowerCellsCompleted_Func (bool testConds, bool runActions
         return true;
     }
 
+    TriggerEnable(gt_AchievementNoStructuresLost, false);
     TriggerEnable(TriggerGetCurrent(), false);
     TriggerExecute(gt_VictorySequence, true, false);
     auto30CC0D33_g = UnitGroup("AdunGenerator", gv_pLAYER_02_DOMINION4, RegionEntireMap(), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
@@ -3373,9 +3375,9 @@ bool gt_Victory_Func (bool testConds, bool runActions) {
     }
 
     TriggerEnable(TriggerGetCurrent(), false);
-    gv_achievementStructureLost = PlayerScoreValueGetAsInt(gv_pLAYER_01_USER, "StructuresLostCount");
-    if ((libNtve_gf_DifficultyValueInt(0, 1, 1, 1) == 1) && (gv_achievementStructureLost == 0)) {
+    if ((libNtve_gf_DifficultyValueInt(0, 1, 1, 1) == 1) && (gv_achievementStructureLost == false)) {
         libVoiC_gf_CampaignAwardAchievement("Anniversary_PAiur03", gv_pLAYER_01_USER);
+        TriggerDebugOutput(1, StringExternal("Param/Value/331B7893"), false);
     }
 
     libVoiC_gf_CampaignAwardAchievement("PAiur03_1", gv_pLAYER_01_USER);
@@ -3476,6 +3478,37 @@ bool gt_DefeatCheat_Func (bool testConds, bool runActions) {
 void gt_DefeatCheat_Init () {
     gt_DefeatCheat = TriggerCreate("gt_DefeatCheat_Func");
     TriggerAddEventPlayerLeft(gt_DefeatCheat, gv_pLAYER_01_USER, c_gameResultDefeat);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Achievement: No Structures Lost
+//--------------------------------------------------------------------------------------------------
+bool gt_AchievementNoStructuresLost_Func (bool testConds, bool runActions) {
+    // Automatic Variable Declarations
+    // Conditions
+    if (testConds) {
+        if (!((UnitTypeTestAttribute(UnitGetType(EventUnit()), c_unitAttributeStructure) == true))) {
+            return false;
+        }
+
+        if (!((UnitGetOwner(EventUnit()) == gv_pLAYER_01_USER))) {
+            return false;
+        }
+    }
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    gv_achievementStructureLost = true;
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void gt_AchievementNoStructuresLost_Init () {
+    gt_AchievementNoStructuresLost = TriggerCreate("gt_AchievementNoStructuresLost_Func");
+    TriggerAddEventUnitDied(gt_AchievementNoStructuresLost, null);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -5051,6 +5084,7 @@ void InitTriggers () {
     gt_Defeat_Init();
     gt_VictoryCheat_Init();
     gt_DefeatCheat_Init();
+    gt_AchievementNoStructuresLost_Init();
     gt_AchievementWarpTour_Init();
     gt_AchievementSprinterCell_Init();
     gt_MasteryAllStructuresDestroyed_Init();
