@@ -1,0 +1,2288 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<Catalog>
+    <!--
+    Usage FAQ
+
+    Q01 How do I clear a Start animation before playing a Stop animation, but avoid triggering
+        actions off of the AnimDone message?
+    A01 Use syntax like this:
+            AnimDone; !SubName Cleared
+        This will continue the animDone handling data in the case of Complete, Missing and Error.
+    -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Constants ============================================================================= -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <const id="$GenericAttackLaunchMethods" value="AMFilterWeapon00"/>
+    <const id="$GenericBunkerAttackLaunchMethods" value="AMFilterWeapon AMProximityTargetAll AMPortAllocatorBunker"/>
+    <const id="$GenericAttackTargetMethods" value="AMVolumesTargets AMArcTestWeapon AMVolumesWeightedPick"/>
+    <const id="$GenericAttackImpactSiteOpsHeader" value="SOpAttachHarness SOpForwardLaunchGuide SOpAttachVolumeStandard SOp2DRotation"/>
+    <const id="$Death" value="AnimPlay Death Death"/>
+    <const id="$Birth" value="AnimPlay Birth Birth"/>
+    <const id="$Stand" value="AnimPlay Stand Stand"/>
+    <const id="$AllowBlobShadow" value="CompareField ::Main UnitFlags[e_actorUnitFlagShowBlobShadow] Eq 1"/>
+    <const id="$Spell" value="AnimPlay Spell Spell"/>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Base Defaults ========================================================================= -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Base Actors ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ -->
+    <!--                                                                                         -->
+    <!-- Note: Flags should be listed in the order they appear in the enum. -->
+    <CActor default="1">
+        <FogVisibility value="Snapshot"/>
+        <EditorCategories value="DoodadType:NotDoodad"/>
+        <InheritType value="Continuous"/>
+        <!-- Make sure to set any properties turned off here back on in the CActorSite default. -->
+        <Inherits index="BaseModelScale" value="0"/>
+        <Inherits index="CastShadows" value="0"/>
+        <Inherits index="CloakEffect" value="0"/>
+        <Inherits index="Decal" value="0"/>
+        <Inherits index="LocalTintColor" value="0"/>
+        <Inherits index="Opacity" value="0"/>
+        <Inherits index="PhysicsState" value="0"/>
+        <Inherits index="Scale" value="0"/>
+        <Inherits index="TeamColor" value="0"/>
+        <Inherits index="TimeScale" value="0"/>
+        <Inherits index="TintColor" value="0"/>
+        <Inherits index="Visibility" value="0"/>
+        <Inherits index="WarpGroup" value="0"/>
+    </CActor>
+    <CActorBearings default="1">
+        <AddToProximitySystem value="1"/>
+        <AcceptedTransfers index="Position" value="1"/>
+        <AcceptedTransfers index="Rotation" value="1"/>
+    </CActorBearings>
+    <CActorBase default="1"/>
+    <CActorStateMonitor default="1">
+        <On Terms="UnitDeath" Send="Destroy"/>
+    </CActorStateMonitor>
+    <CActorModel default="1">
+        <Model value="##id##"/>
+        <AutoScaleFactor value="0"/>
+        <AnimBlendTime value="-1.0"/>
+        <ModelFlags index="AllowHitTest" value="1"/>
+        <ProximityPosition value="CenterModelBounds"/>
+    </CActorModel>
+    <CActorPower default="1">
+        <PowerSource value="##id##Source"/>
+    </CActorPower>
+    <CActorFoliageFXSpawner default="1" id="FoliageFXSpawnerDefault">
+        <SpawnTarget value="FoliageFXDefault"/>
+        <HostSiteOps Ops="SOpTargetPointStationary"/>
+    </CActorFoliageFXSpawner>
+    <!-- Can't be a default or we can't use it in the CActorFoliageFXSpawner default. -->
+    <CActorModel id="FoliageFXDefault">
+        <On Terms="ActorCreation" Send="$Death"/>
+        <On Terms="AnimDone; AnimName Death" Send="Destroy"/>
+    </CActorModel>
+    <CActorTerrainDeformer default="1">
+        <BlendTime value="0.0"/>
+        <InfluenceRange value="0.0"/>
+        <HeightDelta value="0.0"/>
+        <Footprint value=""/>
+        <Host Subject="_Selectable"/>
+        <TerrainDeformerFlags index="DestroysFoliage" value="1"/>
+        <FoliageFXDeathSpawnTarget value="FoliageFXDefault"/>
+    </CActorTerrainDeformer>
+    <CActorProgress default="1">
+        <Supporter Subject="_Unit" Actor="Find"/>
+        <On Terms="UnitConstruction.*.Finish" Send="Destroy"/>
+        <On Terms="UnitConstruction.*.Cancel" Send="Destroy"/>
+        <On Terms="ActorOrphan" Send="Destroy"/>
+    </CActorProgress>
+    <CActorRange default="1">
+        <Arc value="360"/>
+        <Icon value="Assets\Textures\RadarIcon1.dds"/>
+        <IconArcLength value="2.25"/>
+        <Inherits index="Visibility" value="1"/>
+        <Host Subject="_Selectable"/>
+        <On Terms="ActorOrphan" Send="Destroy"/>
+        <HostSiteOps Ops="SOpShadow"/>
+    </CActorRange>
+    <CActorRange default="1" id="RangeAbil">
+        <?token id="abil" type="CAbilLink"?>
+        <Abil Link="##abil##"/>
+        <On Terms="Abil.##abil##.TargetOn" Send="Create"/>
+        <On Terms="Abil.##abil##.TargetOff" Send="Destroy"/>
+        <Flags index="SuppressSaveLoad" value="1"/>
+    </CActorRange>
+    <CActorRange default="1" id="RangeBehavior">
+        <?token id="behavior" type="CBehaviorLink"?>
+        <Behavior value="##behavior##"/>
+        <On Terms="Behavior.##behavior##.On" Send="Create"/>
+        <On Terms="Behavior.##behavior##.Off" Send="Destroy"/>
+    </CActorRange>
+    <CActorRange default="1" id="RangeSight">
+        <?token id="sight" type="CUnitLink"?>
+        <Sight value="##sight##"/>
+    </CActorRange>
+    <CActorRange default="1" id="RangeWeapon">
+        <?token id="weapon" type="CWeaponLink"?>
+        <Weapon value="##weapon##"/>
+    </CActorRange>
+    <CActorSetQueried default="1">
+        <!-- Makes these work a lot of the time without any extra data. -->
+        <Host Subject="_Unit"/>
+        <On Terms="ActorOrphan" Send="Destroy"/>
+    </CActorSetQueried>
+    <CActorShieldImpact default="1">
+        <RadiusMedium value="1"/>
+        <RadiusLarge value="2"/>
+        <MaxCountSmall value="4"/>
+        <MaxCountMedium value="8"/>
+        <MaxCountLarge value="12"/>
+    </CActorShieldImpact>
+    <CActorSite default="1">
+        <AddToProximitySystem value="0"/>
+        <!-- Sites are a conduit for everything by default.  The actors that use sites may or may
+             not inherit these properities, however. -->
+        <Inherits index="BaseModelScale" value="1"/>
+        <Inherits index="CastShadows" value="1"/>
+        <Inherits index="CloakEffect" value="1"/>
+        <Inherits index="Decal" value="1"/>
+        <Inherits index="LocalTintColor" value="1"/>
+        <Inherits index="Opacity" value="1"/>
+        <Inherits index="Scale" value="1"/>
+        <Inherits index="TeamColor" value="1"/>
+        <Inherits index="TimeScale" value="1"/>
+        <Inherits index="TintColor" value="1"/>
+        <Inherits index="Visibility" value="1"/>
+        <Inherits index="WarpGroup" value="1"/>
+    </CActorSite>
+    <CActorSound default="1">
+        <Sound value="##id##"/>
+        <Inherits index="Visibility" value="1"/>
+        <!-- We do not destroy the sound on SoundDone here, b/c it is is possible to have a sound
+             set that we play through sequentially.  Each sound sends a SoundDone when done, which
+             would cause the set to terminate prematurely.  It's easier to add messages than 
+             remove them, so it's up to the subclasses to remember this message.  And remember
+             they must or they will leak! -->
+    </CActorSound>
+    <CActorSplat default="1">
+        <Model value="##id##"/>
+        <AutoScaleFactor value="0"/>
+        <Color value="255,255,255,255"/>
+        <FadeIn value="-1.0"/>
+        <FadeOut value="-1.0"/>
+    </CActorSplat>
+    <CActorText default="1">
+        <TextScale value="0.250000"/>
+        <MaxSize value="3.000000,1.000000"/>
+        <AlignH value="Center"/>
+        <AlignV value="Center"/>
+        <Color value="255,255,255,255"/>
+    </CActorText>
+    <CActorTurret default="1">
+        <!--<PitchQuery Methods="Turret"/>-->
+        <PitchQuery Methods="IGNORE"/>
+        <YawQuery Methods="TurretZ"/>
+        <TurretBody Subject="_Selectable" Actor="Find"/>
+        <Aliases value="_Snapshot"/>
+    </CActorTurret>
+    <!--                                                                                         -->
+    <!-- Subclass Actors ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ -->
+    <!--                                                                                         -->
+    <CActorBeamStandard default="1">
+        <Beam value="##id##"/>
+    </CActorBeamStandard>
+    <CActorDoodad default="1">
+        <Flags index="SuppressSaveLoad" value="1"/>
+        <DoodadFlags index="PauseAnimsWhileFogged" value="1"/>
+        <FogVisibility value="Dimmed"/>
+        <EditorCategories value="DoodadType:Props"/>
+        <EditorIcon value="Assets\Textures\btn-missing-kaeo.dds"/>
+        <Radius value="0.5"/>
+        <RandomScaleRange value="0.800000,1.200000"/>
+        <Aliases value="_Doodad"/>
+        <Aliases value="_Selectable"/>
+        <OccludeHeight value="0.75"/>
+        <EditorFlags index="AmbientOcclusion" value="1"/>
+        <EditorFlags index="CanRotate" value="1"/>
+        <Macros value="GlobalLoopMacro"/>
+        <On Terms="ActorCreation" Send="Create SoundEmitter Doodad_##id##"/>
+        <On Terms="ActorCreation" Send="$Stand PlayForever"/>
+    </CActorDoodad>
+    <CActorSelection default="1">
+        <Flags index="SuppressSaveLoad" value="1"/>
+        <Model value=""/>
+        <Terms value="Cap 1"/>
+        <FadeIn value="0.000000"/>
+        <FadeOut value="0.000000"/>
+        <HoldTime value="-1.000000"/>
+        <FallOff value="0.030000"/>
+        <HalfHeight value="3.0"/>
+        <Attenuation value="-1.0"/>
+        <Layer value="VectorUILayer"/>
+        <Host Subject="_Selectable"/>
+        <HostSiteOps Ops="SOpAttachOrigin"/>
+        <HostRadiusPercent value="1.000000"/>
+        <Inherits index="Visibility" value="1"/>
+        <On Terms="UnitDeath" Send="Destroy"/>
+        <On Terms="ActorOrphan" Send="Destroy"/>
+    </CActorSelection>
+    <CActorShadow default="1">
+        <Terms value="Cap 1"/>
+        <FadeIn value="0.500000"/>
+        <FadeOut value="0.500000"/>
+        <Model value="BlobShadow"/>
+        <Inherits index="Scale" value="1"/>
+        <Alpha value="0.000000,0.70000,0.000000"/>
+        <Host Subject="_Selectable"/>
+        <Attenuation value="-1.0"/>
+        <HostSiteOps Ops="SOpAttachOrigin SOpShadowAsyncPrecise"/>
+        <On Terms="UnitDeath" Send="Destroy"/>
+        <On Terms="ActorOrphan" Send="Destroy"/>
+    </CActorShadow>
+    <!-- Doodad Death Macros ................................................................... -->
+    <CActorEventMacro id="DoodadDeathMacro">
+        <On Terms="Signal.*.DoodadDeath; AnimPlaying Stand" Send="$Death"/>
+        <On Terms="Signal.*.DoodadDeath; AnimPlaying Stand" Send="AnimClear Stand"/>
+        <On Terms="Signal.*.DoodadDead; AnimPlaying Stand" Send="AnimPlay Dead Dead PlayForever"/>
+        <On Terms="Signal.*.DoodadDead; AnimPlaying Death" Send="AnimPlay Dead Dead PlayForever"/>
+        <On Terms="Signal.*.DoodadDead; AnimPlaying Stand" Send="AnimClear Stand"/>
+        <On Terms="Signal.*.DoodadDead; AnimPlaying Death" Send="AnimClear Death"/>
+        <On Terms="AnimDone.*.Missing; AnimName Death" Send="AnimPlay Dead Dead PlayForever"/>
+        <On Terms="AnimDone; AnimName Death" Send="AnimPlay Dead Dead PlayForever"/>
+    </CActorEventMacro>
+    <CActorEventMacro id="DoodadDeathMacroB">
+        <On Terms="Signal.*.DoodadDeathB; AnimPlaying Stand" Send="$Death"/>
+        <On Terms="Signal.*.DoodadDeathB; AnimPlaying Stand" Send="AnimClear Stand"/>
+        <On Terms="AnimDone.*.Missing; AnimName Death" Send="AnimPlay Dead Dead PlayForever"/>
+        <On Terms="AnimDone; AnimName Death" Send="AnimPlay Dead Dead PlayForever"/>
+    </CActorEventMacro>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Global Config ========================================================================= -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <CActorGlobalConfig id="SYSTEM_ActorConfig">
+        <MainActor value="_Main"/>
+        <MissileActor value="_Missile"/>
+        <MissileBoundsOptSpeedThreshold value="5.0"/>
+        <ActorUnitFallback value="GenericUnitFallback"/>
+        <CommandUIActor value="CommandUIHarness"/>
+        <CloakModel value="CloakModel"/>
+        <CloakModelLow value="CloakModelLow"/>
+        <CloakTransitionArray index="None">
+            <StateArray index="Ally" Enter="Cloak,Start" Loop="Cloak"/>
+            <StateArray index="Detected" Enter="Cloak,Start" Loop="Cloak"/>
+            <StateArray index="Enemy" Enter="Cloak,Enemy,Start" Loop="Cloak,Enemy"/>
+        </CloakTransitionArray>
+        <CloakTransitionArray index="Ally">
+            <StateArray index="None" Enter="Cloak,End"/>
+            <StateArray index="Detected" Loop="Cloak"/>
+            <StateArray index="Enemy" Enter="Cloak,Detect,End" Loop="Cloak,Enemy"/>
+        </CloakTransitionArray>
+        <CloakTransitionArray index="Detected">
+            <StateArray index="None" Enter="Cloak,End"/>
+            <StateArray index="Ally" Loop="Cloak"/>
+            <StateArray index="Enemy" Enter="Cloak,Detect,End" Loop="Cloak,Enemy"/>
+        </CloakTransitionArray>
+        <CloakTransitionArray index="Enemy">
+            <StateArray index="None" Enter="Cloak,Enemy,End"/>
+            <StateArray index="Ally" Enter="Cloak,Detect,Start" Loop="Cloak"/>
+            <StateArray index="Detected" Enter="Cloak,Detect,Start" Loop="Cloak"/>
+        </CloakTransitionArray>
+        <MaxSpeedForSound value="3.0"/>
+        <PopulationLimitModel value="160"/>
+        <!-- Earlier in the list is lower priority.  Later in the list is higher priority. -->
+        <DeathCustomPriorityList value="Empty"/>
+        <DeathCustomPriorityList value="Upgrade"/>
+        <DeathCustomPriorityList value="UpgradedFire"/>
+        <DeathCustomPriorityList value="UpgradedAcid"/>
+        <DeathCustomPriorityList value="UpgradedEviscerate"/>
+        <DeathCustomPriorityList value="Warpgate"/>
+        <DeathCustomPriorityList value="DarkProtoss"/>
+        <DeathCustomPriorityList value="Detached"/>
+        <DeathCustomPriorityList value="Flying"/>
+        <DeathCustomPriorityList value="Burrowed"/>
+        <DeathCustomPriorityList value="AntiGravProtoss"/>
+        <DeathCustomPriorityList value="AntiGravTerran"/>
+        <DeathCustomPriorityList value="AntiGravZerg"/>
+        <DeathCustomPriorityList value="Hallucination"/>
+        <DeathCustomPriorityList value="Variation0"/>
+        <DeathCustomPriorityList value="Variation1"/>
+        <DeathCustomPriorityList value="Variation2"/>
+        <DeathCustomPriorityList value="Variation3"/>
+        <DeathCustomPriorityList value="Variation4"/>
+        <DeathCustomPriorityList value="Variation5"/>
+        <DeathCustomPriorityList value="Variation6"/>
+        <DeathCustomPriorityList value="Variation7"/>
+        <DeathCustomPriorityList value="Variation8"/>
+        <DeathCustomPriorityList value="Variation9"/>
+        <DeathCustomPriorityList value="Variation10"/>
+        <DeathCustomPriorityList value="Variation11"/>
+        <DeathCustomPriorityList value="Variation12"/>
+        <DeathCustomPriorityList value="Variation13"/>
+        <DeathCustomPriorityList value="Variation14"/>
+        <DeathCustomPriorityList value="Variation15"/>
+        <DeathCustomPriorityList value="Variation16"/>
+        <DeathCustomPriorityList value="Variation17"/>
+        <DeathCustomPriorityList value="Variation18"/>
+        <DeathCustomPriorityList value="Variation19"/>
+        <DeathCustomPriorityList value="Variation20"/>
+        <DeathCustomPriorityList value="Variation21"/>
+        <DeathCustomPriorityList value="Variation22"/>
+        <DeathCustomPriorityList value="Variation23"/>
+        <DeathCustomPriorityList value="Variation24"/>
+        <DeathCustomPriorityList value="Variation25"/>
+        <DeathCustomPriorityList value="Variation26"/>
+        <DeathCustomPriorityList value="Variation27"/>
+        <DeathCustomPriorityList value="Variation28"/>
+        <DeathCustomPriorityList value="Variation29"/>
+        <DeathCustomPriorityList value="Variation30"/>
+        <DeathCustomPriorityList value="Variation31"/>
+        <DeathCustomPriorityList value="Variation32"/>
+        <DeathCustomPriorityList value="Variation33"/>
+        <DeathCustomPriorityList value="Variation34"/>
+        <DeathCustomPriorityList value="Variation35"/>
+        <DeathCustomPriorityList value="Variation36"/>
+        <DeathCustomPriorityList value="Variation37"/>
+        <DeathCustomPriorityList value="Variation38"/>
+        <DeathCustomPriorityList value="Variation39"/>
+        <DeathCustomPriorityList value="Variation40"/>
+        <DeathCustomPriorityList value="Low"/>
+    </CActorGlobalConfig>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Global Loop Anims ===================================================================== -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <CActorEventMacro id="GlobalLoopMacro">
+        <On Terms="ActorCreation" Send="AnimBracketStart GL_BSD GLbirth GLstand GLdeath"/>
+        <On Terms="ActorOrphan" Send="AnimBracketStop GL_BSD"/>
+        <On Terms="AnimDone; AnimName GL_Death" Send="AnimPlay GL_Dead GLdead PlayForever"/>
+    </CActorEventMacro>
+    <CActorEventMacro id="GlobalLoopMacroMore">
+        <On Terms="ActorCreation" Send="AnimBracketStart GL_BSD_A GLbirth,A GLstand,A GLdeath,A"/>
+        <On Terms="ActorCreation" Send="AnimBracketStart GL_BSD_B GLbirth,B GLstand,B GLdeath,B"/>
+        <On Terms="ActorCreation" Send="AnimBracketStart GL_BSD_C GLbirth,C GLstand,C GLdeath,C"/>
+        <On Terms="ActorCreation" Send="AnimBracketStart GL_BSD_D GLbirth,D GLstand,D GLdeath,D"/>
+        <On Terms="ActorCreation" Send="AnimBracketStart GL_BSD_E GLbirth,E GLstand,E GLdeath,E"/>
+        <On Terms="ActorCreation" Send="AnimBracketStart GL_BSD_F GLbirth,F GLstand,F GLdeath,F"/>
+        <On Terms="ActorCreation" Send="AnimBracketStart GL_BSD_G GLbirth,G GLstand,G GLdeath,G"/>
+        <On Terms="ActorCreation" Send="AnimBracketStart GL_BSD_H GLbirth,H GLstand,H GLdeath,H"/>
+        <On Terms="ActorCreation" Send="AnimBracketStart GL_BSD_I GLbirth,I GLstand,I GLdeath,I"/>
+        <On Terms="ActorCreation" Send="AnimBracketStart GL_BSD_J GLbirth,J GLstand,J GLdeath,J"/>
+        <On Terms="ActorOrphan" Send="AnimBracketStop GL_BSD_A"/>
+        <On Terms="ActorOrphan" Send="AnimBracketStop GL_BSD_B"/>
+        <On Terms="ActorOrphan" Send="AnimBracketStop GL_BSD_C"/>
+        <On Terms="ActorOrphan" Send="AnimBracketStop GL_BSD_D"/>
+        <On Terms="ActorOrphan" Send="AnimBracketStop GL_BSD_E"/>
+        <On Terms="ActorOrphan" Send="AnimBracketStop GL_BSD_F"/>
+        <On Terms="ActorOrphan" Send="AnimBracketStop GL_BSD_G"/>
+        <On Terms="ActorOrphan" Send="AnimBracketStop GL_BSD_H"/>
+        <On Terms="ActorOrphan" Send="AnimBracketStop GL_BSD_I"/>
+        <On Terms="ActorOrphan" Send="AnimBracketStop GL_BSD_J"/>
+        <On Terms="AnimDone; AnimName GL_Death_A" Send="AnimPlay GL_Dead_A GLdead,A PlayForever"/>
+        <On Terms="AnimDone; AnimName GL_Death_B" Send="AnimPlay GL_Dead_B GLdead,B PlayForever"/>
+        <On Terms="AnimDone; AnimName GL_Death_C" Send="AnimPlay GL_Dead_C GLdead,C PlayForever"/>
+        <On Terms="AnimDone; AnimName GL_Death_D" Send="AnimPlay GL_Dead_D GLdead,D PlayForever"/>
+        <On Terms="AnimDone; AnimName GL_Death_E" Send="AnimPlay GL_Dead_E GLdead,E PlayForever"/>
+        <On Terms="AnimDone; AnimName GL_Death_F" Send="AnimPlay GL_Dead_F GLdead,F PlayForever"/>
+        <On Terms="AnimDone; AnimName GL_Death_G" Send="AnimPlay GL_Dead_G GLdead,G PlayForever"/>
+        <On Terms="AnimDone; AnimName GL_Death_H" Send="AnimPlay GL_Dead_H GLdead,H PlayForever"/>
+        <On Terms="AnimDone; AnimName GL_Death_I" Send="AnimPlay GL_Dead_I GLdead,I PlayForever"/>
+        <On Terms="AnimDone; AnimName GL_Death_J" Send="AnimPlay GL_Dead_J GLdead,J PlayForever"/>
+    </CActorEventMacro>
+    <CActorEventMacro id="GlobalLoopMacroRemove">
+        <Remove Terms="ActorCreation" Send="AnimBracketStart GL_BSD GLbirth GLstand GLdeath"/>
+        <Remove Terms="ActorOrphan" Send="AnimBracketStop GL_BSD"/>
+        <Remove Terms="AnimDone; AnimName GL_Death" Send="AnimPlay GL_Dead GLdead PlayForever"/>
+    </CActorEventMacro>
+    <CActorEventMacro id="GlobalLoopMacroMoreRemove">
+        <Remove Terms="ActorCreation" Send="AnimBracketStart GL_BSD_A GLbirth,A GLstand,A GLdeath,A"/>
+        <Remove Terms="ActorCreation" Send="AnimBracketStart GL_BSD_B GLbirth,B GLstand,B GLdeath,B"/>
+        <Remove Terms="ActorCreation" Send="AnimBracketStart GL_BSD_C GLbirth,C GLstand,C GLdeath,C"/>
+        <Remove Terms="ActorCreation" Send="AnimBracketStart GL_BSD_D GLbirth,D GLstand,D GLdeath,D"/>
+        <Remove Terms="ActorCreation" Send="AnimBracketStart GL_BSD_E GLbirth,E GLstand,E GLdeath,E"/>
+        <Remove Terms="ActorCreation" Send="AnimBracketStart GL_BSD_F GLbirth,F GLstand,F GLdeath,F"/>
+        <Remove Terms="ActorCreation" Send="AnimBracketStart GL_BSD_G GLbirth,G GLstand,G GLdeath,G"/>
+        <Remove Terms="ActorCreation" Send="AnimBracketStart GL_BSD_H GLbirth,H GLstand,H GLdeath,H"/>
+        <Remove Terms="ActorCreation" Send="AnimBracketStart GL_BSD_I GLbirth,I GLstand,I GLdeath,I"/>
+        <Remove Terms="ActorCreation" Send="AnimBracketStart GL_BSD_J GLbirth,J GLstand,J GLdeath,J"/>
+        <Remove Terms="ActorOrphan" Send="AnimBracketStop GL_BSD_A"/>
+        <Remove Terms="ActorOrphan" Send="AnimBracketStop GL_BSD_B"/>
+        <Remove Terms="ActorOrphan" Send="AnimBracketStop GL_BSD_C"/>
+        <Remove Terms="ActorOrphan" Send="AnimBracketStop GL_BSD_D"/>
+        <Remove Terms="ActorOrphan" Send="AnimBracketStop GL_BSD_E"/>
+        <Remove Terms="ActorOrphan" Send="AnimBracketStop GL_BSD_F"/>
+        <Remove Terms="ActorOrphan" Send="AnimBracketStop GL_BSD_G"/>
+        <Remove Terms="ActorOrphan" Send="AnimBracketStop GL_BSD_H"/>
+        <Remove Terms="ActorOrphan" Send="AnimBracketStop GL_BSD_I"/>
+        <Remove Terms="ActorOrphan" Send="AnimBracketStop GL_BSD_J"/>
+        <Remove Terms="AnimDone; AnimName GL_Death_A" Send="AnimPlay GL_Dead_A GLdead,A PlayForever"/>
+        <Remove Terms="AnimDone; AnimName GL_Death_B" Send="AnimPlay GL_Dead_B GLdead,B PlayForever"/>
+        <Remove Terms="AnimDone; AnimName GL_Death_C" Send="AnimPlay GL_Dead_C GLdead,C PlayForever"/>
+        <Remove Terms="AnimDone; AnimName GL_Death_D" Send="AnimPlay GL_Dead_D GLdead,D PlayForever"/>
+        <Remove Terms="AnimDone; AnimName GL_Death_E" Send="AnimPlay GL_Dead_E GLdead,E PlayForever"/>
+        <Remove Terms="AnimDone; AnimName GL_Death_F" Send="AnimPlay GL_Dead_F GLdead,F PlayForever"/>
+        <Remove Terms="AnimDone; AnimName GL_Death_G" Send="AnimPlay GL_Dead_G GLdead,G PlayForever"/>
+        <Remove Terms="AnimDone; AnimName GL_Death_H" Send="AnimPlay GL_Dead_H GLdead,H PlayForever"/>
+        <Remove Terms="AnimDone; AnimName GL_Death_I" Send="AnimPlay GL_Dead_I GLdead,I PlayForever"/>
+        <Remove Terms="AnimDone; AnimName GL_Death_J" Send="AnimPlay GL_Dead_J GLdead,J PlayForever"/>
+    </CActorEventMacro>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Debugging ============================================================================= -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <CActorModel id="Axis">
+        <Model value="Axis"/>
+    </CActorModel>
+    <CActorModel id="IndicatorBase">
+        <Model value="Axis"/>
+        <!--HostSiteOps Ops="SOpBasicCreatorStationary"/-->
+    </CActorModel>
+    <CActorModel id="Indicator" parent="IndicatorBase">
+        <Model value="Axis"/>
+        <On Terms="ActorCreation" Send="TimerSet 2 DelayDestroy"/>
+        <On Terms="TimerExpired; TimerName DelayDestroy" Send="Destroy"/>
+        <Host Subject="::Creator"/>
+    </CActorModel>
+    <CActorModel id="IndicatorBlack" parent="Indicator">
+        <On Terms="ActorCreation" Send="SetTintColor 0,0,0 0.000000"/>
+    </CActorModel>
+    <CActorModel id="IndicatorBlue" parent="Indicator">
+        <Scale value="0.75"/>
+        <On Terms="ActorCreation" Send="SetTintColor 47,47,255 0.000000"/>
+    </CActorModel>
+    <CActorModel id="IndicatorGreen" parent="Indicator">
+        <Scale value="1.25"/>
+        <On Terms="ActorCreation" Send="SetTintColor 47,255,47 0.000000"/>
+    </CActorModel>
+    <!-- "Big Red" -->
+    <CActorModel id="IndicatorRed" parent="Indicator">
+        <Scale value="2.5"/>
+        <On Terms="ActorCreation" Send="SetTintColor 255,47,47 0.000000"/>
+    </CActorModel>
+    <!-- Tinter -->
+    <CActorList id="ListTinter">
+        <On Terms="Signal.*.Red" Target="::Contents" Send="SetTintColor 255,0,0"/>
+        <On Terms="Signal.*.Green" Target="::Contents" Send="SetTintColor 0,255,0"/>
+        <On Terms="Signal.*.Blue" Target="::Contents" Send="SetTintColor 0,0,255"/>
+    </CActorList>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Site Ops ============================================================================== -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <CActorSiteOp2DRotation id="SOp2DRotation"/>
+    <CActorSiteOpAction id="SOpActionCenter">
+        <Location value="Center"/>
+    </CActorSiteOpAction>
+    <CActorSiteOpAction id="SOpActionLaunch">
+        <Location value="Launch"/>
+    </CActorSiteOpAction>
+    <CActorSiteOpAction id="SOpActionImpact">
+        <Location value="Impact"/>
+    </CActorSiteOpAction>
+    <CActorSiteOpAttach default="1">
+        <!-- We have to default this value to ignore, b/c several common SiteHosted configurations
+             (like just hosting off a parent model, or being created by CActorSetQueried) don't
+             want to use attach queries.  However, this means that if a client forgets to add a
+             query, the model will show up at 0, 0, which may not be the most intuitive
+             location.  We could add a default for that, but if the client forgets to add a query,
+             who says they are going to remember to parent on that default correctly?  Current
+             thinking is to just bite the bullet and have people look at 0, 0 if the attached thing
+             isn't showing up. -->
+        <AttachQuery Methods="IGNORE"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachHarness"/>
+    <CActorSiteOpAttach id="SOpAttachHarnessSoft">
+        <ForceSoftAttach value="1"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachHarnessStationary">
+        <HoldPosition value="1"/>
+        <HoldRotation value="1"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachCenter">
+        <AttachQuery Methods="Center"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachCenterStationary">
+        <AttachQuery Methods="Center"/>
+        <HoldPosition value="1"/>
+        <HoldRotation value="1"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachTurret">
+        <AttachQuery Methods="TurretZ"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachCustomA">
+        <AttachQuery Methods="CustomA"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachHardPoint">
+        <AttachQuery Methods="Hardpoint"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachHardPoint01">
+        <AttachQuery Methods="Hardpoint 1"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachHardPoint02">
+        <AttachQuery Methods="Hardpoint 2"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachHardPoint03">
+        <AttachQuery Methods="Hardpoint 3"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachHardPoint04">
+        <AttachQuery Methods="Hardpoint 4"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachOrigin">
+        <AttachQuery Methods="Origin"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachOriginStationary">
+        <AttachQuery Methods="Origin"/>
+        <HoldPosition value="1"/>
+        <HoldRotation value="1"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachOverhead">
+        <AttachQuery Methods="Overhead"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachHead">
+        <AttachQuery Methods="Head" Fallback="Target"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachHeadSound">
+        <AttachQuery Methods="Head" Fallback="StatusBar"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachRandomDamage">
+        <AttachQuery Methods="AMFilterTargetOrDamage AMNodeOccupancyNoSpam AMRandom" Fallback="Center"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachShield">
+        <AttachQuery Methods="Shield"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachTarget">
+        <AttachQuery Methods="Target"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachRandomWeapon">
+        <AttachQuery Methods="AMFilterWeapon AMNodeOccupancyNoSpam AMRandom" Fallback="Weapon"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachRollingWeaponStripe">
+        <AttachQuery Methods="AMPatternRollingStripe" Fallback="Weapon"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachWeapon">
+        <AttachQuery Methods="Weapon"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachWeaponLeft">
+        <AttachQuery Methods="AMFilterWeaponLeft"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachWeaponRight">
+        <AttachQuery Methods="AMFilterWeaponRight"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachWeapon01">
+        <AttachQuery Methods="Weapon 1"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachWeapon01Soft">
+        <AttachQuery Methods="Weapon 1"/>
+        <ForceSoftAttach value="1"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachWeapon02">
+        <AttachQuery Methods="Weapon 2"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachWeapon03">
+        <AttachQuery Methods="Weapon 3"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachWeapon04">
+        <AttachQuery Methods="Weapon 4"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachWeapon05">
+        <AttachQuery Methods="Weapon 5"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachWeapon06">
+        <AttachQuery Methods="Weapon 6"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachWeapon07">
+        <AttachQuery Methods="Weapon 7"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachWeapon08">
+        <AttachQuery Methods="Weapon 8"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachWeapon09">
+        <AttachQuery Methods="Weapon 9"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachWeapon11">
+        <AttachQuery Methods="Weapon 11"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachWeapon12">
+        <AttachQuery Methods="Weapon 12"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachWeapon21">
+        <AttachQuery Methods="Weapon 21"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttach id="SOpAttachWeapon24">
+        <AttachQuery Methods="Weapon 24"/>
+    </CActorSiteOpAttach>
+    <CActorSiteOpAttachVolume id="SOpAttachVolumeStandard">
+        <HostIncoming Subject="_LaunchGuide" Actor="Find"/>
+        <UpwardVisibilityEnhancement value="1"/>
+        <UpwardVisibilityEnhancementVarianceUp value="15"/>
+        <UpwardVisibilityEnhancementVarianceDown value="5"/>
+    </CActorSiteOpAttachVolume>
+    <CActorSiteOpAttachVolume id="SOpAttachVolumeNoVizEnhance">
+        <HostIncoming Subject="_LaunchGuide" Actor="Find"/>
+    </CActorSiteOpAttachVolume>
+    <CActorSiteOpBanker id="SOpBanker">
+        <RollAngleMax value="60"/>
+        <RollInRate value="30"/>
+        <RollOutRate value="55"/>
+        <RollOutRemainderFractionForLevelOff value="0.3"/>
+    </CActorSiteOpBanker>
+    <CActorSiteOpBanker id="SOpBankerBuilding">
+        <RollAngleMax value="45"/>
+        <RollInRate value="12.5"/>
+        <RollOutRate value="10"/>
+        <RollOutRemainderFractionForLevelOff value="0.3"/>
+    </CActorSiteOpBanker>
+    <CActorSiteOpBasic id="SOpBasicScopeFollow">
+        <BasicType value="ScopeBearings"/>
+    </CActorSiteOpBasic>
+    <CActorSiteOpBasic id="SOpBasicInitialBearings">
+        <BasicType value="InitialBearings"/>
+    </CActorSiteOpBasic>
+    <CActorSiteOpBasic id="SOpBasicScopeStationary">
+        <BasicType value="ScopeBearings"/>
+        <HoldPosition value="1"/>
+        <HoldRotation value="1"/>
+    </CActorSiteOpBasic>
+    <!-- Do not remove this SiteOp, it is used by the code. -->
+    <CActorSiteOpBasic id="SOpBasicActorPositionFollow">
+        <BasicType value="ActorPosition"/>
+    </CActorSiteOpBasic>
+    <CActorSiteOpBasic id="SOpBasicCreatorPositionFollow">
+        <BasicType value="CreatorPosition"/>
+    </CActorSiteOpBasic>
+    <CActorSiteOpBasic id="SOpBasicCreatorFollow">
+        <BasicType value="CreatorBearings"/>
+    </CActorSiteOpBasic>
+    <CActorSiteOpBasic id="SOpBasicCreatorStationary">
+        <BasicType value="CreatorBearings"/>
+        <HoldPosition value="1"/>
+        <HoldRotation value="1"/>
+    </CActorSiteOpBasic>
+    <CActorSiteOpEffect id="SOpCasterPoint">
+        <Location value="CasterPoint"/>
+    </CActorSiteOpEffect>
+    <CActorSiteOpEffect id="SOpMissile">
+        <Location value="MissileUnitOrPoint"/>
+    </CActorSiteOpEffect>
+    <CActorSiteOpEffect id="SOpSourcePoint">
+        <Location value="SourcePoint"/>
+    </CActorSiteOpEffect>
+    <CActorSiteOpEffect id="SOpSourcePointSationary">
+        <Location value="SourcePoint"/>
+        <HoldPosition value="1"/>
+        <HoldRotation value="1"/>
+    </CActorSiteOpEffect>
+    <CActorSiteOpEffect id="SOpTargetPoint">
+        <Location value="TargetPoint"/>
+    </CActorSiteOpEffect>
+    <CActorSiteOpEffect id="SOpTargetUnit">
+        <Location value="TargetUnit"/>
+    </CActorSiteOpEffect>
+    <CActorSiteOpEffect id="SOpTargetUnitZ">
+        <Location value="TargetUnit"/>
+        <ZOnly value="1"/>
+    </CActorSiteOpEffect>
+    <CActorSiteOpEffect id="SOpTargetPointStationary">
+        <Location value="TargetPoint"/>
+        <HoldPosition value="1"/>
+        <HoldRotation value="1"/>
+    </CActorSiteOpEffect>
+    <CActorSiteOpForward id="SOpForwardCasterPoint">
+        <HostForwardSiteOps Ops="SOpCasterPoint"/>
+    </CActorSiteOpForward>
+    <CActorSiteOpForward id="SOpForwardCasterPointInverted">
+        <HostForwardSiteOps Ops="SOpCasterPoint"/>
+        <Invert value="1"/>
+    </CActorSiteOpForward>
+    <CActorSiteOpForward id="SOpForwardSourcePoint">
+        <HostForwardSiteOps Ops="SOpSourcePoint"/>
+    </CActorSiteOpForward>
+    <CActorSiteOpForward id="SOpForwardTargetPoint">
+        <HostForwardSiteOps Ops="SOpTargetPoint"/>
+    </CActorSiteOpForward>
+    <CActorSiteOpForward id="SOpForwardTargetPointInverted">
+        <HostForwardSiteOps Ops="SOpTargetPoint"/>
+        <Invert value="1"/>
+    </CActorSiteOpForward>
+    <CActorSiteOpForward id="SOpForwardDefault">
+        <Forward value="0,-1,0"/>
+    </CActorSiteOpForward>
+    <CActorSiteOpForward id="SOpForwardNorth">
+        <Forward value="0,1,0"/>
+    </CActorSiteOpForward>
+    <CActorSiteOpForward id="SOpForwardPointsUp">
+        <Forward value="0,0,1"/>
+    </CActorSiteOpForward>
+    <CActorSiteOpForward id="SOpForwardLaunchGuide">
+        <HostForward Subject="_LaunchGuide" Scope="Outer" Actor="Find"/>
+    </CActorSiteOpForward>
+    <CActorSiteOpForward id="SOpForwardLaunchGuideStationary">
+        <HostForward Subject="_LaunchGuide" Scope="Outer" Actor="Find"/>
+        <HoldPosition value="1"/>
+        <HoldRotation value="1"/>
+    </CActorSiteOpForward>
+    <CActorSiteOpForward id="SOpForwardLaunchGuideDamage">
+        <HostForward Subject="_LaunchGuide" Actor="Find"/>
+    </CActorSiteOpForward>
+    <CActorSiteOpForward id="SOpForwardImpactGuide">
+        <HostForward Subject="_ImpactGuide" Actor="Find"/>
+    </CActorSiteOpForward>
+    <CActorSiteOpHeight id="SOpHeightLaunch">
+        <HostHeight Subject="_LaunchGuide" Scope="Outer" Actor="Find"/>
+    </CActorSiteOpHeight>
+    <CActorSiteOpHostBearings id="SOpHostCasterOverhead">
+        <HostBearings Subject="_Selectable" Scope="Caster" Actor="Find"/>
+        <HostBearingsSiteOps Ops="SOpAttachOverhead"/>
+    </CActorSiteOpHostBearings>
+    <CActorSiteOpLocalOffset id="SOpHigherBy3">
+        <LocalOffset value="0,0,3"/>
+    </CActorSiteOpLocalOffset>
+    <CActorSiteOpLocalOffset id="SOpHigherBy5">
+        <LocalOffset value="0,0,5"/>
+    </CActorSiteOpLocalOffset>
+    <CActorSiteOpPatch id="SOpPatch5">
+        <PatchAngle value="5"/>
+    </CActorSiteOpPatch>
+    <CActorSiteOpPatch id="SOpPatch10">
+        <PatchAngle value="10"/>
+    </CActorSiteOpPatch>
+    <CActorSiteOpPatch id="SOpPatch15">
+        <PatchAngle value="15"/>
+    </CActorSiteOpPatch>
+    <CActorSiteOpPatch id="SOpPatch35">
+        <PatchAngle value="35"/>
+    </CActorSiteOpPatch>
+    <CActorSiteOpPatch id="SOpPatch45">
+        <PatchAngle value="45"/>
+    </CActorSiteOpPatch>
+    <CActorSiteOpPatch id="SOpPatch360">
+        <PatchAngle value="360"/>
+    </CActorSiteOpPatch>
+    <CActorSiteOpRotationExplicit id="SOp180">
+        <Forward value="0.000000,1.000000,0.000000"/>
+        <IsLocal value="1"/>
+    </CActorSiteOpRotationExplicit>
+    <CActorSiteOpRandomPointInCircle default="1">
+        <Mean value="0"/>
+        <Variance value="1"/>
+    </CActorSiteOpRandomPointInCircle>
+    <CActorSiteOpRotationVariancer id="SOpRotVariancerForward30">
+        <ForwardAngle value="30"/>
+    </CActorSiteOpRotationVariancer>
+    <CActorSiteOpRotationVariancer id="SOpRotVariancerUp15">
+        <UpAngle value="15"/>
+    </CActorSiteOpRotationVariancer>
+    <CActorSiteOpRotationSmooth id="SOpRotationSmooth">
+        <Acceleration value="900"/>
+        <Deceleration value="900"/>
+        <MaxSpeed value="225"/>
+    </CActorSiteOpRotationSmooth>
+    <CActorSiteOpShadow id="SOpShadow"/>
+    <CActorSiteOpShadow id="SOpShadowAsyncPrecise">
+        <HeightSourceType value="AsyncPrecise"/>
+    </CActorSiteOpShadow>
+    <CActorSiteOpShadow id="SOpShadowSyncAir">
+        <HeightSourceType value="SyncAir"/>
+    </CActorSiteOpShadow>
+    <CActorSiteOpTipability id="SOpTipability"/>
+    <CActorSiteOpUp id="SOpUpDefault">
+        <Up value="0,0,1"/>
+    </CActorSiteOpUp>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Sites ================================================================================= -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <CActorSite id="SiteScopeStationary">
+        <HostSiteOps Ops="SOpBasicScopeStationary"/>
+    </CActorSite>
+    <!--                                                                                         -->
+    <!-- Still needed in some places, but hopefully not for long. -->
+    <CActorSite id="SiteEffectTargetStationary">
+        <HostSiteOps Ops="SOpTargetPointStationary"/>
+    </CActorSite>
+    <!--                                                                                         -->
+    <CActorSite default="1" id="SiteUNIT">
+        <Host Subject="_Selectable"/>
+        <HostSiteOps Ops="SOpAttachOverhead"/>
+    </CActorSite>
+    <CActorSite default="1" id="SiteCenter" parent="SiteUNIT">
+        <HostSiteOps Ops="SOpAttachCenter"/>
+    </CActorSite>
+    <CActorSite default="1" id="SiteWeapon" parent="SiteUNIT">
+        <HostSiteOps Ops="SOpAttachWeapon"/>
+    </CActorSite>
+    <CActorSite id="SiteOverhead" parent="SiteUNIT"/>
+    <CActorSite default="1" id="SiteOrigin" parent="SiteUNIT">
+        <HostSiteOps Ops="SOpAttachOrigin"/>
+    </CActorSite>
+    <CActorSite id="SiteOriginShadow" parent="SiteUNIT">
+        <Sharing value="Always"/>
+        <HostSiteOps Ops="SOpAttachOrigin SOpShadow"/>
+    </CActorSite>
+    <CActorSite id="SiteOriginShadowAccurate" parent="SiteUNIT">
+        <Sharing value="Always"/>
+        <HostSiteOps Ops="SOpAttachOrigin SOpShadowAsyncPrecise"/>
+    </CActorSite>
+    <!-- Several sites below are marked to always be shared.  This is b/c they only ever map to a
+         single point in space, so there is no point in having more than one. -->
+    <CActorSite id="SiteCenterFollow" parent="SiteCenter">
+        <Sharing value="Always"/>
+    </CActorSite>
+    <CActorSite id="SiteCenterStationary" parent="SiteCenter">
+        <HostSiteOps HoldPosition="1" HoldRotation="1"/>
+    </CActorSite>
+    <CActorSite id="SiteOriginFollow" parent="SiteOrigin">
+        <Sharing value="Always"/>
+    </CActorSite>
+    <CActorSite id="SiteOriginStationary" parent="SiteOrigin">
+        <HostSiteOps HoldPosition="1" HoldRotation="1"/>
+    </CActorSite>
+    <CActorSite id="SiteOverheadFollow" parent="SiteOverhead">
+        <Sharing value="Always"/>
+    </CActorSite>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Sounds ================================================================================ -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <CActorSound default="1" id="SoundOneShot">
+        <Flags index="SuppressSaveLoad" value="1"/>
+        <InheritType value="OneShot"/>
+        <On Terms="SoundDone" Send="Destroy"/>
+    </CActorSound>
+    <CActorSound default="1" id="SoundContinuous">
+        <!-- If we accidentally (or intentionally) have a non-looping sound, this ensures that
+             the sound does not leak. -->
+        <On Terms="SoundDone" Send="Destroy"/>
+        <On Terms="SupporterDestruction" Send="Destroy"/>
+        <On Terms="ActorOrphan" Send="Destroy"/>
+        <Supporter Subject="::Creator"/>
+    </CActorSound>
+    <CActorSound id="PlacementSound" parent="SoundOneShot">
+        <FogVisibility value="Visible"/>
+    </CActorSound>
+    <CActorSound default="1" id="ProgressSound" parent="SoundContinuous">
+        <On Terms="ProgressLevel.*.Pause" Send="SoundSetPaused 1"/>
+        <On Terms="ProgressLevel.*.Resume" Send="SoundSetPaused 0"/>
+    </CActorSound>
+    <CActorSound id="SoundEmitter" parent="SoundContinuous">
+        <Terms value="!HasScopeFlag DisableSoundEmitters"/>
+        <Flags index="SuppressCreationErrors" value="1"/>
+        <Inherits index="Visibility" value="1"/>
+        <Host Subject="::Creator"/>
+    </CActorSound>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Beams ================================================================================= -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <CActorBeamStandard default="1" id="BeamStandardAnimationStyleOneShot">
+        <Flags index="SuppressSaveLoad" value="1"/>
+        <On Terms="ActorCreation" Send="AnimBracketStart BSD Birth Stand Death ContentPlayOnce"/>
+        <On Terms="ActorOrphan" Send="AnimBracketStop BSD"/>
+        <On Terms="AnimBracketState.*.AfterClosing; AnimName BSD" Send="Destroy"/>
+    </CActorBeamStandard>
+    <CActorBeamStandard default="1" id="BeamStandardAnimationStyleContinuous">
+        <On Terms="ActorCreation" Send="AnimBracketStart BSD Birth Stand Death"/>
+        <On Terms="ActorOrphan" Send="AnimBracketStop BSD"/>
+        <On Terms="AnimBracketState.*.AfterClosing; AnimName BSD" Send="Destroy"/>
+    </CActorBeamStandard>
+    <CActorBeamSimple default="1" id="BeamSimpleAnimationStyleOneShot">
+        <Flags index="SuppressSaveLoad" value="1"/>
+        <On Terms="ActorCreation" Send="AnimBracketStart BSD Birth Stand Death ContentPlayOnce"/>
+        <On Terms="ActorOrphan" Send="AnimBracketStop BSD"/>
+        <On Terms="AnimBracketState.*.AfterClosing; AnimName BSD" Send="Destroy"/>
+    </CActorBeamSimple>
+    <CActorBeamSimple default="1" id="BeamSimpleAnimationStyleContinuous">
+        <On Terms="ActorCreation" Send="AnimBracketStart BSD Birth Stand Death"/>
+        <On Terms="ActorOrphan" Send="AnimBracketStop BSD"/>
+        <On Terms="AnimBracketState.*.AfterClosing; AnimName BSD" Send="Destroy"/>
+    </CActorBeamSimple>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Models ================================================================================ -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <CActorModel default="1" id="ModelAnimationStyleOneShotNoOrphan">
+        <Flags index="SuppressSaveLoad" value="1"/>
+        <On Terms="ActorCreation" Send="AnimBracketStart BSD Birth Stand Death ContentPlayOnce"/>
+        <On Terms="AnimBracketState.*.AfterClosing; AnimName BSD" Send="Destroy"/>
+    </CActorModel>
+    <CActorModel default="1" id="ModelAnimationStyleOneShot" parent="ModelAnimationStyleOneShotNoOrphan">
+        <On Terms="ActorOrphan" Send="AnimBracketStop BSD"/>
+    </CActorModel>
+    <CActorModel default="1" id="ModelAnimationStyleOneShotUNIT" parent="ModelAnimationStyleOneShot">
+        <Host Subject="_Selectable"/>
+    </CActorModel>
+    <CActorModel default="1" id="ModelAnimationStyleContinuous">
+        <On Terms="ActorCreation" Send="AnimBracketStart BSD Birth Stand Death"/>
+        <On Terms="ActorOrphan" Send="Destroy"/>
+<!--        <On Terms="ActorOrphan" Send="AnimBracketStop BSD"/> -->
+        <On Terms="AnimBracketState.*.AfterClosing; AnimName BSD" Send="Destroy"/>
+    </CActorModel>
+    <CActorModel default="1" id="ModelAnimationStyleContinuousUNIT" parent="ModelAnimationStyleContinuous">
+        <Host Subject="_Selectable"/>
+    </CActorModel>
+    <CActorModel default="1" id="ModelAddition" parent="ModelAnimationStyleContinuous">
+        <ModelFlags index="UseSyncSeed" value="1"/>
+        <ModelFlags index="AllowHitTest" value="1"/>
+        <Aliases value="_Snapshot"/>
+        <Host Subject="_Selectable"/>
+        <Inherits index="BaseModelScale" value="1"/>
+        <Inherits index="CastShadows" value="1"/>
+        <Inherits index="CloakEffect" value="1"/>
+        <Inherits index="Decal" value="1"/>
+        <Inherits index="Opacity" value="1"/>
+        <Inherits index="Scale" value="1"/>
+        <Inherits index="TeamColor" value="1"/>
+        <Inherits index="TimeScale" value="1"/>
+        <Inherits index="TintColor" value="1"/>
+        <Inherits index="Visibility" value="1"/>
+        <Inherits index="WarpGroup" value="1"/>
+    </CActorModel>
+    <CActorModel default="1" id="ModelAdditionNoAnims">
+        <ModelFlags index="UseSyncSeed" value="1"/>
+        <ModelFlags index="AllowHitTest" value="1"/>
+        <Aliases value="_Snapshot"/>
+        <Host Subject="_Selectable"/>
+        <Inherits index="BaseModelScale" value="1"/>
+        <Inherits index="CastShadows" value="1"/>
+        <Inherits index="CloakEffect" value="1"/>
+        <Inherits index="Decal" value="1"/>
+        <Inherits index="Opacity" value="1"/>
+        <Inherits index="Scale" value="1"/>
+        <Inherits index="TeamColor" value="1"/>
+        <Inherits index="TimeScale" value="1"/>
+        <Inherits index="TintColor" value="1"/>
+        <Inherits index="Visibility" value="1"/>
+        <Inherits index="WarpGroup" value="1"/>
+        <On Terms="ActorOrphan" Send="Destroy"/>
+    </CActorModel>
+    <!-- Requires manual death from 3rd party. -->
+    <CActorModel default="1" id="ModelAdditionStatic">
+        <ModelFlags index="UseSyncSeed" value="1"/>
+        <ModelFlags index="AllowHitTest" value="1"/>
+        <Aliases value="_Snapshot"/>
+        <Host Subject="_Selectable"/>
+        <Inherits index="BaseModelScale" value="1"/>
+        <Inherits index="CastShadows" value="1"/>
+        <Inherits index="CloakEffect" value="1"/>
+        <Inherits index="Decal" value="1"/>
+        <Inherits index="LocalTintColor" value="1"/>
+        <Inherits index="Opacity" value="1"/>
+        <Inherits index="Scale" value="1"/>
+        <Inherits index="TeamColor" value="1"/>
+        <Inherits index="TimeScale" value="1"/>
+        <Inherits index="TintColor" value="1"/>
+        <Inherits index="Visibility" value="1"/>
+        <Inherits index="WarpGroup" value="1"/>
+        <On Terms="ActorCreation" Send="AnimBracketStart BSD Birth Stand Death ContentNonLooping"/>
+        <On Terms="ActorOrphan" Send="AnimBracketStop BSD"/>
+        <On Terms="AnimBracketState.*.AfterClosing; AnimName BSD" Send="Destroy"/>
+    </CActorModel>
+    <!-- Intentionally NOT inheriting from the other defaults because we do not want bracket anims-->
+    <CActorModel default="1" id="ModelConstruction">
+        <ModelFlags index="NeedsVolumeMonitoring" value="1"/>
+        <ModelFlags index="UseSyncSeed" value="1"/>
+        <ModelFlags index="AllowHitTest" value="1"/>
+        <Host Subject="_Selectable"/>
+        <Aliases value="_Snapshot"/>
+        <Inherits index="CastShadows" value="1"/>
+        <Inherits index="CloakEffect" value="1"/>
+        <Inherits index="Decal" value="1"/>
+        <Inherits index="Opacity" value="1"/>
+        <Inherits index="Scale" value="1"/>
+        <Inherits index="TeamColor" value="1"/>
+        <Inherits index="TimeScale" value="1"/>
+        <Inherits index="TintColor" value="1"/>
+        <Inherits index="Visibility" value="1"/>
+        <Inherits index="WarpGroup" value="1"/>
+        <On Terms="UnitConstruction.*.Finish" Send="Destroy"/>
+        <On Terms="UnitConstruction.*.Cancel" Send="Destroy"/>
+        <On Terms="ActorOrphan" Send="Destroy"/>
+    </CActorModel>
+    <CActorModel default="1" id="BuffOneShot" parent="ModelAnimationStyleOneShot">
+        <Flags index="SuppressSaveLoad" value="1"/>
+        <Inherits index="CloakEffect" value="1"/>
+        <Inherits index="Decal" value="1"/>
+        <Inherits index="Visibility" value="1"/>
+    </CActorModel>
+    <CActorModel default="1" id="BuffContinuous" parent="ModelAnimationStyleContinuous">
+        <Inherits index="CloakEffect" value="1"/>
+        <Inherits index="Decal" value="1"/>
+        <Inherits index="Visibility" value="1"/>
+    </CActorModel>
+    <CActorModel default="1" id="ModelPretarget" parent="ModelAnimationStyleContinuous">
+        <Terms value="Cap 1"/>
+        <Aliases value="_ModelPretarget"/>
+        <FogVisibility value="Visible"/>
+    </CActorModel>
+    <!--                                                                                         -->
+    <CActorModel id="CommandUIHarness">
+        <Flags index="SuppressSaveLoad" value="1"/>
+        <FogVisibility value="Visible"/>
+        <On Terms="ActorCreation" Send="$Stand PlayForever"/>
+    </CActorModel>
+    <CActorDoodadPreserver id="PreservedDoodad">
+        <Flags index="SuppressSaveLoad" value="0"/>
+        <AcceptedTransfers index="Model" value="1"/>
+        <AcceptedTransfers index="Animator" value="1"/>
+        <AcceptedTransfers index="AnimProps" value="1"/>
+        <AcceptedTransfers index="FOWColor" value="1"/>
+        <AcceptedTransfers index="FOWShader" value="1"/>
+        <AcceptedTransfers index="Textures" value="1"/>
+        <AcceptedHostedPropTransfers index="Scale" value="1"/>
+        <AcceptedHostedPropTransfers index="WarpGroup" value="0"/>
+        <FogVisibility value="Visible"/>
+    </CActorDoodadPreserver>
+    <CActorModel id="PlacementModel">
+        <FogVisibility value="Visible"/>
+        <Filter index="Neutral" value="1"/>
+        <Filter index="Enemy" value="1"/>
+        <Aliases value="_Main"/>
+        <Aliases value="_Unit"/>
+        <Aliases value="_Selectable"/>
+        <On Terms="ActorCreation; Option Model Low" Send="SetOpacity 0.3"/>
+        <On Terms="ActorCreation" Send="AnimGroupApply Placement"/>
+        <On Terms="ActorCreation" Send="AnimPlay Stand Stand PlayForever"/>
+        <On Terms="ActorOrphan" Send="Destroy"/>
+        <On Terms="Signal.*.HidePlacement" Send="SetVisibility 0"/>
+        <On Terms="Signal.*.ShowPlacement" Send="SetVisibility 1"/>
+    </CActorModel>
+    <CActorModel id="ZergPlacementModel" parent="PlacementModel">
+        <On Terms="ActorCreation; !Option Model Low" Send="SetOpacity 0.45"/>
+        <On Terms="ActorCreation" Send="SetCastShadows 0"/>
+    </CActorModel>
+    <CActorModel id="ModelPlaceholder">
+        <Model value="Sphere"/>
+    </CActorModel>
+    <CActorBeamSimple id="FlyerHelperBeam" parent="BeamSimpleAnimationStyleContinuous">
+        <Supporter Subject="_Unit" Actor="Find"/>
+        <Model value="AOEPreTargetAirUnitProtoss"/>
+        <Inherits index="TintColor" value="1"/>
+        <Inherits index="Visibility" value="1"/>
+        <Host Subject="::Creator"/>
+        <HostLaunch Subject="_Unit" Actor="Find"/>
+        <HostImpact Subject="::Creator" Actor="Find"/>
+        <HostSiteOps Ops="SOpAttachOrigin"/>
+        <On Terms="ActorOrphan" Send="Destroy"/>
+    </CActorBeamSimple>
+    <CActorSelection id="FlyerHelperSplat">
+        <Flags index="SuppressSaveLoad" value="0"/>
+        <Model value="AOEPreTargetAirUnitProtossSplat"/>
+        <Host Subject="_Unit"/>
+        <HostSiteOps Ops="SOpAttachOrigin SOpShadow"/>
+        <HoldTime value="-1.000000"/>
+        <Layer value="MaterialUILayer"/>
+        <Height value="MinimumTerrain"/>
+        <Inherits index="CloakEffect" value="1"/>
+        <Inherits index="Visibility" value="1"/>
+        <On Terms="ActorCreation" Send="Create FlyerHelperBeam"/>
+        <On Terms="ActorDestruction" Target="FlyerHelperBeam" Send="Destroy"/>
+        <On Terms="ActorOrphan" Send="Destroy"/>
+    </CActorSelection>
+    <CActorModel id="ModelPretargetGround" parent="ModelPretarget">
+        <Model value="AOEPreTargetGroundUnitProtoss"/>
+    </CActorModel>
+    <CActorModel default="1" id="CursorModel" parent="ModelAnimationStyleContinuous">
+        <FogVisibility value="Visible"/>
+        <Inherits index="BaseModelScale" value="0"/>
+        <Inherits index="Scale" value="0"/>
+        <HostSiteOps Ops="SOpBasicScopeFollow"/>
+        <On Terms="Abil.##abil##.Cursor" Send="Create"/>
+        <On Terms="ActorOrphan" Send="Destroy"/>
+    </CActorModel>
+    <CActorModel id="BlipVisual">
+        <!-- Can have multiple sensor towers on the same target. -->
+        <Terms value="Cap 1"/>
+        <FogVisibility value="Visible"/>
+        <Model value="RadarBlip"/>
+        <Host Subject="_Selectable"/>
+        <HostSiteOps Ops="SOpShadow SOp2DRotation SOpForwardNorth"/>
+        <On Terms="UnitBlipUpdate.*.Start" Send="Create"/>
+        <On Terms="UnitBlipUpdate.*.Stop" Send="Destroy"/>
+        <On Terms="UnitDeath" Send="Destroy"/>
+        <On Terms="ActorCreation" Send="AnimPlay Main Stand PlayForever"/>
+    </CActorModel>
+    <!--                                                                                         -->
+    <CActorModel default="1" id="Confirmation" parent="ModelAnimationStyleOneShotNoOrphan">
+        <On Terms="Confirmation.*.Stop" Send="Destroy Immediate"/>
+        <FogVisibility value="Visible"/>
+        <HostSiteOps Ops="SOpBasicInitialBearings"/>
+    </CActorModel>
+    <CActorModel id="ConfirmationLocalAir" parent="Confirmation">
+        <On Terms="Confirmation.*.Start; Game Local; ValidateUnit IsFlying" Send="Create"/>
+    </CActorModel>
+    <CActorModel id="ConfirmationLocalGround" parent="Confirmation">
+        <On Terms="Confirmation.*.Start; Game Local; ValidateUnit IsNotFlying" Send="Create"/>
+    </CActorModel>
+    <CActorModel id="ConfirmationSyncAir" parent="Confirmation">
+        <On Terms="Confirmation.*.Start; Game Sync; ValidateUnit IsFlying" Send="Create"/>
+    </CActorModel>
+    <CActorModel id="ConfirmationSyncGround" parent="Confirmation">
+        <On Terms="Confirmation.*.Start; Game Sync; ValidateUnit IsNotFlying" Send="Create"/>
+    </CActorModel>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Model Event Harnesses ================================================================= -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <CActorModel id="EventCustom" parent="ModelAnimationStyleOneShot"/>
+    <CActorModel id="EventFootprint" parent="ModelAnimationStyleOneShot">
+        <HostSiteOps Ops="SOpShadow" HoldPosition="1" HoldRotation="1"/>
+    </CActorModel>
+    <CActorSound id="EventSound">
+        <Host Subject="_Unit"/>
+        <On Terms="ActorCreation; ValidateUnit IsHidden" Send="Destroy"/>
+    </CActorSound>
+    <CActorSound id="EventSoundFromData" parent="SoundOneShot">
+        <Host Subject="_Unit"/>
+        <On Terms="ActorCreation; ValidateUnit IsHidden" Send="Destroy"/>
+    </CActorSound>
+    <CActorModel id="EventSpawn" parent="ModelAnimationStyleOneShot"/>
+    <CActorSplat id="EventSplat"/>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Scene File Harnesses ================================================================== -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <CActorSound id="SceneUISound" parent="EventSoundFromData"/>
+    <CActorModel id="SceneUIHarness">
+        <FogVisibility value="Visible"/>
+        <EventDataSound Name="SMModelEventSound" Actor="SceneUISound"/>
+        <On Terms="ActorOrphan" Send="Destroy"/>
+    </CActorModel>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Snapshots ============================================================================= -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <CActorSnapshot default="1" id="SnapshotBase">
+        <InheritType value="OneShot"/>
+        <Aliases value="_Selectable"/>
+        <Host Subject="::Creator"/>
+        <Inherits index="BaseModelScale" value="1"/>
+        <Inherits index="CastShadows" value="1"/>
+        <Inherits index="Opacity" value="1"/>
+        <Inherits index="Scale" value="1"/>
+        <Inherits index="TeamColor" value="1"/>
+        <Inherits index="TintColor" value="1"/>
+        <Inherits index="WarpGroup" value="0"/>
+        <ModelFlags index="AllowHitTest" value="1"/>
+        <AcceptedTransfers index="Model" value="1"/>
+        <AcceptedTransfers index="Animator" value="1"/>
+        <AcceptedTransfers index="AnimProps" value="1"/>
+        <AcceptedTransfers index="Textures" value="1"/>
+        <AcceptedHostedPropTransfers index="Scale" value="1"/>
+        <AcceptedHostedPropTransfers index="WarpGroup" value="0"/>
+        <!-- Means we get props and bearings once, and then stop. -->
+        <On Terms="ActorCreation" Send="RefClear ::Host"/>
+        <!-- Need to kill all the extra models that the snapshot may have created under
+             the covers. -->
+        <On Terms="ActorDestruction" Target="_Snapshot" Send="Destroy"/>
+    </CActorSnapshot>
+    <CActorSnapshot id="Snapshot" parent="SnapshotBase"/>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Splats ================================================================================ -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <CActorSplat default="1" id="GenericUnitSplatBase">
+        <Aliases value="_Snapshot"/>
+        <FadeIn value="-1.000000"/>
+        <FadeOut value="-1.000000"/>
+        <HoldTime value="-1.000000"/>
+        <!-- cant scale or when on low Q models, the splats scale to match explosion scales -->
+<!--        <Inherits index="Scale" value="1"/>
+        <Inherits index="BaseModelScale" value="1"/> -->
+        <Inherits index="CloakEffect" value="1"/>
+        <Inherits index="Decal" value="1"/>
+        <Inherits index="Visibility" value="1"/>
+        <Host Subject="_Selectable"/>
+        <Supporter Subject="::Creator"/>
+        <On Terms="SupporterDestruction" Send="Destroy"/>
+        <On Terms="ActorOrphan" Send="Destroy"/>
+    </CActorSplat>
+    <CActorSplat default="1" id="GenericUnitSplat" parent="GenericUnitSplatBase">
+        <?token id="unitName" type="CUnitLink" value="Bogus"?>
+        <On Terms="UnitBirth.##unitName##" Send="Create"/>
+    </CActorSplat>
+    <CActorSplat default="1" id="BurrowedSplatBase">
+        <Model value="BurrowedSplat"/>
+        <FadeIn value="1.000000"/>
+        <FadeOut value="3.000000"/>
+        <HoldTime value="-1.000000"/>
+        <AutoScaleFactor value="1.0"/>
+        <!-- Does not need CloakEffect, as it merely turns on or off based on visibility! -->
+        <Inherits index="BaseModelScale" value="1"/>
+        <Inherits index="Scale" value="1"/>
+        <Inherits index="Visibility" value="1"/>
+        <Host Subject="_Selectable"/>
+        <Supporter Subject="::Creator"/>
+        <On Terms="SupporterDestruction" Send="Destroy"/>
+        <On Terms="ActorOrphan" Send="Destroy"/>
+    </CActorSplat>
+    <CActorSplat default="1" id="BurrowedSplat" parent="BurrowedSplatBase">
+        <?token id="unitName" type="CUnitLink" value="Bogus"?>
+        <On Terms="UnitBirth.##unitName##Burrowed" Send="Create"/>
+        <On Terms="AbilMorph.*.Start; MorphTo ##unitName##Burrowed" Send="Create"/>
+        <On Terms="AbilMorph.*.Finish; MorphFrom ##unitName##Burrowed" Send="RefClear ::Host"/>
+        <On Terms="AbilMorph.*.Start; MorphFrom ##unitName##Burrowed" Send="TimerSet 4,2 DelayDestroy"/>
+        <On Terms="TimerExpired; TimerName DelayDestroy" Send="Destroy"/>
+    </CActorSplat>
+    <!--                                                                                         -->
+    <CActorSplat id="PowerVisual">
+        <FogVisibility value="Visible"/>
+        <Model value="PowerVisual"/>
+        <FadeIn value="0.000000"/>
+        <FadeOut value="0.000000"/>
+        <HoldTime value="-1.000000"/>
+        <Layer value="PowerLayer"/>
+        <Host Subject="_Selectable"/>
+        <HostSiteOps Ops="SOpShadow"/>
+        <Height value="MinimumTerrain"/>
+    </CActorSplat>
+    <CActorSplat id="UnpoweredVisual">
+        <FogVisibility value="Visible"/>
+        <Model value="UnpoweredVisual"/>
+        <FadeIn value="0.000000"/>
+        <FadeOut value="0.000000"/>
+        <HoldTime value="-1.000000"/>
+        <Layer value="PowerLayer"/>
+        <Host Subject="_Selectable"/>
+        <HostSiteOps Ops="SOpShadow"/>
+        <Height value="MinimumTerrain"/>
+    </CActorSplat>
+    <CActorSplat default="1" id="CursorSplat">
+        <Aliases value="_Scalable"/>
+        <FogVisibility value="Visible"/>
+        <HoldTime value="-1.000000"/>
+        <FadeOut value="0.000000"/>
+        <Layer value="AOELayer"/>
+        <Height value="MinimumTerrain"/>
+        <On Terms="Abil.##abil##.Cursor" Send="Create"/>
+        <On Terms="ActorOrphan" Send="Destroy"/>
+        <HostSiteOps Ops="SOpBasicScopeFollow"/>
+    </CActorSplat>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Selections ============================================================================ -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <CActorSelection default="1" id="PreSelection">
+        <Alpha value="0.750000,0.750000,0.750000"/>
+        <InnerWidth value="0.090000"/>
+        <OuterWidth value="0.030000"/>
+        <RotationSpeed value="0.500000"/>
+        <SegmentCount value="8"/>
+        <SegmentPercentSolid value="0.800000"/>
+        <Inherits index="BaseModelScale" value="1"/>
+        <Inherits index="Scale" value="1"/>
+        <Flags index="SuppressSaveLoad" value="1"/>
+    </CActorSelection>
+    <CActorSelection default="1" id="LocalSelection">
+        <Alpha value="1.000000,1.000000,1.000000"/>
+        <InnerBoundaryFallOffRatio value="0.400000"/>
+        <InnerBoundaryRatio value="0.860000"/>
+        <InnerOffsetRatio value="0.140000"/>
+        <OuterWidth value="0.030000"/>
+        <SegmentCount value="1"/>
+        <SegmentPercentSolid value="1.000000"/>
+        <SelectionFlags index="UseCrescent" value="1"/>
+        <Inherits index="BaseModelScale" value="1"/>
+        <Inherits index="Scale" value="1"/>
+    </CActorSelection>
+    <CActorSelection id="EditorSelection">
+        <Alpha value="1.000000,1.000000,1.000000"/>
+        <InnerBoundaryFallOffRatio value="0.400000"/>
+        <InnerBoundaryRatio value="0.860000"/>
+        <InnerOffsetRatio value="0.140000"/>
+        <OuterWidth value="0.030000"/>
+        <SegmentCount value="1"/>
+        <SegmentPercentSolid value="1.000000"/>
+        <SelectionFlags index="UseCrescent" value="1"/>
+        <Inherits index="BaseModelScale" value="1"/>
+        <Inherits index="Scale" value="1"/>
+        <Inherits index="Visibility" value="0"/>
+        <On Terms="PreSelectionUpdate.*.StartEditorGround" Send="Create"/>
+        <On Terms="SelectionLocalUpdate.*.StartEditorGround" Send="Create"/>
+        <On Terms="SelectionLocalUpdate.*.VisibleOn" Send="SetVisibility 1"/>
+        <On Terms="SelectionLocalUpdate.*.VisibleOff" Send="SetVisibility 0"/>
+        <On Terms="SelectionLocalUpdate.*.Stop" Send="Destroy"/>
+        <On Terms="ActorCreation; ValidateUnitType IsFlying" Target="::Host" Send="StatusIncrement FlyerHelper"/>
+        <On Terms="ActorDestruction; ValidateUnitType IsFlying; ScopeContains FlyerHelperSplat" Target="::Host" Send="StatusDecrement FlyerHelper"/>
+        <HalfHeight value="20.0"/>
+        <Attenuation value="-1.0"/>
+    </CActorSelection>
+    <CActorSelection default="1" id="SyncSelection">
+        <SelectionFlags index="IsSyncSelection" value="1"/>
+        <Alpha value="1.000000,1.000000,1.000000"/>
+        <InnerWidth value="0.150000"/>
+        <OuterWidth value="0.030000"/>
+        <SegmentCount value="16"/>
+        <SegmentPercentSolid value="0.500000"/>
+        <Inherits index="BaseModelScale" value="1"/>
+        <Inherits index="Scale" value="1"/>
+    </CActorSelection>
+    <!--                                                                                         -->
+    <CActorSelection id="FlashingSelection">
+        <SelectionFlags index="IsFlash" value="1"/>
+        <FogVisibility value="Visible"/>
+        <Alpha value="0.750000,0.750000,0.750000"/>
+        <InnerWidth value="0.150000"/>
+        <OuterWidth value="0.030000"/>
+        <RotationSpeed value="8.000000"/>
+        <SegmentCount value="4"/>
+        <SegmentPercentSolid value="0.400000"/>
+        <HoldTime value="1.500000"/>
+        <Inherits index="BaseModelScale" value="1"/>
+        <Inherits index="Scale" value="1"/>
+    </CActorSelection>
+    <CActorSelection id="GroundLocalFlashingSelection" parent="FlashingSelection">
+        <On Terms="SelectionLocalFlash; !ValidateUnit UseCliffSelection" Send="Create"/>
+        <HalfHeight value="1.0"/>
+        <Attenuation value="0.5"/>
+    </CActorSelection>
+    <CActorSelection id="CliffLocalFlashingSelection" parent="FlashingSelection">
+        <On Terms="SelectionLocalFlash; ValidateUnit UseCliffSelection" Send="Create"/>
+        <HalfHeight value="4.0"/>
+        <Attenuation value="-1.0"/>
+    </CActorSelection>
+    <CActorSelection id="GroundSyncFlashingSelection" parent="FlashingSelection">
+        <SelectionFlags index="IsSyncSelection" value="1"/>
+        <On Terms="SelectionSyncFlash; !ValidateUnit UseCliffSelection" Send="Create"/>
+        <HalfHeight value="1.0"/>
+        <Attenuation value="0.5"/>
+    </CActorSelection>
+    <CActorSelection id="CliffSyncFlashingSelection" parent="FlashingSelection">
+        <SelectionFlags index="IsSyncSelection" value="1"/>
+        <On Terms="SelectionSyncFlash; ValidateUnit UseCliffSelection" Send="Create"/>
+        <HalfHeight value="4.0"/>
+        <Attenuation value="-1.0"/>
+    </CActorSelection>
+    <CActorSelection id="GroundPreSelection" parent="PreSelection">
+        <On Terms="PreSelectionUpdate.*.Start; !ValidateUnit UseCliffSelection" Send="Create"/>
+        <On Terms="PreSelectionUpdate.*.Stop" Send="Destroy"/>
+        <On Terms="AbilMorph.*.Finish; ValidateUnit UseCliffSelection" Send="CreateCopy CliffPreSelection"/>
+        <On Terms="AbilMorph.*.Finish; ValidateUnit UseCliffSelection" Send="Destroy"/>
+        <HalfHeight value="1.0"/>
+        <Attenuation value="0.5"/>
+    </CActorSelection>
+    <CActorSelection id="CliffPreSelection" parent="PreSelection">
+        <On Terms="PreSelectionUpdate.*.Start; ValidateUnit UseCliffSelection" Send="Create"/>
+        <On Terms="PreSelectionUpdate.*.StartEditorCliff" Send="Create"/>
+        <On Terms="PreSelectionUpdate.*.Stop" Send="Destroy"/>
+        <On Terms="AbilMorph.*.Finish; !ValidateUnit UseCliffSelection" Send="CreateCopy GroundPreSelection"/>
+        <On Terms="AbilMorph.*.Finish; !ValidateUnit UseCliffSelection" Send="Destroy"/>
+        <HalfHeight value="4.0"/>
+        <Attenuation value="-1.0"/>
+    </CActorSelection>
+    <CActorSelection id="GroundLocalSelection" parent="LocalSelection">
+        <On Terms="SelectionLocalUpdate.*.Start; !ValidateUnit UseCliffSelection" Send="Create"/>
+        <On Terms="SelectionLocalUpdate.*.Stop" Send="Destroy"/>
+        <On Terms="AbilMorph.*.Finish; ValidateUnit UseCliffSelection" Send="CreateCopy CliffLocalSelection"/>
+        <On Terms="AbilMorph.*.Finish; ValidateUnit UseCliffSelection" Send="Destroy"/>
+        <HalfHeight value="1.0"/>
+        <Attenuation value="0.5"/>
+    </CActorSelection>
+    <CActorSelection id="CliffLocalSelection" parent="LocalSelection">
+        <On Terms="SelectionLocalUpdate.*.Start; ValidateUnit UseCliffSelection" Send="Create"/>
+        <On Terms="SelectionLocalUpdate.*.StartEditorCliff" Send="Create"/>
+        <On Terms="SelectionLocalUpdate.*.Stop" Send="Destroy"/>
+        <On Terms="AbilMorph.*.Finish; !ValidateUnit UseCliffSelection" Send="CreateCopy GroundLocalSelection"/>
+        <On Terms="AbilMorph.*.Finish; !ValidateUnit UseCliffSelection" Send="Destroy"/>
+        <HalfHeight value="4.0"/>
+        <Attenuation value="-1.0"/>
+    </CActorSelection>
+    <CActorSelection id="GroundSyncSelection" parent="SyncSelection">
+        <On Terms="SelectionSyncUpdate.*.Add; !ValidateUnit UseCliffSelection" Send="Create"/>
+        <On Terms="AbilMorph.*.Finish; ValidateUnit UseCliffSelection" Send="CreateCopy CliffSyncSelection"/>
+        <On Terms="AbilMorph.*.Finish; ValidateUnit UseCliffSelection" Send="Destroy"/>
+        <HalfHeight value="1.0"/>
+        <Attenuation value="0.5"/>
+    </CActorSelection>
+    <CActorSelection id="CliffSyncSelection" parent="SyncSelection">
+        <On Terms="SelectionSyncUpdate.*.Add; ValidateUnit UseCliffSelection" Send="Create"/>
+        <On Terms="AbilMorph.*.Finish; !ValidateUnit UseCliffSelection" Send="CreateCopy GroundSyncSelection"/>
+        <On Terms="AbilMorph.*.Finish; !ValidateUnit UseCliffSelection" Send="Destroy"/>
+        <HalfHeight value="4.0"/>
+        <Attenuation value="-1.0"/>
+    </CActorSelection>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Shadows =============================================================================== -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <CActorShadow id="FlyerShadow">
+        <Color value="120,0,0,0"/>
+        <FallOff value="0.600000"/>
+        <HalfHeight value="1.500000"/>
+        <Attenuation value="1.000000"/>
+        <HostRadiusPercent value="0.300000"/>
+        <Inherits index="CloakEffect" value="1"/>
+        <Inherits index="Visibility" value="1"/>
+        <On Terms="AbilMorph.*.Finish; ValidateUnit IsFlying; Option Shadow Low; $AllowBlobShadow" Send="Create"/>
+        <On Terms="AbilMorph.*.Finish; ValidateUnit IsNotFlying" Send="Destroy"/>
+        <On Terms="OptionsChange; Option Shadow Low; Scope Unit; ValidateUnit IsFlying; $AllowBlobShadow" Send="Create"/>
+        <On Terms="OptionsChange; Option Shadow Medium" Send="Destroy"/>
+        <On Terms="OptionsChange; Option Shadow High" Send="Destroy"/>
+        <On Terms="OptionsChange; Option Shadow Ultra" Send="Destroy"/>
+    </CActorShadow>
+    <CActorShadow id="GroundShadow">
+        <Color value="140,0,0,0"/>
+        <FallOff value="0.500000"/>
+        <HalfHeight value="1.500000"/>
+        <Attenuation value="0.500000"/>
+        <HostRadiusPercent value="0.300000"/>
+        <Inherits index="CloakEffect" value="1"/>
+        <Inherits index="Visibility" value="1"/>
+        <On Terms="AbilMorph.*.Finish; ValidateUnit IsNotFlying; Option Shadow Low; $AllowBlobShadow" Send="Create"/>
+        <On Terms="AbilMorph.*.Finish; ValidateUnit IsFlying" Send="Destroy"/>
+        <On Terms="OptionsChange; Option Shadow Low; Scope Unit; ValidateUnit IsNotFlying; $AllowBlobShadow" Send="Create"/>
+        <On Terms="OptionsChange; Option Shadow Medium" Send="Destroy"/>
+        <On Terms="OptionsChange; Option Shadow High" Send="Destroy"/>
+        <On Terms="OptionsChange; Option Shadow Ultra" Send="Destroy"/>
+    </CActorShadow>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Physics =============================================================================== -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <CActorModel id="GenericPhysicsHarness">
+        <Host Subject="::Creator"/>
+        <Inherits index="Scale" value="1"/>
+    </CActorModel>
+<!-- Not yet supported.
+    <CActorPhysics id="GenericPhysicsDriver">
+        <Harness value="GenericPhysicsHarness"/>
+        <Scale value="1"/>
+        <Magnitude value="1"/>
+        <DurationBirth value="-1"/>
+        <DurationStand value="0.07"/>
+        <DurationDeath value="-1"/>
+    </CActorPhysics>
+-->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Terrain Flattening ==================================================================== -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <CActorTerrainDeformer id="BuildingTerrainFlatten">
+        <Aliases value="_BuildingTerrainFlatten"/>
+        <InfluenceRange value="2.0"/>
+        <BlendTime value="0.5"/>
+        <TerrainDeformerFlags index="UseUnitFootprint" value="1"/>
+        <On Terms="ActorOrphan" Send="Destroy"/>
+    </CActorTerrainDeformer>
+    <CActorTerrainDeformer id="BuildingTerrainFlattenInstant" parent="BuildingTerrainFlatten">
+        <BlendTime value="0.0"/>
+        <FoliageFXDeathSpawnTarget value=""/>
+    </CActorTerrainDeformer>
+    <CActorTerrainDeformer id="BuildingTerrainFlattenEditor" parent="BuildingTerrainFlatten">
+        <BlendTime value="0.0"/>
+        <TerrainDeformerFlags index="RestoreOnMovement" value="1"/>
+        <TerrainDeformerFlags index="RestoreOnDestroy" value="1"/>
+        <FoliageFXDeathSpawnTarget value=""/>
+    </CActorTerrainDeformer>
+    <CActorEventMacro id="BuildingFlattenTerrainMacro">
+        <On Terms="UnitConstruction.*.Start" Send="Create BuildingTerrainFlatten"/>
+        <On Terms="UnitConstruction.*.Cancel" Target="_BuildingTerrainFlatten" Send="Destroy"/>
+        <On Terms="UnitConstruction.*.Finish" Target="_BuildingTerrainFlatten" Send="Destroy"/>
+        <On Terms="UnitBirth.*.Normal" Send="Create BuildingTerrainFlatten"/>
+        <On Terms="UnitBirth.*.Suppressed" Send="Create BuildingTerrainFlattenInstant"/>
+        <On Terms="UnitBirth.*.EditorPlaced" Send="Create BuildingTerrainFlattenEditor"/>
+        <On Terms="UnitDeath" Target="_BuildingTerrainFlatten" Send="Destroy"/>
+    </CActorEventMacro>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Units ================================================================================= -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <CActorEventMacro id="DeadAnimationMacro">
+        <On Terms="AnimDone; AnimName Death" Send="AnimPlay Dead Dead PlayForever"/>
+        <On Terms="DeathModelInitializeDone" Send="SetTransferOverrideAnim Dead"/>
+        <On Terms="AnimDone.*.Missing; AnimName Dead" Send="Destroy"/>
+        <!-- Normally, orphaning creates this model.  But it might not if the unit "dies" but
+             its corpse sticks around for a long time and can be resurrected.  Or if a unit
+             is lingering on the game side but isn't really dead even though it looks that way. -->
+        <On Terms="ActorOrphan; !AnimPlaying Death" Send="Destroy"/>
+    </CActorEventMacro>
+    <CActorUnit default="1" id="GenericUnitEmpty"/>
+    <!-- Everything that is a unit derives from this.  This is a named default, instead of an
+         an unnamed one so that if we need to have units that don't need to have some of the
+         stuff that is here, we can just put them on a different name.  Otherwise, we'd have to
+         re-parent all the units that were relying on the unnamed default, which is a nightmare.
+         Removes are to be used as a last resort, b/c they are more complex.  They require an
+         add and a remove and can break if the add goes away, as opposed to having another
+         default and a lack of add.  (If that makes any sense.)
+         -->
+    <CActorUnit default="1" id="GenericUnitMinimal">
+        <?token id="unitName" type="CUnitLink" value="Bogus"?>
+        <StatusBarFlags index="Shields" value="1"/>
+        <StatusBarFlags index="Life" value="1"/>
+        <StatusBarFlags index="Energy" value="1"/>
+        <StatusBarFlags index="Cargo" value="1"/>
+        <StatusBarFlags index="Progress" value="1"/>
+        <StatusBarFlags index="Duration" value="1"/>
+        <StatusColors index="Shields" BackgroundColor="255,0,0,0" EmptyColor="255,80,80,80">
+            <ColorArray value="255,0,0,255"/>
+        </StatusColors>
+        <StatusColors index="Life" BackgroundColor="255,0,0,0" EmptyColor="255,80,80,80">
+            <ColorArray value="255,208,34,0"/>
+            <ColorArray value="255,208,34,0"/>
+            <ColorArray value="255,229,129,0"/>
+            <ColorArray value="255,229,129,0"/>
+            <ColorArray value="255,229,221,0"/>
+            <ColorArray value="255,229,221,0"/>
+            <ColorArray value="255,22,229,0"/>
+            <ColorArray value="255,22,229,0"/>
+        </StatusColors>
+        <StatusColors index="Energy" BackgroundColor="255,0,0,0" EmptyColor="255,80,80,80">
+            <ColorArray value="255,150,40,220"/>
+        </StatusColors>
+        <StatusColors index="Cargo" BackgroundColor="255,0,0,0" EmptyColor="255,77,60,15">
+            <ColorArray value="255,255,255,255"/>
+        </StatusColors>
+        <StatusColors index="Progress" BackgroundColor="255,0,0,0" EmptyColor="255,80,80,80">
+            <ColorArray value="255,0,200,200"/>
+        </StatusColors>
+        <StatusColors index="Duration" BackgroundColor="255,0,0,0" EmptyColor="255,40,40,40">
+            <ColorArray value="255,120,120,120"/>
+        </StatusColors>
+        <UnitBorderNormalColor value="NULL"/>
+        <UnitBorderSubgroupColor value="NULL"/>
+        <BarDistance value="34"/>
+        <BarWidth value="60"/>
+        <BarHeight value="7"/>
+        <BarOffset value="100"/>
+        <NameOffset value="30"/>
+        <HighlightTooltip value="Unit/Name/##unitName##"/>
+        <CopySource value="_Unit"/>
+        <ModelFlags index="NeedsVolumeMonitoring" value="1"/>
+        <ModelFlags index="UseSyncSeed" value="1"/>
+        <UnitFlags index="ShowBlobShadow" value="1"/>
+        <GlossaryAnim value="Stand"/>
+        <AcceptedTransfers index="AnimProps" value="1"/>
+        <AcceptedTransfers index="Textures" value="1"/>
+        <AcceptedTransfers index="Status" value="1"/>
+        <!-- Probably never appropriate to keep this, since it comes from the model, which isn't
+             transferred. -->
+        <AcceptedHostedPropTransfers index="BaseModelScale" value="0"/>
+        <!-- If we change this, we need to revisit GenericUnitBaseMorphTransition and see if it
+             then makes more sense to turn off the baseline via message. -->
+        <Baselines index="Stand" AnimProps="Stand" BlendIn="-1.0" BlendOut="-1.0"/>
+        <Baselines index="Walk" AnimProps="Walk" BlendIn="-1.0" BlendOut="-1.0"/>
+        <RandomScaleRange value="1.000000,1.000000"/>
+        <WalkAnimMoveSpeed value="3.75"/>
+        <Model value="##unitName##"/>
+        <BuildModel value="##unitName##"/>
+        <PlacementModel value="##unitName##"/>
+        <PlacementActorModel value="PlacementModel"/>
+        <PortraitActor value="PortraitActor"/>
+        <PortraitModel value="StaticPortrait"/>
+        <DeathActorModel value="UnitDeathModel"/>
+        <DeathActorModelLow value="UnitDeathModelUnscaled"/>
+        <DeathActorSound value="UnitDeathSound"/>
+        <DeathActorVoice value="UnitDeathVoice"/>
+        <SnapshotActor value="Snapshot"/>
+        <Aliases value="_Unit"/>
+        <Aliases value="_Selectable"/>
+        <Macros value="GlobalLoopMacro"/>
+        <On Terms="UnitBirth.##unitName##" Send="Create SoundEmitter ##unitName##_Ambience"/>
+        <On Terms="UnitBirth.##unitName##" Send="Create"/>
+        <On Terms="UnitRevive.##unitName##" Send="Create"/>
+        <On Terms="UnitConstruction.##unitName##.Start" Send="Create"/>
+        <On Terms="UnitConstruction.##unitName##.Finish" Send="AnimPlay ConstructionDeath Stand,Birth,Death FullMatch"/>
+        <On Terms="AnimDone.*.Missing; AnimName ConstructionDeath" Send="Destroy"/>
+        <On Terms="ActorCreation; ValidateUnit IsFlying; Option Shadow Low; $AllowBlobShadow" Send="Create FlyerShadow"/>
+        <On Terms="ActorCreation; ValidateUnit IsNotFlying; Option Shadow Low; $AllowBlobShadow" Send="Create GroundShadow"/>
+    </CActorUnit>
+    <!-- For anything that can be selected.  Primarily for cinematic doodads. -->
+    <CActorUnit default="1" id="GenericUnitSelectable" parent="GenericUnitMinimal">
+        <UnitIcon value="Assets\Textures\btn-missing-kaeo.dds"/>
+        <HeroIcon value="Assets\Textures\btn-missing-kaeo.dds"/>
+        <SoundArray index="Birth" value="##unitName##_Birth"/>
+        <SoundArray index="Ready" value="##unitName##_Ready"/>
+        <SoundArray index="Help" value="##unitName##_Help"/>
+        <SoundArray index="What" value="##unitName##_What"/>
+        <SoundArray index="Yes" value="##unitName##_Yes"/>
+        <SoundArray index="Attack" value="##unitName##_Attack"/>
+        <SoundArray index="Pissed" value="##unitName##_Pissed"/>
+        <SoundArray index="Movement" value="##unitName##_Movement"/>
+        <SoundArray index="Turning" value="##unitName##_Turning"/>
+        <SoundArray index="Board" value="##unitName##_Board"/>
+        <SoundArray index="Click" value="##unitName##_Click"/>
+        <SoundArray index="ClickError" value="##unitName##_ClickError"/>
+        <SoundArray index="Highlight" value="##unitName##_Highlight"/>
+        <GroupSoundThreshold value="2"/>
+        <GroupSoundArray index="What" value="##unitName##_GroupWhat"/>
+        <GroupSoundArray index="Yes" value="##unitName##_GroupYes"/>
+        <GroupSoundArray index="Attack" value="##unitName##_GroupAttack"/>
+        <GroupSoundArray index="Board" value="##unitName##_GroupBoard"/>
+        <ShieldArmorIcon value="Assets\Textures\btn-upgrade-protoss-shieldslevel0.dds"/>
+        <ModelFlags index="AllowHitTest" value="1"/>
+        <On Terms="PreTargetingUpdate.*.Start; ValidateUnit IsNotFlying" Send="Create ModelPretargetGround"/>
+        <On Terms="PreTargetingUpdate.*.Stop" Target="ModelPretargetGround" Send="Destroy"/>
+        <On Terms="PreTargetingUpdate.*.Start; ValidateUnit IsFlying" Send="Create GroundPreSelection"/>
+        <On Terms="PreTargetingUpdate.*.Stop" Target="GroundPreSelection" Send="Destroy"/>
+        <!-- Flyer helper pretargeting and selection updates -->
+        <On Terms="CursorUpdate.*.Start; ValidateUnit IsFlying" Send="StatusIncrement FlyerHelper"/>
+        <On Terms="CursorUpdate.*.Stop; ValidateUnit IsFlying; HasStatus FlyerHelper" Send="StatusDecrement FlyerHelper"/>
+        <On Terms="ActorCreation; ScopeContains GroundLocalSelection" Send="StatusSet Selected 1"/>
+        <On Terms="SelectionLocalUpdate.*.Start" Send="StatusSet Selected 1"/>
+        <On Terms="SelectionLocalUpdate.*.Stop" Send="StatusSet Selected 0"/>
+        <On Terms="StatusOn.*.Selected; ValidateUnit IsFlying" Send="StatusIncrement FlyerHelper"/>
+        <On Terms="StatusOff.*.Selected; ValidateUnit IsFlying; HasStatus FlyerHelper" Send="StatusDecrement FlyerHelper"/>
+        <!-- Flyer helper creation/destruction -->
+        <On Terms="StatusOn.*.FlyerHelper; FlyerHelper All" Send="Create FlyerHelperSplat"/>
+        <On Terms="StatusOn.*.FlyerHelper; FlyerHelper Selected" Send="Create FlyerHelperSplat"/>
+        <On Terms="StatusOff.*.FlyerHelper; FlyerHelper Selected" Target="FlyerHelperSplat" Send="Destroy"/>
+        <On Terms="ActorCreation; FlyerHelper All; ValidateUnit IsFlying" Send="Create FlyerHelperSplat"/>
+        <On Terms="ActorDestruction; FlyerHelper All; !HasStatus FlyerHelper" Target="FlyerHelperSplat" Send="Destroy"/>
+        <On Terms="FlyerHelperChange; FlyerHelper None" Target="FlyerHelperSplat" Send="Destroy"/>
+        <On Terms="FlyerHelperChange; FlyerHelper Selected; HasStatus FlyerHelper; !ScopeContains FlyerHelperSplat" Send="Create FlyerHelperSplat"/>
+        <On Terms="FlyerHelperChange; FlyerHelper Selected; !HasStatus FlyerHelper" Target="FlyerHelperSplat"  Send="Destroy"/>
+        <On Terms="FlyerHelperChange; FlyerHelper All; ValidateUnit IsFlying; !ScopeContains FlyerHelperSplat" Send="Create FlyerHelperSplat"/>
+    </CActorUnit>
+    <!-- For anything unit that one would consider a conventional unit in the game. -->
+    <CActorUnit default="1" id="GenericUnitBase" parent="GenericUnitSelectable">
+        <UnitFlags index="StandAnimBirthVariation" value="1"/>
+        <VarianceWindowStandIntro value="0.33"/>
+        <VarianceWindowStand value="1.0"/>
+        <VarianceWindowWalkIntro value="0.33"/>
+        <VarianceWindowWalk value="1.0"/>
+        <VarianceWindowWalkOutro value="0.33"/>
+        <EventDataFootprint Actor="UnitFootprint" Model="##unitName##Footprint"/>
+        <EventDataSound Actor="UnitSound"/>
+        <DeathArray index="Normal" AnimProps="Death" ModelLink="##unitName##" SoundLink="##unitName##Death" VoiceLink="##unitName##DeathVoice"/>
+        <DeathArray index="UnderConstruction" AnimProps="Death"/>
+        <DeathArray index="Eat" AnimProps="Death,Eat"/>
+        <DeathArray index="Eviscerate" AnimProps="Death,Eviscerate"/>
+        <DeathArray index="Fire" AnimProps="Death,Fire"/>
+        <DeathArray index="Silentkill" AnimProps="Death,Silentkill"/>
+        <DeathArray index="Squish" AnimProps="Death,Squish"/>
+        <DeathCustoms Name="AntiGravProtoss" ModelLink="ProtossSmallUnitDeath"/>
+        <DeathCustoms Name="AntiGravTerran" ModelLink="TerranSmallUnitDeath"/>
+        <DeathCustoms Name="AntiGravZerg" ModelLink="ZergSmallUnitDeath"/>
+        <Macros value="DeadAnimationMacro"/>
+        <On Terms="UnitBirth.*.Normal" Send="AnimPlay Birth Birth 0 0"/>
+        <On Terms="UnitFidget" Send="AnimPlay Fidget Fidget"/>
+        <On Terms="UnitMovementUpdate.*.Walk" Send="AnimClear Fidget"/>
+        <!-- Route this message to another actor.  The rationale is that we don't broadcast
+             this message for perf reasons.  But we want to minimize the amount of spell-
+             specific stuff we have down in the generic unit. -->
+        <On Terms="UnitDetectedByViewer.*.On; ValidateUnit IsHallucination" Target="_HallucinationTinter" Send="Signal HallucinationTintOn"/>
+        <On Terms="UnitDetectedByViewer.*.Off; ValidateUnit IsHallucination" Target="_HallucinationTinter" Send="Signal HallucinationTintOff"/>
+        <On Terms="UnitDeathCustomize; ValidateUnit HasAntiGravProtoss" Send="DeathCustomize AntiGravProtoss"/>
+        <On Terms="UnitDeathCustomize; ValidateUnit HasAntiGravTerran" Send="DeathCustomize AntiGravTerran"/>
+        <On Terms="UnitDeathCustomize; ValidateUnit HasAntiGravZerg" Send="DeathCustomize AntiGravZerg"/>
+        <On Terms="Behavior.PhoenixAntiGrav.On" Send="ModelSuddenMotionStart"/>
+        <On Terms="Behavior.PhoenixAntiGrav.Off" Send="ModelSuddenMotionStop"/>
+        <On Terms="UnitTaunt.*.Start; Taunt Cheer" Send="AnimPlay Cheer Stand,Victory"/>
+        <On Terms="UnitTaunt.*.Stop; Taunt Cheer" Send="AnimClear Cheer"/>
+        <On Terms="UnitTaunt.*.Start; Taunt Dance" Send="AnimPlay Dance Stand,Dance"/>
+        <On Terms="UnitTaunt.*.Stop; Taunt Dance" Send="AnimClear Dance"/>
+    </CActorUnit>
+    <!-- For any unit that might some day have an attack.  Probabably a good base class for all
+         main tech tree units and buildings. -->
+    <CActorUnit default="1" id="GenericUnitStandard" parent="GenericUnitBase">
+        <!-- All units have the base ability to respond to weapon signals, so they can attack. -->
+        <On Terms="Abil.attack.ReadyStart" Send="AnimGroupApply Ready"/>
+        <On Terms="WeaponStart.*.AttackStart" Send="AnimBracketStart Attack Attack"/>
+        <On Terms="WeaponStart.*.AttackStart; AnimPlaying Birth" Send="AnimClear Birth"/>
+        <On Terms="WeaponStop.*.AttackStop" Send="AnimBracketStop Attack"/>
+        <On Terms="Abil.attack.ReadyStop" Send="AnimGroupRemove Ready"/>
+    </CActorUnit>
+    <CActorUnit default="1" id="DestructibleUnitStandard" parent="GenericUnitStandard">
+        <DeathArray index="Normal" SoundLink="Destructible_RockDeath"/>
+        <RandomScaleRange value="1.000000,1.000000"/>
+    </CActorUnit>
+    <CActorUnit default="1" id="GenericUnitBaseMorphTransition" parent="GenericUnitBase">
+        <Baselines index="Stand" AnimProps=""/>
+        <Baselines index="Walk" AnimProps=""/>
+    </CActorUnit>
+    <!-- Used by the system to at least create a unit when the data is bad.  This enables us to
+         avoid a bunch of NULL checks.  This is still selectable, even though it comes from
+         GenericUnitMinimal. -->
+    <CActorUnit id="GenericUnitFallback" parent="GenericUnitMinimal">
+        <Model value="Sphere"/>
+    </CActorUnit>
+    <!-- For units that can be morphed into or out of. -->
+    <CActorUnit default="1" id="GenericUnitMorph" parent="GenericUnitStandard">
+        <UnitFlags index="StandAnimBirthVariation" value="0"/>
+        <On Terms="AbilMorph.*.Finish; MorphTo ##unitName##" Send="Create"/>
+        <On Terms="AbilMorph.*.Start; MorphFrom ##unitName##" Send="Destroy"/>
+    </CActorUnit>
+    <CActorUnit default="1" id="PathingBlocker" parent="GenericUnitBase">
+        <StatusBarFlags index="Shields" value="0"/>
+        <StatusBarFlags index="Life" value="0"/>
+        <StatusBarFlags index="Energy" value="0"/>
+        <StatusBarFlags index="Cargo" value="0"/>
+        <StatusBarFlags index="Progress" value="0"/>
+        <StatusBarFlags index="Duration" value="0"/>
+        <Model value="Invisible"/>
+        <EditorModel value="PathingBlockerHelper"/>
+        <WalkAnimMoveSpeed value="0"/>
+        <UnitFlags index="ShowBlobShadow" value="0"/>
+    </CActorUnit>
+    <CActorUnit default="1" id="Beacon" parent="GenericUnitSelectable">
+        <StatusBarFlags index="Shields" value="0"/>
+        <StatusBarFlags index="Life" value="0"/>
+        <StatusBarFlags index="Energy" value="0"/>
+        <StatusBarFlags index="Cargo" value="0"/>
+        <StatusBarFlags index="Progress" value="0"/>
+        <StatusBarFlags index="Duration" value="0"/>
+        <WalkAnimMoveSpeed value="0"/>
+        <UnitFlags index="ShowBlobShadow" value="0"/>
+        <Filter index="Neutral" value="1"/>
+        <Filter index="Enemy" value="1"/>
+        <On Terms="ActorCreation" Send="SetVisibility 0"/>
+    </CActorUnit>
+    <CActorModel id="UnitFootprint" parent="EventFootprint"/>
+    <CActorSound id="UnitSound" parent="EventSoundFromData"/>
+    <CActorSound id="UnitSoundHiddenCheck" parent="UnitSound">
+        <Inherits index="Visibility" value="1"/>
+        <Host Subject="::Main"/>
+        <HostSiteOps Ops="SOpAttachHeadSound"/>
+    </CActorSound>
+    <CActorModel id="UnitDeathModel">
+        <ModelFlags index="UseSyncSeed" value="1"/>
+        <ModelFlags index="SuppressMissingAttachErrors" value="1"/>
+        <Host Subject="::Creator"/>
+        <Inherits index="BaseModelScale" value="1"/>
+        <Inherits index="CastShadows" value="1"/>
+        <Inherits index="Scale" value="1"/>
+        <Inherits index="TeamColor" value="1"/>
+        <Inherits index="TintColor" value="1"/>
+        <Inherits index="Visibility" value="1"/>
+        <Aliases value="_Main"/>
+        <Aliases value="_Unit"/>
+        <Aliases value="_DeathModel"/>
+        <Macros value="DeadAnimationMacro"/>
+        <!-- Means we get props and bearings once, and then stop. -->
+        <On Terms="ActorCreation" Send="RefClear ::Host"/>
+        <On Terms="ActorCreation" Send="SetTintColor 255,255,255 0.6"/>
+        <EventDataSound Name="NydusCanalThud" Actor="UnitSound" Sound="NydusWorm_DeathThud"/>
+        <EventDataSound Name="ZergExplosionSlime" Actor="UnitSound" Sound="Zerg_ExplosionSlime"/>
+        <EventDataSound Name="ZergPreExplosionSmall" Actor="UnitSound" Sound="Zerg_PreExplosionSmall"/>
+        <EventDataSound Name="ZergExplosionTiny" Actor="UnitSound" Sound="Zerg_ExplosionTiny"/>
+        <EventDataSound Name="ZergExplosionSmall" Actor="UnitSound" Sound="Zerg_ExplosionSmall"/>
+        <EventDataSound Name="ZergExplosionMedium" Actor="UnitSound" Sound="Zerg_ExplosionMedium"/>
+        <EventDataSound Name="ZergExplosionLarge" Actor="UnitSound" Sound="Zerg_ExplosionLarge"/>
+        <EventDataSound Name="ProtossPreExplosionSmall" Actor="UnitSound" Sound="Protoss_PreExplosionSmall"/>
+        <EventDataSound Name="ProtossExplosionSmall" Actor="UnitSound" Sound="Protoss_ExplosionSmall"/>
+        <EventDataSound Name="ProtossExplosionMedium" Actor="UnitSound" Sound="Protoss_ExplosionMedium"/>
+        <EventDataSound Name="ProtossExplosionLarge" Actor="UnitSound" Sound="Protoss_ExplosionLarge"/>
+        <EventDataSound Name="TerranPreExplosionSmall" Actor="UnitSound" Sound="Terran_PreExplosionSmall"/>
+        <EventDataSound Name="TerranExplosionSmall" Actor="UnitSound" Sound="Terran_ExplosionSmall"/>
+        <EventDataSound Name="TerranExplosionMedium" Actor="UnitSound" Sound="Terran_ExplosionMedium"/>
+        <EventDataSound Name="TerranExplosionLarge" Actor="UnitSound" Sound="Terran_ExplosionLarge"/>
+    </CActorModel>
+    <CActorModel id="UnitDeathModelNoTeamColor">
+        <ModelFlags index="UseSyncSeed" value="1"/>
+        <Host Subject="::Creator"/>
+        <Inherits index="BaseModelScale" value="1"/>
+        <Inherits index="CastShadows" value="1"/>
+        <Inherits index="Scale" value="1"/>
+        <Inherits index="TeamColor" value="1"/>
+        <Inherits index="TintColor" value="1"/>
+        <Inherits index="Visibility" value="1"/>
+        <Aliases value="_Main"/>
+        <Aliases value="_Unit"/>
+        <Aliases value="_DeathModel"/>
+        <Macros value="DeadAnimationMacro"/>
+        <!-- Means we get props and bearings once, and then stop. -->
+        <On Terms="ActorCreation" Send="RefClear ::Host"/>
+        <On Terms="ActorCreation" Send="SetTintColor 255,255,255 0.6"/>
+        <On Terms="ActorCreation" Send="SetTeamColor {0,0,0 0.000000} {0,0,0 0.000000}"/>
+        <EventDataSound Name="NydusCanalThud" Actor="UnitSound" Sound="NydusWorm_DeathThud"/>
+        <EventDataSound Name="ZergExplosionSlime" Actor="UnitSound" Sound="Zerg_ExplosionSlime"/>
+        <EventDataSound Name="ZergPreExplosionSmall" Actor="UnitSound" Sound="Zerg_PreExplosionSmall"/>
+        <EventDataSound Name="ZergExplosionTiny" Actor="UnitSound" Sound="Zerg_ExplosionTiny"/>
+        <EventDataSound Name="ZergExplosionSmall" Actor="UnitSound" Sound="Zerg_ExplosionSmall"/>
+        <EventDataSound Name="ZergExplosionMedium" Actor="UnitSound" Sound="Zerg_ExplosionMedium"/>
+        <EventDataSound Name="ZergExplosionLarge" Actor="UnitSound" Sound="Zerg_ExplosionLarge"/>
+        <EventDataSound Name="ProtossPreExplosionSmall" Actor="UnitSound" Sound="Protoss_PreExplosionSmall"/>
+        <EventDataSound Name="ProtossExplosionSmall" Actor="UnitSound" Sound="Protoss_ExplosionSmall"/>
+        <EventDataSound Name="ProtossExplosionMedium" Actor="UnitSound" Sound="Protoss_ExplosionMedium"/>
+        <EventDataSound Name="ProtossExplosionLarge" Actor="UnitSound" Sound="Protoss_ExplosionLarge"/>
+        <EventDataSound Name="TerranPreExplosionSmall" Actor="UnitSound" Sound="Terran_PreExplosionSmall"/>
+        <EventDataSound Name="TerranExplosionSmall" Actor="UnitSound" Sound="Terran_ExplosionSmall"/>
+        <EventDataSound Name="TerranExplosionMedium" Actor="UnitSound" Sound="Terran_ExplosionMedium"/>
+        <EventDataSound Name="TerranExplosionLarge" Actor="UnitSound" Sound="Terran_ExplosionLarge"/>
+    </CActorModel>
+    <CActorModel id="UnitDeathModelUnscaled" parent="UnitDeathModel">
+        <Inherits index="BaseModelScale" value="0"/>
+        <Inherits index="Scale" value="0"/>
+    </CActorModel>
+    <CActorModel id="UnitDeathModelNoTeamColorUnscaled" parent="UnitDeathModelNoTeamColor">
+        <Inherits index="BaseModelScale" value="0"/>
+        <Inherits index="Scale" value="0"/>
+    </CActorModel>
+    <CActorUnit id="UnitDeathModelPersistent">
+        <SnapshotActor value="Snapshot"/>
+        <FogVisibility value="Dimmed"/>
+        <ModelFlags index="UseSyncSeed" value="1"/>
+        <Host Subject="::Creator"/>
+        <Inherits index="BaseModelScale" value="1"/>
+        <Inherits index="CastShadows" value="1"/>
+        <Inherits index="Scale" value="1"/>
+        <Inherits index="TeamColor" value="1"/>
+        <Inherits index="TintColor" value="1"/>
+        <Inherits index="Visibility" value="1"/>
+        <Aliases value="_Unit"/>
+        <Aliases value="_DeathModel"/>
+        <Macros value="DeadAnimationMacro"/>
+        <On Terms="ActorCreation" Send="RefClear ::Host"/>
+        <On Terms="ActorCreation" Send="SetTintColor 255,255,255 0.6"/>
+        <EventDataSound Name="NydusCanalThud" Actor="UnitSound" Sound="NydusWorm_DeathThud"/>
+        <EventDataSound Name="ZergExplosionSlime" Actor="UnitSound" Sound="Zerg_ExplosionSlime"/>
+        <EventDataSound Name="ZergPreExplosionSmall" Actor="UnitSound" Sound="Zerg_PreExplosionSmall"/>
+        <EventDataSound Name="ZergExplosionTiny" Actor="UnitSound" Sound="Zerg_ExplosionTiny"/>
+        <EventDataSound Name="ZergExplosionSmall" Actor="UnitSound" Sound="Zerg_ExplosionSmall"/>
+        <EventDataSound Name="ZergExplosionMedium" Actor="UnitSound" Sound="Zerg_ExplosionMedium"/>
+        <EventDataSound Name="ZergExplosionLarge" Actor="UnitSound" Sound="Zerg_ExplosionLarge"/>
+        <EventDataSound Name="ProtossPreExplosionSmall" Actor="UnitSound" Sound="Protoss_PreExplosionSmall"/>
+        <EventDataSound Name="ProtossExplosionSmall" Actor="UnitSound" Sound="Protoss_ExplosionSmall"/>
+        <EventDataSound Name="ProtossExplosionMedium" Actor="UnitSound" Sound="Protoss_ExplosionMedium"/>
+        <EventDataSound Name="ProtossExplosionLarge" Actor="UnitSound" Sound="Protoss_ExplosionLarge"/>
+        <EventDataSound Name="TerranPreExplosionSmall" Actor="UnitSound" Sound="Terran_PreExplosionSmall"/>
+        <EventDataSound Name="TerranExplosionSmall" Actor="UnitSound" Sound="Terran_ExplosionSmall"/>
+        <EventDataSound Name="TerranExplosionMedium" Actor="UnitSound" Sound="Terran_ExplosionMedium"/>
+        <EventDataSound Name="TerranExplosionLarge" Actor="UnitSound" Sound="Terran_ExplosionLarge"/>
+    </CActorUnit>
+    <CActorUnit id="UnitDeathModelPersistentUnscaled" parent="UnitDeathModelPersistent">
+        <FogVisibility value="Dimmed"/>
+       <Inherits index="BaseModelScale" value="0"/>
+       <Inherits index="Scale" value="0"/>
+   </CActorUnit>
+    <CActorSound id="UnitDeathSound" parent="SoundOneShot">
+        <Host Subject="::Creator"/>
+        <!-- Means we get props and bearings once, and then stop. -->
+        <On Terms="ActorCreation" Send="RefClear ::Host"/>
+    </CActorSound>
+    <CActorSound id="UnitDeathVoice" parent="SoundOneShot">
+        <Host Subject="::Creator"/>
+        <!-- Means we get props and bearings once, and then stop. -->
+        <On Terms="ActorCreation" Send="RefClear ::Host"/>
+    </CActorSound>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Squibs ================================================================================ -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Simple squibs ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ -->
+    <!--                                                                                         -->
+    <CActorSquib default="1">
+        <HarnessModel value="ModelOneShot"/>
+        <HarnessSound value="Sound"/>
+        <Map index="None" Model="##id##" Sound="##id##"/>
+    </CActorSquib>
+    <!--                                                                                         -->
+    <!-- CActorAction ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ -->
+    <!--                                                                                         -->
+    <CActorBeamSimple default="1" id="GenericAttackBeam" parent="BeamSimpleAnimationStyleOneShot"/>
+    <!--                                                                                         -->
+    <CActorMissile default="1" id="GenericAttackMissile">
+        <?token id="unitName" type="CUnitLink" value="Bogus"?>
+        <!-- Override baseline so we play birth if we have it, and *then* play Stand perpetually,
+             (rather than walk of course).  We don't play deaths right now, b/c those are
+             typically separate models.  We don't do this in the default to avoid messing up the
+             Reaper.-->
+        <Aliases value="_Unit"/>
+        <Aliases value="_Missile"/>
+        <PreHost value="_ActorAction"/>
+        <Model value="##unitName##"/>
+        <UnitFlags index="ShowBlobShadow" value="0"/>
+        <On Terms="UnitBirth.##unitName##" Send="Create"/>
+        <On Terms="UnitBirth" Send="AnimBracketStart Lifetime Birth Stand"/>
+        <On Terms="UnitDeath" Send="Destroy"/>
+        <On Terms="ActorOrphan" Send="Destroy"/>
+    </CActorMissile>
+    <CActorMissile default="1" id="GenericTentacleMissile" parent="GenericAttackMissile">
+        <IsTentacle value="1"/>
+        <On Terms="Effect.*.Return" Send="MissileTentacleReturn"/>
+    </CActorMissile>
+    <!--                                                                                         -->
+    <CActorSite id="GenericAttackLaunchSite"/>
+    <CActorSite id="GenericAttackLaunchFallbackSite">
+        <HostSiteOps Ops="SOpBasicCreatorStationary"/>
+    </CActorSite>
+    <!--                                                                                         -->
+    <CActorSite id="GenericAttackImpactSite">
+        <HostSiteOps HoldRotation="1"/>
+    </CActorSite>
+    <CActorSite id="GenericAttackImpactPointSite"/>
+    <CActorSite id="GenericAttackImpactFallbackSite">
+        <HostSiteOps Ops="SOpTargetPointStationary"/>
+    </CActorSite>
+    <!--                                                                                         -->
+    <CActorSite id="GenericAttackDamageSite"/>
+    <!--                                                                                         -->
+    <CActorModel id="GenericAttackModel" parent="ModelAnimationStyleOneShotNoOrphan">
+        <Flags index="SuppressCreationErrors" value="1"/>
+    </CActorModel>
+    <!-- Extra entries here are useful for debug output. -->
+    <CActorModel id="GenericAttackLaunchModel" parent="GenericAttackModel"/>
+    <CActorModel id="GenericAttackImpactModel" parent="GenericAttackModel"/>
+    <CActorModel id="GenericAttackImpactModelReaction" parent="GenericAttackModel"/>
+    <CActorModel id="GenericAttackDamageModel" parent="GenericAttackModel"/>
+    <CActorModel id="GenericAttackDamageModelReaction" parent="GenericAttackModel"/>
+    <!--                                                                                         -->
+    <CActorSound id="GenericAttackSound" parent="SoundOneShot">
+        <Flags index="SuppressCreationErrors" value="1"/>
+    </CActorSound>
+    <!-- Extra entries here are useful for debug output. -->
+    <CActorSound id="GenericAttackLaunchSound" parent="GenericAttackSound"/>
+    <CActorSound id="GenericAttackImpactSound" parent="GenericAttackSound"/>
+    <CActorSound id="GenericAttackDamageSound" parent="GenericAttackSound"/>
+    <!--                                                                                         -->
+    <!-- For most attacks, including melee, direct, beam and missile.  Supports splash damage    -->
+    <!-- from CEffectDamage.  Base class is also sometimes used directly by more sophisticated   -->
+    <!-- effects.                                                                                -->
+    <!--                                                                                         -->
+    <CActorAction default="1" id="GenericAttackBase">
+        <Aliases value="_ActorAction"/>
+        <LaunchGuideAlias value="_LaunchGuide"/>
+        <LaunchSite value="GenericAttackLaunchSite"/>
+        <LaunchSiteOps Ops="SOpAttachHarness"/>
+        <LaunchSiteFallback value="GenericAttackLaunchFallbackSite"/>
+        <LaunchAttachQuery Methods="$GenericAttackLaunchMethods" Fallback="Center"/>
+        <LaunchAssets Model="##id##Launch" Sound="##id##Launch"/>
+        <LaunchModel value="GenericAttackLaunchModel"/>
+        <LaunchSound value="GenericAttackLaunchSound"/>
+        <ContainerSite value="GenericAttackLaunchSite"/>
+        <ContainerSiteOps Ops="SOpAttachHarness SOpForwardTargetPoint"/>
+        <ContainerAttachQuery Methods="$GenericBunkerAttackLaunchMethods" Fallback="Center"/>
+        <!-- Here until we have another place units can fire out of. -->
+        <ContainerAssets Model="##effectAttack##BunkerAttackLaunch" Sound="##effectAttack##BunkerAttackLaunch"/>
+        <ContainerModel value="GenericAttackLaunchModel"/>
+        <ContainerSound value="GenericAttackLaunchSound"/>
+        <Beam value="##id##Beam"/>
+        <BeamScope value="Effect"/>
+        <Missile value="##id##Missile"/>
+        <ImpactGuideAlias value="_ImpactGuide"/>
+        <ImpactSiteOps Ops="SOpAttachHarness SOpAttachVolumeStandard"/>
+        <ImpactSite value="GenericAttackImpactSite"/>
+        <ImpactSiteFallback value="GenericAttackImpactFallbackSite"/>
+        <ImpactAttachQuery Methods="$GenericAttackTargetMethods" Fallback="Center"/>
+        <ImpactReattachQuery Methods="AMVolumesRequery" Fallback="Center"/>
+        <ImpactPointSite value="GenericAttackImpactPointSite"/>
+        <ImpactPointSiteOps Ops="SOpTargetPointStationary"/>
+        <ImpactMap index="None" Model="##id##Impact" ModelReaction="##id##ImpactReaction" Sound="##id##Impact"/>
+        <ImpactMap index="Dirt" ModelReaction="##id##ImpactReactionDirt" Sound="##id##ImpactDirt"/>
+        <ImpactMap index="Rock" ModelReaction="##id##ImpactReactionRock" Sound="##id##ImpactRock"/>
+        <ImpactMap index="Snow" ModelReaction="##id##ImpactReactionSnow" Sound="##id##ImpactSnow"/>
+        <ImpactMap index="Sand" ModelReaction="##id##ImpactReactionSand" Sound="##id##ImpactSand"/>
+        <ImpactMap index="Water" ModelReaction="##id##ImpactReactionWater" Sound="##id##ImpactWater"/>
+        <ImpactMap index="Flesh" ModelReaction="##id##ImpactReactionFlesh" Sound="##id##ImpactFlesh"/>
+        <ImpactMap index="LightArmor" ModelReaction="##id##ImpactReactionLightArmor" Sound="##id##ImpactLightArmor"/>
+        <ImpactMap index="Metal" ModelReaction="##id##ImpactReactionMetal" Sound="##id##ImpactMetal"/>
+        <ImpactMap index="Shield" ModelReaction="##id##ImpactReactionShield" Sound="##id##ImpactShield"/>
+        <ImpactModel value="GenericAttackImpactModel"/>
+        <ImpactModelReaction value="GenericAttackImpactModelReaction"/>
+        <ImpactSound value="GenericAttackImpactSound"/>
+        <DamageSite value="GenericAttackDamageSite"/>
+        <DamageSiteOps Ops="SOpAttachHarness SOpAttachVolumeStandard"/>
+        <DamageAttachQuery Methods="$GenericAttackTargetMethods" Fallback="Center"/>
+        <DamageReattachQuery Methods="AMVolumesRequery" Fallback="Center"/>
+        <DamageMap index="None" Model="##id##Damage" ModelReaction="##id##DamageReaction" Sound="##id##Damage"/>
+        <DamageMap index="Dirt" ModelReaction="##id##DamageReactionDirt" Sound="##id##DamageDirt"/>
+        <DamageMap index="Rock" ModelReaction="##id##DamageReactionRock" Sound="##id##DamageRock"/>
+        <DamageMap index="Snow" ModelReaction="##id##DamageReactionSnow" Sound="##id##DamageSnow"/>
+        <DamageMap index="Sand" ModelReaction="##id##DamageReactionSand" Sound="##id##DamageSand"/>
+        <DamageMap index="Water" ModelReaction="##id##DamageReactionWater" Sound="##id##DamageWater"/>
+        <DamageMap index="Flesh" ModelReaction="##id##DamageReactionFlesh" Sound="##id##DamageFlesh"/>
+        <DamageMap index="LightArmor" ModelReaction="##id##DamageReactionLightArmor" Sound="##id##DamageLightArmor"/>
+        <DamageMap index="Metal" ModelReaction="##id##DamageReactionMetal" Sound="##id##DamageMetal"/>
+        <DamageMap index="Shield" ModelReaction="##id##DamageReactionShield" Sound="##id##DamageShield"/>
+        <DamageModel value="GenericAttackDamageModel"/>
+        <DamageModelReaction value="GenericAttackDamageModelReaction"/>
+        <DamageSound value="GenericAttackDamageSound"/>
+        <Lifetime value="0.1"/>
+    </CActorAction>
+    <!--                                                                                         -->
+    <!-- For basic melee, direct, beam and missile attacks.                                      -->
+    <!--                                                                                         -->
+    <CActorAction default="1" id="GenericAttackNoCreateBase" parent="GenericAttackBase">
+        <?token id="effectImpact" type="CEffectLink" value="Bogus"?>
+        <On Terms="Effect.##effectImpact##.Start; At Caster; FromEffectTreeDescendant" Send="ActionImpact"/>
+        <On Terms="Effect.SplashDamage.Start; At Caster; FromEffectTreeDescendant" Send="ActionDamage"/>
+        <On Terms="Effect.SplashDamage.Start; At Source; FromEffectTreeDescendant" Send="ActionDamage"/>
+    </CActorAction>
+    <!--                                                                                         -->
+    <CActorAction default="1" id="GenericAttack" parent="GenericAttackNoCreateBase">
+        <?token id="effectAttack" type="CEffectLink" value="Bogus"?>
+        <?token id="effectLaunch" type="CEffectLink" value="Bogus"?>
+        <On Terms="Effect.##effectAttack##.Start; At Caster" Send="Create"/>
+        <On Terms="Effect.##effectLaunch##.Start; At Caster" Send="Create"/>
+    </CActorAction>
+    <!--                                                                                         -->
+    <!-- For splash damage spread out via CEffectEnumArea + CEffectDamage (or whatever effect).  -->
+    <!-- Includes spells like Psi Storm.                                                         -->
+    <!--                                                                                         -->
+    <CActorAction default="1" id="AoEAttackBase">
+        <LaunchSiteFallback value="GenericAttackLaunchFallbackSite"/>
+        <LaunchAssets Model="##id##Launch" Sound="##id##Launch"/>
+        <LaunchModel value="GenericAttackLaunchModel"/>
+        <LaunchSound value="GenericAttackLaunchSound"/>
+        <DamageSite value="GenericAttackDamageSite"/>
+        <DamageSiteOps Ops="SOpAttachHarness SOpForwardLaunchGuideDamage SOpPatch10"/>
+        <DamageAttachQuery Methods="$GenericAttackTargetMethods" Fallback="Center"/>
+        <DamageMap index="None" ModelReaction="##id##DamageReaction" Sound="##id##Damage"/>
+        <DamageMap index="Dirt" ModelReaction="##id##DamageReactionDirt" Sound="##id##DamageDirt"/>
+        <DamageMap index="Rock" ModelReaction="##id##DamageReactionRock" Sound="##id##DamageRock"/>
+        <DamageMap index="Snow" ModelReaction="##id##DamageReactionSnow" Sound="##id##DamageSnow"/>
+        <DamageMap index="Sand" ModelReaction="##id##DamageReactionSand" Sound="##id##DamageSand"/>
+        <DamageMap index="Water" ModelReaction="##id##DamageReactionWater" Sound="##id##DamageWater"/>
+        <DamageMap index="Flesh" ModelReaction="##id##DamageReactionFlesh" Sound="##id##DamageFlesh"/>
+        <DamageMap index="Metal" ModelReaction="##id##DamageReactionMetal" Sound="##id##DamageMetal"/>
+        <DamageMap index="Shield" ModelReaction="##id##DamageReactionShield" Sound="##id##DamageShield"/>
+        <DamageModel value="GenericAttackModel"/>
+        <DamageSound value="GenericAttackSound"/>
+        <DamageModelReaction value="GenericAttackDamageModelReaction"/>
+        <ShieldFlashType value="Full"/>
+    </CActorAction>
+    <!--                                                                                         -->
+    <!-- For cases where AoE 'splash' damage applies.                                            -->
+    <!--                                                                                         -->
+    <CActorAction default="1" id="AoESplashShieldHitter" parent="AoEAttackBase">
+        <?token id="effectHit" type="CEffectLink" value="Bogus"?>
+        <On Terms="Effect.##effectHit##.Start" Send="Create"/>
+        <On Terms="Effect.SplashDamage.Start" Send="ActionDamage"/>
+        <On Terms="Effect.##effectHit##.Stop" Send="Destroy"/>
+    </CActorAction>
+    <!--                                                                                         -->
+    <!-- For simply triggering Protoss shields.                                                  -->
+    <!--                                                                                         -->
+    <CActorAction default="1" id="AoEAttackShieldHitter" parent="AoEAttackBase">
+        <?token id="effectHit" type="CEffectLink" value="Bogus"?>
+        <On Terms="Effect.##effectHit##.Start" Send="Create"/>
+        <On Terms="Effect.##effectHit##.Start" Send="ActionDamage"/>
+        <On Terms="Effect.##effectHit##.Stop" Send="Destroy"/>
+    </CActorAction>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Harnesses ============================================================================= -->
+    <!--                                                                                         -->
+    <!-- Used for simple harnessing from the command line.                                       -->
+    <!--                                                                                         -->
+    <CActorList id="List"/>
+    <CActorBeamStandard id="BeamStandard" parent="BeamStandardAnimationStyleContinuous">
+        <Model value=""/>
+    </CActorBeamStandard>
+    <CActorBeamSimple id="BeamSimple" parent="BeamSimpleAnimationStyleContinuous">
+        <Model value=""/>
+    </CActorBeamSimple>
+    <CActorSite id="SiteHosted" parent="SiteUNIT">
+        <Host Subject="_Selectable"/>
+        <HostSiteOps Ops="SOpAttachHarness"/>
+    </CActorSite>
+    <CActorModel id="TriggerModel">
+        <Model value=""/>
+        <On Terms="ActorCreation" Send="AnimBracketStart BSD Birth Stand Death"/>
+        <On Terms="AnimBracketState.*.AfterClosing; AnimName BSD" Send="Destroy"/>
+    </CActorModel>
+    <CActorModel id="Model" parent="ModelAnimationStyleContinuous">
+        <Model value=""/>
+    </CActorModel>
+    <CActorModel id="ModelOneShot" parent="ModelAnimationStyleOneShot">
+        <Model value=""/>
+    </CActorModel>
+    <CActorModel id="ModelHosted" parent="Model">
+        <Host Subject="::LastCreated"/>
+    </CActorModel>
+    <CActorSimple id="Simple"/>
+    <CActorSite id="SiteHostedUnit" parent="SiteUNIT"/>
+    <CActorSite id="SiteUnitMark" parent="SiteHostedUnit">
+        <On Terms="ActorCreation" Send="Create IndicatorBase"/>
+    </CActorSite>
+    <CActorSplat id="Splat">
+        <Model value=""/>
+        <FadeIn value="1.000000"/>
+        <FadeOut value="1.000000"/>
+        <HoldTime value="-1.000000"/>
+    </CActorSplat>
+    <CActorSplat id="SplatHosted" parent="Splat">
+        <Host Subject="SiteHosted" Actor="Create"/>
+    </CActorSplat>
+    <CActorSquib id="Squib"/>
+    <CActorSquib id="SquibHosted" parent="Squib">
+        <Host Subject="SiteHosted" Actor="Create"/>
+    </CActorSquib>
+    <CActorSound id="Sound" parent="SoundOneShot">
+        <Sound value=""/>
+    </CActorSound>
+    <CActorSound id="SoundHosted" parent="Sound">
+        <Host Subject="SiteHosted" Actor="Create"/>
+    </CActorSound>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Look At =============================================================================== -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <CActorLookAt default="1">
+        <On Terms="ActorOrphan" Send="Destroy"/>
+        <Supporter Subject="::Creator"/>
+    </CActorLookAt>
+    <CActorLookAt id="LookAt"/>
+    <CActorSite id="LookAtTarget"/>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Editor ================================================================================ -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Helper model attached to pre-placed objects that don't have clickable geometry -->
+    <CActorModel id="EditorHelper">
+        <Host Subject="_EditorHelper"/>
+        <HostSiteOps Ops="SOpBasicScopeFollow"/>
+    </CActorModel>
+    <!-- Pre-placed camera actors -->
+    <CActorEditorCamera id="EditorCamera">
+        <Aliases value="_Selectable"/>
+    </CActorEditorCamera>
+    <!-- Pre-placed point actors -->
+    <CActorModel id="PointNormal">
+        <HostSiteOps Ops="SOpTipability"/>
+        <Model value="e_pointNormal"/>
+        <On Terms="ActorCreation" Send="Create PointNormalName"/>
+    </CActorModel>
+    <CActorText id="PointNormalName">
+        <MaxSize value="0.000000,0.000000"/>
+        <FixedSize value="24"/>
+        <HeightOffset value="1.0"/>
+        <AlignV value="Top"/>
+        <Host Subject="::Creator"/>
+    </CActorText>
+    <CActorEditorPoint id="PointNormalEditor" parent="PointNormal">
+        <Aliases value="_Selectable"/>
+    </CActorEditorPoint>
+    <CActorModel id="PointStartLoc">
+        <Model value="e_pointStartLoc"/>
+        <HostSiteOps Ops="SOpTipability"/>
+        <On Terms="ActorCreation" Send="Create PointStartLocName"/>
+    </CActorModel>
+    <CActorText id="PointStartLocName">
+        <MaxSize value="0.000000,0.000000"/>
+        <FixedSize value="32"/>
+        <AlignV value="Top"/>
+        <Host Subject="::Creator"/>
+    </CActorText>
+    <CActorEditorPoint id="PointStartLocEditor" parent="PointStartLoc">
+        <Aliases value="_Selectable"/>
+    </CActorEditorPoint>
+    <CActorModel id="PointStartLocUnit"/>
+    <CActorModel id="PointBlockPathing">
+        <Model value="e_pointBlockPathing"/>
+        <HostSiteOps Ops="SOpTipability"/>
+        <On Terms="ActorCreation" Send="Create PointBlockPathingName"/>
+    </CActorModel>
+    <CActorText id="PointBlockPathingName" parent="PointNormalName"/>
+    <CActorEditorPoint id="PointBlockPathingEditor" parent="PointBlockPathing">
+        <Aliases value="_Selectable"/>
+    </CActorEditorPoint>
+    <CActorModel id="PointSoundEmitter">
+        <Model value="e_pointSoundEmitter"/>
+        <HostSiteOps Ops="SOpTipability"/>
+        <On Terms="ActorCreation" Send="Create PointSoundEmitterName"/>
+        <On Terms="ActorCreation" Send="Create PointSoundEmitterRange"/>
+    </CActorModel>
+    <CActorRange id="PointSoundEmitterRange">
+        <RangeFlags index="Minimap" value="1"/>
+        <FogVisibility value="Visible"/>
+    </CActorRange>
+    <CActorText id="PointSoundEmitterName" parent="PointNormalName"/>
+    <CActorEditorPoint id="PointSoundEmitterEditor" parent="PointSoundEmitter">
+        <Aliases value="_Selectable"/>
+    </CActorEditorPoint>
+    <CActorModel id="PointThreeD">
+        <Model value="e_pointThreeD"/>
+        <HostSiteOps Ops="SOpTipability"/>
+        <On Terms="ActorCreation" Send="Create PointThreeDName"/>
+    </CActorModel>
+    <CActorText id="PointThreeDName" parent="PointNormalName"/>
+    <CActorEditorPoint id="PointThreeDEditor" parent="PointThreeD">
+        <Aliases value="_Selectable"/>
+    </CActorEditorPoint>
+    <CActorModel id="PointNoFlyZone">
+        <Model value="e_pointNoFlyZone"/>
+        <HostSiteOps Ops="SOpTipability"/>
+        <On Terms="ActorCreation" Send="Create PointNoFlyZoneName"/>
+    </CActorModel>
+    <CActorText id="PointNoFlyZoneName" parent="PointNormalName"/>
+    <CActorEditorPoint id="PointNoFlyZoneEditor" parent="PointNoFlyZone">
+        <Aliases value="_Selectable"/>
+    </CActorEditorPoint>
+    <!-- Unit overhead text -->
+    <CActorText id="EditorUnitOverheadText">
+        <FixedSize value="28"/>
+        <HeightOffset value="0.25"/>
+        <AlignV value="Bottom"/>
+        <Host Subject="_Selectable"/>
+        <HostSiteOps Ops="SOpAttachOverhead"/>
+    </CActorText>
+    <!-- Portrait Model -->
+    <CActorPortrait default="1">
+        <FogVisibility value="Visible"/>
+        <On Terms="ActorCreation" Send="AnimPlay Stand00 Stand PlayForever"/>
+        <On Terms="ActorCreation" Send="AnimBlendTimeApply 1.000000"/>
+        <Macros value="GlobalLoopMacro"/>
+        <Macros value="GlobalLoopMacroMore"/>
+    </CActorPortrait>
+    <CActorPortrait id="PortraitActor"/>
+    <!-- Previewer models -->
+    <CActorModel id="PreviewerModel">
+        <Model value="e_pointNormal"/>
+        <On Terms="AgeReached; Age 0.0" Send="AnimPlay GL_Stand_A GLstand,A PlayForever"/>
+        <On Terms="AgeReached; Age 0.0" Send="AnimPlay GL_Stand_B GLstand,B PlayForever"/>
+        <On Terms="AgeReached; Age 0.0" Send="AnimPlay GL_Stand_C GLstand,C PlayForever"/>
+        <On Terms="AgeReached; Age 0.0" Send="AnimPlay GL_Stand_D GLstand,D PlayForever"/>
+        <On Terms="AgeReached; Age 0.0" Send="AnimPlay GL_Stand_E GLstand,E PlayForever"/>
+        <On Terms="AgeReached; Age 0.0" Send="AnimPlay GL_Stand_F GLstand,F PlayForever"/>
+        <On Terms="AgeReached; Age 0.0" Send="AnimPlay GL_Stand_G GLstand,G PlayForever"/>
+        <On Terms="AgeReached; Age 0.0" Send="AnimPlay GL_Stand_H GLstand,H PlayForever"/>
+        <On Terms="AgeReached; Age 0.0" Send="AnimPlay GL_Stand_I GLstand,I PlayForever"/>
+        <On Terms="AgeReached; Age 0.0" Send="AnimPlay GL_Stand_J GLstand,J PlayForever"/>
+    </CActorModel>
+    <CActorModel id="TerrainObjectPreviewModel"/>
+    <!-- Regions -->
+    <CActorRegionGame id="TriggerRegion"/>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Debugging ============================================================================= -->
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Watching Phase Changes in Missiles                                                      -->
+    <!-- Use by putting following line in relevant CActorMissile:                                -->
+    <!--     <On Terms="MotionPhaseStart" Send="Create IndicatorMissilePhaseChange"/>            -->
+    <!--                                                                                         -->
+    <CActorModel id="IndicatorMissilePhaseChange">
+        <On Terms="UnitDeath" Send="TimerSet 3.000000 DelayDestroy"/>
+        <On Terms="TimerExpired; TimerName DelayDestroy" Send="Destroy"/>
+    </CActorModel>
+    <!--                                                                                         -->
+    <!--                                                                                         -->
+    <!-- Help ================================================================================== -->
+    <!--                                                                                         -->
+    <!--
+        UnitPortrait messages.  All of these are sent to the supporting unit's scope.
+        
+        UnitPortrait.*.Customize    Sent whenever we switch the selected CActorUnit.  This can
+                                    happen when the user selects a new unit, or when a selected
+                                    unit switches actors, say if it morphs.  This is when the
+                                    data should send the PortraitCustomize message to select the
+                                    preferred model and/or CActorPortrait to use.
+        UnitPortrait.*.Configure    Happens after a new portrait model is loaded.  Happens after
+                                    an actor changes, if it doesn't change the portrait model.
+                                    This message enables the data to play animations and whatnot,
+                                    when the selected CActorUnit changes, regardless of whether
+                                    the model has changed.  It also gets sent when the portrait
+                                    model has changed and is done loading.
+        UnitPortrait.*.LoadDone     Sent when the portrait model is done loading.
+        UnitPortrait.*.Destruction  Sent when a CActorPortrait dies.
+    -->
+</Catalog>

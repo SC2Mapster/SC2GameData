@@ -1,0 +1,250 @@
+//==================================================================================================
+//  Melee AI Functions only used by beginner/easy/medium.
+//==================================================================================================
+
+//==================================================================================================
+//  OPEN
+//==================================================================================================
+
+//--------------------------------------------------------------------------------------------------
+//  AIGenericStock
+//--------------------------------------------------------------------------------------------------
+static void AIGenericStock (int player, int state1, int state2) {
+    AIWaveMerge(player, c_waveMain, c_waveAttack);
+    AISetAttackState(player, e_attackState_Attack);
+    AISetMainState(player, state1, state2);
+	AIResetUserData(player);
+}
+
+//--------------------------------------------------------------------------------------------------
+//  AIEnableStockOpen
+//--------------------------------------------------------------------------------------------------
+bool AIEnableStockOpen (int player, string peonType, int time, bool veryEasy, int nextState1, int nextState2) {
+    AIEnableStock(player);
+    if (veryEasy) {
+        if (AITechCount(player, peonType, c_techCountCompleteOnly) >= 8) {
+            AISetGasPeonCountOverride(player, c_townMain, 2);
+        }
+        else {
+            AISetGasPeonCountOverride(player, c_townMain, c_defaultGasPeonCount);
+        }
+    }
+    if (AIGetTime() < time) {
+        return true;
+    }
+    AIGenericStock(player, nextState1, nextState2);
+    return false;
+}
+
+//==================================================================================================
+//  MID A
+//==================================================================================================
+
+//--------------------------------------------------------------------------------------------------
+//  AIGasHarvest
+//--------------------------------------------------------------------------------------------------
+static int GasHarvest (int player, int town, int onGas) {
+    int send;
+    
+    if (onGas < 1) {
+        return onGas;
+    }
+    send = AIGetHarvestableGasNumSpots(player, town) * 3;
+    if (send < 1) {
+        return onGas;
+    }
+    if (send > onGas) {
+        send = onGas;
+    }
+    AISetGasPeonCountOverride(player, town, send);
+    return onGas - send;
+}
+
+void AIGasHarvest (int player, string peonType) {
+    int onGas = (PlayerGetPropertyInt(player, c_playerPropMinerals)
+               - PlayerGetPropertyInt(player, c_playerPropVespene)) / 100;
+
+    AISetGasPeonCountOverride(player, c_townMain, c_defaultGasPeonCount);
+    AISetGasPeonCountOverride(player, c_townTwo, c_defaultGasPeonCount);
+    GasHarvest(player, c_townTwo, GasHarvest(player, c_townMain, onGas));
+}
+
+//--------------------------------------------------------------------------------------------------
+//	AIEnableStockMidA
+//--------------------------------------------------------------------------------------------------
+bool AIEnableStockMidA (int player, string peonType, int count, bool veryEasy, int time, int nextState1, int nextState2) {
+    AIEnableStock(player);
+    AIGasHarvest(player, peonType);
+    if (AIGetTime() < time) {
+        return true;
+    }
+    AIGenericStock(player, nextState1, nextState2);
+    return false;
+}
+
+//==================================================================================================
+//  MID B
+//==================================================================================================
+
+//--------------------------------------------------------------------------------------------------
+//	AIEnableStockMidB
+//--------------------------------------------------------------------------------------------------
+bool AIEnableStockMidB (int player, string peonType, int count, bool veryEasy, int time, int nextState1, int nextState2) {
+    AIEnableStock(player);
+    AIGasHarvest(player, peonType);
+    if (AIGetTime() < time) {
+        return true;
+    }
+    AIGenericStock(player, nextState1, nextState2);
+    AISetFlag(player, e_flagsScouting, true);
+    AISetFlag(player, e_flagsClearObs, true);
+    return false;
+}
+
+//==================================================================================================
+//  LATE
+//==================================================================================================
+
+//--------------------------------------------------------------------------------------------------
+//	AIEnableStockLate
+//--------------------------------------------------------------------------------------------------
+bool AIEnableStockLate (int player, string peonType, int count, int offset, int time) {
+    fixed tm = AIGetTime() - offset;
+    if (tm < 0) {
+        return true;
+    }
+    AIEnableStock(player);
+    AIGasHarvest(player, peonType);
+    if (tm % time > 5) {
+        return true;
+    }
+    AIWaveMerge(player, c_waveMain, c_waveAttack);
+    AISetAttackState(player, e_attackState_Attack);
+	AIResetUserData(player);
+    return false;
+}
+
+//==================================================================================================
+//  OTHER
+//==================================================================================================
+
+//--------------------------------------------------------------------------------------------------
+//	AIPickFrom2
+//--------------------------------------------------------------------------------------------------
+string AIPickFrom2 (string a, string b) {
+	int roll = RandomInt(1,2);
+	if (roll == 1) {
+		return a;
+	}
+	return b;
+}
+
+//--------------------------------------------------------------------------------------------------
+//	AIPickFrom3
+//--------------------------------------------------------------------------------------------------
+string AIPickFrom3 (string a, string b, string c) {
+	int roll = RandomInt(1,3);
+	if (roll == 1) {
+		return a;
+	}
+	if (roll == 2) {
+		return b;
+	}
+	return c;
+}
+
+//--------------------------------------------------------------------------------------------------
+//	AISetStockUserData
+//--------------------------------------------------------------------------------------------------
+void AISetStockUserData (int player) {
+	int index = 1;	
+	while (index <= 10) {
+	    AISetStock(player, AIGetUserInt(player, index), AIGetUserString(player, index));
+	    index = index + 1;
+	}
+}
+
+//==================================================================================================
+//  TECH
+//==================================================================================================
+
+//--------------------------------------------------------------------------------------------------
+//	TerranTechUp
+//--------------------------------------------------------------------------------------------------
+void TerranTechUp (int player, int tier) {
+
+	AISetStock( player, 1, c_TB_Barracks );
+	AISetStock( player, 1, c_TB_BarracksTechLab );
+	
+	if (tier >= 2) {
+		AISetStock( player, 1, c_TB_Factory );
+		AISetStock( player, 1, c_TB_FactoryTechLab );
+		
+		if (tier >= 3) {
+			AISetStock( player, 1, c_TB_Starport );
+			AISetStock( player, 1, c_TB_StarportTechLab );
+		}
+	}
+
+	AISetStock( player, 1, c_TB_EngineeringBay );
+
+	if (tier >= 2) {
+    	AISetStock( player, 1, c_TB_SensorTower );
+		AISetStock( player, 1, c_TB_GhostAcademy );
+		
+		if (tier >= 3) {
+			AISetStock( player, 1, c_TB_Armory );
+
+			if (tier >= 4) {
+				AISetStock( player, 1, c_TB_FusionCore );
+			}
+		}
+	}
+}
+
+//--------------------------------------------------------------------------------------------------
+//	ZergTechUp
+//--------------------------------------------------------------------------------------------------
+void ZergTechUp (int player, int tier) {
+
+    AISetStock( player, 1, c_ZB_SpawningPool );
+    AISetStock( player, 1, c_ZB_EvolutionChamber );
+    AISetStock( player, 1, c_ZB_RoachWarren );
+    AISetStock( player, 1, c_ZB_BanelingNest );
+
+    if (tier >= 2) {
+        AISetStock( player, 1, c_ZB_HydraliskDen );
+        AISetStock( player, 1, c_ZB_InfestationPit );
+
+        if (tier >= 3) {
+            AISetStock( player, 1, c_ZB_Spire_Alias );
+
+            if (tier >= 4) {
+                AISetStock( player, 1, c_ZB_UltraliskCavern );
+                AISetStock( player, 1, c_ZB_GreaterSpire );
+            }
+        }
+    }
+}
+
+//--------------------------------------------------------------------------------------------------
+//	ProtossTechUp
+//--------------------------------------------------------------------------------------------------
+void ProtossTechUp (int player, int tier) {
+
+    AISetStock( player, 1, c_PB_Gateway );
+    AISetStock( player, 1, c_PB_Forge );
+
+    if (tier >= 3) {
+        AISetStock( player, 1, c_PB_RoboticsFacility );
+        AISetStock( player, 1, c_PB_Stargate );
+        AISetStock( player, 1, c_PB_TwilightCouncil );
+
+        if (tier >= 4) {
+            AISetStock( player, 1, c_PB_TemplarArchives );
+            AISetStock( player, 1, c_PB_RoboticsBay );
+            AISetStock( player, 1, c_PB_DarkShrine );
+            AISetStock( player, 1, c_PB_FleetBeacon );
+        }
+    }
+}

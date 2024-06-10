@@ -1,0 +1,343 @@
+//==================================================================================================
+//  Melee AI Functions only used by hard/insane.
+//==================================================================================================
+
+const int e_armyTypeChoose   = 0;   // choose the next army buildout to focus on
+const int e_armyTypeMinimum  = 1;   // bare minimum army, only thing higher priority is bare minimum economy
+const int e_armyTypeBase     = 2;   // barely adequete army including anti-air, higher priority than full economy and low expanding
+const int e_armyTypeSmall    = 3;   // small army, higher priority then important tech, basic production, basic defense, counters
+const int e_armyTypeMedium   = 4;   // medium army, higher priority then general expansion, extra production, extra transports/scouts
+const int e_armyTypeLarge    = 5;   // large army, higher priority then extra town defense & misc upgrades
+const int e_armyTypeFull     = 6;   // full army, lowest priority, this is the very last part of the stock
+const int e_armyTypeValidate = 7;   // validate we still have enough buildings for the higher tech buildouts.
+
+const int c_lateGameTimeIndex   = 128;
+const int c_lateGameStateIndex  = 129;
+const int c_harrassTimeIndex    = 130;
+const int c_harrassStateIndex   = 131;
+
+const int c_lateGameFrequency   = 600;
+const int c_harassFrequency     = 600;
+
+//--------------------------------------------------------------------------------------------------
+//  AISetTechLimitLevels
+//--------------------------------------------------------------------------------------------------
+void AISetTechLimitLevels (int player) {
+    int curMinerals;
+    int curGas;
+    int maxTotalMinerals;
+    int maxTotalGas;
+    int maxBuildingMinerals;
+    int maxBuildingGas;
+    int maxUpgradeMinerals;
+    int maxUpgradeGas;
+
+    // min values LimitTech(player, 500tm, 400tg, 400bm, 300bg, 400um, 300ug);
+    // max values LimitTech(player, 60%tm, 60%tg, 50%bm, 50%bg, 40%um, 40%ug);
+
+    curMinerals = PlayerGetPropertyInt(player, c_playerPropMinerals);
+    curGas = PlayerGetPropertyInt(player, c_playerPropVespene);
+
+    maxTotalMinerals    = FixedToInt(curMinerals * 0.6);
+    maxTotalGas         = FixedToInt(curGas      * 0.6);
+    maxBuildingMinerals = FixedToInt(curMinerals * 0.5);
+    maxBuildingGas      = FixedToInt(curGas      * 0.5);
+    maxUpgradeMinerals  = FixedToInt(curMinerals * 0.4);
+    maxUpgradeGas       = FixedToInt(curGas      * 0.4);
+
+    if (maxTotalMinerals < 800) {
+        maxTotalMinerals = 800;
+    }
+    if (maxTotalGas < 800) {
+        maxTotalGas = 800;
+    }
+    if (maxBuildingMinerals < 600) {
+        maxBuildingMinerals = 600;
+    }
+    if (maxBuildingGas < 600) {
+        maxBuildingGas = 600;
+    }
+    if (maxUpgradeMinerals < 500) {
+        maxUpgradeMinerals = 500;
+    }
+    if (maxUpgradeGas < 500) {
+        maxUpgradeGas = 500;
+    }
+
+    AILimitTech( player,
+        maxTotalMinerals,    maxTotalGas,
+        maxBuildingMinerals, maxBuildingGas,
+        maxUpgradeMinerals,  maxUpgradeGas );
+
+    //AILimitTech( player, 800, 800, 600, 600, 500, 500);
+}
+
+//--------------------------------------------------------------------------------------------------
+//  AIMakeCounters
+//--------------------------------------------------------------------------------------------------
+void AIMakeCounters (int player, string what, bool when) {
+    int countSameTech;
+    int countAnyTech;
+    int countTotal;
+    
+    countSameTech = AICounterUnitsSameTech(player, c_maxPlayers, what);
+    countAnyTech = AICounterUnitsAnyTech(player, c_maxPlayers, what);
+    countTotal = countSameTech + countAnyTech;
+    if (countTotal <= 4) {
+        // no need to make this as a counter
+        return;
+    }
+
+    if (AIGetFirstUnfinishedReq(player, what) == null) {
+        // can already make this counter without any new buildings/tech
+        AISetStockUnitNext( player, countTotal, what, when );
+        return;
+    }
+    if (countSameTech > 4 || countTotal > 6) {
+        // if we'd make sufficient of these units, it's worth making the tech
+        AISetStockUnitNext( player, countTotal, what, when );
+        return;
+    }
+}
+
+//--------------------------------------------------------------------------------------------------
+//  AISetAttackStatus
+//--------------------------------------------------------------------------------------------------
+const bool c_continuousMerge = true;
+const bool c_onlyInitialMerge = false;
+
+void AISetAttackStatus (int player, string what, int minAlly, int minSelf, bool merge) {
+    int numWhat = AITechCount(player, what, c_techCountCompleteOnly);
+    bool goAttack = false;
+
+    if (numWhat >= minAlly) {
+        if (AIAnyAllyAttacking(player)) {
+            goAttack = true;
+        }
+        if (AIAnyAllyNeedsDefending(player, AIWaveGet(player, c_waveMain))) {
+            goAttack = true;
+        }
+    }
+    if (numWhat >= minSelf) {
+        goAttack = true;
+    }
+
+    if (!goAttack) {
+        return;
+    }
+
+    if (AIState(player, e_attackState) == e_attackState_Wait) {
+        AISetAttackState(player, e_attackState_Attack);
+    }
+    else if (!merge) {
+        return;
+    }
+
+    AIWaveMerge(player, c_waveMain, c_waveAttack);    
+}
+
+void AIScoutingEnable (int player, int scoutCount, string scout) {
+    AISetFlag(player, e_flagsScouting, AITechCount(player, scout, c_techCountCompleteOnly) >= scoutCount);
+}
+
+void AIScoutingEnableWithPreReq (int player, int scoutCount, string scout, int count, string preReq, int state) {
+    bool enableScouting = false;
+
+    if (AITechCount(player, scout, c_techCountCompleteOnly) >= scoutCount) {
+        if (AITechCount(player, preReq, state) >= count) {
+            enableScouting = true;
+        }
+    }
+
+    AISetFlag(player, e_flagsScouting, enableScouting);
+}
+
+void AIEarlyDefenseScouting (int player) {
+    fixed time = AIGetTime();
+    int race;
+
+    if (time < 90 || time > 600) {
+        AISetFlag(player, e_flagsEarlyDefScout, false);
+        return;
+    }
+
+    if (time > 240) {
+        // scout around just to be safe
+        AISetFlag(player, e_flagsEarlyDefScout, true);
+        return;
+    }
+    if (PlayerDifficulty(player) >= c_skirCheater) {
+        // scout very early for cheese rushes
+        AISetFlag(player, e_flagsEarlyDefScout, true);
+        return;
+    }        
+
+    if (AIGetGroundStartLocs(PlayerStartLocation(player)) > 0) {
+        if (time > 150) {
+            // scout around just to be safe
+            AISetFlag(player, e_flagsEarlyDefScout, true);
+            return;
+        }
+        race = AIGetEnemyRaceVal(player);
+        if (race == c_raceProtoss || race == c_raceUnknown) {
+            // scout very early for protoss cannon rush
+            AISetFlag(player, e_flagsEarlyDefScout, true);
+            return;
+        }
+        if (race == c_raceMulti && time > 120) {
+            // scout after a bit against multiple opponents
+            AISetFlag(player, e_flagsEarlyDefScout, true);
+            return;
+        }
+    }
+
+    AISetFlag(player, e_flagsEarlyDefScout, false);
+    return;
+}
+
+//--------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
+// Unused below this point, keeping these for reference / future reuse
+//--------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
+//
+////--------------------------------------------------------------------------------------------------
+////  AIMakeExtraUnits
+////--------------------------------------------------------------------------------------------------
+//bool AIMakeExtraUnits (int player, int larva, bool teching, int count, string what) {    
+//    if (AIGetFirstUnfinishedReq(player, what) == null) {
+//        if (AITechCount(player, c_ZU_Larva, c_techCountCompleteOnly) >= larva) {
+//            AISetStockUnitNext( player, count, what, c_stockAlways );
+//        }
+//        else {
+//            AISetStockUnitNext( player, count, what, c_stockIdle );
+//        }
+//        return teching;
+//    }
+//    if (!teching) {
+//        AISetStock( player, 1, what );
+//    }
+//    return true;
+//}
+//
+////--------------------------------------------------------------------------------------------------
+////  AIMakeTech
+////--------------------------------------------------------------------------------------------------
+//bool AIMakeTech (int player, bool teching, string what) {
+//    if (teching) {
+//        // already teching, don't add more
+//        return true;
+//    }
+//
+//    if (AITechCount(player, what, c_techCountCompleteOnly) > 0) {
+//        // already known
+//        return false;
+//    }
+//
+//    // doesn't matter if this requires tech, we'll research it
+//    // if (AIGetFirstUnfinishedReq(player, what) == null) {
+//    // }
+//
+//    AISetStock( player, 1, what);
+//    return true;
+//}
+//
+////--------------------------------------------------------------------------------------------------
+//bool AIDontRush (int player) {
+//    if (AIKnownUnitCount(player, c_maxPlayers, c_TB_CommandCenter) < 1 &&
+//        AIKnownUnitCount(player, c_maxPlayers, c_PB_Nexus) < 1 &&
+//        AIKnownUnitCount(player, c_maxPlayers, c_ZB_Hatchery_Alias) < 1)
+//    {
+//        return true;
+//    }    
+//    if (AIKnownUnitCount(player, c_maxPlayers, c_TB_Bunker) > 0 ||
+//        AIKnownUnitCount(player, c_maxPlayers, c_PB_PhotonCannon) > 0 ||
+//        AIKnownUnitCount(player, c_maxPlayers, c_ZB_SpineCrawler) > 0)
+//    {
+//        return true;
+//    }
+//    if (AIKnownUnitCount(player, c_maxPlayers, c_PB_Gateway) >= 2 ||
+//        AIKnownUnitCount(player, c_maxPlayers, c_TB_Barracks) >= 2)
+//    {
+//        return true;
+//    }
+//    if (AIKnownUnitCount(player, c_maxPlayers, c_PU_Zealot) >= 2 ||
+//        AIKnownUnitCount(player, c_maxPlayers, c_TU_Marine) >= 6 ||
+//        AIKnownUnitCount(player, c_maxPlayers, c_ZU_Zergling) >= 11)
+//    {
+//        return true;
+//    }
+//    return false;
+//}
+//
+////--------------------------------------------------------------------------------------------------
+//int AIRushChance (int player, int food) {
+//
+//    // never rush a turtle
+//    //
+//    if (AIKnownUnitCount(player, c_maxPlayers, c_TB_Bunker) > 0) {
+//        return 0;
+//    }
+//    if (AIKnownUnitCount(player, c_maxPlayers, c_PB_PhotonCannon) > 0) {
+//        return 0;
+//    }
+//    if (AIKnownUnitCount(player, c_maxPlayers, c_ZB_SpineCrawler) > 0) {
+//        return 0;
+//    }
+//
+//    // rush when we see enemy teching
+//    //
+//    if (AIKnownUnitCount(player, c_maxPlayers, c_TB_Refinery) >= 2) {
+//        return 100;
+//    }
+//    if (AIKnownUnitCount(player, c_maxPlayers, c_PB_Assimilator) >= 2) {
+//        return 100;
+//    }
+//    if (AIKnownUnitCount(player, c_maxPlayers, c_ZB_Extractor) >= 2) {
+//        return 100;
+//    }
+//
+//    // never rush when enemy builds decent defenses
+//    //
+//    if (AIKnownUnitCount(player, c_maxPlayers, c_PU_Zealot) >= food/2 - 2) {
+//        return 0;
+//    }
+//    if (AIKnownUnitCount(player, c_maxPlayers, c_TU_Marine) >= food - 3) {
+//        return 0;
+//    }
+//    if (AIKnownUnitCount(player, c_maxPlayers, c_ZU_Zergling) >= food*2 - 7) {
+//        return 0;
+//    }
+//
+//    // don't rush if we have not seen a town hall
+//    //
+//    if (AIKnownUnitCount(player, c_maxPlayers, c_TB_CommandCenter) < 1) {
+//        return 0;
+//    }
+//    if (AIKnownUnitCount(player, c_maxPlayers, c_PB_Nexus) < 1) {
+//        return 0;
+//    }
+//    if (AIKnownUnitCount(player, c_maxPlayers, c_ZB_Hatchery_Alias) < 1) {
+//        return 0;
+//    }
+//
+//    // usually don't rush if enemy might easily defend
+//    //
+//    if (AIKnownUnitCount(player, c_maxPlayers, c_TB_Barracks) >= 2) {
+//        return 20;
+//    }
+//    if (AIKnownUnitCount(player, c_maxPlayers, c_PB_Gateway) >= 2) {
+//        return 20;
+//    }
+//    if (AIKnownUnitCount(player, c_maxPlayers, c_ZB_Hatchery_Alias) >= 2) {
+//        return 20;
+//    }
+//
+//    // default chance to rush
+//    //
+//    return 50;
+//}

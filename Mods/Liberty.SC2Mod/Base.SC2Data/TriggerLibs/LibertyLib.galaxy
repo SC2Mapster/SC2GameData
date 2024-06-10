@@ -1,0 +1,919 @@
+include "TriggerLibs/NativeLib"
+
+//--------------------------------------------------------------------------------------------------
+// Library: Liberty
+//--------------------------------------------------------------------------------------------------
+// Variables
+playergroup libLbty_gv_meleeSurrender_PlayersSurrendering;
+playergroup libLbty_gv_meleeSurrender_PlayersTried;
+int[33] libLbty_gv_meleeSurrender_Dialog;
+int[33] libLbty_gv_meleeSurrender_BtnYes;
+int[33] libLbty_gv_meleeSurrender_BtnNo;
+int[33] libLbty_gv_meleeSurrender_Title;
+int libLbty_gv_meleeSurrender_FlashingPlayer;
+unit libLbty_gv_transportUnit_Param;
+point libLbty_gv_transportTargetPoint_Param;
+point libLbty_gv_transportDespawnPoint_Param;
+region libLbty_gv_autoRevealVisibilityRegion_Param;
+region libLbty_gv_autoRevealTriggeringRegion_Param;
+int libLbty_gv_autoRevealPlayer_Param;
+
+void libLbty_InitVariables () {
+    int init_i;
+
+    libLbty_gv_meleeSurrender_PlayersSurrendering = PlayerGroupEmpty();
+    libLbty_gv_meleeSurrender_PlayersTried = PlayerGroupEmpty();
+    init_i = 0;
+    while (init_i <= 32) {
+        libLbty_gv_meleeSurrender_Dialog[init_i] = c_invalidDialogId;
+        init_i = init_i + 1;
+    }
+    init_i = 0;
+    while (init_i <= 32) {
+        libLbty_gv_meleeSurrender_BtnYes[init_i] = c_invalidDialogControlId;
+        init_i = init_i + 1;
+    }
+    init_i = 0;
+    while (init_i <= 32) {
+        libLbty_gv_meleeSurrender_BtnNo[init_i] = c_invalidDialogControlId;
+        init_i = init_i + 1;
+    }
+    init_i = 0;
+    while (init_i <= 32) {
+        libLbty_gv_meleeSurrender_Title[init_i] = c_invalidDialogControlId;
+        init_i = init_i + 1;
+    }
+    libLbty_gv_meleeSurrender_FlashingPlayer = 0;
+    libLbty_gv_transportUnit_Param = null;
+    libLbty_gv_transportTargetPoint_Param = null;
+    libLbty_gv_transportDespawnPoint_Param = null;
+    libLbty_gv_autoRevealVisibilityRegion_Param = null;
+    libLbty_gv_autoRevealTriggeringRegion_Param = null;
+    libLbty_gv_autoRevealPlayer_Param = 0;
+}
+
+// Function Declarations
+void libLbty_gf_MeleeSurrender_AIWantToSurrender (int lp_player);
+void libLbty_gf_MeleeSurrender_UpdateDialogs ();
+point libLbty_gf_ValidatedPoint (point lp_point);
+void libLbty_gf_PlayAnnouncerNumberSound (int lp_number, playergroup lp_players, fixed lp_volume);
+void libLbty_gf_PlayTransmissionCueSound (playergroup lp_playerGroup);
+void libLbty_gf_SetAllSoundChannelVolumesStandardTiming (int lp_mode, playergroup lp_players);
+void libLbty_gf_OrderWorkerstoGatherNearbyResources (region lp_region, int lp_player);
+void libLbty_gf_OrderTransporttoUnloadAllthenDespawn (unit lp_transport, point lp_targetPoint, point lp_despawnPoint);
+void libLbty_gf_AutoRevealRegion (region lp_visibilityRegion, region lp_triggeringRegion, int lp_player);
+
+// Trigger Declarations
+trigger libLbty_gt_MeleeSurrender_Surrender;
+trigger libLbty_gt_MeleeSurrender_SurrenderYes;
+trigger libLbty_gt_MeleeSurrender_SurrenderNo;
+trigger libLbty_gt_MeleeSurrender_FlashDialog;
+trigger libLbty_gt_TransportController;
+trigger libLbty_gt_AutoRevealRegionController;
+
+// Functions
+void libLbty_gf_MeleeSurrender_AIWantToSurrender (int lp_player) {
+    playergroup auto6E437A13_g;
+    int auto6E437A13_p;
+
+    // Variable Declarations
+    int lv_dialogPlayer;
+    playergroup lv_dialogPlayerGroup;
+
+    // Variable Initialization
+    lv_dialogPlayer = 0;
+    lv_dialogPlayerGroup = PlayerGroupEmpty();
+
+    // Implementation
+    auto6E437A13_g = PlayerGroupAll();
+    auto6E437A13_p = 1;
+    while (auto6E437A13_p <= PlayerGroupCount(auto6E437A13_g)) {
+        lv_dialogPlayer = PlayerGroupPlayer(auto6E437A13_g, auto6E437A13_p);
+        if ((PlayerType(lv_dialogPlayer) == c_playerTypeUser) && (PlayerStatus(lv_dialogPlayer) == c_playerStatusActive)) {
+            PlayerGroupAdd(lv_dialogPlayerGroup, lv_dialogPlayer);
+        }
+        else {
+        }
+        if (lv_dialogPlayer == PlayerGroupPlayer(auto6E437A13_g, auto6E437A13_p)) {
+            auto6E437A13_p = auto6E437A13_p + 1;
+        }
+    }
+    PlayerGroupAdd(libLbty_gv_meleeSurrender_PlayersSurrendering, lp_player);
+    DialogCreate(460, 200, c_anchorTopRight, 40, 80, false);
+    libLbty_gv_meleeSurrender_Dialog[lp_player] = DialogLastCreated();
+    DialogControlCreate(DialogLastCreated(), c_triggerControlTypeLabel);
+    libLbty_gv_meleeSurrender_Title[lp_player] = DialogControlLastCreated();
+    libNtve_gf_SetDialogItemText(DialogControlLastCreated(), (TextWithColor(PlayerName(lp_player), libNtve_gf_ConvertPlayerColorToColor(PlayerGetColorIndex(lp_player, false))) + StringExternal("Param/Value/lib_Lbty_1D191C56")), PlayerGroupAll());
+    DialogControlSetSize(DialogControlLastCreated(), PlayerGroupAll(), 360, 50);
+    libNtve_gf_SetDialogItemStyle(DialogControlLastCreated(), "AISurrenderTitle", PlayerGroupAll());
+    DialogControlSetPosition(DialogControlLastCreated(), PlayerGroupAll(), c_anchorTop, 0, 45);
+    DialogControlCreate(DialogLastCreated(), c_triggerControlTypeLabel);
+    libNtve_gf_SetDialogItemText(DialogControlLastCreated(), (StringExternal("Param/Value/lib_Lbty_109B05BD")), PlayerGroupAll());
+    DialogControlSetSize(DialogControlLastCreated(), PlayerGroupAll(), 360, 50);
+    libNtve_gf_SetDialogItemStyle(DialogControlLastCreated(), "AISurrenderText", PlayerGroupAll());
+    DialogControlSetPosition(DialogControlLastCreated(), PlayerGroupAll(), c_anchorTop, 0, 85);
+    DialogControlCreate(DialogLastCreated(), c_triggerControlTypeButton);
+    libLbty_gv_meleeSurrender_BtnYes[lp_player] = DialogControlLastCreated();
+    libNtve_gf_SetDialogItemText(DialogControlLastCreated(), StringExternal("Param/Value/lib_Lbty_0EE84E8F"), PlayerGroupAll());
+    DialogControlSetSize(DialogControlLastCreated(), PlayerGroupAll(), 160, 45);
+    libNtve_gf_SetDialogItemStyle(DialogControlLastCreated(), "AISurrenderButton", PlayerGroupAll());
+    DialogControlSetPosition(DialogControlLastCreated(), PlayerGroupAll(), c_anchorBottom, -85, 35);
+    DialogControlCreate(DialogLastCreated(), c_triggerControlTypeButton);
+    libLbty_gv_meleeSurrender_BtnNo[lp_player] = DialogControlLastCreated();
+    libNtve_gf_SetDialogItemText(DialogControlLastCreated(), StringExternal("Param/Value/lib_Lbty_4022654D"), PlayerGroupAll());
+    DialogControlSetSize(DialogControlLastCreated(), PlayerGroupAll(), 160, 45);
+    libNtve_gf_SetDialogItemStyle(DialogControlLastCreated(), "AISurrenderButton", PlayerGroupAll());
+    DialogControlSetPosition(DialogControlLastCreated(), PlayerGroupAll(), c_anchorBottom, 85, 35);
+    DialogSetVisible(DialogLastCreated(), lv_dialogPlayerGroup, true);
+    libLbty_gf_MeleeSurrender_UpdateDialogs();
+    libLbty_gv_meleeSurrender_FlashingPlayer = lp_player;
+    TriggerExecute(libLbty_gt_MeleeSurrender_FlashDialog, true, false);
+}
+
+void libLbty_gf_MeleeSurrender_UpdateDialogs () {
+    playergroup autoC94FE865_g;
+    int autoC94FE865_p;
+
+    // Variable Declarations
+    int lv_y;
+    int lv_player;
+
+    // Variable Initialization
+    lv_y = 0;
+    lv_player = 0;
+
+    // Implementation
+    lv_y = 40;
+    autoC94FE865_g = libLbty_gv_meleeSurrender_PlayersSurrendering;
+    autoC94FE865_p = 1;
+    while (autoC94FE865_p <= PlayerGroupCount(autoC94FE865_g)) {
+        lv_player = PlayerGroupPlayer(autoC94FE865_g, autoC94FE865_p);
+        DialogSetPosition(libLbty_gv_meleeSurrender_Dialog[lv_player], c_anchorTopRight, 10, lv_y);
+        lv_y=lv_y + 200;
+        if (lv_player == PlayerGroupPlayer(autoC94FE865_g, autoC94FE865_p)) {
+            autoC94FE865_p = autoC94FE865_p + 1;
+        }
+    }
+}
+
+point libLbty_gf_ValidatedPoint (point lp_point) {
+    // Variable Declarations
+    fixed lv_boundsWest;
+    fixed lv_boundsEast;
+    fixed lv_boundsNorth;
+    fixed lv_boundsSouth;
+    fixed lv_returnX;
+    fixed lv_returnY;
+
+    // Variable Initialization
+    lv_boundsWest = 0.0;
+    lv_boundsEast = 0.0;
+    lv_boundsNorth = 0.0;
+    lv_boundsSouth = 0.0;
+    lv_returnX = 0.0;
+    lv_returnY = 0.0;
+
+    // Implementation
+    lv_boundsWest = (PointGetX(RegionGetCenter(RegionPlayableMap())) - (libNtve_gf_WidthOfRegion(RegionPlayableMap()) / 2.0));
+    lv_boundsEast = (PointGetX(RegionGetCenter(RegionPlayableMap())) + (libNtve_gf_WidthOfRegion(RegionPlayableMap()) / 2.0));
+    lv_boundsNorth = (PointGetY(RegionGetCenter(RegionPlayableMap())) + (libNtve_gf_HeightOfRegion(RegionPlayableMap()) / 2.0));
+    lv_boundsSouth = (PointGetY(RegionGetCenter(RegionPlayableMap())) - (libNtve_gf_HeightOfRegion(RegionPlayableMap()) / 2.0));
+    if ((PointGetX(lp_point) < lv_boundsWest)) {
+        lv_returnX = lv_boundsWest;
+    }
+    else {
+        if ((PointGetX(lp_point) > lv_boundsEast)) {
+            lv_returnX = lv_boundsEast;
+        }
+        else {
+            lv_returnX = PointGetX(lp_point);
+        }
+    }
+    if ((PointGetY(lp_point) < lv_boundsSouth)) {
+        lv_returnY = lv_boundsSouth;
+    }
+    else {
+        if ((PointGetY(lp_point) > lv_boundsNorth)) {
+            lv_returnY = lv_boundsNorth;
+        }
+        else {
+            lv_returnY = PointGetY(lp_point);
+        }
+    }
+    return Point(lv_returnX, lv_returnY);
+}
+
+void libLbty_gf_PlayAnnouncerNumberSound (int lp_number, playergroup lp_players, fixed lp_volume) {
+    int init_i;
+
+    int auto9950847A_as;
+    int auto9950847A_ae;
+    int auto9950847A_ai;
+    int auto52D8689C_as;
+    int auto52D8689C_ae;
+    int auto52D8689C_ai;
+    int auto3340955B_as;
+    int auto3340955B_ae;
+    int auto3340955B_ai;
+    int auto9CEBDA15_as;
+    int auto9CEBDA15_ae;
+    int auto9CEBDA15_ai;
+
+    // Variable Declarations
+    soundlink[20] lv_soundReferenceArray119;
+    soundlink[10] lv_soundReferenceArrayTens;
+    int lv_i;
+    string lv_soundIDString;
+    int lv_numberLength;
+    int lv_positionFromRight;
+    int lv_placeValue;
+    int lv_onesPlace;
+    int lv_tensPlace;
+    int lv_numberOfSoundsToPlay;
+    soundlink[15] lv_soundsToPlay;
+
+    // Variable Initialization
+    init_i = 0;
+    while (init_i <= 19) {
+        lv_soundReferenceArray119[init_i] = SoundLink("EditorDefaultSound", -1);
+        init_i = init_i + 1;
+    }
+    init_i = 0;
+    while (init_i <= 9) {
+        lv_soundReferenceArrayTens[init_i] = SoundLink("EditorDefaultSound", -1);
+        init_i = init_i + 1;
+    }
+    lv_i = 0;
+    lv_soundIDString = "";
+    lv_numberLength = 0;
+    lv_positionFromRight = 0;
+    lv_placeValue = 0;
+    lv_onesPlace = 0;
+    lv_tensPlace = 0;
+    lv_numberOfSoundsToPlay = 0;
+    init_i = 0;
+    while (init_i <= 14) {
+        lv_soundsToPlay[init_i] = SoundLink("EditorDefaultSound", -1);
+        init_i = init_i + 1;
+    }
+
+    // Implementation
+    if (((lp_number < 0) || (lp_number > 999999999))) {
+        return ;
+    }
+    else {
+    }
+    auto9950847A_as = 1;
+    auto9950847A_ae = 19;
+    auto9950847A_ai = 1;
+    lv_i = auto9950847A_as;
+    if (auto9950847A_ai > 0 || (auto9950847A_ai == 0 && auto9950847A_as < auto9950847A_ae)) {
+        while (lv_i <= auto9950847A_ae) {
+            lv_soundIDString = ("ModUtilityVoiceModUtilityVoice000" + IntToString((lv_i + 15)));
+            lv_soundReferenceArray119[lv_i] = SoundLink(lv_soundIDString, 0);
+            lv_i = lv_i + auto9950847A_ai;
+        }
+    }
+    else if (auto9950847A_ai < 0 || (auto9950847A_ai == 0 && auto9950847A_ae < auto9950847A_as)) {
+        while (lv_i >= auto9950847A_ae) {
+            lv_soundIDString = ("ModUtilityVoiceModUtilityVoice000" + IntToString((lv_i + 15)));
+            lv_soundReferenceArray119[lv_i] = SoundLink(lv_soundIDString, 0);
+            lv_i = lv_i + auto9950847A_ai;
+        }
+    }
+    auto52D8689C_as = 2;
+    auto52D8689C_ae = 9;
+    auto52D8689C_ai = 1;
+    lv_i = auto52D8689C_as;
+    if (auto52D8689C_ai > 0 || (auto52D8689C_ai == 0 && auto52D8689C_as < auto52D8689C_ae)) {
+        while (lv_i <= auto52D8689C_ae) {
+            lv_soundIDString = ("ModUtilityVoiceModUtilityVoice000" + IntToString((lv_i + 33)));
+            lv_soundReferenceArrayTens[lv_i] = SoundLink(lv_soundIDString, 0);
+            lv_i = lv_i + auto52D8689C_ai;
+        }
+    }
+    else if (auto52D8689C_ai < 0 || (auto52D8689C_ai == 0 && auto52D8689C_ae < auto52D8689C_as)) {
+        while (lv_i >= auto52D8689C_ae) {
+            lv_soundIDString = ("ModUtilityVoiceModUtilityVoice000" + IntToString((lv_i + 33)));
+            lv_soundReferenceArrayTens[lv_i] = SoundLink(lv_soundIDString, 0);
+            lv_i = lv_i + auto52D8689C_ai;
+        }
+    }
+    if ((lp_number == 0)) {
+        SoundPlay(SoundLink("ModUtilityVoiceModUtilityVoice00015", 0), lp_players, lp_volume, 0.0);
+        return ;
+    }
+    else {
+    }
+    if ((lp_number < 10)) {
+        SoundPlay(lv_soundReferenceArray119[lp_number], lp_players, lp_volume, 0.0);
+        return ;
+    }
+    else {
+    }
+    lv_numberLength = StringLength(IntToString(lp_number));
+    auto3340955B_as = 1;
+    auto3340955B_ae = lv_numberLength;
+    auto3340955B_ai = 1;
+    lv_i = auto3340955B_as;
+    if (auto3340955B_ai > 0 || (auto3340955B_ai == 0 && auto3340955B_as < auto3340955B_ae)) {
+        while (lv_i <= auto3340955B_ae) {
+            lv_positionFromRight = ((lv_numberLength + 1) - lv_i);
+            if ((ModI(lv_positionFromRight, 3) == 0)) {
+                lv_placeValue = StringToInt(StringSub(IntToString(lp_number), lv_i, lv_i));
+                if ((lv_placeValue != 0)) {
+                    lv_numberOfSoundsToPlay=lv_numberOfSoundsToPlay + 1;
+                    lv_soundsToPlay[lv_numberOfSoundsToPlay] = lv_soundReferenceArray119[lv_placeValue];
+                    lv_numberOfSoundsToPlay=lv_numberOfSoundsToPlay + 1;
+                    lv_soundsToPlay[lv_numberOfSoundsToPlay] = SoundLink("ModUtilityVoiceModUtilityVoice00043", -1);
+                }
+                else {
+                }
+            }
+            else {
+            }
+            if ((ModI((lv_positionFromRight + 1), 3) == 0)) {
+                lv_placeValue = StringToInt(StringSub(IntToString(lp_number), lv_i, (lv_i + 1)));
+                if ((lv_placeValue > 0)) {
+                    if ((lv_placeValue < 20)) {
+                        lv_numberOfSoundsToPlay=lv_numberOfSoundsToPlay + 1;
+                        lv_soundsToPlay[lv_numberOfSoundsToPlay] = lv_soundReferenceArray119[lv_placeValue];
+                    }
+                    else {
+                        lv_tensPlace = StringToInt(StringSub(IntToString(lv_placeValue), 1, 1));
+                        lv_onesPlace = StringToInt(StringSub(IntToString(lv_placeValue), 2, 2));
+                        lv_numberOfSoundsToPlay=lv_numberOfSoundsToPlay + 1;
+                        lv_soundsToPlay[lv_numberOfSoundsToPlay] = lv_soundReferenceArrayTens[lv_tensPlace];
+                        lv_numberOfSoundsToPlay=lv_numberOfSoundsToPlay + 1;
+                        lv_soundsToPlay[lv_numberOfSoundsToPlay] = lv_soundReferenceArray119[lv_onesPlace];
+                    }
+                }
+                else {
+                }
+            }
+            else {
+            }
+            if ((lv_positionFromRight == 4)) {
+                lv_placeValue = StringToInt(StringSub(IntToString(lp_number), lv_i, lv_i));
+                if ((lv_numberLength == 4)) {
+                    lv_numberOfSoundsToPlay=lv_numberOfSoundsToPlay + 1;
+                    lv_soundsToPlay[lv_numberOfSoundsToPlay] = lv_soundReferenceArray119[lv_placeValue];
+                }
+                else {
+                }
+                if ((lv_numberLength == 7)) {
+                    lv_placeValue = StringToInt(StringSub(IntToString(lp_number), 2, 4));
+                    if ((lv_placeValue > 0)) {
+                        lv_numberOfSoundsToPlay=lv_numberOfSoundsToPlay + 1;
+                        lv_soundsToPlay[lv_numberOfSoundsToPlay] = SoundLink("ModUtilityVoiceModUtilityVoice00044", -1);
+                    }
+                    else {
+                    }
+                }
+                else {
+                    lv_numberOfSoundsToPlay=lv_numberOfSoundsToPlay + 1;
+                    lv_soundsToPlay[lv_numberOfSoundsToPlay] = SoundLink("ModUtilityVoiceModUtilityVoice00044", -1);
+                }
+            }
+            else {
+            }
+            if ((lv_positionFromRight == 7)) {
+                if ((lv_numberLength == 7)) {
+                    lv_placeValue = StringToInt(StringSub(IntToString(lp_number), lv_i, lv_i));
+                    lv_numberOfSoundsToPlay=lv_numberOfSoundsToPlay + 1;
+                    lv_soundsToPlay[lv_numberOfSoundsToPlay] = lv_soundReferenceArray119[lv_placeValue];
+                }
+                else {
+                }
+                lv_numberOfSoundsToPlay=lv_numberOfSoundsToPlay + 1;
+                lv_soundsToPlay[lv_numberOfSoundsToPlay] = SoundLink("ModUtilityVoiceModUtilityVoice00045", -1);
+            }
+            else {
+            }
+            lv_i = lv_i + auto3340955B_ai;
+        }
+    }
+    else if (auto3340955B_ai < 0 || (auto3340955B_ai == 0 && auto3340955B_ae < auto3340955B_as)) {
+        while (lv_i >= auto3340955B_ae) {
+            lv_positionFromRight = ((lv_numberLength + 1) - lv_i);
+            if ((ModI(lv_positionFromRight, 3) == 0)) {
+                lv_placeValue = StringToInt(StringSub(IntToString(lp_number), lv_i, lv_i));
+                if ((lv_placeValue != 0)) {
+                    lv_numberOfSoundsToPlay=lv_numberOfSoundsToPlay + 1;
+                    lv_soundsToPlay[lv_numberOfSoundsToPlay] = lv_soundReferenceArray119[lv_placeValue];
+                    lv_numberOfSoundsToPlay=lv_numberOfSoundsToPlay + 1;
+                    lv_soundsToPlay[lv_numberOfSoundsToPlay] = SoundLink("ModUtilityVoiceModUtilityVoice00043", -1);
+                }
+                else {
+                }
+            }
+            else {
+            }
+            if ((ModI((lv_positionFromRight + 1), 3) == 0)) {
+                lv_placeValue = StringToInt(StringSub(IntToString(lp_number), lv_i, (lv_i + 1)));
+                if ((lv_placeValue > 0)) {
+                    if ((lv_placeValue < 20)) {
+                        lv_numberOfSoundsToPlay=lv_numberOfSoundsToPlay + 1;
+                        lv_soundsToPlay[lv_numberOfSoundsToPlay] = lv_soundReferenceArray119[lv_placeValue];
+                    }
+                    else {
+                        lv_tensPlace = StringToInt(StringSub(IntToString(lv_placeValue), 1, 1));
+                        lv_onesPlace = StringToInt(StringSub(IntToString(lv_placeValue), 2, 2));
+                        lv_numberOfSoundsToPlay=lv_numberOfSoundsToPlay + 1;
+                        lv_soundsToPlay[lv_numberOfSoundsToPlay] = lv_soundReferenceArrayTens[lv_tensPlace];
+                        lv_numberOfSoundsToPlay=lv_numberOfSoundsToPlay + 1;
+                        lv_soundsToPlay[lv_numberOfSoundsToPlay] = lv_soundReferenceArray119[lv_onesPlace];
+                    }
+                }
+                else {
+                }
+            }
+            else {
+            }
+            if ((lv_positionFromRight == 4)) {
+                lv_placeValue = StringToInt(StringSub(IntToString(lp_number), lv_i, lv_i));
+                if ((lv_numberLength == 4)) {
+                    lv_numberOfSoundsToPlay=lv_numberOfSoundsToPlay + 1;
+                    lv_soundsToPlay[lv_numberOfSoundsToPlay] = lv_soundReferenceArray119[lv_placeValue];
+                }
+                else {
+                }
+                if ((lv_numberLength == 7)) {
+                    lv_placeValue = StringToInt(StringSub(IntToString(lp_number), 2, 4));
+                    if ((lv_placeValue > 0)) {
+                        lv_numberOfSoundsToPlay=lv_numberOfSoundsToPlay + 1;
+                        lv_soundsToPlay[lv_numberOfSoundsToPlay] = SoundLink("ModUtilityVoiceModUtilityVoice00044", -1);
+                    }
+                    else {
+                    }
+                }
+                else {
+                    lv_numberOfSoundsToPlay=lv_numberOfSoundsToPlay + 1;
+                    lv_soundsToPlay[lv_numberOfSoundsToPlay] = SoundLink("ModUtilityVoiceModUtilityVoice00044", -1);
+                }
+            }
+            else {
+            }
+            if ((lv_positionFromRight == 7)) {
+                if ((lv_numberLength == 7)) {
+                    lv_placeValue = StringToInt(StringSub(IntToString(lp_number), lv_i, lv_i));
+                    lv_numberOfSoundsToPlay=lv_numberOfSoundsToPlay + 1;
+                    lv_soundsToPlay[lv_numberOfSoundsToPlay] = lv_soundReferenceArray119[lv_placeValue];
+                }
+                else {
+                }
+                lv_numberOfSoundsToPlay=lv_numberOfSoundsToPlay + 1;
+                lv_soundsToPlay[lv_numberOfSoundsToPlay] = SoundLink("ModUtilityVoiceModUtilityVoice00045", -1);
+            }
+            else {
+            }
+            lv_i = lv_i + auto3340955B_ai;
+        }
+    }
+    auto9CEBDA15_as = 1;
+    auto9CEBDA15_ae = lv_numberOfSoundsToPlay;
+    auto9CEBDA15_ai = 1;
+    lv_i = auto9CEBDA15_as;
+    if (auto9CEBDA15_ai > 0 || (auto9CEBDA15_ai == 0 && auto9CEBDA15_as < auto9CEBDA15_ae)) {
+        while (lv_i <= auto9CEBDA15_ae) {
+            SoundPlay(lv_soundsToPlay[lv_i], lp_players, lp_volume, 0.0);
+            SoundWait(SoundLastPlayed(), 0.25, c_soundOffsetEnd);
+            lv_i = lv_i + auto9CEBDA15_ai;
+        }
+    }
+    else if (auto9CEBDA15_ai < 0 || (auto9CEBDA15_ai == 0 && auto9CEBDA15_ae < auto9CEBDA15_as)) {
+        while (lv_i >= auto9CEBDA15_ae) {
+            SoundPlay(lv_soundsToPlay[lv_i], lp_players, lp_volume, 0.0);
+            SoundWait(SoundLastPlayed(), 0.25, c_soundOffsetEnd);
+            lv_i = lv_i + auto9CEBDA15_ai;
+        }
+    }
+}
+
+void libLbty_gf_PlayTransmissionCueSound (playergroup lp_playerGroup) {
+    // Implementation
+    SoundPlay(SoundLink("Dialogue_TransmissionStart", 0), lp_playerGroup, 100.0, 0.0);
+    Wait(0.25, c_timeReal);
+}
+
+void libLbty_gf_SetAllSoundChannelVolumesStandardTiming (int lp_mode, playergroup lp_players) {
+    // Implementation
+    if ((lp_mode == 2)) {
+        libNtve_gf_SetAllSoundChannelVolumes(lp_mode, lp_players, 2.5);
+        SoundChannelSetVolume(lp_players, c_soundCategoryVoice, 100.0, 0.5);
+    }
+    else {
+        libNtve_gf_SetAllSoundChannelVolumes(lp_mode, lp_players, 1.0);
+        SoundChannelSetVolume(lp_players, c_soundCategoryVoice, 0.0, 0.25);
+    }
+}
+
+void libLbty_gf_OrderWorkerstoGatherNearbyResources (region lp_region, int lp_player) {
+    unitgroup auto9E4A1F0D_g;
+    int auto9E4A1F0D_u;
+    unitgroup auto454CE27F_g;
+    int auto454CE27F_u;
+
+    // Variable Declarations
+    unitgroup lv_resourceGroup;
+    unit lv_potentialResource;
+    fixed lv_currentDistance;
+    fixed lv_lowestDistance;
+    unit lv_resourceToHarvest;
+
+    // Variable Initialization
+    lv_resourceGroup = UnitGroupEmpty();
+    lv_potentialResource = null;
+    lv_currentDistance = 0.0;
+    lv_lowestDistance = 0.0;
+    lv_resourceToHarvest = null;
+
+    // Implementation
+    UnitGroupLoopBegin(UnitGroup(null, lp_player, lp_region, UnitFilter((1 << c_targetFilterWorker), 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0));
+    while (!UnitGroupLoopDone()) {
+        UnitGroupClear(lv_resourceGroup);
+        auto9E4A1F0D_g = UnitGroup(null, c_playerAny, RegionCircle(UnitGetPosition(UnitGroupLoopCurrent()), 6.0), UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 0);
+        auto9E4A1F0D_u = 1;
+        while (auto9E4A1F0D_u <= UnitGroupCount(auto9E4A1F0D_g, c_unitCountAll)) {
+            lv_potentialResource = UnitGroupUnit(auto9E4A1F0D_g, auto9E4A1F0D_u);
+            if (((UnitGetType(lv_potentialResource) == "MineralField") || (UnitGetType(lv_potentialResource) == "RichMineralField") || (UnitGetType(lv_potentialResource) == "Refinery") || (UnitGetType(lv_potentialResource) == "Extractor") || (UnitGetType(lv_potentialResource) == "Assimilator")) && ((UnitGetOwner(lv_potentialResource) == 0) || (UnitGetOwner(lv_potentialResource) == lp_player))) {
+                UnitGroupAdd(lv_resourceGroup, lv_potentialResource);
+            }
+            else {
+            }
+            if (lv_potentialResource == UnitGroupUnit(auto9E4A1F0D_g, auto9E4A1F0D_u)) {
+                auto9E4A1F0D_u = auto9E4A1F0D_u + 1;
+            }
+        }
+        if ((UnitGroupCount(lv_resourceGroup, c_unitCountAlive) > 0)) {
+            lv_lowestDistance = 7.0;
+            auto454CE27F_g = lv_resourceGroup;
+            auto454CE27F_u = 1;
+            while (auto454CE27F_u <= UnitGroupCount(auto454CE27F_g, c_unitCountAll)) {
+                lv_potentialResource = UnitGroupUnit(auto454CE27F_g, auto454CE27F_u);
+                lv_currentDistance = (DistanceBetweenPoints(UnitGetPosition(UnitGroupLoopCurrent()), UnitGetPosition(lv_potentialResource)) - UnitGetPropertyFixed(lv_potentialResource, c_unitPropRadius, c_unitPropCurrent));
+                if ((lv_currentDistance < lv_lowestDistance)) {
+                    lv_lowestDistance = lv_currentDistance;
+                    lv_resourceToHarvest = lv_potentialResource;
+                }
+                else {
+                }
+                if (lv_potentialResource == UnitGroupUnit(auto454CE27F_g, auto454CE27F_u)) {
+                    auto454CE27F_u = auto454CE27F_u + 1;
+                }
+            }
+            UnitIssueOrder(UnitGroupLoopCurrent(), OrderTargetingUnit(null, lv_resourceToHarvest), c_orderQueueReplace);
+        }
+        else {
+        }
+        UnitGroupLoopStep();
+    }
+    UnitGroupLoopEnd();
+}
+
+void libLbty_gf_OrderTransporttoUnloadAllthenDespawn (unit lp_transport, point lp_targetPoint, point lp_despawnPoint) {
+    // Implementation
+    libLbty_gv_transportUnit_Param = lp_transport;
+    libLbty_gv_transportTargetPoint_Param = lp_targetPoint;
+    libLbty_gv_transportDespawnPoint_Param = lp_despawnPoint;
+    TriggerExecute(libLbty_gt_TransportController, true, false);
+}
+
+void libLbty_gf_AutoRevealRegion (region lp_visibilityRegion, region lp_triggeringRegion, int lp_player) {
+    // Implementation
+    libLbty_gv_autoRevealVisibilityRegion_Param = lp_visibilityRegion;
+    libLbty_gv_autoRevealTriggeringRegion_Param = lp_triggeringRegion;
+    libLbty_gv_autoRevealPlayer_Param = lp_player;
+    TriggerExecute(libLbty_gt_AutoRevealRegionController, true, false);
+}
+
+// Triggers
+//--------------------------------------------------------------------------------------------------
+// Trigger: MeleeSurrender_Surrender
+//--------------------------------------------------------------------------------------------------
+bool libLbty_gt_MeleeSurrender_Surrender_Func (bool testConds, bool runActions) {
+    playergroup auto1DA84066_g;
+    int auto1DA84066_p;
+    playergroup auto576EC8AD_g;
+    int auto576EC8AD_p;
+
+    // Variable Declarations
+    int lv_player;
+    bool lv_meleeAIUsed;
+
+    // Variable Initialization
+    lv_player = 0;
+    lv_meleeAIUsed = false;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto1DA84066_g = PlayerGroupAll();
+    auto1DA84066_p = 1;
+    while (auto1DA84066_p <= PlayerGroupCount(auto1DA84066_g)) {
+        lv_player = PlayerGroupPlayer(auto1DA84066_g, auto1DA84066_p);
+        if ((PlayerType(lv_player) == c_playerTypeComputer) && (AIIsCampaign(lv_player) == false)) {
+            lv_meleeAIUsed = true;
+            break;
+        }
+        else {
+        }
+        if (lv_player == PlayerGroupPlayer(auto1DA84066_g, auto1DA84066_p)) {
+            auto1DA84066_p = auto1DA84066_p + 1;
+        }
+    }
+    if ((lv_meleeAIUsed == false)) {
+        TriggerEnable(TriggerGetCurrent(), false);
+        return true;
+    }
+    else {
+    }
+    auto576EC8AD_g = PlayerGroupAll();
+    auto576EC8AD_p = 1;
+    while (auto576EC8AD_p <= PlayerGroupCount(auto576EC8AD_g)) {
+        lv_player = PlayerGroupPlayer(auto576EC8AD_g, auto576EC8AD_p);
+        if ((PlayerType(lv_player) == c_playerTypeComputer) && (AIIsCampaign(lv_player) == false)) {
+            if ((AIGivingUp(lv_player) == true) && (PlayerGroupHasPlayer(libLbty_gv_meleeSurrender_PlayersSurrendering, lv_player) == false) && (PlayerGroupHasPlayer(libLbty_gv_meleeSurrender_PlayersTried, lv_player) == false)) {
+                libLbty_gf_MeleeSurrender_AIWantToSurrender(lv_player);
+            }
+            else {
+            }
+        }
+        else {
+        }
+        if ((PlayerGroupHasPlayer(libLbty_gv_meleeSurrender_PlayersSurrendering, lv_player) == true) && ((PlayerStatus(lv_player) != c_playerStatusActive) || (AIGivingUp(lv_player) == false))) {
+            PlayerGroupRemove(libLbty_gv_meleeSurrender_PlayersSurrendering, lv_player);
+            DialogDestroy(libLbty_gv_meleeSurrender_Dialog[lv_player]);
+            libLbty_gv_meleeSurrender_Dialog[lv_player] = c_invalidDialogId;
+            libLbty_gf_MeleeSurrender_UpdateDialogs();
+        }
+        else {
+        }
+        if (lv_player == PlayerGroupPlayer(auto576EC8AD_g, auto576EC8AD_p)) {
+            auto576EC8AD_p = auto576EC8AD_p + 1;
+        }
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLbty_gt_MeleeSurrender_Surrender_Init () {
+    libLbty_gt_MeleeSurrender_Surrender = TriggerCreate("libLbty_gt_MeleeSurrender_Surrender_Func");
+    TriggerAddEventTimePeriodic(libLbty_gt_MeleeSurrender_Surrender, 1.0, c_timeGame);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MeleeSurrender_Surrender Yes
+//--------------------------------------------------------------------------------------------------
+bool libLbty_gt_MeleeSurrender_SurrenderYes_Func (bool testConds, bool runActions) {
+    playergroup auto81B1DF8B_g;
+    int auto81B1DF8B_p;
+
+    // Variable Declarations
+    int lv_player;
+
+    // Variable Initialization
+    lv_player = 0;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto81B1DF8B_g = PlayerGroupAll();
+    auto81B1DF8B_p = 1;
+    while (auto81B1DF8B_p <= PlayerGroupCount(auto81B1DF8B_g)) {
+        lv_player = PlayerGroupPlayer(auto81B1DF8B_g, auto81B1DF8B_p);
+        if ((libLbty_gv_meleeSurrender_BtnYes[lv_player] == EventDialogControl())) {
+            PlayerGroupRemove(libLbty_gv_meleeSurrender_PlayersSurrendering, lv_player);
+            DialogDestroy(libLbty_gv_meleeSurrender_Dialog[lv_player]);
+            libLbty_gv_meleeSurrender_Dialog[lv_player] = c_invalidDialogId;
+            libLbty_gf_MeleeSurrender_UpdateDialogs();
+            AIGoodGame(lv_player);
+            return true;
+        }
+        else {
+        }
+        if (lv_player == PlayerGroupPlayer(auto81B1DF8B_g, auto81B1DF8B_p)) {
+            auto81B1DF8B_p = auto81B1DF8B_p + 1;
+        }
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLbty_gt_MeleeSurrender_SurrenderYes_Init () {
+    libLbty_gt_MeleeSurrender_SurrenderYes = TriggerCreate("libLbty_gt_MeleeSurrender_SurrenderYes_Func");
+    TriggerAddEventDialogControl(libLbty_gt_MeleeSurrender_SurrenderYes, c_playerAny, c_invalidDialogControlId, c_triggerControlEventTypeClick);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MeleeSurrender_Surrender No
+//--------------------------------------------------------------------------------------------------
+bool libLbty_gt_MeleeSurrender_SurrenderNo_Func (bool testConds, bool runActions) {
+    playergroup auto7C276068_g;
+    int auto7C276068_p;
+
+    // Variable Declarations
+    int lv_player;
+
+    // Variable Initialization
+    lv_player = 0;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    auto7C276068_g = PlayerGroupAll();
+    auto7C276068_p = 1;
+    while (auto7C276068_p <= PlayerGroupCount(auto7C276068_g)) {
+        lv_player = PlayerGroupPlayer(auto7C276068_g, auto7C276068_p);
+        if ((libLbty_gv_meleeSurrender_BtnNo[lv_player] == EventDialogControl())) {
+            PlayerGroupAdd(libLbty_gv_meleeSurrender_PlayersTried, lv_player);
+            PlayerGroupRemove(libLbty_gv_meleeSurrender_PlayersSurrendering, lv_player);
+            DialogDestroy(libLbty_gv_meleeSurrender_Dialog[lv_player]);
+            libLbty_gv_meleeSurrender_Dialog[lv_player] = c_invalidDialogId;
+            libLbty_gf_MeleeSurrender_UpdateDialogs();
+            return true;
+        }
+        else {
+        }
+        if (lv_player == PlayerGroupPlayer(auto7C276068_g, auto7C276068_p)) {
+            auto7C276068_p = auto7C276068_p + 1;
+        }
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLbty_gt_MeleeSurrender_SurrenderNo_Init () {
+    libLbty_gt_MeleeSurrender_SurrenderNo = TriggerCreate("libLbty_gt_MeleeSurrender_SurrenderNo_Func");
+    TriggerAddEventDialogControl(libLbty_gt_MeleeSurrender_SurrenderNo, c_playerAny, c_invalidDialogControlId, c_triggerControlEventTypeClick);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: MeleeSurrender_FlashDialog
+//--------------------------------------------------------------------------------------------------
+bool libLbty_gt_MeleeSurrender_FlashDialog_Func (bool testConds, bool runActions) {
+    int auto9A1B90A5_n;
+    int auto9A1B90A5_i;
+
+    // Variable Declarations
+    int lv_player;
+
+    // Variable Initialization
+    lv_player = 0;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_player = libLbty_gv_meleeSurrender_FlashingPlayer;
+    auto9A1B90A5_n = 5;
+    auto9A1B90A5_i = 1;
+    while (auto9A1B90A5_i <= auto9A1B90A5_n) {
+        if ((PlayerGroupHasPlayer(libLbty_gv_meleeSurrender_PlayersSurrendering, lv_player) == false)) {
+            break;
+        }
+        else {
+        }
+        libNtve_gf_SetDialogItemStyle(libLbty_gv_meleeSurrender_Title[lv_player], "AISurrenderTitle", PlayerGroupAll());
+        Wait(0.6, c_timeReal);
+        if ((PlayerGroupHasPlayer(libLbty_gv_meleeSurrender_PlayersSurrendering, lv_player) == false)) {
+            break;
+        }
+        else {
+        }
+        libNtve_gf_SetDialogItemStyle(libLbty_gv_meleeSurrender_Title[lv_player], "AISurrenderTitleAlt", PlayerGroupAll());
+        Wait(0.6, c_timeReal);
+        auto9A1B90A5_i = auto9A1B90A5_i + 1;
+    }
+    libNtve_gf_SetDialogItemStyle(libLbty_gv_meleeSurrender_Title[lv_player], "AISurrenderTitle", PlayerGroupAll());
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLbty_gt_MeleeSurrender_FlashDialog_Init () {
+    libLbty_gt_MeleeSurrender_FlashDialog = TriggerCreate("libLbty_gt_MeleeSurrender_FlashDialog_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Transport Controller
+//--------------------------------------------------------------------------------------------------
+bool libLbty_gt_TransportController_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    unit lv_transportUnit;
+    point lv_transportTargetPoint;
+    point lv_transportDespawnPoint;
+
+    // Variable Initialization
+    lv_transportUnit = null;
+    lv_transportTargetPoint = null;
+    lv_transportDespawnPoint = null;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_transportUnit = libLbty_gv_transportUnit_Param;
+    lv_transportTargetPoint = libLbty_gf_ValidatedPoint(libLbty_gv_transportTargetPoint_Param);
+    lv_transportDespawnPoint = libLbty_gf_ValidatedPoint(libLbty_gv_transportDespawnPoint_Param);
+    if ((UnitCargoValue(lv_transportUnit, c_unitCargoSpaceTotal) == 0)) {
+        return true;
+    }
+    else {
+    }
+    while (true) {
+        if ((UnitIsAlive(lv_transportUnit) == false)) {
+            return true;
+        }
+        else {
+        }
+        if ((UnitCargoValue(lv_transportUnit, c_unitCargoUnitCount) > 0)) {
+            UnitIssueOrder(lv_transportUnit, OrderTargetingPoint(AbilityCommand("MedivacTransport", 2), lv_transportTargetPoint), c_orderQueueReplace);
+        }
+        else {
+            if ((RegionContainsPoint(RegionCircle(lv_transportDespawnPoint, 1.0), UnitGetPosition(lv_transportUnit)) == true)) {
+                UnitRemove(lv_transportUnit);
+                return true;
+            }
+            else {
+                UnitIssueOrder(lv_transportUnit, OrderTargetingPoint(AbilityCommand("move", 0), lv_transportDespawnPoint), c_orderQueueReplace);
+            }
+        }
+        Wait(1.0, c_timeGame);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLbty_gt_TransportController_Init () {
+    libLbty_gt_TransportController = TriggerCreate("libLbty_gt_TransportController_Func");
+}
+
+//--------------------------------------------------------------------------------------------------
+// Trigger: Auto-Reveal Region Controller
+//--------------------------------------------------------------------------------------------------
+bool libLbty_gt_AutoRevealRegionController_Func (bool testConds, bool runActions) {
+    // Variable Declarations
+    region lv_visibilityRegion;
+    region lv_triggeringRegion;
+    int lv_player;
+    revealer lv_revealer;
+
+    // Variable Initialization
+    lv_visibilityRegion = null;
+    lv_triggeringRegion = null;
+    lv_player = 0;
+    lv_revealer = null;
+
+    // Actions
+    if (!runActions) {
+        return true;
+    }
+
+    lv_visibilityRegion = libLbty_gv_autoRevealVisibilityRegion_Param;
+    lv_triggeringRegion = libLbty_gv_autoRevealTriggeringRegion_Param;
+    lv_player = libLbty_gv_autoRevealPlayer_Param;
+    VisRevealerCreate(lv_player, lv_visibilityRegion);
+    lv_revealer = VisRevealerLastCreated();
+    VisRevealerEnable(lv_revealer, false);
+    while (true) {
+        if ((UnitGroupCount(UnitGroup(null, lv_player, lv_triggeringRegion, UnitFilter(0, 0, (1 << c_targetFilterMissile), (1 << (c_targetFilterDead - 32)) | (1 << (c_targetFilterHidden - 32))), 1), c_unitCountAlive) > 0)) {
+            VisRevealerEnable(lv_revealer, true);
+        }
+        else {
+            VisRevealerEnable(lv_revealer, false);
+        }
+        Wait(1.0, c_timeGame);
+    }
+    return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+void libLbty_gt_AutoRevealRegionController_Init () {
+    libLbty_gt_AutoRevealRegionController = TriggerCreate("libLbty_gt_AutoRevealRegionController_Func");
+}
+
+void libLbty_InitTriggers () {
+    libLbty_gt_MeleeSurrender_Surrender_Init();
+    libLbty_gt_MeleeSurrender_SurrenderYes_Init();
+    libLbty_gt_MeleeSurrender_SurrenderNo_Init();
+    libLbty_gt_MeleeSurrender_FlashDialog_Init();
+    libLbty_gt_TransportController_Init();
+    libLbty_gt_AutoRevealRegionController_Init();
+}
+
+//--------------------------------------------------------------------------------------------------
+// Library Initialization
+//--------------------------------------------------------------------------------------------------
+void libLbty_InitLib () {
+    libLbty_InitVariables();
+    libLbty_InitTriggers();
+}
+
