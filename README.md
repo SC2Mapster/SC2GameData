@@ -2,4 +2,7 @@
 
 GameData, UI and Galaxy files
 
-This repository is being updated using [helper script in Lua](https://github.com/SC2Mapster/tools/blob/master/update.lua), which then calls [stormex](https://github.com/Talv/stormex) with appropiate set of filters to get files out of CASC.
+---
+
+⚠️ **NOTICE**: This repository is no longer receiving active updates.
+- Tooling and automation is broken and maintainers do not have the time nor energy to do anything with this for now.
